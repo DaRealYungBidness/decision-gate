@@ -1,0 +1,16 @@
+# Copyright (c) 2026 Michael Campbell. All rights reserved.
+# Decision Gate File Disclosure Example manifest
+
+[package]
+name = "decision-gate-example-file-disclosure"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+
+[dependencies]
+decision-gate-core = { path = "../../decision-gate-core" }
+decision-gate-broker = { path = "../../decision-gate-broker" }
+ret-logic = { path = "../../ret-logic" }
+serde_json = "1.0"
+tempfile = "3.10"
+url = "2.5"

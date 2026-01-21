@@ -1,0 +1,10 @@
+[workspace]
+members = [
+    "decision-gate-core",
+    "decision-gate-broker",
+    "ret-logic",
+    "examples/minimal",
+    "examples/file-disclosure",
+    "examples/llm-scenario",
+]
+resolver = "3"

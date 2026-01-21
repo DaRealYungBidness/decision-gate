@@ -1,2 +1,6 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Auto-detect text files and perform LF normalization
+* text=auto eol=lf
+
+# Lock vendored dependencies to exact bytes (no filters, no EOL conversion)
+# Treat them as binary for diff and merge purposes
+/vendor/** binary -text -diff

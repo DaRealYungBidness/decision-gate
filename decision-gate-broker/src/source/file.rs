@@ -1,0 +1,88 @@
+// decision-gate-broker/src/source/file.rs
+// ============================================================================
+// Module: Decision Gate File Source
+// Description: File-backed source for external payload resolution.
+// Purpose: Read payload bytes from local files.
+// Dependencies: std, url
+// ============================================================================
+
+//! ## Overview
+//! FileSource resolves `file://` URIs into payload bytes. A root directory can
+//! be configured to fail closed on path traversal.
+
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
+
+use std::path::PathBuf;
+
+use decision_gate_core::ContentRef;
+use url::Url;
+
+use crate::source::Source;
+use crate::source::SourceError;
+use crate::source::SourcePayload;
+
+// ============================================================================
+// SECTION: File Source
+// ============================================================================
+
+/// File-backed payload source.
+#[derive(Debug, Clone)]
+pub struct FileSource {
+    root: Option<PathBuf>,
+}
+
+impl FileSource {
+    /// Creates a file source rooted at the provided directory.
+    #[must_use]
+    pub fn new(root: impl Into<PathBuf>) -> Self {
+        Self {
+            root: Some(root.into()),
+        }
+    }
+
+    /// Creates a file source with no root restrictions.
+    #[must_use]
+    pub fn unrestricted() -> Self {
+        Self {
+            root: None,
+        }
+    }
+
+    /// Resolves a file URI into a local path.
+    fn resolve_path(&self, uri: &str) -> Result<PathBuf, SourceError> {
+        let url = Url::parse(uri).map_err(|err| SourceError::InvalidUri(err.to_string()))?;
+        if url.scheme() != "file" {
+            return Err(SourceError::UnsupportedScheme(url.scheme().to_string()));
+        }
+        let path = url
+            .to_file_path()
+            .map_err(|_| SourceError::InvalidUri("failed to map file url to path".to_string()))?;
+
+        if let Some(root) = &self.root {
+            let root =
+                std::fs::canonicalize(root).map_err(|err| SourceError::Io(err.to_string()))?;
+            let resolved = std::fs::canonicalize(&path)
+                .map_err(|err| SourceError::NotFound(err.to_string()))?;
+            if !resolved.starts_with(&root) {
+                return Err(SourceError::InvalidUri(
+                    "file path escapes configured root".to_string(),
+                ));
+            }
+        }
+
+        Ok(path)
+    }
+}
+
+impl Source for FileSource {
+    fn fetch(&self, content_ref: &ContentRef) -> Result<SourcePayload, SourceError> {
+        let path = self.resolve_path(&content_ref.uri)?;
+        let bytes = std::fs::read(&path).map_err(|err| SourceError::Io(err.to_string()))?;
+        Ok(SourcePayload {
+            bytes,
+            content_type: None,
+        })
+    }
+}

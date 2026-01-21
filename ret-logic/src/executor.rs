@@ -1,0 +1,377 @@
+// world_engine/src/requirement/executor.rs
+// ============================================================================
+// Module: Requirement Executor
+// Description: Prepared plan execution infrastructure for requirements.
+// Purpose: Run compiled plans using domain dispatch tables and shared helpers.
+// Dependencies: crate::requirement::{error, plan, traits}
+// ============================================================================
+
+//! ## Overview
+//! Executes compiled requirement plans with a reusable stack machine while
+//! exposing helpers for dispatch table construction and optimized operation
+//! implementations. Domains implement `PredicateEval` for `PlanExecutor` via their
+//! reader types.
+
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
+
+use super::error::RequirementError;
+use super::error::RequirementResult;
+use super::plan::Constant;
+use super::plan::OpCode;
+use super::plan::Operation;
+use super::plan::Plan;
+use super::traits::BatchPredicateEval;
+use super::traits::PredicateEval;
+use super::traits::Row;
+
+// ============================================================================
+// SECTION: Type Aliases
+// ============================================================================
+
+/// Type alias for evaluation function pointers used in the dispatch table.
+/// Maps an opcode to a function that evaluates a row against an operation with constants.
+type EvalFn<R> = fn(&R, Row, &Operation, &[Constant]) -> RequirementResult<bool>;
+
+/// Type alias for the complete evaluation dispatch table.
+/// Contains 256 function pointers, one for each possible opcode value.
+type EvalTable<R> = [EvalFn<R>; 256];
+
+// ============================================================================
+// SECTION: Plan Executor
+// ============================================================================
+
+/// Generic plan executor that implements evaluation traits over any Reader type
+///
+/// This structure bridges the gap between compiled plans and the evaluation trait system.
+/// Domains provide a dispatch table that maps opcodes to evaluation functions over their
+/// specific reader types.
+pub struct PlanExecutor<R: 'static> {
+    /// The compiled plan to execute
+    pub plan: Plan,
+
+    /// Dispatch table mapping opcodes to evaluation functions
+    /// Index by `OpCode` as u8, contains function pointers for row evaluation
+    pub eval_table: &'static EvalTable<R>,
+}
+
+// ============================================================================
+// SECTION: Plan Executor Methods
+// ============================================================================
+
+impl<R: 'static> PlanExecutor<R> {
+    /// Creates a new plan executor with the given plan and dispatch table
+    ///
+    /// # Arguments
+    /// * `plan` - The compiled plan to execute
+    /// * `eval_table` - Static dispatch table for opcode evaluation
+    ///
+    /// # Returns
+    /// A new plan executor ready for evaluation
+    pub fn new(plan: Plan, eval_table: &'static EvalTable<R>) -> Self {
+        Self {
+            plan,
+            eval_table,
+        }
+    }
+
+    /// Returns a reference to the underlying plan
+    #[must_use]
+    pub const fn plan(&self) -> &Plan {
+        &self.plan
+    }
+
+    /// Returns the required columns for this executor's plan
+    #[must_use]
+    pub fn required_columns(&self) -> &[super::plan::ColumnKey] {
+        self.plan.required_columns()
+    }
+}
+
+// ============================================================================
+// SECTION: Predicate Evaluation
+// ============================================================================
+
+impl<R: 'static> PredicateEval for PlanExecutor<R> {
+    type Reader<'a> = R;
+
+    fn eval_row(&self, reader: &Self::Reader<'_>, row: Row) -> bool {
+        // Use a small stack for boolean logic evaluation
+        let mut stack: [bool; 16] = [true; 16];
+        let mut stack_pointer = 0usize;
+
+        // Execute operations in sequence
+        for operation in self.plan.operations() {
+            match operation.opcode {
+                OpCode::AndStart => {
+                    // Push a new AND context
+                    stack_pointer += 1;
+                    if stack_pointer >= stack.len() {
+                        // Stack overflow protection - treat as false
+                        return false;
+                    }
+                    stack[stack_pointer] = true;
+                }
+
+                OpCode::AndEnd => {
+                    // Pop AND context and combine with parent
+                    if stack_pointer == 0 {
+                        // Malformed plan - no matching start
+                        return false;
+                    }
+                    let and_result = stack[stack_pointer];
+                    stack_pointer -= 1;
+                    stack[stack_pointer] = stack[stack_pointer] && and_result;
+                }
+
+                OpCode::OrStart => {
+                    // Push a new OR context
+                    stack_pointer += 1;
+                    if stack_pointer >= stack.len() {
+                        // Stack overflow protection - treat as false
+                        return false;
+                    }
+                    stack[stack_pointer] = false;
+                }
+
+                OpCode::OrEnd => {
+                    // Pop OR context and combine with parent
+                    if stack_pointer == 0 {
+                        // Malformed plan - no matching start
+                        return false;
+                    }
+                    let or_result = stack[stack_pointer];
+                    stack_pointer -= 1;
+                    stack[stack_pointer] = stack[stack_pointer] || or_result;
+                }
+
+                OpCode::Not => {
+                    // NOT operation inverts the current context
+                    stack[stack_pointer] = !stack[stack_pointer];
+                }
+
+                _ => {
+                    // Domain-specific operation - delegate to dispatch table
+                    let eval_fn = self.eval_table[operation.opcode as u8 as usize];
+
+                    match eval_fn(reader, row, operation, &self.plan.constants) {
+                        Ok(result) => {
+                            // For AND contexts, combine with AND
+                            // For OR contexts, combine with OR
+                            // This assumes the context determines the combination logic
+                            stack[stack_pointer] = stack[stack_pointer] && result;
+                        }
+                        Err(_) => {
+                            // Evaluation error - treat as false
+                            stack[stack_pointer] = false;
+                        }
+                    }
+                }
+            }
+
+            // Early exit optimization for top-level AND
+            if stack_pointer == 0 && !stack[0] {
+                return false;
+            }
+        }
+
+        // Return the final result
+        stack[0]
+    }
+}
+
+// ============================================================================
+// SECTION: Batch Evaluation
+// ============================================================================
+
+impl<R: 'static> BatchPredicateEval for PlanExecutor<R> {
+    // Use default implementation that calls eval_row in a loop
+    // Domains can create specialized batch executors if they need SIMD optimization
+}
+
+/// Helper trait to create no-op dispatch tables
+// ============================================================================
+// SECTION: Dispatch Table Builder
+// ============================================================================
+pub trait DispatchTableBuilder<R> {
+    /// Creates a dispatch table initialized with no-op functions
+    #[must_use]
+    fn build_dispatch_table() -> EvalTable<R> {
+        [Self::noop; 256]
+    }
+
+    /// No-op evaluation function that always returns false
+    ///
+    /// # Errors
+    /// Returns `Ok(false)` and never errors.
+    #[allow(clippy::trivially_copy_pass_by_ref, reason = "signature matches dispatch table slot")]
+    fn noop(
+        _reader: &R,
+        _row: Row,
+        _op: &Operation,
+        _constants: &[Constant],
+    ) -> RequirementResult<bool> {
+        Ok(false)
+    }
+}
+
+/// Macro to help domains build dispatch tables
+// ============================================================================
+// SECTION: Dispatch Macro
+// ============================================================================
+#[macro_export]
+macro_rules! build_dispatch_table {
+    ($reader_type:ty, $($opcode:path => $handler:path),* $(,)?) => {{
+        let mut table: [fn(&$reader_type, $crate::Row, &$crate::Operation, &[$crate::Constant]) -> $crate::RequirementResult<bool>; 256] =
+            [dispatch_noop; 256];
+
+        // Helper function for unhandled opcodes
+        fn dispatch_noop(_reader: &$reader_type, _row: $crate::Row, _op: &$crate::Operation, _constants: &[$crate::Constant]) -> $crate::RequirementResult<bool> {
+            Ok(false)
+        }
+
+        $(
+            table[$opcode as u8 as usize] = $handler;
+        )*
+
+        table
+    }};
+}
+
+// ============================================================================
+// SECTION: Executor Builder
+// ============================================================================
+
+/// Builder for creating plan executors with domain-specific dispatch tables
+pub struct ExecutorBuilder<R: 'static> {
+    /// Dispatch table used by the executor builder.
+    eval_table: EvalTable<R>,
+}
+
+// ============================================================================
+// SECTION: Executor Builder Methods
+// ============================================================================
+
+impl<R: 'static> ExecutorBuilder<R> {
+    /// Creates a new executor builder with all opcodes initialized to no-op
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            eval_table: [Self::noop; 256],
+        }
+    }
+
+    /// No-op evaluation function
+    ///
+    /// # Errors
+    /// Returns `Ok(false)` and never errors.
+    #[allow(clippy::trivially_copy_pass_by_ref, reason = "signature matches dispatch table slot")]
+    #[allow(clippy::unnecessary_wraps, reason = "uniform Result signature for dispatch table")]
+    const fn noop(
+        _reader: &R,
+        _row: Row,
+        _op: &Operation,
+        _constants: &[Constant],
+    ) -> RequirementResult<bool> {
+        Ok(false)
+    }
+
+    /// Registers a handler for a specific opcode
+    #[must_use]
+    pub fn register(
+        mut self,
+        opcode: OpCode,
+        handler: fn(&R, Row, &Operation, &[Constant]) -> RequirementResult<bool>,
+    ) -> Self {
+        self.eval_table[opcode as u8 as usize] = handler;
+        self
+    }
+
+    /// Builds a plan executor with the given plan
+    #[must_use]
+    pub fn build(self, plan: Plan) -> PlanExecutor<R> {
+        // Create a static dispatch table - in practice domains should define these as statics
+        let static_table = Box::leak(Box::new(self.eval_table));
+        PlanExecutor::new(plan, static_table)
+    }
+}
+
+// ============================================================================
+// SECTION: Executor Builder Defaults
+// ============================================================================
+
+impl<R: 'static> Default for ExecutorBuilder<R> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ============================================================================
+// SECTION: Operation Helpers
+// ============================================================================
+
+/// Helper functions for common operation implementations
+pub mod operations {
+    use super::Constant;
+    use super::Operation;
+    use super::RequirementError;
+    use super::RequirementResult;
+    use super::Row;
+
+    /// Standard float comparison implementation
+    ///
+    /// # Errors
+    /// Returns [`RequirementError`] when operands or constants are missing.
+    pub fn float_gte<R, F>(
+        reader: &R,
+        row: Row,
+        op: &Operation,
+        constants: &[Constant],
+        value_getter: F,
+    ) -> RequirementResult<bool>
+    where
+        F: Fn(&R, Row, u16) -> Option<f32>,
+    {
+        let column_id = op.operand_a;
+        let constant_idx = op.operand_b as usize;
+
+        let value = value_getter(reader, row, column_id)
+            .ok_or_else(|| RequirementError::predicate_error("Missing value for comparison"))?;
+
+        let threshold = constants
+            .get(constant_idx)
+            .and_then(super::super::plan::Constant::as_float)
+            .ok_or_else(|| RequirementError::predicate_error("Invalid threshold constant"))?;
+
+        Ok(value >= threshold)
+    }
+
+    /// Standard flags check implementation
+    ///
+    /// # Errors
+    /// Returns [`RequirementError`] when operands or constants are missing.
+    pub fn has_all_flags<R, F>(
+        reader: &R,
+        row: Row,
+        op: &Operation,
+        constants: &[Constant],
+        flags_getter: F,
+    ) -> RequirementResult<bool>
+    where
+        F: Fn(&R, Row, u16) -> Option<u64>,
+    {
+        let column_id = op.operand_a;
+        let constant_idx = op.operand_b as usize;
+
+        let entity_flags = flags_getter(reader, row, column_id)
+            .ok_or_else(|| RequirementError::predicate_error("Missing flags for check"))?;
+
+        let required_flags = constants
+            .get(constant_idx)
+            .and_then(super::super::plan::Constant::as_flags)
+            .ok_or_else(|| RequirementError::predicate_error("Invalid flags constant"))?;
+
+        Ok((entity_flags & required_flags) == required_flags)
+    }
+}
