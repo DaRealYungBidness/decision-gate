@@ -7,7 +7,7 @@
 // ============================================================================
 
 //! ## Overview
-//! CallbackSink delivers payloads by invoking a user-supplied function and
+//! `CallbackSink` delivers payloads by invoking a user-supplied function and
 //! returning the provided dispatch receipt.
 
 // ============================================================================
@@ -30,9 +30,13 @@ use crate::sink::SinkError;
 /// Callback-based payload sink.
 #[derive(Clone)]
 pub struct CallbackSink {
-    handler:
-        Arc<dyn Fn(&DispatchTarget, &Payload) -> Result<DispatchReceipt, SinkError> + Send + Sync>,
+    /// Handler invoked with the target and payload.
+    handler: Arc<CallbackHandler>,
 }
+
+/// Callback handler signature used by the sink.
+type CallbackHandler =
+    dyn Fn(&DispatchTarget, &Payload) -> Result<DispatchReceipt, SinkError> + Send + Sync;
 
 impl CallbackSink {
     /// Creates a callback sink from a handler function.

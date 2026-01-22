@@ -4,6 +4,19 @@
 // Description: Comprehensive tests for the file-backed payload source.
 // ============================================================================
 
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
+
 use decision_gate_broker::FileSource;
 use decision_gate_broker::Source;
 use decision_gate_broker::SourceError;
@@ -17,6 +30,7 @@ use url::Url;
 // SECTION: Constructor Tests
 // ============================================================================
 
+/// Tests file source new creates rooted source.
 #[test]
 fn file_source_new_creates_rooted_source() {
     let dir = tempdir().expect("temp dir");
@@ -24,6 +38,7 @@ fn file_source_new_creates_rooted_source() {
     // Source created successfully - validates constructor works
 }
 
+/// Tests file source unrestricted creates unrooted source.
 #[test]
 fn file_source_unrestricted_creates_unrooted_source() {
     let _source = FileSource::unrestricted();
@@ -34,6 +49,7 @@ fn file_source_unrestricted_creates_unrooted_source() {
 // SECTION: Success Path Tests
 // ============================================================================
 
+/// Tests file source reads bytes from valid file.
 #[test]
 fn file_source_reads_bytes_from_valid_file() {
     let dir = tempdir().expect("temp dir");
@@ -56,6 +72,7 @@ fn file_source_reads_bytes_from_valid_file() {
     assert!(payload.content_type.is_none());
 }
 
+/// Tests file source reads empty file.
 #[test]
 fn file_source_reads_empty_file() {
     let dir = tempdir().expect("temp dir");
@@ -76,11 +93,13 @@ fn file_source_reads_empty_file() {
     assert!(payload.bytes.is_empty());
 }
 
+/// Tests file source reads large file.
 #[test]
 fn file_source_reads_large_file() {
     let dir = tempdir().expect("temp dir");
     let path = dir.path().join("large.bin");
-    let content: Vec<u8> = (0..10000).map(|i| (i % 256) as u8).collect();
+    let content: Vec<u8> =
+        (0 .. 10000).map(|i| u8::try_from(i % 256).expect("u8 conversion")).collect();
     std::fs::write(&path, &content).expect("write file");
 
     let uri = Url::from_file_path(&path).expect("file url").to_string();
@@ -97,6 +116,7 @@ fn file_source_reads_large_file() {
     assert_eq!(payload.bytes, content);
 }
 
+/// Tests file source unrestricted reads any path.
 #[test]
 fn file_source_unrestricted_reads_any_path() {
     let dir = tempdir().expect("temp dir");
@@ -122,14 +142,13 @@ fn file_source_unrestricted_reads_any_path() {
 // SECTION: Error Path Tests
 // ============================================================================
 
+/// Tests file source rejects file not found.
 #[test]
 fn file_source_rejects_file_not_found() {
     let dir = tempdir().expect("temp dir");
     let nonexistent_path = dir.path().join("nonexistent.bin");
 
-    let uri = Url::from_file_path(&nonexistent_path)
-        .expect("file url")
-        .to_string();
+    let uri = Url::from_file_path(&nonexistent_path).expect("file url").to_string();
     let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"phantom");
     let content_ref = ContentRef {
         uri,
@@ -143,6 +162,7 @@ fn file_source_rejects_file_not_found() {
     assert!(matches!(err, SourceError::NotFound(_)));
 }
 
+/// Tests file source rejects path traversal attack.
 #[test]
 fn file_source_rejects_path_traversal_attack() {
     let dir = tempdir().expect("temp dir");
@@ -155,9 +175,7 @@ fn file_source_rejects_path_traversal_attack() {
 
     // Try to access it via path traversal
     let traversal_path = safe_subdir.join("..").join("secret.txt");
-    let uri = Url::from_file_path(&traversal_path)
-        .expect("file url")
-        .to_string();
+    let uri = Url::from_file_path(&traversal_path).expect("file url").to_string();
     let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"secret");
     let content_ref = ContentRef {
         uri,
@@ -172,6 +190,7 @@ fn file_source_rejects_path_traversal_attack() {
     assert!(err.to_string().contains("escapes configured root"));
 }
 
+/// Tests file source rejects non file scheme.
 #[test]
 fn file_source_rejects_non_file_scheme() {
     let dir = tempdir().expect("temp dir");
@@ -189,6 +208,7 @@ fn file_source_rejects_non_file_scheme() {
     assert!(err.to_string().contains("http"));
 }
 
+/// Tests file source rejects malformed uri.
 #[test]
 fn file_source_rejects_malformed_uri() {
     let dir = tempdir().expect("temp dir");
@@ -205,6 +225,7 @@ fn file_source_rejects_malformed_uri() {
     assert!(matches!(err, SourceError::InvalidUri(_)));
 }
 
+/// Tests file source rejects directory as file.
 #[test]
 fn file_source_rejects_directory_as_file() {
     let dir = tempdir().expect("temp dir");
@@ -230,6 +251,7 @@ fn file_source_rejects_directory_as_file() {
 // SECTION: Edge Case Tests
 // ============================================================================
 
+/// Tests file source handles special characters in filename.
 #[test]
 fn file_source_handles_special_characters_in_filename() {
     let dir = tempdir().expect("temp dir");
@@ -251,6 +273,7 @@ fn file_source_handles_special_characters_in_filename() {
     assert_eq!(payload.bytes, content);
 }
 
+/// Tests file source handles nested subdirectories.
 #[test]
 fn file_source_handles_nested_subdirectories() {
     let dir = tempdir().expect("temp dir");

@@ -62,7 +62,7 @@ pub trait Sink: Send + Sync {
 // ============================================================================
 
 /// Dispatch message emitted by channel-based sinks.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DispatchMessage {
     /// Dispatch target.
     pub target: DispatchTarget,
@@ -79,7 +79,9 @@ pub struct DispatchMessage {
 /// Builds deterministic dispatch receipts.
 #[derive(Debug)]
 pub(crate) struct ReceiptFactory {
+    /// Dispatcher identifier embedded in receipts.
     dispatcher: String,
+    /// Monotonic counter used for deterministic IDs.
     counter: AtomicU64,
 }
 

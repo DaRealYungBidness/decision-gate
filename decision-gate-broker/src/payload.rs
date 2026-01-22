@@ -23,7 +23,7 @@ use serde_json::Value;
 // ============================================================================
 
 /// Resolved payload content returned by broker sources.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PayloadBody {
     /// JSON payload value.
     Json(Value),
@@ -32,7 +32,7 @@ pub enum PayloadBody {
 }
 
 /// Resolved payload with the originating packet envelope.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Payload {
     /// Decision Gate envelope metadata.
     pub envelope: PacketEnvelope,

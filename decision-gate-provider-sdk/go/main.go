@@ -1,0 +1,240 @@
+// decision-gate-provider-sdk/go/main.go
+// ============================================================================
+// Module: Go Evidence Provider Template
+// Description: Minimal MCP stdio server for Decision Gate evidence queries.
+// Purpose: Provide a starter implementation for `evidence_query` providers.
+// Dependencies: Go standard library (bufio, encoding/json, io, os).
+// ============================================================================
+
+// ## Overview
+// This template implements the MCP `tools/list` and `tools/call` handlers over
+// stdio. It parses Content-Length framed JSON-RPC messages and replies with a
+// JSON EvidenceResult. Security posture: inputs are untrusted and must be
+// validated; see Docs/security/threat_model.md.
+package main
+
+import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+)
+
+type jsonRpcRequest struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      any             `json:"id"`
+	Method  string          `json:"method"`
+	Params  json.RawMessage `json:"params,omitempty"`
+}
+
+type jsonRpcError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+type jsonRpcResponse struct {
+	JSONRPC string       `json:"jsonrpc"`
+	ID      any          `json:"id"`
+	Result  any          `json:"result,omitempty"`
+	Error   *jsonRpcError `json:"error,omitempty"`
+}
+
+type toolListResult struct {
+	Tools []toolDefinition `json:"tools"`
+}
+
+type toolDefinition struct {
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	InputSchema map[string]any `json:"input_schema"`
+}
+
+type toolCallParams struct {
+	Name      string `json:"name"`
+	Arguments struct {
+		Query   evidenceQuery   `json:"query"`
+		Context evidenceContext `json:"context"`
+	} `json:"arguments"`
+}
+
+type evidenceQuery struct {
+	ProviderID string         `json:"provider_id"`
+	Predicate  string         `json:"predicate"`
+	Params     map[string]any `json:"params,omitempty"`
+}
+
+type evidenceContext struct {
+	TenantID      string `json:"tenant_id"`
+	RunID         string `json:"run_id"`
+	ScenarioID    string `json:"scenario_id"`
+	StageID       string `json:"stage_id"`
+	TriggerID     string `json:"trigger_id"`
+	TriggerTime   any    `json:"trigger_time"`
+	CorrelationID any    `json:"correlation_id"`
+}
+
+type evidenceValue struct {
+	Kind  string `json:"kind"`
+	Value any    `json:"value"`
+}
+
+type evidenceResult struct {
+	Value         *evidenceValue `json:"value"`
+	EvidenceHash  any            `json:"evidence_hash"`
+	EvidenceRef   any            `json:"evidence_ref"`
+	EvidenceAnchor any           `json:"evidence_anchor"`
+	Signature     any            `json:"signature"`
+	ContentType   string         `json:"content_type"`
+}
+
+func main() {
+	reader := bufio.NewReader(os.Stdin)
+	writer := bufio.NewWriter(os.Stdout)
+
+	for {
+		payload, err := readFrame(reader)
+		if err == io.EOF {
+			return
+		}
+		if err != nil {
+			writeFrame(writer, buildErrorResponse(nil, -32700, "invalid request"))
+			continue
+		}
+
+		var request jsonRpcRequest
+		if err := json.Unmarshal(payload, &request); err != nil {
+			writeFrame(writer, buildErrorResponse(nil, -32700, "invalid json"))
+			continue
+		}
+
+		response := handleRequest(request)
+		writeFrame(writer, response)
+	}
+}
+
+func handleRequest(request jsonRpcRequest) jsonRpcResponse {
+	if request.JSONRPC != "2.0" {
+		return buildErrorResponse(request.ID, -32600, "invalid json-rpc version")
+	}
+
+	switch request.Method {
+	case "tools/list":
+		return jsonRpcResponse{
+			JSONRPC: "2.0",
+			ID:      request.ID,
+			Result: toolListResult{
+				Tools: []toolDefinition{
+					{
+						Name:        "evidence_query",
+						Description: "Resolve a Decision Gate evidence query.",
+						InputSchema: map[string]any{"type": "object"},
+					},
+				},
+			},
+		}
+	case "tools/call":
+		return handleToolCall(request)
+	default:
+		return buildErrorResponse(request.ID, -32601, "method not found")
+	}
+}
+
+func handleToolCall(request jsonRpcRequest) jsonRpcResponse {
+	var params toolCallParams
+	if err := json.Unmarshal(request.Params, &params); err != nil {
+		return buildErrorResponse(request.ID, -32602, "invalid tool params")
+	}
+	if params.Name != "evidence_query" {
+		return buildErrorResponse(request.ID, -32602, "invalid tool params")
+	}
+
+	result, err := handleEvidenceQuery(params.Arguments.Query, params.Arguments.Context)
+	if err != nil {
+		return buildErrorResponse(request.ID, -32000, err.Error())
+	}
+
+	return jsonRpcResponse{
+		JSONRPC: "2.0",
+		ID:      request.ID,
+		Result: map[string]any{
+			"content": []map[string]any{
+				{
+					"type": "json",
+					"json": result,
+				},
+			},
+		},
+	}
+}
+
+func handleEvidenceQuery(query evidenceQuery, _ evidenceContext) (evidenceResult, error) {
+	if query.Params == nil {
+		return evidenceResult{}, fmt.Errorf("params.value is required")
+	}
+	value, ok := query.Params["value"]
+	if !ok {
+		return evidenceResult{}, fmt.Errorf("params.value is required")
+	}
+
+	return evidenceResult{
+		Value:          &evidenceValue{Kind: "json", Value: value},
+		EvidenceHash:   nil,
+		EvidenceRef:    nil,
+		EvidenceAnchor: nil,
+		Signature:      nil,
+		ContentType:    "application/json",
+	}, nil
+}
+
+func buildErrorResponse(id any, code int, message string) jsonRpcResponse {
+	return jsonRpcResponse{
+		JSONRPC: "2.0",
+		ID:      id,
+		Error: &jsonRpcError{
+			Code:    code,
+			Message: message,
+		},
+	}
+}
+
+func readFrame(reader *bufio.Reader) ([]byte, error) {
+	contentLength := 0
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return nil, err
+		}
+		line = strings.TrimRight(line, "\r\n")
+		if line == "" {
+			break
+		}
+		if strings.HasPrefix(strings.ToLower(line), "content-length:") {
+			value := strings.TrimSpace(strings.TrimPrefix(line, "content-length:"))
+			if _, err := fmt.Sscanf(value, "%d", &contentLength); err != nil {
+				return nil, fmt.Errorf("invalid content length")
+			}
+		}
+	}
+	if contentLength == 0 {
+		return nil, fmt.Errorf("missing content length")
+	}
+	payload := make([]byte, contentLength)
+	if _, err := io.ReadFull(reader, payload); err != nil {
+		return nil, err
+	}
+	return payload, nil
+}
+
+func writeFrame(writer *bufio.Writer, response jsonRpcResponse) {
+	payload, err := json.Marshal(response)
+	if err != nil {
+		return
+	}
+	header := fmt.Sprintf("Content-Length: %d\r\n\r\n", len(payload))
+	_, _ = writer.WriteString(header)
+	_, _ = writer.Write(payload)
+	_ = writer.Flush()
+}
+

@@ -4,13 +4,23 @@
 // Description: Comprehensive unit tests for the broker dispatcher.
 // ============================================================================
 
-//! CompositeBroker unit tests.
+//! `CompositeBroker` unit tests.
 
-#![allow(clippy::unwrap_used, reason = "Tests use unwrap on deterministic fixtures.")]
-#![allow(clippy::expect_used, reason = "Tests use expect for explicit failure messages.")]
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
 
-use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use decision_gate_broker::BrokerError;
 use decision_gate_broker::CallbackSink;
 use decision_gate_broker::CompositeBroker;
@@ -83,15 +93,15 @@ fn success_sink() -> CallbackSink {
 // SECTION: Builder Tests
 // ============================================================================
 
+/// Tests broker builder builds with sink.
 #[test]
 fn broker_builder_builds_with_sink() {
-    let broker = CompositeBroker::builder()
-        .sink(success_sink())
-        .build();
+    let broker = CompositeBroker::builder().sink(success_sink()).build();
 
     assert!(broker.is_ok());
 }
 
+/// Tests broker builder fails without sink.
 #[test]
 fn broker_builder_fails_without_sink() {
     let result = CompositeBroker::builder().build();
@@ -104,6 +114,7 @@ fn broker_builder_fails_without_sink() {
     }
 }
 
+/// Tests broker builder registers source.
 #[test]
 fn broker_builder_registers_source() {
     let dir = tempdir().expect("temp dir");
@@ -115,6 +126,7 @@ fn broker_builder_registers_source() {
     assert!(broker.is_ok());
 }
 
+/// Tests broker builder registers multiple sources.
 #[test]
 fn broker_builder_registers_multiple_sources() {
     let dir = tempdir().expect("temp dir");
@@ -127,6 +139,7 @@ fn broker_builder_registers_multiple_sources() {
     assert!(broker.is_ok());
 }
 
+/// Tests broker builder allows source override.
 #[test]
 fn broker_builder_allows_source_override() {
     let dir1 = tempdir().expect("temp dir 1");
@@ -146,14 +159,17 @@ fn broker_builder_allows_source_override() {
 // SECTION: Dispatch - Inline JSON Payload Tests
 // ============================================================================
 
+/// Tests broker dispatches inline json payload.
 #[test]
 fn broker_dispatches_inline_json_payload() {
     let json_value = json!({"key": "value"});
     let content_hash = hash_canonical_json(DEFAULT_HASH_ALGORITHM, &json_value).expect("hash");
     let envelope = sample_envelope("application/json", content_hash);
-    let payload = PacketPayload::Json { value: json_value.clone() };
-
     let expected_json = json_value.clone();
+    let payload = PacketPayload::Json {
+        value: json_value,
+    };
+
     let sink = CallbackSink::new(move |_, payload| {
         if let PayloadBody::Json(value) = &payload.body {
             assert_eq!(value, &expected_json);
@@ -169,29 +185,24 @@ fn broker_dispatches_inline_json_payload() {
         })
     });
 
-    let broker = CompositeBroker::builder()
-        .sink(sink)
-        .build()
-        .expect("build broker");
+    let broker = CompositeBroker::builder().sink(sink).build().expect("build broker");
 
-    let receipt = broker
-        .dispatch(&sample_target(), &envelope, &payload)
-        .expect("dispatch");
+    let receipt = broker.dispatch(&sample_target(), &envelope, &payload).expect("dispatch");
 
     assert_eq!(receipt.dispatch_id, "json-dispatch");
 }
 
+/// Tests broker dispatches inline json array.
 #[test]
 fn broker_dispatches_inline_json_array() {
     let json_value = json!([1, 2, 3, "four"]);
     let content_hash = hash_canonical_json(DEFAULT_HASH_ALGORITHM, &json_value).expect("hash");
     let envelope = sample_envelope("application/json", content_hash);
-    let payload = PacketPayload::Json { value: json_value };
+    let payload = PacketPayload::Json {
+        value: json_value,
+    };
 
-    let broker = CompositeBroker::builder()
-        .sink(success_sink())
-        .build()
-        .expect("build broker");
+    let broker = CompositeBroker::builder().sink(success_sink()).build().expect("build broker");
 
     let result = broker.dispatch(&sample_target(), &envelope, &payload);
     assert!(result.is_ok());
@@ -201,12 +212,15 @@ fn broker_dispatches_inline_json_array() {
 // SECTION: Dispatch - Inline Bytes Payload Tests
 // ============================================================================
 
+/// Tests broker dispatches inline bytes payload.
 #[test]
 fn broker_dispatches_inline_bytes_payload() {
     let bytes = b"binary data";
     let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, bytes);
     let envelope = sample_envelope("application/octet-stream", content_hash);
-    let payload = PacketPayload::Bytes { bytes: bytes.to_vec() };
+    let payload = PacketPayload::Bytes {
+        bytes: bytes.to_vec(),
+    };
 
     let expected_bytes = bytes.to_vec();
     let sink = CallbackSink::new(move |_, payload| {
@@ -224,29 +238,24 @@ fn broker_dispatches_inline_bytes_payload() {
         })
     });
 
-    let broker = CompositeBroker::builder()
-        .sink(sink)
-        .build()
-        .expect("build broker");
+    let broker = CompositeBroker::builder().sink(sink).build().expect("build broker");
 
-    let receipt = broker
-        .dispatch(&sample_target(), &envelope, &payload)
-        .expect("dispatch");
+    let receipt = broker.dispatch(&sample_target(), &envelope, &payload).expect("dispatch");
 
     assert_eq!(receipt.dispatch_id, "bytes-dispatch");
 }
 
+/// Tests broker dispatches empty bytes payload.
 #[test]
 fn broker_dispatches_empty_bytes_payload() {
     let bytes = b"";
     let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, bytes);
     let envelope = sample_envelope("application/octet-stream", content_hash);
-    let payload = PacketPayload::Bytes { bytes: vec![] };
+    let payload = PacketPayload::Bytes {
+        bytes: vec![],
+    };
 
-    let broker = CompositeBroker::builder()
-        .sink(success_sink())
-        .build()
-        .expect("build broker");
+    let broker = CompositeBroker::builder().sink(success_sink()).build().expect("build broker");
 
     let result = broker.dispatch(&sample_target(), &envelope, &payload);
     assert!(result.is_ok());
@@ -256,6 +265,7 @@ fn broker_dispatches_empty_bytes_payload() {
 // SECTION: Dispatch - External Payload Tests
 // ============================================================================
 
+/// Tests broker dispatches external file payload.
 #[test]
 fn broker_dispatches_external_file_payload() {
     let dir = tempdir().expect("temp dir");
@@ -271,7 +281,9 @@ fn broker_dispatches_external_file_payload() {
         encryption: None,
     };
     let envelope = sample_envelope("application/octet-stream", content_hash);
-    let payload = PacketPayload::External { content_ref };
+    let payload = PacketPayload::External {
+        content_ref,
+    };
 
     let expected_content = content.to_vec();
     let sink = CallbackSink::new(move |_, payload| {
@@ -295,13 +307,12 @@ fn broker_dispatches_external_file_payload() {
         .build()
         .expect("build broker");
 
-    let receipt = broker
-        .dispatch(&sample_target(), &envelope, &payload)
-        .expect("dispatch");
+    let receipt = broker.dispatch(&sample_target(), &envelope, &payload).expect("dispatch");
 
     assert_eq!(receipt.dispatch_id, "file-dispatch");
 }
 
+/// Tests broker dispatches external inline payload.
 #[test]
 fn broker_dispatches_external_inline_payload() {
     let data = b"inline external";
@@ -313,7 +324,9 @@ fn broker_dispatches_external_inline_payload() {
         encryption: None,
     };
     let envelope = sample_envelope("application/octet-stream", content_hash);
-    let payload = PacketPayload::External { content_ref };
+    let payload = PacketPayload::External {
+        content_ref,
+    };
 
     let broker = CompositeBroker::builder()
         .source("inline", InlineSource::new())
@@ -329,41 +342,42 @@ fn broker_dispatches_external_inline_payload() {
 // SECTION: Hash Validation Tests
 // ============================================================================
 
+/// Tests broker rejects hash mismatch inline json.
 #[test]
 fn broker_rejects_hash_mismatch_inline_json() {
     let json_value = json!({"key": "value"});
     // Use wrong hash
     let wrong_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"wrong");
     let envelope = sample_envelope("application/json", wrong_hash);
-    let payload = PacketPayload::Json { value: json_value };
+    let payload = PacketPayload::Json {
+        value: json_value,
+    };
 
-    let broker = CompositeBroker::builder()
-        .sink(success_sink())
-        .build()
-        .expect("build broker");
+    let broker = CompositeBroker::builder().sink(success_sink()).build().expect("build broker");
 
     let result = broker.dispatch(&sample_target(), &envelope, &payload);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("hash mismatch"));
 }
 
+/// Tests broker rejects hash mismatch inline bytes.
 #[test]
 fn broker_rejects_hash_mismatch_inline_bytes() {
     let bytes = b"actual content";
     let wrong_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"expected content");
     let envelope = sample_envelope("application/octet-stream", wrong_hash);
-    let payload = PacketPayload::Bytes { bytes: bytes.to_vec() };
+    let payload = PacketPayload::Bytes {
+        bytes: bytes.to_vec(),
+    };
 
-    let broker = CompositeBroker::builder()
-        .sink(success_sink())
-        .build()
-        .expect("build broker");
+    let broker = CompositeBroker::builder().sink(success_sink()).build().expect("build broker");
 
     let result = broker.dispatch(&sample_target(), &envelope, &payload);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("hash mismatch"));
 }
 
+/// Tests broker rejects hash mismatch external payload.
 #[test]
 fn broker_rejects_hash_mismatch_external_payload() {
     let dir = tempdir().expect("temp dir");
@@ -378,7 +392,9 @@ fn broker_rejects_hash_mismatch_external_payload() {
         encryption: None,
     };
     let envelope = sample_envelope("application/octet-stream", wrong_hash);
-    let payload = PacketPayload::External { content_ref };
+    let payload = PacketPayload::External {
+        content_ref,
+    };
 
     let broker = CompositeBroker::builder()
         .source("file", FileSource::new(dir.path()))
@@ -391,6 +407,7 @@ fn broker_rejects_hash_mismatch_external_payload() {
     assert!(result.unwrap_err().to_string().contains("hash mismatch"));
 }
 
+/// Tests broker rejects envelope content ref hash mismatch.
 #[test]
 fn broker_rejects_envelope_content_ref_hash_mismatch() {
     let dir = tempdir().expect("temp dir");
@@ -409,7 +426,9 @@ fn broker_rejects_envelope_content_ref_hash_mismatch() {
         encryption: None,
     };
     let envelope = sample_envelope("application/octet-stream", different_hash);
-    let payload = PacketPayload::External { content_ref };
+    let payload = PacketPayload::External {
+        content_ref,
+    };
 
     let broker = CompositeBroker::builder()
         .source("file", FileSource::new(dir.path()))
@@ -426,6 +445,7 @@ fn broker_rejects_envelope_content_ref_hash_mismatch() {
 // SECTION: Source Resolution Tests
 // ============================================================================
 
+/// Tests broker rejects missing source.
 #[test]
 fn broker_rejects_missing_source() {
     let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"data");
@@ -435,18 +455,18 @@ fn broker_rejects_missing_source() {
         encryption: None,
     };
     let envelope = sample_envelope("application/octet-stream", content_hash);
-    let payload = PacketPayload::External { content_ref };
+    let payload = PacketPayload::External {
+        content_ref,
+    };
 
-    let broker = CompositeBroker::builder()
-        .sink(success_sink())
-        .build()
-        .expect("build broker");
+    let broker = CompositeBroker::builder().sink(success_sink()).build().expect("build broker");
 
     let result = broker.dispatch(&sample_target(), &envelope, &payload);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("missing source"));
 }
 
+/// Tests broker resolves compound scheme.
 #[test]
 fn broker_resolves_compound_scheme() {
     // Test that compound schemes (e.g., "inline+custom") fall back to base scheme ("inline")
@@ -465,7 +485,9 @@ fn broker_resolves_compound_scheme() {
         encryption: None,
     };
     let envelope = sample_envelope("application/octet-stream", content_hash);
-    let payload = PacketPayload::External { content_ref };
+    let payload = PacketPayload::External {
+        content_ref,
+    };
 
     // Register only "inline" source - the "inline+custom" should fall back to it
     let broker = CompositeBroker::builder()
@@ -485,6 +507,7 @@ fn broker_resolves_compound_scheme() {
     assert!(result.is_err());
 }
 
+/// Tests broker rejects invalid uri.
 #[test]
 fn broker_rejects_invalid_uri() {
     let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"data");
@@ -494,12 +517,11 @@ fn broker_rejects_invalid_uri() {
         encryption: None,
     };
     let envelope = sample_envelope("application/octet-stream", content_hash);
-    let payload = PacketPayload::External { content_ref };
+    let payload = PacketPayload::External {
+        content_ref,
+    };
 
-    let broker = CompositeBroker::builder()
-        .sink(success_sink())
-        .build()
-        .expect("build broker");
+    let broker = CompositeBroker::builder().sink(success_sink()).build().expect("build broker");
 
     let result = broker.dispatch(&sample_target(), &envelope, &payload);
     assert!(result.is_err());
@@ -510,6 +532,7 @@ fn broker_rejects_invalid_uri() {
 // SECTION: Content Type Detection Tests
 // ============================================================================
 
+/// Tests broker parses json content type.
 #[test]
 fn broker_parses_json_content_type() {
     let dir = tempdir().expect("temp dir");
@@ -518,14 +541,17 @@ fn broker_parses_json_content_type() {
     std::fs::write(&path, json_bytes).expect("write file");
 
     let uri = Url::from_file_path(&path).expect("file url").to_string();
-    let content_hash = hash_canonical_json(DEFAULT_HASH_ALGORITHM, &json!({"parsed": true})).expect("hash");
+    let content_hash =
+        hash_canonical_json(DEFAULT_HASH_ALGORITHM, &json!({"parsed": true})).expect("hash");
     let content_ref = ContentRef {
         uri,
         content_hash: content_hash.clone(),
         encryption: None,
     };
     let envelope = sample_envelope("application/json", content_hash);
-    let payload = PacketPayload::External { content_ref };
+    let payload = PacketPayload::External {
+        content_ref,
+    };
 
     let sink = CallbackSink::new(|_, payload| {
         assert!(matches!(payload.body, PayloadBody::Json(_)));
@@ -548,6 +574,7 @@ fn broker_parses_json_content_type() {
     assert!(result.is_ok());
 }
 
+/// Tests broker parses json with charset.
 #[test]
 fn broker_parses_json_with_charset() {
     let dir = tempdir().expect("temp dir");
@@ -556,14 +583,17 @@ fn broker_parses_json_with_charset() {
     std::fs::write(&path, json_bytes).expect("write file");
 
     let uri = Url::from_file_path(&path).expect("file url").to_string();
-    let content_hash = hash_canonical_json(DEFAULT_HASH_ALGORITHM, &json!({"charset": "utf8"})).expect("hash");
+    let content_hash =
+        hash_canonical_json(DEFAULT_HASH_ALGORITHM, &json!({"charset": "utf8"})).expect("hash");
     let content_ref = ContentRef {
         uri,
         content_hash: content_hash.clone(),
         encryption: None,
     };
     let envelope = sample_envelope("application/json; charset=utf-8", content_hash);
-    let payload = PacketPayload::External { content_ref };
+    let payload = PacketPayload::External {
+        content_ref,
+    };
 
     let sink = CallbackSink::new(|_, payload| {
         assert!(matches!(payload.body, PayloadBody::Json(_)));
@@ -586,6 +616,7 @@ fn broker_parses_json_with_charset() {
     assert!(result.is_ok());
 }
 
+/// Tests broker parses vendor json type.
 #[test]
 fn broker_parses_vendor_json_type() {
     let dir = tempdir().expect("temp dir");
@@ -594,14 +625,17 @@ fn broker_parses_vendor_json_type() {
     std::fs::write(&path, json_bytes).expect("write file");
 
     let uri = Url::from_file_path(&path).expect("file url").to_string();
-    let content_hash = hash_canonical_json(DEFAULT_HASH_ALGORITHM, &json!({"vendor": "api"})).expect("hash");
+    let content_hash =
+        hash_canonical_json(DEFAULT_HASH_ALGORITHM, &json!({"vendor": "api"})).expect("hash");
     let content_ref = ContentRef {
         uri,
         content_hash: content_hash.clone(),
         encryption: None,
     };
     let envelope = sample_envelope("application/vnd.api+json", content_hash);
-    let payload = PacketPayload::External { content_ref };
+    let payload = PacketPayload::External {
+        content_ref,
+    };
 
     let sink = CallbackSink::new(|_, payload| {
         assert!(matches!(payload.body, PayloadBody::Json(_)));
@@ -624,6 +658,7 @@ fn broker_parses_vendor_json_type() {
     assert!(result.is_ok());
 }
 
+/// Tests broker keeps binary for non json type.
 #[test]
 fn broker_keeps_binary_for_non_json_type() {
     let dir = tempdir().expect("temp dir");
@@ -639,7 +674,9 @@ fn broker_keeps_binary_for_non_json_type() {
         encryption: None,
     };
     let envelope = sample_envelope("application/octet-stream", content_hash);
-    let payload = PacketPayload::External { content_ref };
+    let payload = PacketPayload::External {
+        content_ref,
+    };
 
     let sink = CallbackSink::new(|_, payload| {
         assert!(matches!(payload.body, PayloadBody::Bytes(_)));
@@ -662,6 +699,7 @@ fn broker_keeps_binary_for_non_json_type() {
     assert!(result.is_ok());
 }
 
+/// Tests broker rejects invalid json in json content type.
 #[test]
 fn broker_rejects_invalid_json_in_json_content_type() {
     let dir = tempdir().expect("temp dir");
@@ -678,7 +716,9 @@ fn broker_rejects_invalid_json_in_json_content_type() {
         encryption: None,
     };
     let envelope = sample_envelope("application/json", content_hash);
-    let payload = PacketPayload::External { content_ref };
+    let payload = PacketPayload::External {
+        content_ref,
+    };
 
     let broker = CompositeBroker::builder()
         .source("file", FileSource::new(dir.path()))
@@ -695,21 +735,20 @@ fn broker_rejects_invalid_json_in_json_content_type() {
 // SECTION: Sink Error Propagation Tests
 // ============================================================================
 
+/// Tests broker propagates sink error.
 #[test]
 fn broker_propagates_sink_error() {
     let json_value = json!({"key": "value"});
     let content_hash = hash_canonical_json(DEFAULT_HASH_ALGORITHM, &json_value).expect("hash");
     let envelope = sample_envelope("application/json", content_hash);
-    let payload = PacketPayload::Json { value: json_value };
+    let payload = PacketPayload::Json {
+        value: json_value,
+    };
 
-    let failing_sink = CallbackSink::new(|_, _| {
-        Err(SinkError::DeliveryFailed("sink failed".to_string()))
-    });
+    let failing_sink =
+        CallbackSink::new(|_, _| Err(SinkError::DeliveryFailed("sink failed".to_string())));
 
-    let broker = CompositeBroker::builder()
-        .sink(failing_sink)
-        .build()
-        .expect("build broker");
+    let broker = CompositeBroker::builder().sink(failing_sink).build().expect("build broker");
 
     let result = broker.dispatch(&sample_target(), &envelope, &payload);
     assert!(result.is_err());
@@ -720,23 +759,29 @@ fn broker_propagates_sink_error() {
 // SECTION: Edge Case Tests
 // ============================================================================
 
+/// Tests broker handles different agent targets.
 #[test]
 fn broker_handles_different_agent_targets() {
     let json_value = json!({"test": true});
     let content_hash = hash_canonical_json(DEFAULT_HASH_ALGORITHM, &json_value).expect("hash");
     let envelope = sample_envelope("application/json", content_hash);
-    let payload = PacketPayload::Json { value: json_value };
+    let payload = PacketPayload::Json {
+        value: json_value,
+    };
 
-    let broker = CompositeBroker::builder()
-        .sink(success_sink())
-        .build()
-        .expect("build broker");
+    let broker = CompositeBroker::builder().sink(success_sink()).build().expect("build broker");
 
     // Test different agent targets
     let targets = vec![
-        DispatchTarget::Agent { agent_id: "agent-1".to_string() },
-        DispatchTarget::Agent { agent_id: "agent-2".to_string() },
-        DispatchTarget::Agent { agent_id: "special-agent".to_string() },
+        DispatchTarget::Agent {
+            agent_id: "agent-1".to_string(),
+        },
+        DispatchTarget::Agent {
+            agent_id: "agent-2".to_string(),
+        },
+        DispatchTarget::Agent {
+            agent_id: "special-agent".to_string(),
+        },
     ];
 
     for target in targets {
@@ -744,20 +789,20 @@ fn broker_handles_different_agent_targets() {
     }
 }
 
+/// Tests broker multiple dispatches same payload.
 #[test]
 fn broker_multiple_dispatches_same_payload() {
     let json_value = json!({"reusable": true});
     let content_hash = hash_canonical_json(DEFAULT_HASH_ALGORITHM, &json_value).expect("hash");
     let envelope = sample_envelope("application/json", content_hash);
-    let payload = PacketPayload::Json { value: json_value };
+    let payload = PacketPayload::Json {
+        value: json_value,
+    };
 
-    let broker = CompositeBroker::builder()
-        .sink(success_sink())
-        .build()
-        .expect("build broker");
+    let broker = CompositeBroker::builder().sink(success_sink()).build().expect("build broker");
 
     // Same payload should work multiple times
-    for _ in 0..5 {
+    for _ in 0 .. 5 {
         let result = broker.dispatch(&sample_target(), &envelope, &payload);
         assert!(result.is_ok());
     }

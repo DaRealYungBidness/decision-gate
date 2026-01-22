@@ -21,48 +21,22 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::core::hashing::HashDigest;
+use crate::core::identifiers::ProviderId;
 
 // ============================================================================
 // SECTION: Evidence Queries
 // ============================================================================
 
-/// Canonical evidence query shapes supported by Decision Gate.
+/// Canonical evidence query supported by Decision Gate.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum EvidenceQuery {
-    /// Query a named state predicate with structured parameters.
-    StatePredicate {
-        /// Predicate name within the backend domain.
-        name: String,
-        /// Backend-specific parameters (must be canonicalizable JSON).
-        params: Value,
-    },
-    /// Query for evidence in a log stream.
-    LogContains {
-        /// Log stream identifier.
-        stream: String,
-        /// Structured filter describing the log predicate.
-        filter: Value,
-    },
-    /// Query for evidence in a commit or event stream.
-    CommitContains {
-        /// Structured filter describing the commit predicate.
-        filter: Value,
-    },
-    /// Query for a specific receipt by system and identifier.
-    Receipt {
-        /// External system name.
-        system: String,
-        /// Receipt identifier.
-        id: String,
-    },
-    /// Backend-specific opaque query for adapter extensions.
-    Custom {
-        /// Adapter key that owns the query format.
-        adapter_key: String,
-        /// Opaque serialized query payload.
-        bytes: Vec<u8>,
-    },
+pub struct EvidenceQuery {
+    /// Evidence provider identifier.
+    pub provider_id: ProviderId,
+    /// Provider predicate or method name.
+    pub predicate: String,
+    /// Structured parameters for the provider predicate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub params: Option<Value>,
 }
 
 // ============================================================================
@@ -134,6 +108,8 @@ pub struct EvidenceRef {
 pub struct EvidenceSignature {
     /// Signature scheme identifier.
     pub scheme: String,
+    /// Identifier for the signing key.
+    pub key_id: String,
     /// Signature bytes.
     pub signature: Vec<u8>,
 }
@@ -157,4 +133,19 @@ pub struct EvidenceResult {
     pub signature: Option<EvidenceSignature>,
     /// Content type of the evidence payload when present.
     pub content_type: Option<String>,
+}
+
+// ============================================================================
+// SECTION: Provider Validation
+// ============================================================================
+
+/// Provider-missing diagnostics returned by evidence registries.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProviderMissingError {
+    /// Provider identifiers required by the scenario but not registered.
+    pub missing_providers: Vec<String>,
+    /// Capabilities required by the predicates when providers are present.
+    pub required_capabilities: Vec<String>,
+    /// Indicates a policy block (true when a provider is present but disallowed).
+    pub blocked_by_policy: bool,
 }

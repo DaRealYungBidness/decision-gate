@@ -6,6 +6,19 @@
 //! ## Overview
 //! Integration tests for plan compilation primitives and supporting types.
 
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
+
 mod support;
 
 use ret_logic::ColumnKey;
@@ -51,6 +64,7 @@ const fn opcode_value(opcode: OpCode) -> u8 {
 // SECTION: ColumnKey Tests
 // ============================================================================
 
+/// Tests column key new.
 #[test]
 fn test_column_key_new() -> TestResult {
     let key = ColumnKey::new(42);
@@ -58,6 +72,7 @@ fn test_column_key_new() -> TestResult {
     Ok(())
 }
 
+/// Tests column key value.
 #[test]
 fn test_column_key_value() -> TestResult {
     let key = ColumnKey(100);
@@ -66,6 +81,7 @@ fn test_column_key_value() -> TestResult {
     Ok(())
 }
 
+/// Tests column key equality.
 #[test]
 fn test_column_key_equality() -> TestResult {
     let key1 = ColumnKey::new(1);
@@ -77,6 +93,7 @@ fn test_column_key_equality() -> TestResult {
     Ok(())
 }
 
+/// Tests column key hash.
 #[test]
 fn test_column_key_hash() -> TestResult {
     use std::collections::HashSet;
@@ -94,6 +111,7 @@ fn test_column_key_hash() -> TestResult {
 // SECTION: ConstantIndex Tests
 // ============================================================================
 
+/// Tests constant index value.
 #[test]
 fn test_constant_index_value() -> TestResult {
     let idx = ConstantIndex(42);
@@ -101,6 +119,7 @@ fn test_constant_index_value() -> TestResult {
     Ok(())
 }
 
+/// Tests constant index equality.
 #[test]
 fn test_constant_index_equality() -> TestResult {
     let idx1 = ConstantIndex(10);
@@ -116,6 +135,7 @@ fn test_constant_index_equality() -> TestResult {
 // SECTION: Operation Tests
 // ============================================================================
 
+/// Tests operation new.
 #[test]
 fn test_operation_new() -> TestResult {
     let op = Operation::new(OpCode::FloatGte, 1, 2, 3);
@@ -126,6 +146,7 @@ fn test_operation_new() -> TestResult {
     Ok(())
 }
 
+/// Tests operation logical.
 #[test]
 fn test_operation_logical() -> TestResult {
     let and_start = Operation::new(OpCode::AndStart, 0, 0, 0);
@@ -146,6 +167,7 @@ fn test_operation_logical() -> TestResult {
 // SECTION: OpCode Tests
 // ============================================================================
 
+/// Tests opcode is logical group.
 #[test]
 fn test_opcode_is_logical_group() -> TestResult {
     ensure(OpCode::AndStart.is_logical_group(), "Expected AndStart to be logical group")?;
@@ -159,6 +181,7 @@ fn test_opcode_is_logical_group() -> TestResult {
     Ok(())
 }
 
+/// Tests opcode is comparison.
 #[test]
 fn test_opcode_is_comparison() -> TestResult {
     ensure(OpCode::FloatGte.is_comparison(), "Expected FloatGte to be comparison")?;
@@ -174,6 +197,7 @@ fn test_opcode_is_comparison() -> TestResult {
     Ok(())
 }
 
+/// Tests opcode values.
 #[test]
 fn test_opcode_values() -> TestResult {
     ensure(opcode_value(OpCode::AndStart) == 0, "Expected AndStart opcode value")?;
@@ -193,6 +217,7 @@ fn test_opcode_values() -> TestResult {
 // SECTION: Constant Tests
 // ============================================================================
 
+/// Tests constant float.
 #[test]
 fn test_constant_float() -> TestResult {
     let c = Constant::Float(SAMPLE_FLOAT);
@@ -203,6 +228,7 @@ fn test_constant_float() -> TestResult {
     Ok(())
 }
 
+/// Tests constant int.
 #[test]
 fn test_constant_int() -> TestResult {
     let c = Constant::Int(42);
@@ -213,6 +239,7 @@ fn test_constant_int() -> TestResult {
     Ok(())
 }
 
+/// Tests constant uint.
 #[test]
 fn test_constant_uint() -> TestResult {
     let c = Constant::UInt(100);
@@ -223,6 +250,7 @@ fn test_constant_uint() -> TestResult {
     Ok(())
 }
 
+/// Tests constant string.
 #[test]
 fn test_constant_string() -> TestResult {
     let c = Constant::String("hello".to_string());
@@ -233,6 +261,7 @@ fn test_constant_string() -> TestResult {
     Ok(())
 }
 
+/// Tests constant flags.
 #[test]
 fn test_constant_flags() -> TestResult {
     let c = Constant::Flags(0xDEAD_BEEF);
@@ -243,6 +272,7 @@ fn test_constant_flags() -> TestResult {
     Ok(())
 }
 
+/// Tests constant custom.
 #[test]
 fn test_constant_custom() -> TestResult {
     let c = Constant::Custom(vec![1, 2, 3, 4]);
@@ -253,6 +283,7 @@ fn test_constant_custom() -> TestResult {
     Ok(())
 }
 
+/// Tests constant negative int.
 #[test]
 fn test_constant_negative_int() -> TestResult {
     let c = Constant::Int(-100);
@@ -265,6 +296,7 @@ fn test_constant_negative_int() -> TestResult {
 // SECTION: Plan Tests
 // ============================================================================
 
+/// Tests plan new.
 #[test]
 fn test_plan_new() -> TestResult {
     let plan = Plan::new();
@@ -273,6 +305,7 @@ fn test_plan_new() -> TestResult {
     Ok(())
 }
 
+/// Tests plan default.
 #[test]
 fn test_plan_default() -> TestResult {
     let plan = Plan::default();
@@ -281,6 +314,7 @@ fn test_plan_default() -> TestResult {
     Ok(())
 }
 
+/// Tests plan add column.
 #[test]
 fn test_plan_add_column() -> TestResult {
     let mut plan = Plan::new();
@@ -299,6 +333,7 @@ fn test_plan_add_column() -> TestResult {
     Ok(())
 }
 
+/// Tests plan add column dedup.
 #[test]
 fn test_plan_add_column_dedup() -> TestResult {
     let mut plan = Plan::new();
@@ -310,6 +345,7 @@ fn test_plan_add_column_dedup() -> TestResult {
     Ok(())
 }
 
+/// Tests plan add operation.
 #[test]
 fn test_plan_add_operation() -> TestResult {
     let mut plan = Plan::new();
@@ -324,6 +360,7 @@ fn test_plan_add_operation() -> TestResult {
     Ok(())
 }
 
+/// Tests plan add constant.
 #[test]
 fn test_plan_add_constant() -> TestResult {
     let mut plan = Plan::new();
@@ -350,6 +387,7 @@ fn test_plan_add_constant() -> TestResult {
     Ok(())
 }
 
+/// Tests plan constant out of bounds.
 #[test]
 fn test_plan_constant_out_of_bounds() -> TestResult {
     let plan = Plan::new();
@@ -365,6 +403,7 @@ fn test_plan_constant_out_of_bounds() -> TestResult {
 // SECTION: PlanBuilder Tests
 // ============================================================================
 
+/// Tests plan builder new.
 #[test]
 fn test_plan_builder_new() -> TestResult {
     let builder = PlanBuilder::new();
@@ -374,6 +413,7 @@ fn test_plan_builder_new() -> TestResult {
     Ok(())
 }
 
+/// Tests plan builder default.
 #[test]
 fn test_plan_builder_default() -> TestResult {
     let builder = PlanBuilder::default();
@@ -382,6 +422,7 @@ fn test_plan_builder_default() -> TestResult {
     Ok(())
 }
 
+/// Tests plan builder require column.
 #[test]
 fn test_plan_builder_require_column() -> TestResult {
     let plan = PlanBuilder::new()
@@ -393,6 +434,7 @@ fn test_plan_builder_require_column() -> TestResult {
     Ok(())
 }
 
+/// Tests plan builder add op.
 #[test]
 fn test_plan_builder_add_op() -> TestResult {
     let plan = PlanBuilder::new()
@@ -405,6 +447,7 @@ fn test_plan_builder_add_op() -> TestResult {
     Ok(())
 }
 
+/// Tests plan builder and start end.
 #[test]
 fn test_plan_builder_and_start_end() -> TestResult {
     let plan = PlanBuilder::new().and_start().add_op(OpCode::FloatGte, 0, 0, 0).and_end().build();
@@ -418,6 +461,7 @@ fn test_plan_builder_and_start_end() -> TestResult {
     Ok(())
 }
 
+/// Tests plan builder or start end.
 #[test]
 fn test_plan_builder_or_start_end() -> TestResult {
     let plan = PlanBuilder::new().or_start().add_op(OpCode::IntEq, 0, 0, 0).or_end().build();
@@ -431,6 +475,7 @@ fn test_plan_builder_or_start_end() -> TestResult {
     Ok(())
 }
 
+/// Tests plan builder add constants.
 #[test]
 fn test_plan_builder_add_constants() -> TestResult {
     let mut builder = PlanBuilder::new();
@@ -465,6 +510,7 @@ fn test_plan_builder_add_constants() -> TestResult {
     Ok(())
 }
 
+/// Tests plan builder complex plan.
 #[test]
 fn test_plan_builder_complex_plan() -> TestResult {
     let mut builder = PlanBuilder::new();
@@ -485,6 +531,7 @@ fn test_plan_builder_complex_plan() -> TestResult {
     Ok(())
 }
 
+/// Tests plan builder nested groups.
 #[test]
 fn test_plan_builder_nested_groups() -> TestResult {
     let plan = PlanBuilder::new()
@@ -505,6 +552,7 @@ fn test_plan_builder_nested_groups() -> TestResult {
 // SECTION: Plan Clone Tests
 // ============================================================================
 
+/// Tests plan clone.
 #[test]
 fn test_plan_clone() -> TestResult {
     let mut builder = PlanBuilder::new();

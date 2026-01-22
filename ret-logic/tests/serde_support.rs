@@ -6,6 +6,19 @@
 //! ## Overview
 //! Integration tests for serde helpers and validators.
 
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
+
 mod support;
 
 use ret_logic::Requirement;
@@ -62,6 +75,7 @@ fn json_roundtrip(req: &Requirement<MockPredicate>) -> TestResult<Requirement<Mo
 // SECTION: SerdeError Tests
 // ============================================================================
 
+/// Tests serde error display invalid structure.
 #[test]
 fn test_serde_error_display_invalid_structure() -> TestResult {
     let err = SerdeError::InvalidStructure("test message".to_string());
@@ -71,6 +85,7 @@ fn test_serde_error_display_invalid_structure() -> TestResult {
     Ok(())
 }
 
+/// Tests serde error display missing field.
 #[test]
 fn test_serde_error_display_missing_field() -> TestResult {
     let err = SerdeError::MissingField("field_name".to_string());
@@ -80,6 +95,7 @@ fn test_serde_error_display_missing_field() -> TestResult {
     Ok(())
 }
 
+/// Tests serde error display invalid value.
 #[test]
 fn test_serde_error_display_invalid_value() -> TestResult {
     let err = SerdeError::InvalidValue {
@@ -94,6 +110,7 @@ fn test_serde_error_display_invalid_value() -> TestResult {
     Ok(())
 }
 
+/// Tests serde error display circular reference.
 #[test]
 fn test_serde_error_display_circular_reference() -> TestResult {
     let err = SerdeError::CircularReference;
@@ -101,6 +118,7 @@ fn test_serde_error_display_circular_reference() -> TestResult {
     Ok(())
 }
 
+/// Tests serde error display too deep.
 #[test]
 fn test_serde_error_display_too_deep() -> TestResult {
     let err = SerdeError::TooDeep {
@@ -113,6 +131,7 @@ fn test_serde_error_display_too_deep() -> TestResult {
     Ok(())
 }
 
+/// Tests serde error display invalid group.
 #[test]
 fn test_serde_error_display_invalid_group() -> TestResult {
     let err = SerdeError::InvalidGroup {
@@ -125,6 +144,7 @@ fn test_serde_error_display_invalid_group() -> TestResult {
     Ok(())
 }
 
+/// Tests serde error is std error.
 #[test]
 fn test_serde_error_is_std_error() -> TestResult {
     let err = SerdeError::CircularReference;
@@ -137,6 +157,7 @@ fn test_serde_error_is_std_error() -> TestResult {
 // SECTION: SerdeConfig Tests
 // ============================================================================
 
+/// Tests serde config default.
 #[test]
 fn test_serde_config_default() -> TestResult {
     let config = SerdeConfig::default();
@@ -146,6 +167,7 @@ fn test_serde_config_default() -> TestResult {
     Ok(())
 }
 
+/// Tests serde config custom.
 #[test]
 fn test_serde_config_custom() -> TestResult {
     let config = SerdeConfig {
@@ -163,6 +185,7 @@ fn test_serde_config_custom() -> TestResult {
 // SECTION: RequirementValidator Tests
 // ============================================================================
 
+/// Tests validator with defaults.
 #[test]
 fn test_validator_with_defaults() -> TestResult {
     let validator = RequirementValidator::with_defaults();
@@ -171,6 +194,7 @@ fn test_validator_with_defaults() -> TestResult {
     Ok(())
 }
 
+/// Tests validator validates predicate.
 #[test]
 fn test_validator_validates_predicate() -> TestResult {
     let validator = RequirementValidator::with_defaults();
@@ -179,6 +203,7 @@ fn test_validator_validates_predicate() -> TestResult {
     Ok(())
 }
 
+/// Tests validator validates and.
 #[test]
 fn test_validator_validates_and() -> TestResult {
     let validator = RequirementValidator::with_defaults();
@@ -190,6 +215,7 @@ fn test_validator_validates_and() -> TestResult {
     Ok(())
 }
 
+/// Tests validator validates empty and.
 #[test]
 fn test_validator_validates_empty_and() -> TestResult {
     let validator = RequirementValidator::with_defaults();
@@ -198,6 +224,7 @@ fn test_validator_validates_empty_and() -> TestResult {
     Ok(())
 }
 
+/// Tests validator rejects empty and when configured.
 #[test]
 fn test_validator_rejects_empty_and_when_configured() -> TestResult {
     let config = SerdeConfig {
@@ -213,6 +240,7 @@ fn test_validator_rejects_empty_and_when_configured() -> TestResult {
     Ok(())
 }
 
+/// Tests validator validates or.
 #[test]
 fn test_validator_validates_or() -> TestResult {
     let validator = RequirementValidator::with_defaults();
@@ -221,6 +249,7 @@ fn test_validator_validates_or() -> TestResult {
     Ok(())
 }
 
+/// Tests validator validates empty or.
 #[test]
 fn test_validator_validates_empty_or() -> TestResult {
     let validator = RequirementValidator::with_defaults();
@@ -229,6 +258,7 @@ fn test_validator_validates_empty_or() -> TestResult {
     Ok(())
 }
 
+/// Tests validator rejects empty or when configured.
 #[test]
 fn test_validator_rejects_empty_or_when_configured() -> TestResult {
     let config = SerdeConfig {
@@ -244,6 +274,7 @@ fn test_validator_rejects_empty_or_when_configured() -> TestResult {
     Ok(())
 }
 
+/// Tests validator validates not.
 #[test]
 fn test_validator_validates_not() -> TestResult {
     let validator = RequirementValidator::with_defaults();
@@ -252,6 +283,7 @@ fn test_validator_validates_not() -> TestResult {
     Ok(())
 }
 
+/// Tests validator validates require group.
 #[test]
 fn test_validator_validates_require_group() -> TestResult {
     let validator = RequirementValidator::with_defaults();
@@ -267,6 +299,7 @@ fn test_validator_validates_require_group() -> TestResult {
     Ok(())
 }
 
+/// Tests validator rejects invalid group.
 #[test]
 fn test_validator_rejects_invalid_group() -> TestResult {
     let validator = RequirementValidator::with_defaults();
@@ -290,6 +323,7 @@ fn test_validator_rejects_invalid_group() -> TestResult {
     Ok(())
 }
 
+/// Tests validator rejects group min zero with elements.
 #[test]
 fn test_validator_rejects_group_min_zero_with_elements() -> TestResult {
     let validator = RequirementValidator::with_defaults();
@@ -302,6 +336,7 @@ fn test_validator_rejects_group_min_zero_with_elements() -> TestResult {
     Ok(())
 }
 
+/// Tests validator validates nested.
 #[test]
 fn test_validator_validates_nested() -> TestResult {
     let validator = RequirementValidator::with_defaults();
@@ -322,6 +357,7 @@ fn test_validator_validates_nested() -> TestResult {
     Ok(())
 }
 
+/// Tests validator rejects too deep.
 #[test]
 fn test_validator_rejects_too_deep() -> TestResult {
     let config = SerdeConfig {
@@ -343,6 +379,7 @@ fn test_validator_rejects_too_deep() -> TestResult {
     Ok(())
 }
 
+/// Tests validator accepts at max depth.
 #[test]
 fn test_validator_accepts_at_max_depth() -> TestResult {
     let config = SerdeConfig {
@@ -364,6 +401,7 @@ fn test_validator_accepts_at_max_depth() -> TestResult {
 // SECTION: RON Serialization Tests
 // ============================================================================
 
+/// Tests ron roundtrip predicate.
 #[test]
 fn test_ron_roundtrip_predicate() -> TestResult {
     let req = Requirement::predicate(MockPredicate::ValueGte(42));
@@ -372,6 +410,7 @@ fn test_ron_roundtrip_predicate() -> TestResult {
     Ok(())
 }
 
+/// Tests ron roundtrip and.
 #[test]
 fn test_ron_roundtrip_and() -> TestResult {
     let req = Requirement::and(vec![
@@ -383,6 +422,7 @@ fn test_ron_roundtrip_and() -> TestResult {
     Ok(())
 }
 
+/// Tests ron roundtrip or.
 #[test]
 fn test_ron_roundtrip_or() -> TestResult {
     let req = Requirement::or(vec![
@@ -394,6 +434,7 @@ fn test_ron_roundtrip_or() -> TestResult {
     Ok(())
 }
 
+/// Tests ron roundtrip not.
 #[test]
 fn test_ron_roundtrip_not() -> TestResult {
     let req = Requirement::not(Requirement::predicate(MockPredicate::HasAllFlags(0xFF)));
@@ -402,6 +443,7 @@ fn test_ron_roundtrip_not() -> TestResult {
     Ok(())
 }
 
+/// Tests ron roundtrip require group.
 #[test]
 fn test_ron_roundtrip_require_group() -> TestResult {
     let req = Requirement::require_group(
@@ -417,6 +459,7 @@ fn test_ron_roundtrip_require_group() -> TestResult {
     Ok(())
 }
 
+/// Tests ron roundtrip complex nested.
 #[test]
 fn test_ron_roundtrip_complex_nested() -> TestResult {
     let req = Requirement::and(vec![
@@ -438,6 +481,7 @@ fn test_ron_roundtrip_complex_nested() -> TestResult {
     Ok(())
 }
 
+/// Tests ron from invalid string.
 #[test]
 fn test_ron_from_invalid_string() -> TestResult {
     let result: Result<Requirement<MockPredicate>, _> = convenience::from_ron("not valid ron {{{");
@@ -449,6 +493,7 @@ fn test_ron_from_invalid_string() -> TestResult {
 // SECTION: JSON Serialization Tests
 // ============================================================================
 
+/// Tests json roundtrip predicate.
 #[test]
 fn test_json_roundtrip_predicate() -> TestResult {
     let req = Requirement::predicate(MockPredicate::ValueGte(42));
@@ -457,6 +502,7 @@ fn test_json_roundtrip_predicate() -> TestResult {
     Ok(())
 }
 
+/// Tests json roundtrip and.
 #[test]
 fn test_json_roundtrip_and() -> TestResult {
     let req = Requirement::and(vec![
@@ -468,6 +514,7 @@ fn test_json_roundtrip_and() -> TestResult {
     Ok(())
 }
 
+/// Tests json roundtrip nested.
 #[test]
 fn test_json_roundtrip_nested() -> TestResult {
     let req = Requirement::and(vec![Requirement::or(vec![
@@ -479,6 +526,7 @@ fn test_json_roundtrip_nested() -> TestResult {
     Ok(())
 }
 
+/// Tests json from invalid string.
 #[test]
 fn test_json_from_invalid_string() -> TestResult {
     let result: Result<Requirement<MockPredicate>, _> = convenience::from_json("{not: valid}");
@@ -490,6 +538,7 @@ fn test_json_from_invalid_string() -> TestResult {
 // SECTION: Convenience Function Tests
 // ============================================================================
 
+/// Tests convenience validate.
 #[test]
 fn test_convenience_validate() -> TestResult {
     let req = Requirement::and(vec![Requirement::predicate(MockPredicate::AlwaysTrue)]);
@@ -497,6 +546,7 @@ fn test_convenience_validate() -> TestResult {
     Ok(())
 }
 
+/// Tests convenience validate invalid.
 #[test]
 fn test_convenience_validate_invalid() -> TestResult {
     let req =
@@ -505,6 +555,7 @@ fn test_convenience_validate_invalid() -> TestResult {
     Ok(())
 }
 
+/// Tests convenience is valid.
 #[test]
 fn test_convenience_is_valid() -> TestResult {
     let valid = Requirement::and(vec![Requirement::predicate(MockPredicate::AlwaysTrue)]);
@@ -520,6 +571,7 @@ fn test_convenience_is_valid() -> TestResult {
 // SECTION: RequirementSerializer Tests
 // ============================================================================
 
+/// Tests serializer with defaults.
 #[test]
 fn test_serializer_with_defaults() -> TestResult {
     let serializer = RequirementSerializer::with_defaults();
@@ -531,6 +583,7 @@ fn test_serializer_with_defaults() -> TestResult {
     Ok(())
 }
 
+/// Tests serializer default impl.
 #[test]
 fn test_serializer_default_impl() -> TestResult {
     let serializer = RequirementSerializer::default();
@@ -540,6 +593,7 @@ fn test_serializer_default_impl() -> TestResult {
     Ok(())
 }
 
+/// Tests serializer custom config.
 #[test]
 fn test_serializer_custom_config() -> TestResult {
     let config = SerdeConfig {
@@ -561,6 +615,7 @@ fn test_serializer_custom_config() -> TestResult {
     Ok(())
 }
 
+/// Tests serializer to json.
 #[test]
 fn test_serializer_to_json() -> TestResult {
     let serializer = RequirementSerializer::with_defaults();
@@ -575,6 +630,7 @@ fn test_serializer_to_json() -> TestResult {
     Ok(())
 }
 
+/// Tests serializer validates on serialize.
 #[test]
 fn test_serializer_validates_on_serialize() -> TestResult {
     let serializer = RequirementSerializer::with_defaults();
@@ -592,6 +648,7 @@ fn test_serializer_validates_on_serialize() -> TestResult {
 // SECTION: Edge Cases
 // ============================================================================
 
+/// Tests ron empty and.
 #[test]
 fn test_ron_empty_and() -> TestResult {
     let req: Requirement<MockPredicate> = Requirement::and(vec![]);
@@ -600,6 +657,7 @@ fn test_ron_empty_and() -> TestResult {
     Ok(())
 }
 
+/// Tests ron empty or.
 #[test]
 fn test_ron_empty_or() -> TestResult {
     let req: Requirement<MockPredicate> = Requirement::or(vec![]);
@@ -608,6 +666,7 @@ fn test_ron_empty_or() -> TestResult {
     Ok(())
 }
 
+/// Tests ron all predicate variants.
 #[test]
 fn test_ron_all_predicate_variants() -> TestResult {
     let predicates = vec![
@@ -632,6 +691,7 @@ fn test_ron_all_predicate_variants() -> TestResult {
     Ok(())
 }
 
+/// Tests ron large group.
 #[test]
 fn test_ron_large_group() -> TestResult {
     let reqs: Vec<_> =
@@ -643,6 +703,7 @@ fn test_ron_large_group() -> TestResult {
     Ok(())
 }
 
+/// Tests json pretty format.
 #[test]
 fn test_json_pretty_format() -> TestResult {
     let serializer = RequirementSerializer::with_defaults();

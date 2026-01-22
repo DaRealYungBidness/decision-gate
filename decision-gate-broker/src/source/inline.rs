@@ -7,7 +7,7 @@
 // ============================================================================
 
 //! ## Overview
-//! InlineSource resolves `inline:` URIs that embed payload bytes directly.
+//! `InlineSource` resolves `inline:` URIs that embed payload bytes directly.
 //! Supported prefixes: `inline+json:`, `inline+bytes:`, and `inline:`.
 
 // ============================================================================
@@ -38,7 +38,7 @@ impl InlineSource {
     }
 
     /// Decodes a base64-encoded payload.
-    fn decode_base64(&self, encoded: &str) -> Result<Vec<u8>, SourceError> {
+    fn decode_base64(encoded: &str) -> Result<Vec<u8>, SourceError> {
         STANDARD.decode(encoded.as_bytes()).map_err(|err| SourceError::Decode(err.to_string()))
     }
 }
@@ -47,21 +47,21 @@ impl Source for InlineSource {
     fn fetch(&self, content_ref: &ContentRef) -> Result<SourcePayload, SourceError> {
         let uri = content_ref.uri.as_str();
         if let Some(encoded) = uri.strip_prefix("inline+json:") {
-            let bytes = self.decode_base64(encoded)?;
+            let bytes = Self::decode_base64(encoded)?;
             return Ok(SourcePayload {
                 bytes,
                 content_type: Some("application/json".to_string()),
             });
         }
         if let Some(encoded) = uri.strip_prefix("inline+bytes:") {
-            let bytes = self.decode_base64(encoded)?;
+            let bytes = Self::decode_base64(encoded)?;
             return Ok(SourcePayload {
                 bytes,
                 content_type: Some("application/octet-stream".to_string()),
             });
         }
         if let Some(encoded) = uri.strip_prefix("inline:") {
-            let bytes = self.decode_base64(encoded)?;
+            let bytes = Self::decode_base64(encoded)?;
             return Ok(SourcePayload {
                 bytes,
                 content_type: None,

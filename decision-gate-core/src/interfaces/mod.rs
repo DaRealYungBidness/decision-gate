@@ -15,11 +15,13 @@
 // SECTION: Imports
 // ============================================================================
 
+use serde::Deserialize;
 use serde::Serialize;
 use thiserror::Error;
 
 use crate::core::ArtifactKind;
 use crate::core::RunState;
+use crate::core::ScenarioSpec;
 use crate::core::TriggerEvent;
 use crate::core::disclosure::DispatchReceipt;
 use crate::core::disclosure::DispatchTarget;
@@ -27,6 +29,7 @@ use crate::core::disclosure::PacketEnvelope;
 use crate::core::disclosure::PacketPayload;
 use crate::core::evidence::EvidenceQuery;
 use crate::core::evidence::EvidenceResult;
+use crate::core::evidence::ProviderMissingError;
 use crate::core::identifiers::CorrelationId;
 use crate::core::identifiers::RunId;
 use crate::core::identifiers::ScenarioId;
@@ -41,7 +44,7 @@ use crate::core::time::Timestamp;
 // ============================================================================
 
 /// Context provided to evidence providers for query evaluation.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvidenceContext {
     /// Tenant identifier.
     pub tenant_id: TenantId,
@@ -79,6 +82,13 @@ pub trait EvidenceProvider {
         query: &EvidenceQuery,
         ctx: &EvidenceContext,
     ) -> Result<EvidenceResult, EvidenceError>;
+
+    /// Validates that all providers referenced by the scenario are available.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProviderMissingError`] when required providers are missing or blocked.
+    fn validate_providers(&self, spec: &ScenarioSpec) -> Result<(), ProviderMissingError>;
 }
 
 // ============================================================================

@@ -6,8 +6,18 @@
 //! ## Overview
 //! Validates deterministic hashing using RFC 8785 canonicalization.
 
-#![allow(clippy::unwrap_used, reason = "Tests use unwrap on deterministic hashing inputs.")]
-#![allow(clippy::expect_used, reason = "Tests use expect for explicit failure messages.")]
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
 
 use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
 use decision_gate_core::hashing::hash_canonical_json;
@@ -17,6 +27,7 @@ use serde_json::json;
 // SECTION: Canonical Hashing
 // ============================================================================
 
+/// Tests canonical json hash is stable.
 #[test]
 fn test_canonical_json_hash_is_stable() {
     let value_a = json!({"b": 1, "a": 2});

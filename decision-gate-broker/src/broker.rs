@@ -7,7 +7,7 @@
 // ============================================================================
 
 //! ## Overview
-//! CompositeBroker implements Decision Gate's dispatcher interface by resolving
+//! `CompositeBroker` implements Decision Gate's dispatcher interface by resolving
 //! external payloads with sources and delivering them with sinks.
 
 // ============================================================================
@@ -78,7 +78,7 @@ pub enum BrokerError {
 
 impl From<BrokerError> for DispatchError {
     fn from(err: BrokerError) -> Self {
-        DispatchError::DispatchFailed(err.to_string())
+        Self::DispatchFailed(err.to_string())
     }
 }
 
@@ -89,7 +89,9 @@ impl From<BrokerError> for DispatchError {
 /// Builder for a composite broker.
 #[derive(Default)]
 pub struct CompositeBrokerBuilder {
+    /// Source registry keyed by URI scheme.
     sources: BTreeMap<String, Arc<dyn Source>>,
+    /// Sink used to dispatch resolved payloads.
     sink: Option<Arc<dyn Sink>>,
 }
 
@@ -123,7 +125,9 @@ impl CompositeBrokerBuilder {
 
 /// Composite dispatcher wiring sources and a sink.
 pub struct CompositeBroker {
+    /// Source registry keyed by URI scheme.
     sources: BTreeMap<String, Arc<dyn Source>>,
+    /// Sink used to dispatch resolved payloads.
     sink: Arc<dyn Sink>,
 }
 
@@ -143,10 +147,10 @@ impl CompositeBroker {
         if let Some(source) = self.sources.get(&scheme) {
             return Ok(Arc::clone(source));
         }
-        if let Some((base, _)) = scheme.split_once('+') {
-            if let Some(source) = self.sources.get(base) {
-                return Ok(Arc::clone(source));
-            }
+        if let Some((base, _)) = scheme.split_once('+')
+            && let Some(source) = self.sources.get(base)
+        {
+            return Ok(Arc::clone(source));
         }
         Err(BrokerError::MissingSource(scheme))
     }
@@ -162,7 +166,7 @@ impl CompositeBroker {
                 value,
             } => {
                 let body = PayloadBody::Json(value.clone());
-                self.validate_payload_hash(
+                Self::validate_payload_hash(
                     &body,
                     envelope.content_hash.algorithm,
                     &envelope.content_hash,
@@ -176,7 +180,7 @@ impl CompositeBroker {
                 bytes,
             } => {
                 let body = PayloadBody::Bytes(bytes.clone());
-                self.validate_payload_hash(
+                Self::validate_payload_hash(
                     &body,
                     envelope.content_hash.algorithm,
                     &envelope.content_hash,
@@ -197,8 +201,8 @@ impl CompositeBroker {
                 }
                 let source = self.resolve_source(&content_ref.uri)?;
                 let resolved = source.fetch(content_ref)?;
-                let body = self.build_body(&resolved.bytes, envelope.content_type.as_str())?;
-                self.validate_payload_hash(
+                let body = Self::build_body(&resolved.bytes, envelope.content_type.as_str())?;
+                Self::validate_payload_hash(
                     &body,
                     content_ref.content_hash.algorithm,
                     &content_ref.content_hash,
@@ -212,7 +216,7 @@ impl CompositeBroker {
     }
 
     /// Builds a payload body from raw bytes and content type.
-    fn build_body(&self, bytes: &[u8], content_type: &str) -> Result<PayloadBody, BrokerError> {
+    fn build_body(bytes: &[u8], content_type: &str) -> Result<PayloadBody, BrokerError> {
         if is_json_content_type(content_type) {
             let value = serde_json::from_slice::<Value>(bytes)
                 .map_err(|err| BrokerError::JsonParse(err.to_string()))?;
@@ -224,7 +228,6 @@ impl CompositeBroker {
 
     /// Validates a payload hash against an expected digest.
     fn validate_payload_hash(
-        &self,
         body: &PayloadBody,
         algorithm: HashAlgorithm,
         expected: &HashDigest,

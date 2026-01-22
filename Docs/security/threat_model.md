@@ -26,13 +26,17 @@ disclosure decisions.
 ## Trust Boundaries
 - Trigger ingestion is a boundary; all triggers are untrusted until authenticated.
 - Evidence providers are untrusted; evidence must be anchored and hash-verified.
+- MCP server transports (stdio/HTTP/SSE) are untrusted inputs; all JSON-RPC payloads must be validated.
+- MCP client federation crosses process boundaries; provider responses are untrusted unless signed.
 - Dispatch targets are untrusted; disclosure decisions must be auditable.
 - Artifact sinks/readers are untrusted; runpack outputs must be hash-verified.
 - Tool-call APIs are untrusted; inputs must be validated and logged deterministically.
+- Configuration files are untrusted input; parsing must be bounded and fail closed.
+- Provider SDK implementations are untrusted; rely on signatures and hash anchoring.
 
 ## Failure Posture
 - Fail closed on missing, invalid, or unverifiable evidence.
 - Do not disclose data on `Unknown` or ambiguous outcomes.
 
 ## Threat Model Delta
-- Updated to include tool-call and runpack boundaries.
+- Updated to include MCP server/client transports, provider federation, and config boundaries.

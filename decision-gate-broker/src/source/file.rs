@@ -7,7 +7,7 @@
 // ============================================================================
 
 //! ## Overview
-//! FileSource resolves `file://` URIs into payload bytes. A root directory can
+//! `FileSource` resolves `file://` URIs into payload bytes. A root directory can
 //! be configured to fail closed on path traversal.
 
 // ============================================================================
@@ -30,6 +30,7 @@ use crate::source::SourcePayload;
 /// File-backed payload source.
 #[derive(Debug, Clone)]
 pub struct FileSource {
+    /// Optional root directory for path traversal protection.
     root: Option<PathBuf>,
 }
 
@@ -44,7 +45,7 @@ impl FileSource {
 
     /// Creates a file source with no root restrictions.
     #[must_use]
-    pub fn unrestricted() -> Self {
+    pub const fn unrestricted() -> Self {
         Self {
             root: None,
         }
@@ -58,7 +59,7 @@ impl FileSource {
         }
         let path = url
             .to_file_path()
-            .map_err(|_| SourceError::InvalidUri("failed to map file url to path".to_string()))?;
+            .map_err(|()| SourceError::InvalidUri("failed to map file url to path".to_string()))?;
 
         if let Some(root) = &self.root {
             let root =

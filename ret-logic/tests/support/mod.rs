@@ -6,6 +6,19 @@
 //! ## Overview
 //! Shared test helpers for consistent Result-based assertions.
 
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
+
 use std::error::Error;
 use std::fmt;
 

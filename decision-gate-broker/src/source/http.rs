@@ -7,7 +7,7 @@
 // ============================================================================
 
 //! ## Overview
-//! HttpSource resolves `http://` and `https://` URIs into payload bytes.
+//! `HttpSource` resolves `http://` and `https://` URIs into payload bytes.
 //! Non-success status codes fail closed.
 
 // ============================================================================
@@ -32,6 +32,7 @@ use crate::source::SourcePayload;
 /// HTTP-backed payload source.
 #[derive(Debug, Clone)]
 pub struct HttpSource {
+    /// HTTP client used for fetch requests.
     client: Client,
 }
 

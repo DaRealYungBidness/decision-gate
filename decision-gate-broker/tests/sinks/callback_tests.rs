@@ -4,9 +4,22 @@
 // Description: Comprehensive tests for the callback-based payload sink.
 // ============================================================================
 
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
+
+use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
 
 use decision_gate_broker::CallbackSink;
 use decision_gate_broker::Payload;
@@ -26,6 +39,7 @@ use super::common::sample_target;
 // SECTION: Constructor Tests
 // ============================================================================
 
+/// Tests callback sink new creates sink.
 #[test]
 fn callback_sink_new_creates_sink() {
     let _sink = CallbackSink::new(|_target, _payload| {
@@ -46,6 +60,7 @@ fn callback_sink_new_creates_sink() {
 // SECTION: Success Path Tests
 // ============================================================================
 
+/// Tests callback sink invokes handler with correct arguments.
 #[test]
 fn callback_sink_invokes_handler_with_correct_arguments() {
     let target = sample_target();
@@ -74,6 +89,7 @@ fn callback_sink_invokes_handler_with_correct_arguments() {
     assert_eq!(receipt.dispatcher, "callback");
 }
 
+/// Tests callback sink returns receipt from handler.
 #[test]
 fn callback_sink_returns_receipt_from_handler() {
     let target = sample_target();
@@ -99,6 +115,7 @@ fn callback_sink_returns_receipt_from_handler() {
     assert_eq!(receipt.dispatcher, expected_receipt.dispatcher);
 }
 
+/// Tests callback sink handler called multiple times.
 #[test]
 fn callback_sink_handler_called_multiple_times() {
     let call_count = Arc::new(AtomicUsize::new(0));
@@ -121,13 +138,14 @@ fn callback_sink_handler_called_multiple_times() {
         body: PayloadBody::Bytes(b"data".to_vec()),
     };
 
-    for i in 1..=5 {
+    for i in 1 ..= 5 {
         let receipt = sink.deliver(&target, &payload).expect("callback deliver");
         assert_eq!(call_count.load(Ordering::SeqCst), i);
         assert_eq!(receipt.dispatch_id, format!("call-{i}"));
     }
 }
 
+/// Tests callback sink is clone.
 #[test]
 fn callback_sink_is_clone() {
     let call_count = Arc::new(AtomicUsize::new(0));
@@ -163,11 +181,11 @@ fn callback_sink_is_clone() {
 // SECTION: Error Path Tests
 // ============================================================================
 
+/// Tests callback sink propagates handler error.
 #[test]
 fn callback_sink_propagates_handler_error() {
-    let sink = CallbackSink::new(|_, _| {
-        Err(SinkError::DeliveryFailed("handler failed".to_string()))
-    });
+    let sink =
+        CallbackSink::new(|_, _| Err(SinkError::DeliveryFailed("handler failed".to_string())));
 
     let target = sample_target();
     let payload = Payload {
@@ -181,19 +199,14 @@ fn callback_sink_propagates_handler_error() {
     assert!(err.to_string().contains("handler failed"));
 }
 
+/// Tests callback sink handler can return different errors.
 #[test]
 fn callback_sink_handler_can_return_different_errors() {
-    let error_messages = vec![
-        "connection refused",
-        "timeout exceeded",
-        "invalid target",
-    ];
+    let error_messages = vec!["connection refused", "timeout exceeded", "invalid target"];
 
     for msg in error_messages {
         let error_msg = msg.to_string();
-        let sink = CallbackSink::new(move |_, _| {
-            Err(SinkError::DeliveryFailed(error_msg.clone()))
-        });
+        let sink = CallbackSink::new(move |_, _| Err(SinkError::DeliveryFailed(error_msg.clone())));
 
         let target = sample_target();
         let payload = Payload {
@@ -210,6 +223,7 @@ fn callback_sink_handler_can_return_different_errors() {
 // SECTION: Edge Case Tests
 // ============================================================================
 
+/// Tests callback sink handles different agent targets.
 #[test]
 fn callback_sink_handles_different_agent_targets() {
     let targets = vec![
@@ -246,14 +260,13 @@ fn callback_sink_handles_different_agent_targets() {
     }
 }
 
+/// Tests callback sink handles json payload.
 #[test]
 fn callback_sink_handles_json_payload() {
     let json_value = serde_json::json!({"key": "value", "count": 42});
-    let content_hash = decision_gate_core::hashing::hash_canonical_json(
-        DEFAULT_HASH_ALGORITHM,
-        &json_value,
-    )
-    .expect("json hash");
+    let content_hash =
+        decision_gate_core::hashing::hash_canonical_json(DEFAULT_HASH_ALGORITHM, &json_value)
+            .expect("json hash");
 
     let envelope = decision_gate_core::PacketEnvelope {
         scenario_id: decision_gate_core::ScenarioId::new("test"),
@@ -262,19 +275,19 @@ fn callback_sink_handles_json_payload() {
         packet_id: decision_gate_core::PacketId::new("test"),
         schema_id: decision_gate_core::SchemaId::new("test"),
         content_type: "application/json".to_string(),
-        content_hash: content_hash.clone(),
+        content_hash,
         visibility: decision_gate_core::VisibilityPolicy::new(vec![], vec![]),
         expiry: None,
         correlation_id: None,
         issued_at: Timestamp::Logical(1),
     };
 
+    let expected_json = json_value.clone();
     let payload = Payload {
         envelope,
-        body: PayloadBody::Json(json_value.clone()),
+        body: PayloadBody::Json(json_value),
     };
 
-    let expected_json = json_value.clone();
     let sink = CallbackSink::new(move |target, received_payload| {
         if let PayloadBody::Json(value) = &received_payload.body {
             assert_eq!(value, &expected_json);

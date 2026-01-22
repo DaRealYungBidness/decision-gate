@@ -34,6 +34,7 @@ use decision_gate_core::PacketSpec;
 use decision_gate_core::PolicyDecider;
 use decision_gate_core::PolicyDecision;
 use decision_gate_core::PredicateSpec;
+use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::RunStateStore;
 use decision_gate_core::ScenarioId;
@@ -71,6 +72,13 @@ impl EvidenceProvider for ExampleEvidenceProvider {
             signature: None,
             content_type: Some("application/json".to_string()),
         })
+    }
+
+    fn validate_providers(
+        &self,
+        _spec: &ScenarioSpec,
+    ) -> Result<(), decision_gate_core::ProviderMissingError> {
+        Ok(())
     }
 }
 
@@ -186,9 +194,10 @@ fn build_spec() -> ScenarioSpec {
         }],
         predicates: vec![PredicateSpec {
             predicate: "ready".into(),
-            query: EvidenceQuery::StatePredicate {
-                name: "ready".to_string(),
-                params: json!({}),
+            query: EvidenceQuery {
+                provider_id: ProviderId::new("example"),
+                predicate: "ready".to_string(),
+                params: Some(json!({})),
             },
             comparator: Comparator::Equals,
             expected: Some(json!(true)),

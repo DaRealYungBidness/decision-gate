@@ -23,6 +23,7 @@ use crate::core::disclosure::DispatchTarget;
 use crate::core::disclosure::PacketPayload;
 use crate::core::disclosure::PacketRecord;
 use crate::core::evidence::EvidenceResult;
+use crate::core::evidence::ProviderMissingError;
 use crate::core::hashing::HashDigest;
 use crate::core::identifiers::CorrelationId;
 use crate::core::identifiers::DecisionId;
@@ -250,7 +251,7 @@ pub struct SubmissionRecord {
     pub correlation_id: Option<CorrelationId>,
 }
 
-/// Tool-call record for `scenario.next/status/submit` APIs.
+/// Tool-call record for `scenario.next/status/submit/trigger` APIs.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ToolCallRecord {
     /// Tool-call identifier.
@@ -265,6 +266,32 @@ pub struct ToolCallRecord {
     pub called_at: Timestamp,
     /// Optional correlation identifier.
     pub correlation_id: Option<CorrelationId>,
+    /// Optional error details when the tool call failed.
+    pub error: Option<ToolCallError>,
+}
+
+/// Tool-call error metadata recorded for failed calls.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ToolCallError {
+    /// Stable error code string.
+    pub code: String,
+    /// Human-readable error message.
+    pub message: String,
+    /// Optional structured error details.
+    pub details: Option<ToolCallErrorDetails>,
+}
+
+/// Structured details for tool-call errors.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ToolCallErrorDetails {
+    /// Missing or blocked provider details.
+    ProviderMissing(ProviderMissingError),
+    /// Generic error details.
+    Message {
+        /// Additional error context.
+        info: String,
+    },
 }
 
 // ============================================================================

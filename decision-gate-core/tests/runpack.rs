@@ -6,8 +6,18 @@
 //! ## Overview
 //! Validates deterministic runpack exports and verifier behavior.
 
-#![allow(clippy::unwrap_used, reason = "Tests use unwrap on deterministic runpack fixtures.")]
-#![allow(clippy::expect_used, reason = "Tests use expect for explicit failure messages.")]
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
 
 use std::collections::BTreeMap;
 use std::sync::Mutex;
@@ -110,6 +120,7 @@ fn minimal_spec() -> ScenarioSpec {
 // SECTION: Tests
 // ============================================================================
 
+/// Tests runpack build and verify.
 #[test]
 fn test_runpack_build_and_verify() {
     let spec = minimal_spec();

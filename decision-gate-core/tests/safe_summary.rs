@@ -6,8 +6,18 @@
 //! ## Overview
 //! Validates that hold summaries only include gate identifiers and guidance.
 
-#![allow(clippy::unwrap_used, reason = "Tests use unwrap on deterministic fixtures.")]
-#![allow(clippy::expect_used, reason = "Tests use expect for explicit failure messages.")]
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
 
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
@@ -27,6 +37,7 @@ use decision_gate_core::PacketSpec;
 use decision_gate_core::PolicyDecider;
 use decision_gate_core::PolicyDecision;
 use decision_gate_core::PredicateSpec;
+use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::ScenarioId;
 use decision_gate_core::ScenarioSpec;
@@ -45,6 +56,7 @@ use decision_gate_core::runtime::InMemoryRunStateStore;
 use decision_gate_core::runtime::NextRequest;
 use serde_json::json;
 
+/// Evidence provider that always returns a secret value.
 struct SecretEvidenceProvider;
 
 impl EvidenceProvider for SecretEvidenceProvider {
@@ -62,8 +74,16 @@ impl EvidenceProvider for SecretEvidenceProvider {
             content_type: Some("application/json".to_string()),
         })
     }
+
+    fn validate_providers(
+        &self,
+        _spec: &ScenarioSpec,
+    ) -> Result<(), decision_gate_core::ProviderMissingError> {
+        Ok(())
+    }
 }
 
+/// Dispatcher that records receipts without external delivery.
 struct NoopDispatcher;
 
 impl Dispatcher for NoopDispatcher {
@@ -83,6 +103,7 @@ impl Dispatcher for NoopDispatcher {
     }
 }
 
+/// Policy decider that permits all disclosures.
 struct PermitAllPolicy;
 
 impl PolicyDecider for PermitAllPolicy {
@@ -96,6 +117,7 @@ impl PolicyDecider for PermitAllPolicy {
     }
 }
 
+/// Builds a scenario spec that references secret evidence.
 fn spec_with_secret_gate() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
@@ -123,9 +145,10 @@ fn spec_with_secret_gate() -> ScenarioSpec {
         }],
         predicates: vec![PredicateSpec {
             predicate: "needs_secret".into(),
-            query: EvidenceQuery::StatePredicate {
-                name: "needs_secret".to_string(),
-                params: json!({}),
+            query: EvidenceQuery {
+                provider_id: ProviderId::new("test"),
+                predicate: "needs_secret".to_string(),
+                params: Some(json!({})),
             },
             comparator: Comparator::Equals,
             expected: Some(json!(true)),
@@ -138,6 +161,7 @@ fn spec_with_secret_gate() -> ScenarioSpec {
 }
 
 #[test]
+/// Ensures safe summaries do not include sensitive evidence.
 fn safe_summary_omits_evidence_values() {
     let store = InMemoryRunStateStore::new();
     let engine = ControlPlane::new(
@@ -171,11 +195,11 @@ fn safe_summary_omits_evidence_values() {
     };
     let result = engine.scenario_next(&request).unwrap();
 
-    let summary = match result.decision.outcome {
-        DecisionOutcome::Hold {
-            summary,
-        } => summary,
-        _ => panic!("expected hold decision"),
+    let DecisionOutcome::Hold {
+        summary,
+    } = result.decision.outcome
+    else {
+        panic!("expected hold decision");
     };
 
     let summary_json = serde_json::to_string(&summary).expect("summary json");

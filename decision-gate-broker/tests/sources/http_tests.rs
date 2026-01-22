@@ -4,6 +4,19 @@
 // Description: Comprehensive tests for the HTTP-backed payload source.
 // ============================================================================
 
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
+
 use std::thread;
 use std::time::Duration;
 
@@ -22,18 +35,17 @@ use tiny_http::Server;
 // SECTION: Constructor Tests
 // ============================================================================
 
+/// Tests http source new creates default client.
 #[test]
 fn http_source_new_creates_default_client() {
     let source = HttpSource::new();
     assert!(source.is_ok());
 }
 
+/// Tests http source with client uses custom client.
 #[test]
 fn http_source_with_client_uses_custom_client() {
-    let client = Client::builder()
-        .timeout(Duration::from_secs(10))
-        .build()
-        .expect("custom client");
+    let client = Client::builder().timeout(Duration::from_secs(10)).build().expect("custom client");
 
     let _source = HttpSource::with_client(client);
     // Source created successfully with custom client
@@ -43,6 +55,7 @@ fn http_source_with_client_uses_custom_client() {
 // SECTION: Success Path Tests
 // ============================================================================
 
+/// Tests http source fetches bytes with content type.
 #[test]
 fn http_source_fetches_bytes_with_content_type() {
     let server = Server::http("127.0.0.1:0").expect("http server");
@@ -58,7 +71,7 @@ fn http_source_fetches_bytes_with_content_type() {
         }
     });
 
-    let uri = format!("http://{}/file.bin", addr);
+    let uri = format!("http://{addr}/file.bin");
     let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"remote payload");
     let content_ref = ContentRef {
         uri,
@@ -75,6 +88,7 @@ fn http_source_fetches_bytes_with_content_type() {
     handle.join().expect("server thread");
 }
 
+/// Tests http source fetches json content type.
 #[test]
 fn http_source_fetches_json_content_type() {
     let server = Server::http("127.0.0.1:0").expect("http server");
@@ -90,7 +104,7 @@ fn http_source_fetches_json_content_type() {
         }
     });
 
-    let uri = format!("http://{}/data.json", addr);
+    let uri = format!("http://{addr}/data.json");
     let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, br#"{"key": "value"}"#);
     let content_ref = ContentRef {
         uri,
@@ -102,14 +116,12 @@ fn http_source_fetches_json_content_type() {
     let payload = source.fetch(&content_ref).expect("http fetch");
 
     assert_eq!(payload.bytes, br#"{"key": "value"}"#);
-    assert_eq!(
-        payload.content_type.as_deref(),
-        Some("application/json; charset=utf-8")
-    );
+    assert_eq!(payload.content_type.as_deref(), Some("application/json; charset=utf-8"));
 
     handle.join().expect("server thread");
 }
 
+/// Tests http source handles missing content type.
 #[test]
 fn http_source_handles_missing_content_type() {
     let server = Server::http("127.0.0.1:0").expect("http server");
@@ -123,7 +135,7 @@ fn http_source_handles_missing_content_type() {
         }
     });
 
-    let uri = format!("http://{}/raw", addr);
+    let uri = format!("http://{addr}/raw");
     let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"no content type");
     let content_ref = ContentRef {
         uri,
@@ -140,6 +152,7 @@ fn http_source_handles_missing_content_type() {
     handle.join().expect("server thread");
 }
 
+/// Tests http source fetches empty response.
 #[test]
 fn http_source_fetches_empty_response() {
     let server = Server::http("127.0.0.1:0").expect("http server");
@@ -152,7 +165,7 @@ fn http_source_fetches_empty_response() {
         }
     });
 
-    let uri = format!("http://{}/empty", addr);
+    let uri = format!("http://{addr}/empty");
     let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"");
     let content_ref = ContentRef {
         uri,
@@ -168,6 +181,7 @@ fn http_source_fetches_empty_response() {
     handle.join().expect("server thread");
 }
 
+/// Tests http source supports https scheme.
 #[test]
 fn http_source_supports_https_scheme() {
     // We can't easily test real HTTPS, but we can verify the scheme is accepted
@@ -190,6 +204,7 @@ fn http_source_supports_https_scheme() {
 // SECTION: Error Path Tests
 // ============================================================================
 
+/// Tests http source rejects 404 not found.
 #[test]
 fn http_source_rejects_404_not_found() {
     let server = Server::http("127.0.0.1:0").expect("http server");
@@ -203,7 +218,7 @@ fn http_source_rejects_404_not_found() {
         }
     });
 
-    let uri = format!("http://{}/missing", addr);
+    let uri = format!("http://{addr}/missing");
     let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"phantom");
     let content_ref = ContentRef {
         uri,
@@ -220,6 +235,7 @@ fn http_source_rejects_404_not_found() {
     handle.join().expect("server thread");
 }
 
+/// Tests http source rejects 500 server error.
 #[test]
 fn http_source_rejects_500_server_error() {
     let server = Server::http("127.0.0.1:0").expect("http server");
@@ -233,7 +249,7 @@ fn http_source_rejects_500_server_error() {
         }
     });
 
-    let uri = format!("http://{}/error", addr);
+    let uri = format!("http://{addr}/error");
     let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"phantom");
     let content_ref = ContentRef {
         uri,
@@ -250,6 +266,7 @@ fn http_source_rejects_500_server_error() {
     handle.join().expect("server thread");
 }
 
+/// Tests http source rejects non http scheme.
 #[test]
 fn http_source_rejects_non_http_scheme() {
     let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"data");
@@ -266,6 +283,7 @@ fn http_source_rejects_non_http_scheme() {
     assert!(err.to_string().contains("file"));
 }
 
+/// Tests http source rejects ftp scheme.
 #[test]
 fn http_source_rejects_ftp_scheme() {
     let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"data");
@@ -282,6 +300,7 @@ fn http_source_rejects_ftp_scheme() {
     assert!(err.to_string().contains("ftp"));
 }
 
+/// Tests http source rejects malformed uri.
 #[test]
 fn http_source_rejects_malformed_uri() {
     let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"data");
@@ -297,6 +316,7 @@ fn http_source_rejects_malformed_uri() {
     assert!(matches!(err, SourceError::InvalidUri(_)));
 }
 
+/// Tests http source handles connection refused.
 #[test]
 fn http_source_handles_connection_refused() {
     let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"data");
@@ -317,6 +337,7 @@ fn http_source_handles_connection_refused() {
 // SECTION: Edge Case Tests
 // ============================================================================
 
+/// Tests http source handles redirect codes as failure.
 #[test]
 fn http_source_handles_redirect_codes_as_failure() {
     let server = Server::http("127.0.0.1:0").expect("http server");
@@ -332,7 +353,7 @@ fn http_source_handles_redirect_codes_as_failure() {
         }
     });
 
-    let uri = format!("http://{}/redirect", addr);
+    let uri = format!("http://{addr}/redirect");
     let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"phantom");
     let content_ref = ContentRef {
         uri,

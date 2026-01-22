@@ -96,6 +96,7 @@ impl ScenarioSpec {
         ensure_unique_gate_ids(&self.stages)?;
         ensure_unique_packet_ids(&self.stages)?;
         ensure_unique_predicates(&self.predicates)?;
+        ensure_predicate_queries_well_formed(&self.predicates)?;
         ensure_gate_predicates_resolve(&self.stages, &self.predicates)?;
         ensure_branch_targets_exist(&self.stages)?;
 
@@ -290,6 +291,9 @@ pub enum SpecError {
     /// Gate references a predicate that is not defined.
     #[error("gate references undefined predicate: {0}")]
     MissingPredicate(String),
+    /// Evidence query is missing required fields.
+    #[error("invalid evidence query for predicate {0}: {1}")]
+    InvalidEvidenceQuery(String, String),
     /// Branch target refers to a missing stage.
     #[error("branch target refers to unknown stage: {0}")]
     MissingBranchTarget(String),
@@ -342,6 +346,26 @@ fn ensure_unique_predicates(predicates: &[PredicateSpec]) -> Result<(), SpecErro
     for (index, predicate) in predicates.iter().enumerate() {
         if predicates.iter().skip(index + 1).any(|other| other.predicate == predicate.predicate) {
             return Err(SpecError::DuplicatePredicate(predicate.predicate.to_string()));
+        }
+    }
+    Ok(())
+}
+
+/// Ensures evidence queries have required fields populated.
+fn ensure_predicate_queries_well_formed(predicates: &[PredicateSpec]) -> Result<(), SpecError> {
+    for predicate in predicates {
+        let provider_id = predicate.query.provider_id.as_str();
+        if provider_id.trim().is_empty() {
+            return Err(SpecError::InvalidEvidenceQuery(
+                predicate.predicate.to_string(),
+                "provider_id is empty".to_string(),
+            ));
+        }
+        if predicate.query.predicate.trim().is_empty() {
+            return Err(SpecError::InvalidEvidenceQuery(
+                predicate.predicate.to_string(),
+                "predicate name is empty".to_string(),
+            ));
         }
     }
     Ok(())

@@ -1,3 +1,18 @@
+#![cfg_attr(
+    test,
+    allow(
+        clippy::panic,
+        clippy::print_stdout,
+        clippy::print_stderr,
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::use_debug,
+        clippy::dbg_macro,
+        clippy::panic_in_result_fn,
+        clippy::unwrap_in_result,
+        reason = "Test-only output and panic-based assertions are permitted."
+    )
+)]
 // examples/minimal/src/main.rs
 // ============================================================================
 // Module: Decision Gate Minimal Example
@@ -10,8 +25,11 @@
 //! Runs a minimal Decision Gate scenario using in-memory evidence and dispatch adapters.
 //! This example is backend-agnostic and suitable for quick verification.
 
+use std::io::Write;
+
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::DecisionOutcome;
 use decision_gate_core::DispatchReceipt;
 use decision_gate_core::DispatchTarget;
 use decision_gate_core::Dispatcher;
@@ -27,7 +45,9 @@ use decision_gate_core::PacketSpec;
 use decision_gate_core::PolicyDecider;
 use decision_gate_core::PolicyDecision;
 use decision_gate_core::PredicateSpec;
+use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
+use decision_gate_core::RunStatus;
 use decision_gate_core::ScenarioId;
 use decision_gate_core::ScenarioSpec;
 use decision_gate_core::SchemaId;
@@ -46,6 +66,7 @@ use decision_gate_core::runtime::NextRequest;
 use decision_gate_core::runtime::StatusRequest;
 use serde_json::json;
 
+/// Evidence provider that always returns `true`.
 struct ExampleEvidenceProvider;
 
 impl EvidenceProvider for ExampleEvidenceProvider {
@@ -63,8 +84,16 @@ impl EvidenceProvider for ExampleEvidenceProvider {
             content_type: Some("application/json".to_string()),
         })
     }
+
+    fn validate_providers(
+        &self,
+        _spec: &ScenarioSpec,
+    ) -> Result<(), decision_gate_core::ProviderMissingError> {
+        Ok(())
+    }
 }
 
+/// Dispatcher that returns a deterministic receipt without delivery.
 struct ExampleDispatcher;
 
 impl Dispatcher for ExampleDispatcher {
@@ -84,6 +113,7 @@ impl Dispatcher for ExampleDispatcher {
     }
 }
 
+/// Policy decider that permits all disclosures.
 struct PermitAllPolicy;
 
 impl PolicyDecider for PermitAllPolicy {
@@ -97,6 +127,7 @@ impl PolicyDecider for PermitAllPolicy {
     }
 }
 
+/// Builds the minimal scenario spec used by the example.
 fn build_spec() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("example"),
@@ -134,9 +165,10 @@ fn build_spec() -> ScenarioSpec {
         ],
         predicates: vec![PredicateSpec {
             predicate: "ready".into(),
-            query: EvidenceQuery::StatePredicate {
-                name: "ready".to_string(),
-                params: json!({}),
+            query: EvidenceQuery {
+                provider_id: ProviderId::new("example"),
+                predicate: "ready".to_string(),
+                params: Some(json!({})),
             },
             comparator: Comparator::Equals,
             expected: Some(json!(true)),
@@ -179,7 +211,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         correlation_id: None,
     };
     let result = engine.scenario_next(&request)?;
-    println!("Decision: {:?}", result.decision.outcome);
+    let outcome = outcome_summary(&result.decision.outcome);
+    write_line("Decision", &outcome)?;
 
     let status_request = StatusRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
@@ -187,7 +220,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         correlation_id: None,
     };
     let status = engine.scenario_status(&status_request)?;
-    println!("Status: {:?}", status.status);
+    write_line("Status", run_status_label(status.status))?;
 
+    Ok(())
+}
+
+/// Formats a short summary for the decision outcome.
+fn outcome_summary(outcome: &DecisionOutcome) -> String {
+    match outcome {
+        DecisionOutcome::Start {
+            stage_id,
+        } => format!("start:{stage_id}"),
+        DecisionOutcome::Complete {
+            stage_id,
+        } => format!("complete:{stage_id}"),
+        DecisionOutcome::Advance {
+            from_stage,
+            to_stage,
+            timeout,
+        } => {
+            let reason = if *timeout { "timeout" } else { "gate" };
+            format!("advance:{from_stage}->{to_stage} ({reason})")
+        }
+        DecisionOutcome::Hold {
+            summary,
+        } => format!("hold:{}", summary.status),
+        DecisionOutcome::Fail {
+            reason,
+        } => format!("fail:{reason}"),
+    }
+}
+
+/// Returns a stable label for the run status.
+const fn run_status_label(status: RunStatus) -> &'static str {
+    match status {
+        RunStatus::Active => "active",
+        RunStatus::Completed => "completed",
+        RunStatus::Failed => "failed",
+    }
+}
+
+/// Writes a labeled line to stdout.
+fn write_line(label: &str, value: &str) -> Result<(), std::io::Error> {
+    let mut out = std::io::stdout();
+    writeln!(out, "{label}: {value}")?;
     Ok(())
 }

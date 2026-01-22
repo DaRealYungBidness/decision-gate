@@ -6,7 +6,18 @@
 //! ## Overview
 //! Validates that comparator evaluation returns Unknown on adversarial inputs.
 
-#![allow(clippy::unwrap_used, reason = "Tests use unwrap on deterministic fixtures.")]
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
 
 use decision_gate_core::Comparator;
 use decision_gate_core::EvidenceResult;
@@ -15,7 +26,8 @@ use decision_gate_core::runtime::comparator::evaluate_comparator;
 use ret_logic::TriState;
 use serde_json::json;
 
-fn empty_result_with_value(value: EvidenceValue) -> EvidenceResult {
+/// Builds an evidence result with the provided value.
+const fn empty_result_with_value(value: EvidenceValue) -> EvidenceResult {
     EvidenceResult {
         value: Some(value),
         evidence_hash: None,
@@ -27,6 +39,7 @@ fn empty_result_with_value(value: EvidenceValue) -> EvidenceResult {
 }
 
 #[test]
+/// Ensures non-numeric comparisons return Unknown.
 fn comparator_returns_unknown_on_non_numeric_input() {
     let result = evaluate_comparator(
         Comparator::GreaterThan,
@@ -37,6 +50,7 @@ fn comparator_returns_unknown_on_non_numeric_input() {
 }
 
 #[test]
+/// Ensures out-of-range byte arrays are rejected.
 fn comparator_rejects_out_of_range_byte_arrays() {
     let result = evaluate_comparator(
         Comparator::Equals,
@@ -47,6 +61,7 @@ fn comparator_rejects_out_of_range_byte_arrays() {
 }
 
 #[test]
+/// Ensures contains comparisons fail on mismatched types.
 fn comparator_rejects_mismatched_contains_types() {
     let result = evaluate_comparator(
         Comparator::Contains,
@@ -57,6 +72,7 @@ fn comparator_rejects_mismatched_contains_types() {
 }
 
 #[test]
+/// Ensures missing evidence values return Unknown.
 fn comparator_returns_unknown_when_missing_value() {
     let result = evaluate_comparator(
         Comparator::Equals,

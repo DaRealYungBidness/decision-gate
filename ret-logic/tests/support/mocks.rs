@@ -6,6 +6,19 @@
 //! ## Overview
 //! Mock predicate and reader types used by integration tests.
 
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
+
 use ret_logic::BatchPredicateEval;
 use ret_logic::PredicateEval;
 use ret_logic::ReaderLen;

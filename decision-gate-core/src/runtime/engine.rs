@@ -36,6 +36,7 @@ use crate::core::PacketPayload;
 use crate::core::PacketRecord;
 use crate::core::PacketSpec;
 use crate::core::PredicateSpec;
+use crate::core::ProviderMissingError;
 use crate::core::RunConfig;
 use crate::core::RunId;
 use crate::core::RunState;
@@ -46,6 +47,8 @@ use crate::core::SpecError;
 use crate::core::StageId;
 use crate::core::SubmissionRecord;
 use crate::core::Timestamp;
+use crate::core::ToolCallError;
+use crate::core::ToolCallErrorDetails;
 use crate::core::ToolCallRecord;
 use crate::core::TriggerEvent;
 use crate::core::TriggerId;
@@ -266,7 +269,25 @@ where
             correlation_id: request.correlation_id.clone(),
         };
 
-        let (mut state, result) = self.handle_trigger_internal(&trigger)?;
+        let mut state = self.load_run(&request.run_id)?;
+        if let Err(err) = self.evidence.validate_providers(&self.spec) {
+            let tool_error = provider_missing_tool_error(&err);
+            let call_id = format!("call-{}", state.tool_calls.len() + 1);
+            let tool_record = build_tool_call_record_error(
+                "scenario.next",
+                request,
+                &tool_error,
+                request.time,
+                self.config.hash_algorithm,
+                call_id,
+                request.correlation_id.clone(),
+            )?;
+            state.tool_calls.push(tool_record);
+            self.store.save(&state)?;
+            return Err(ControlPlaneError::ProviderMissing(err));
+        }
+
+        let (mut state, result) = self.handle_trigger_internal(state, &trigger)?;
         let next_result = NextResult::from_eval(result);
         let call_id = format!("call-{}", state.tool_calls.len() + 1);
         let tool_record = build_tool_call_record(
@@ -330,9 +351,39 @@ where
     ///
     /// Returns [`ControlPlaneError`] when trigger evaluation fails.
     pub fn trigger(&self, trigger: &TriggerEvent) -> Result<TriggerResult, ControlPlaneError> {
-        let (state, result) = self.handle_trigger_internal(trigger)?;
+        let mut state = self.load_run(&trigger.run_id)?;
+        if let Err(err) = self.evidence.validate_providers(&self.spec) {
+            let tool_error = provider_missing_tool_error(&err);
+            let call_id = format!("call-{}", state.tool_calls.len() + 1);
+            let tool_record = build_tool_call_record_error(
+                "scenario.trigger",
+                trigger,
+                &tool_error,
+                trigger.time,
+                self.config.hash_algorithm,
+                call_id,
+                trigger.correlation_id.clone(),
+            )?;
+            state.tool_calls.push(tool_record);
+            self.store.save(&state)?;
+            return Err(ControlPlaneError::ProviderMissing(err));
+        }
+
+        let (mut state, result) = self.handle_trigger_internal(state, trigger)?;
+        let trigger_result = TriggerResult::from_eval(result);
+        let call_id = format!("call-{}", state.tool_calls.len() + 1);
+        let tool_record = build_tool_call_record(
+            "scenario.trigger",
+            trigger,
+            &trigger_result,
+            trigger.time,
+            self.config.hash_algorithm,
+            call_id,
+            trigger.correlation_id.clone(),
+        )?;
+        state.tool_calls.push(tool_record);
         self.store.save(&state)?;
-        Ok(TriggerResult::from_eval(result))
+        Ok(trigger_result)
     }
 
     /// Evaluates a trigger and returns the updated state plus result.
@@ -342,10 +393,9 @@ where
     )]
     fn handle_trigger_internal(
         &self,
+        mut state: RunState,
         trigger: &TriggerEvent,
     ) -> Result<(RunState, EvaluationResult), ControlPlaneError> {
-        let mut state = self.load_run(&trigger.run_id)?;
-
         if state.status != RunStatus::Active {
             let decision = state
                 .decisions
@@ -796,6 +846,9 @@ pub enum ControlPlaneError {
     /// Policy denied disclosure.
     #[error("policy denied disclosure")]
     PolicyDenied,
+    /// Required evidence providers are missing or blocked.
+    #[error("provider validation failed: {0:?}")]
+    ProviderMissing(ProviderMissingError),
     /// Evidence provider error.
     #[error(transparent)]
     Evidence(#[from] EvidenceError),
@@ -1041,5 +1094,40 @@ fn build_tool_call_record<T: Serialize, R: Serialize>(
         response_hash,
         called_at,
         correlation_id,
+        error: None,
     })
+}
+
+/// Builds a tool call record for a failed tool invocation.
+fn build_tool_call_record_error<T: Serialize>(
+    method: &str,
+    request: &T,
+    error: &ToolCallError,
+    called_at: Timestamp,
+    algorithm: HashAlgorithm,
+    call_id: String,
+    correlation_id: Option<crate::core::CorrelationId>,
+) -> Result<ToolCallRecord, ControlPlaneError> {
+    let request_hash = hash_canonical_json(algorithm, request)
+        .map_err(|err| ControlPlaneError::ToolCallHash(err.to_string()))?;
+    let response_hash = hash_canonical_json(algorithm, error)
+        .map_err(|err| ControlPlaneError::ToolCallHash(err.to_string()))?;
+    Ok(ToolCallRecord {
+        call_id,
+        method: method.to_string(),
+        request_hash,
+        response_hash,
+        called_at,
+        correlation_id,
+        error: Some(error.clone()),
+    })
+}
+
+/// Maps provider validation failures into tool-call error metadata.
+fn provider_missing_tool_error(error: &ProviderMissingError) -> ToolCallError {
+    ToolCallError {
+        code: "provider_missing".to_string(),
+        message: "required evidence providers are missing or blocked".to_string(),
+        details: Some(ToolCallErrorDetails::ProviderMissing(error.clone())),
+    }
 }

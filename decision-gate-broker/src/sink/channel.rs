@@ -7,7 +7,7 @@
 // ============================================================================
 
 //! ## Overview
-//! ChannelSink delivers payloads by sending dispatch messages into a
+//! `ChannelSink` delivers payloads by sending dispatch messages into a
 //! `tokio::sync::mpsc` channel.
 
 // ============================================================================
@@ -31,7 +31,9 @@ use crate::sink::SinkError;
 /// Channel-based payload sink.
 #[derive(Debug)]
 pub struct ChannelSink {
+    /// Sender used to dispatch messages.
     sender: Sender<DispatchMessage>,
+    /// Receipt factory for deterministic dispatch IDs.
     receipts: ReceiptFactory,
 }
 

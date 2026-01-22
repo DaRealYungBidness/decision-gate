@@ -16,12 +16,26 @@
 // SECTION: Test Support
 // ============================================================================
 
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
+
 mod support;
 
 use ret_logic::RequirementError;
 use support::TestResult;
 use support::ensure;
 
+/// Tests error creation.
 #[test]
 fn test_error_creation() -> TestResult {
     let err1 = RequirementError::predicate_failed("Health too low");
@@ -44,6 +58,7 @@ fn test_error_creation() -> TestResult {
     Ok(())
 }
 
+/// Tests user messages.
 #[test]
 fn test_user_messages() -> TestResult {
     let err = RequirementError::GroupRequirementFailed {
@@ -62,6 +77,7 @@ fn test_user_messages() -> TestResult {
     Ok(())
 }
 
+/// Tests display.
 #[test]
 fn test_display() -> TestResult {
     let err = RequirementError::GroupRequirementFailed {
@@ -74,6 +90,7 @@ fn test_display() -> TestResult {
     Ok(())
 }
 
+/// Tests conversions.
 #[test]
 fn test_conversions() -> TestResult {
     let err: RequirementError = "Test error".into();
@@ -87,6 +104,7 @@ fn test_conversions() -> TestResult {
     Ok(())
 }
 
+/// Tests serialization.
 #[test]
 fn test_serialization() -> TestResult {
     let err = RequirementError::PredicateFailed("Test".to_string());

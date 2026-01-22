@@ -7,6 +7,19 @@
 //! ## Overview
 //! Integration tests covering the builder helpers for composing requirements.
 
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
+
 use std::ops::Not;
 
 #[path = "support/mocks.rs"]
@@ -28,6 +41,7 @@ use support::ensure;
 // SECTION: Mock Coverage
 // ========================================================================
 
+/// Tests mock predicate variants used.
 #[test]
 fn test_mock_predicate_variants_used() {
     let _ = mocks::all_variants();
@@ -37,6 +51,7 @@ fn test_mock_predicate_variants_used() {
 // SECTION: RequirementBuilder Tests
 // ============================================================================
 
+/// Tests requirement builder new.
 #[test]
 fn test_requirement_builder_new() -> TestResult {
     let req = Requirement::predicate(MockPredicate::AlwaysTrue);
@@ -45,6 +60,7 @@ fn test_requirement_builder_new() -> TestResult {
     Ok(())
 }
 
+/// Tests requirement builder predicate.
 #[test]
 fn test_requirement_builder_predicate() -> TestResult {
     let builder = RequirementBuilder::predicate(MockPredicate::ValueGte(50));
@@ -55,6 +71,7 @@ fn test_requirement_builder_predicate() -> TestResult {
     }
 }
 
+/// Tests requirement builder not.
 #[test]
 fn test_requirement_builder_not() -> TestResult {
     let builder = RequirementBuilder::predicate(MockPredicate::AlwaysTrue);
@@ -65,6 +82,7 @@ fn test_requirement_builder_not() -> TestResult {
     }
 }
 
+/// Tests requirement builder double not.
 #[test]
 fn test_requirement_builder_double_not() -> TestResult {
     let builder = RequirementBuilder::predicate(MockPredicate::AlwaysTrue);
@@ -76,6 +94,7 @@ fn test_requirement_builder_double_not() -> TestResult {
     Ok(())
 }
 
+/// Tests requirement builder and also.
 #[test]
 fn test_requirement_builder_and_also() -> TestResult {
     let builder = RequirementBuilder::predicate(MockPredicate::AlwaysTrue);
@@ -87,6 +106,7 @@ fn test_requirement_builder_and_also() -> TestResult {
     Ok(())
 }
 
+/// Tests requirement builder or else.
 #[test]
 fn test_requirement_builder_or_else() -> TestResult {
     let builder = RequirementBuilder::predicate(MockPredicate::AlwaysFalse);
@@ -98,6 +118,7 @@ fn test_requirement_builder_or_else() -> TestResult {
     Ok(())
 }
 
+/// Tests requirement builder chaining.
 #[test]
 fn test_requirement_builder_chaining() -> TestResult {
     let req = RequirementBuilder::predicate(MockPredicate::AlwaysTrue)
@@ -117,6 +138,7 @@ fn test_requirement_builder_chaining() -> TestResult {
 // SECTION: AndBuilder Tests
 // ============================================================================
 
+/// Tests and builder new.
 #[test]
 fn test_and_builder_new() -> TestResult {
     let builder = AndBuilder::<MockPredicate>::new();
@@ -130,6 +152,7 @@ fn test_and_builder_new() -> TestResult {
     }
 }
 
+/// Tests and builder default.
 #[test]
 fn test_and_builder_default() -> TestResult {
     let builder = AndBuilder::<MockPredicate>::default();
@@ -143,6 +166,7 @@ fn test_and_builder_default() -> TestResult {
     }
 }
 
+/// Tests and builder with.
 #[test]
 fn test_and_builder_with() -> TestResult {
     let builder = AndBuilder::new().with(Requirement::predicate(MockPredicate::AlwaysTrue));
@@ -156,6 +180,7 @@ fn test_and_builder_with() -> TestResult {
     }
 }
 
+/// Tests and builder with predicate.
 #[test]
 fn test_and_builder_with_predicate() -> TestResult {
     let builder = AndBuilder::new()
@@ -171,6 +196,7 @@ fn test_and_builder_with_predicate() -> TestResult {
     }
 }
 
+/// Tests and builder with all.
 #[test]
 fn test_and_builder_with_all() -> TestResult {
     let reqs = vec![
@@ -189,6 +215,7 @@ fn test_and_builder_with_all() -> TestResult {
     }
 }
 
+/// Tests and builder chaining.
 #[test]
 fn test_and_builder_chaining() -> TestResult {
     let req = AndBuilder::new()
@@ -204,6 +231,7 @@ fn test_and_builder_chaining() -> TestResult {
     Ok(())
 }
 
+/// Tests and builder from static method.
 #[test]
 fn test_and_builder_from_static_method() -> TestResult {
     let builder = RequirementBuilder::<MockPredicate>::and();
@@ -221,6 +249,7 @@ fn test_and_builder_from_static_method() -> TestResult {
 // SECTION: OrBuilder Tests
 // ============================================================================
 
+/// Tests or builder new.
 #[test]
 fn test_or_builder_new() -> TestResult {
     let builder = OrBuilder::<MockPredicate>::new();
@@ -234,6 +263,7 @@ fn test_or_builder_new() -> TestResult {
     }
 }
 
+/// Tests or builder default.
 #[test]
 fn test_or_builder_default() -> TestResult {
     let builder = OrBuilder::<MockPredicate>::default();
@@ -247,6 +277,7 @@ fn test_or_builder_default() -> TestResult {
     }
 }
 
+/// Tests or builder with.
 #[test]
 fn test_or_builder_with() -> TestResult {
     let builder = OrBuilder::new().with(Requirement::predicate(MockPredicate::AlwaysTrue));
@@ -260,6 +291,7 @@ fn test_or_builder_with() -> TestResult {
     }
 }
 
+/// Tests or builder with predicate.
 #[test]
 fn test_or_builder_with_predicate() -> TestResult {
     let builder = OrBuilder::new()
@@ -276,6 +308,7 @@ fn test_or_builder_with_predicate() -> TestResult {
     }
 }
 
+/// Tests or builder with all.
 #[test]
 fn test_or_builder_with_all() -> TestResult {
     let reqs = vec![
@@ -293,6 +326,7 @@ fn test_or_builder_with_all() -> TestResult {
     }
 }
 
+/// Tests or builder from static method.
 #[test]
 fn test_or_builder_from_static_method() -> TestResult {
     let builder = RequirementBuilder::<MockPredicate>::or();
@@ -311,6 +345,7 @@ fn test_or_builder_from_static_method() -> TestResult {
 // SECTION: GroupBuilder Tests
 // ============================================================================
 
+/// Tests group builder new.
 #[test]
 fn test_group_builder_new() -> TestResult {
     let builder = GroupBuilder::<MockPredicate>::new(2);
@@ -328,6 +363,7 @@ fn test_group_builder_new() -> TestResult {
     }
 }
 
+/// Tests group builder with.
 #[test]
 fn test_group_builder_with() -> TestResult {
     let builder = GroupBuilder::new(1)
@@ -347,6 +383,7 @@ fn test_group_builder_with() -> TestResult {
     }
 }
 
+/// Tests group builder with predicate.
 #[test]
 fn test_group_builder_with_predicate() -> TestResult {
     let builder = GroupBuilder::new(2)
@@ -361,6 +398,7 @@ fn test_group_builder_with_predicate() -> TestResult {
     Ok(())
 }
 
+/// Tests group builder with all.
 #[test]
 fn test_group_builder_with_all() -> TestResult {
     let reqs = vec![
@@ -383,6 +421,7 @@ fn test_group_builder_with_all() -> TestResult {
     }
 }
 
+/// Tests group builder min update.
 #[test]
 fn test_group_builder_min_update() -> TestResult {
     let builder = GroupBuilder::new(1)
@@ -401,6 +440,7 @@ fn test_group_builder_min_update() -> TestResult {
     }
 }
 
+/// Tests group builder from static method.
 #[test]
 fn test_group_builder_from_static_method() -> TestResult {
     let builder = RequirementBuilder::<MockPredicate>::require_group(2);
@@ -420,6 +460,7 @@ fn test_group_builder_from_static_method() -> TestResult {
 // SECTION: Convenience Function Tests
 // ============================================================================
 
+/// Tests convenience all.
 #[test]
 fn test_convenience_all() -> TestResult {
     let req = convenience::all(vec![
@@ -433,6 +474,7 @@ fn test_convenience_all() -> TestResult {
     Ok(())
 }
 
+/// Tests convenience any.
 #[test]
 fn test_convenience_any() -> TestResult {
     let req = convenience::any(vec![
@@ -446,6 +488,7 @@ fn test_convenience_any() -> TestResult {
     Ok(())
 }
 
+/// Tests convenience not.
 #[test]
 fn test_convenience_not() -> TestResult {
     let req = convenience::not(Requirement::predicate(MockPredicate::AlwaysFalse));
@@ -456,6 +499,7 @@ fn test_convenience_not() -> TestResult {
     Ok(())
 }
 
+/// Tests convenience at least.
 #[test]
 fn test_convenience_at_least() -> TestResult {
     let req = convenience::at_least(
@@ -473,6 +517,7 @@ fn test_convenience_at_least() -> TestResult {
     Ok(())
 }
 
+/// Tests convenience predicate.
 #[test]
 fn test_convenience_predicate() -> TestResult {
     let req = convenience::predicate(MockPredicate::ValueEq(42));
@@ -487,6 +532,7 @@ fn test_convenience_predicate() -> TestResult {
 // SECTION: Complex Builder Pattern Tests
 // ============================================================================
 
+/// Tests complex nested builders.
 #[test]
 fn test_complex_nested_builders() -> TestResult {
     // (A AND B) OR (C AND D)
@@ -517,6 +563,7 @@ fn test_complex_nested_builders() -> TestResult {
     Ok(())
 }
 
+/// Tests builder with groups.
 #[test]
 fn test_builder_with_groups() -> TestResult {
     // Need at least 2 of: (A OR B), C, D

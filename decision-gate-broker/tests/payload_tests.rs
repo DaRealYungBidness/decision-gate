@@ -6,14 +6,21 @@
 
 //! Payload unit tests.
 
-#![allow(clippy::unwrap_used, reason = "Tests use unwrap on deterministic fixtures.")]
-#![allow(clippy::expect_used, reason = "Tests use expect for explicit failure messages.")]
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
 
 use decision_gate_broker::Payload;
 use decision_gate_broker::PayloadBody;
-use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
-use decision_gate_core::hashing::hash_bytes;
-use decision_gate_core::hashing::hash_canonical_json;
 use decision_gate_core::PacketEnvelope;
 use decision_gate_core::PacketId;
 use decision_gate_core::RunId;
@@ -22,6 +29,9 @@ use decision_gate_core::SchemaId;
 use decision_gate_core::StageId;
 use decision_gate_core::Timestamp;
 use decision_gate_core::VisibilityPolicy;
+use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
+use decision_gate_core::hashing::hash_bytes;
+use decision_gate_core::hashing::hash_canonical_json;
 use serde_json::json;
 
 // ============================================================================
@@ -61,6 +71,7 @@ fn sample_json_envelope(value: &serde_json::Value) -> PacketEnvelope {
 // SECTION: PayloadBody Construction Tests
 // ============================================================================
 
+/// Tests payload body bytes construction.
 #[test]
 fn payload_body_bytes_construction() {
     let data = b"test bytes";
@@ -73,6 +84,7 @@ fn payload_body_bytes_construction() {
     }
 }
 
+/// Tests payload body json construction.
 #[test]
 fn payload_body_json_construction() {
     let value = json!({"key": "value"});
@@ -85,6 +97,7 @@ fn payload_body_json_construction() {
     }
 }
 
+/// Tests payload body bytes empty.
 #[test]
 fn payload_body_bytes_empty() {
     let body = PayloadBody::Bytes(vec![]);
@@ -96,6 +109,7 @@ fn payload_body_bytes_empty() {
     }
 }
 
+/// Tests payload body json null.
 #[test]
 fn payload_body_json_null() {
     let body = PayloadBody::Json(json!(null));
@@ -107,10 +121,11 @@ fn payload_body_json_null() {
     }
 }
 
+/// Tests payload body json array.
 #[test]
 fn payload_body_json_array() {
     let value = json!([1, 2, 3, "four"]);
-    let body = PayloadBody::Json(value.clone());
+    let body = PayloadBody::Json(value);
 
     if let PayloadBody::Json(v) = body {
         assert!(v.is_array());
@@ -124,6 +139,7 @@ fn payload_body_json_array() {
 // SECTION: PayloadBody Equality Tests
 // ============================================================================
 
+/// Tests payload body bytes equality.
 #[test]
 fn payload_body_bytes_equality() {
     let body1 = PayloadBody::Bytes(b"same".to_vec());
@@ -134,6 +150,7 @@ fn payload_body_bytes_equality() {
     assert_ne!(body1, body3);
 }
 
+/// Tests payload body json equality.
 #[test]
 fn payload_body_json_equality() {
     let body1 = PayloadBody::Json(json!({"a": 1}));
@@ -144,6 +161,7 @@ fn payload_body_json_equality() {
     assert_ne!(body1, body3);
 }
 
+/// Tests payload body different variants not equal.
 #[test]
 fn payload_body_different_variants_not_equal() {
     let bytes_body = PayloadBody::Bytes(b"{}".to_vec());
@@ -156,6 +174,7 @@ fn payload_body_different_variants_not_equal() {
 // SECTION: Payload Construction Tests
 // ============================================================================
 
+/// Tests payload construction with bytes.
 #[test]
 fn payload_construction_with_bytes() {
     let data = b"payload content";
@@ -171,6 +190,7 @@ fn payload_construction_with_bytes() {
     assert_eq!(payload.body, body);
 }
 
+/// Tests payload construction with json.
 #[test]
 fn payload_construction_with_json() {
     let value = json!({"test": true});
@@ -179,7 +199,7 @@ fn payload_construction_with_json() {
 
     let payload = Payload {
         envelope: envelope.clone(),
-        body: body.clone(),
+        body,
     };
 
     assert_eq!(payload.envelope, envelope);
@@ -194,6 +214,7 @@ fn payload_construction_with_json() {
 // SECTION: Payload::len() Tests
 // ============================================================================
 
+/// Tests payload len returns bytes length.
 #[test]
 fn payload_len_returns_bytes_length() {
     let data = b"exactly 16 bytes";
@@ -207,6 +228,7 @@ fn payload_len_returns_bytes_length() {
     assert_eq!(payload.len(), 16);
 }
 
+/// Tests payload len returns zero for empty bytes.
 #[test]
 fn payload_len_returns_zero_for_empty_bytes() {
     let payload = Payload {
@@ -217,6 +239,7 @@ fn payload_len_returns_zero_for_empty_bytes() {
     assert_eq!(payload.len(), 0);
 }
 
+/// Tests payload len returns serialized json length.
 #[test]
 fn payload_len_returns_serialized_json_length() {
     let value = json!({"key": "value"});
@@ -231,6 +254,7 @@ fn payload_len_returns_serialized_json_length() {
     assert_eq!(payload.len(), expected_len);
 }
 
+/// Tests payload len handles complex json.
 #[test]
 fn payload_len_handles_complex_json() {
     let value = json!({
@@ -254,9 +278,11 @@ fn payload_len_handles_complex_json() {
     assert_eq!(payload.len(), expected_len);
 }
 
+/// Tests payload len handles large bytes.
 #[test]
 fn payload_len_handles_large_bytes() {
-    let data: Vec<u8> = (0..10000).map(|i| (i % 256) as u8).collect();
+    let data: Vec<u8> =
+        (0 .. 10000).map(|i| u8::try_from(i % 256).expect("u8 conversion")).collect();
 
     let payload = Payload {
         envelope: sample_bytes_envelope(&data),
@@ -270,6 +296,7 @@ fn payload_len_handles_large_bytes() {
 // SECTION: Payload::is_empty() Tests
 // ============================================================================
 
+/// Tests payload is empty true for empty bytes.
 #[test]
 fn payload_is_empty_true_for_empty_bytes() {
     let payload = Payload {
@@ -280,6 +307,7 @@ fn payload_is_empty_true_for_empty_bytes() {
     assert!(payload.is_empty());
 }
 
+/// Tests payload is empty false for non empty bytes.
 #[test]
 fn payload_is_empty_false_for_non_empty_bytes() {
     let payload = Payload {
@@ -290,6 +318,7 @@ fn payload_is_empty_false_for_non_empty_bytes() {
     assert!(!payload.is_empty());
 }
 
+/// Tests payload is empty false for json.
 #[test]
 fn payload_is_empty_false_for_json() {
     // Even an empty JSON object serializes to "{}" which is non-empty
@@ -302,6 +331,7 @@ fn payload_is_empty_false_for_json() {
     assert!(!payload.is_empty());
 }
 
+/// Tests payload is empty consistent with len.
 #[test]
 fn payload_is_empty_consistent_with_len() {
     let test_cases: Vec<(PayloadBody, bool)> = vec![
@@ -318,18 +348,13 @@ fn payload_is_empty_consistent_with_len() {
             PayloadBody::Json(v) => sample_json_envelope(v),
         };
 
-        let payload = Payload { envelope, body };
+        let payload = Payload {
+            envelope,
+            body,
+        };
 
-        assert_eq!(
-            payload.is_empty(),
-            expected_empty,
-            "is_empty mismatch for payload"
-        );
-        assert_eq!(
-            payload.len() == 0,
-            expected_empty,
-            "len==0 should match is_empty"
-        );
+        assert_eq!(payload.is_empty(), expected_empty, "is_empty mismatch for payload");
+        assert_eq!(payload.is_empty(), expected_empty, "is_empty should match expected");
     }
 }
 
@@ -337,6 +362,7 @@ fn payload_is_empty_consistent_with_len() {
 // SECTION: Payload Clone Tests
 // ============================================================================
 
+/// Tests payload clone creates independent copy.
 #[test]
 fn payload_clone_creates_independent_copy() {
     let data = b"original";
@@ -352,6 +378,7 @@ fn payload_clone_creates_independent_copy() {
     assert_eq!(payload.body, cloned.body);
 }
 
+/// Tests payload clone json independent.
 #[test]
 fn payload_clone_json_independent() {
     let value = json!({"mutable": "value"});
@@ -369,6 +396,7 @@ fn payload_clone_json_independent() {
 // SECTION: Payload Debug Tests
 // ============================================================================
 
+/// Tests payload debug format works.
 #[test]
 fn payload_debug_format_works() {
     let payload = Payload {
@@ -376,19 +404,20 @@ fn payload_debug_format_works() {
         body: PayloadBody::Bytes(b"debug".to_vec()),
     };
 
-    let debug_str = format!("{:?}", payload);
+    let debug_str = format!("{payload:?}");
     assert!(debug_str.contains("Payload"));
     assert!(debug_str.contains("envelope"));
     assert!(debug_str.contains("body"));
 }
 
+/// Tests payload body debug format works.
 #[test]
 fn payload_body_debug_format_works() {
     let bytes_body = PayloadBody::Bytes(b"test".to_vec());
     let json_body = PayloadBody::Json(json!({"test": true}));
 
-    let bytes_debug = format!("{:?}", bytes_body);
-    let json_debug = format!("{:?}", json_body);
+    let bytes_debug = format!("{bytes_body:?}");
+    let json_debug = format!("{json_body:?}");
 
     assert!(bytes_debug.contains("Bytes"));
     assert!(json_debug.contains("Json"));
@@ -398,6 +427,7 @@ fn payload_body_debug_format_works() {
 // SECTION: Edge Case Tests
 // ============================================================================
 
+/// Tests payload with unicode json.
 #[test]
 fn payload_with_unicode_json() {
     let value = json!({
@@ -420,10 +450,11 @@ fn payload_with_unicode_json() {
     }
 }
 
+/// Tests payload with binary data.
 #[test]
 fn payload_with_binary_data() {
     // Test with all possible byte values
-    let data: Vec<u8> = (0..=255).collect();
+    let data: Vec<u8> = (0 ..= 255).collect();
 
     let payload = Payload {
         envelope: sample_bytes_envelope(&data),
@@ -438,6 +469,7 @@ fn payload_with_binary_data() {
     }
 }
 
+/// Tests payload json with deeply nested structure.
 #[test]
 fn payload_json_with_deeply_nested_structure() {
     let value = json!({
@@ -459,5 +491,5 @@ fn payload_json_with_deeply_nested_structure() {
         body: PayloadBody::Json(value),
     };
 
-    assert!(payload.len() > 0);
+    assert!(!payload.is_empty());
 }

@@ -6,6 +6,19 @@
 //! ## Overview
 //! Integration tests for the requirement DSL parser.
 
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
+
 mod support;
 
 use std::collections::HashMap;
@@ -53,6 +66,7 @@ fn resolver() -> HashMap<String, u8> {
     map
 }
 
+/// Tests parses nested boolean expression.
 #[test]
 fn parses_nested_boolean_expression() -> TestResult {
     let Ok(req) = parse_requirement("all(is_alive, any(has_ap, not stunned))", &resolver()) else {
@@ -71,6 +85,7 @@ fn parses_nested_boolean_expression() -> TestResult {
     Ok(())
 }
 
+/// Tests respects operator precedence.
 #[test]
 fn respects_operator_precedence() -> TestResult {
     let Ok(req) = parse_requirement("is_alive && has_ap || not stunned", &resolver()) else {
@@ -86,6 +101,7 @@ fn respects_operator_precedence() -> TestResult {
     Ok(())
 }
 
+/// Tests parses group with count.
 #[test]
 fn parses_group_with_count() -> TestResult {
     let Ok(req) = parse_requirement("at_least(2, is_alive, has_ap, in_range)", &resolver()) else {
@@ -101,6 +117,7 @@ fn parses_group_with_count() -> TestResult {
     Ok(())
 }
 
+/// Tests errors on unknown predicate.
 #[test]
 fn errors_on_unknown_predicate() -> TestResult {
     let Err(err) = parse_requirement::<u8, _>("unknown_pred", &resolver()) else {
@@ -113,6 +130,7 @@ fn errors_on_unknown_predicate() -> TestResult {
     Ok(())
 }
 
+/// Tests errors on unknown function with args.
 #[test]
 fn errors_on_unknown_function_with_args() -> TestResult {
     let Err(err) = parse_requirement::<u8, _>("foo(is_alive)", &resolver()) else {
@@ -125,6 +143,7 @@ fn errors_on_unknown_function_with_args() -> TestResult {
     Ok(())
 }
 
+/// Tests errors on trailing input.
 #[test]
 fn errors_on_trailing_input() -> TestResult {
     let Err(err) = parse_requirement::<u8, _>("is_alive extra", &resolver()) else {
@@ -134,6 +153,7 @@ fn errors_on_trailing_input() -> TestResult {
     Ok(())
 }
 
+/// Tests validation error when group min exceeds total.
 #[test]
 fn validation_error_when_group_min_exceeds_total() -> TestResult {
     let Err(err) = parse_requirement::<u8, _>("at_least(2, is_alive)", &resolver()) else {
@@ -146,6 +166,7 @@ fn validation_error_when_group_min_exceeds_total() -> TestResult {
     Ok(())
 }
 
+/// Tests errors on empty input.
 #[test]
 fn errors_on_empty_input() -> TestResult {
     let Err(err) = parse_requirement::<u8, _>("   ", &resolver()) else {

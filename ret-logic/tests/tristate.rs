@@ -6,6 +6,19 @@
 //! ## Overview
 //! Validates tri-state evaluation modes and trace hooks for requirement gates.
 
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
+
 mod support;
 
 use ret_logic::BochvarLogic;
@@ -87,6 +100,7 @@ impl RequirementTrace<TestPredicate> for Trace {
 // SECTION: Kleene Logic Tests
 // ============================================================================
 
+/// Tests kleene and or not.
 #[test]
 fn test_kleene_and_or_not() -> TestResult {
     let reader = TestReader::new(vec![[TriState::True, TriState::Unknown, TriState::False]]);
@@ -120,6 +134,7 @@ fn test_kleene_and_or_not() -> TestResult {
 // SECTION: Bochvar Logic Tests
 // ============================================================================
 
+/// Tests bochvar infectious unknown.
 #[test]
 fn test_bochvar_infectious_unknown() -> TestResult {
     let reader = TestReader::new(vec![[TriState::True, TriState::Unknown, TriState::True]]);
@@ -148,6 +163,7 @@ fn test_bochvar_infectious_unknown() -> TestResult {
 // SECTION: RequireGroup Semantics
 // ============================================================================
 
+/// Tests require group insufficient evidence.
 #[test]
 fn test_require_group_insufficient_evidence() -> TestResult {
     let reader = TestReader::new(vec![[TriState::True, TriState::Unknown, TriState::False]]);
@@ -168,6 +184,7 @@ fn test_require_group_insufficient_evidence() -> TestResult {
     Ok(())
 }
 
+/// Tests require group failure.
 #[test]
 fn test_require_group_failure() -> TestResult {
     let reader = TestReader::new(vec![[TriState::True, TriState::False, TriState::False]]);
@@ -192,6 +209,7 @@ fn test_require_group_failure() -> TestResult {
 // SECTION: Trace Hook Tests
 // ============================================================================
 
+/// Tests trace hook records predicates.
 #[test]
 fn test_trace_hook_records_predicates() -> TestResult {
     let reader = TestReader::new(vec![[TriState::True, TriState::False, TriState::Unknown]]);
@@ -226,6 +244,7 @@ fn test_trace_hook_records_predicates() -> TestResult {
 // SECTION: Runtime Logic Mode
 // ============================================================================
 
+/// Tests logic mode dispatch.
 #[test]
 fn test_logic_mode_dispatch() -> TestResult {
     let reader = TestReader::new(vec![[TriState::True, TriState::Unknown, TriState::False]]);

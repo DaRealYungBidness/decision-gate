@@ -4,6 +4,19 @@
 // Description: Comprehensive tests for the channel-based async payload sink.
 // ============================================================================
 
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
+
 use decision_gate_broker::ChannelSink;
 use decision_gate_broker::DispatchMessage;
 use decision_gate_broker::Payload;
@@ -19,6 +32,7 @@ use super::common::sample_target;
 // SECTION: Constructor Tests
 // ============================================================================
 
+/// Tests channel sink new creates sink with default dispatcher.
 #[test]
 fn channel_sink_new_creates_sink_with_default_dispatcher() {
     let (tx, _rx) = tokio::sync::mpsc::channel::<DispatchMessage>(1);
@@ -26,6 +40,7 @@ fn channel_sink_new_creates_sink_with_default_dispatcher() {
     // Sink created successfully
 }
 
+/// Tests channel sink with dispatcher uses custom name.
 #[test]
 fn channel_sink_with_dispatcher_uses_custom_name() {
     let (tx, _rx) = tokio::sync::mpsc::channel::<DispatchMessage>(1);
@@ -46,6 +61,7 @@ fn channel_sink_with_dispatcher_uses_custom_name() {
 // SECTION: Success Path Tests
 // ============================================================================
 
+/// Tests channel sink sends message to channel.
 #[test]
 fn channel_sink_sends_message_to_channel() {
     let (tx, mut rx) = tokio::sync::mpsc::channel::<DispatchMessage>(1);
@@ -65,6 +81,7 @@ fn channel_sink_sends_message_to_channel() {
     assert_eq!(message.receipt, receipt);
 }
 
+/// Tests channel sink returns correct receipt.
 #[test]
 fn channel_sink_returns_correct_receipt() {
     let (tx, _rx) = tokio::sync::mpsc::channel::<DispatchMessage>(10);
@@ -84,13 +101,14 @@ fn channel_sink_returns_correct_receipt() {
     assert_eq!(receipt.receipt_hash, payload.envelope.content_hash);
 }
 
+/// Tests channel sink increments sequence number.
 #[test]
 fn channel_sink_increments_sequence_number() {
     let (tx, mut rx) = tokio::sync::mpsc::channel::<DispatchMessage>(10);
     let sink = ChannelSink::new(tx);
 
     let target = sample_target();
-    let payloads: Vec<_> = (0..5)
+    let payloads: Vec<_> = (0 .. 5)
         .map(|i| {
             let data = format!("data-{i}");
             Payload {
@@ -109,6 +127,7 @@ fn channel_sink_increments_sequence_number() {
     }
 }
 
+/// Tests channel sink message contains cloned payload.
 #[test]
 fn channel_sink_message_contains_cloned_payload() {
     let (tx, mut rx) = tokio::sync::mpsc::channel::<DispatchMessage>(1);
@@ -133,17 +152,16 @@ fn channel_sink_message_contains_cloned_payload() {
     }
 }
 
+/// Tests channel sink handles json payload.
 #[test]
 fn channel_sink_handles_json_payload() {
     let (tx, mut rx) = tokio::sync::mpsc::channel::<DispatchMessage>(1);
     let sink = ChannelSink::new(tx);
 
     let json_value = serde_json::json!({"key": "value"});
-    let content_hash = decision_gate_core::hashing::hash_canonical_json(
-        DEFAULT_HASH_ALGORITHM,
-        &json_value,
-    )
-    .expect("json hash");
+    let content_hash =
+        decision_gate_core::hashing::hash_canonical_json(DEFAULT_HASH_ALGORITHM, &json_value)
+            .expect("json hash");
 
     let envelope = decision_gate_core::PacketEnvelope {
         scenario_id: decision_gate_core::ScenarioId::new("test"),
@@ -179,6 +197,7 @@ fn channel_sink_handles_json_payload() {
 // SECTION: Error Path Tests
 // ============================================================================
 
+/// Tests channel sink fails when channel full.
 #[test]
 fn channel_sink_fails_when_channel_full() {
     let (tx, _rx) = tokio::sync::mpsc::channel::<DispatchMessage>(1);
@@ -200,6 +219,7 @@ fn channel_sink_fails_when_channel_full() {
     assert!(err.to_string().contains("full") || err.to_string().contains("no available capacity"));
 }
 
+/// Tests channel sink fails when receiver dropped.
 #[test]
 fn channel_sink_fails_when_receiver_dropped() {
     let (tx, rx) = tokio::sync::mpsc::channel::<DispatchMessage>(1);
@@ -223,6 +243,7 @@ fn channel_sink_fails_when_receiver_dropped() {
 // SECTION: Edge Case Tests
 // ============================================================================
 
+/// Tests channel sink handles large channel buffer.
 #[test]
 fn channel_sink_handles_large_channel_buffer() {
     let (tx, mut rx) = tokio::sync::mpsc::channel::<DispatchMessage>(1000);
@@ -231,7 +252,7 @@ fn channel_sink_handles_large_channel_buffer() {
     let target = sample_target();
 
     // Send many messages
-    for i in 0..100 {
+    for i in 0 .. 100 {
         let data = format!("data-{i}");
         let payload = Payload {
             envelope: sample_bytes_envelope(data.as_bytes()),
@@ -241,12 +262,13 @@ fn channel_sink_handles_large_channel_buffer() {
     }
 
     // Verify all messages received in order
-    for i in 0..100 {
+    for i in 0 .. 100 {
         let message = rx.try_recv().expect("recv");
         assert_eq!(message.receipt.dispatch_id, format!("channel-{}", i + 1));
     }
 }
 
+/// Tests channel sink receipt timestamp increments.
 #[test]
 fn channel_sink_receipt_timestamp_increments() {
     let (tx, _rx) = tokio::sync::mpsc::channel::<DispatchMessage>(10);
@@ -254,7 +276,7 @@ fn channel_sink_receipt_timestamp_increments() {
 
     let target = sample_target();
 
-    for i in 1..=3 {
+    for i in 1 ..= 3 {
         let payload = Payload {
             envelope: sample_bytes_envelope(b"data"),
             body: PayloadBody::Bytes(b"data".to_vec()),
@@ -269,6 +291,7 @@ fn channel_sink_receipt_timestamp_increments() {
     }
 }
 
+/// Tests channel sink handles empty payload.
 #[test]
 fn channel_sink_handles_empty_payload() {
     let (tx, mut rx) = tokio::sync::mpsc::channel::<DispatchMessage>(1);

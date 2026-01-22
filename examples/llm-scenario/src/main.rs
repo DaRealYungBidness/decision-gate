@@ -1,3 +1,18 @@
+#![cfg_attr(
+    test,
+    allow(
+        clippy::panic,
+        clippy::print_stdout,
+        clippy::print_stderr,
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::use_debug,
+        clippy::dbg_macro,
+        clippy::panic_in_result_fn,
+        clippy::unwrap_in_result,
+        reason = "Test-only output and panic-based assertions are permitted."
+    )
+)]
 // examples/llm-scenario/src/main.rs
 // ============================================================================
 // Module: Decision Gate LLM Scenario Example
@@ -10,10 +25,15 @@
 //! Runs a Decision Gate scenario that dispatches a prompt payload to a callback
 //! sink (simulating an LLM integration) and records a model submission.
 
+use std::io::Write;
+
 use decision_gate_broker::CallbackSink;
 use decision_gate_broker::CompositeBroker;
+use decision_gate_broker::PayloadBody;
+use decision_gate_broker::SinkError;
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::DecisionOutcome;
 use decision_gate_core::DispatchReceipt;
 use decision_gate_core::DispatchTarget;
 use decision_gate_core::EvidenceContext;
@@ -28,6 +48,7 @@ use decision_gate_core::PacketSpec;
 use decision_gate_core::PolicyDecider;
 use decision_gate_core::PolicyDecision;
 use decision_gate_core::PredicateSpec;
+use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::ScenarioId;
 use decision_gate_core::ScenarioSpec;
@@ -45,6 +66,7 @@ use decision_gate_core::runtime::InMemoryRunStateStore;
 use decision_gate_core::runtime::NextRequest;
 use serde_json::json;
 
+/// Evidence provider that always returns `true`.
 struct ExampleEvidenceProvider;
 
 impl EvidenceProvider for ExampleEvidenceProvider {
@@ -62,8 +84,16 @@ impl EvidenceProvider for ExampleEvidenceProvider {
             content_type: Some("application/json".to_string()),
         })
     }
+
+    fn validate_providers(
+        &self,
+        _spec: &ScenarioSpec,
+    ) -> Result<(), decision_gate_core::ProviderMissingError> {
+        Ok(())
+    }
 }
 
+/// Policy decider that permits all disclosures.
 struct PermitAllPolicy;
 
 impl PolicyDecider for PermitAllPolicy {
@@ -77,6 +107,7 @@ impl PolicyDecider for PermitAllPolicy {
     }
 }
 
+/// Builds the LLM scenario spec.
 fn build_spec() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("llm-scenario"),
@@ -114,9 +145,10 @@ fn build_spec() -> ScenarioSpec {
         ],
         predicates: vec![PredicateSpec {
             predicate: "ready".into(),
-            query: EvidenceQuery::StatePredicate {
-                name: "ready".to_string(),
-                params: json!({}),
+            query: EvidenceQuery {
+                provider_id: ProviderId::new("example"),
+                predicate: "ready".to_string(),
+                params: Some(json!({})),
             },
             comparator: Comparator::Equals,
             expected: Some(json!(true)),
@@ -130,8 +162,10 @@ fn build_spec() -> ScenarioSpec {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sink = CallbackSink::new(|target, payload| {
-        println!("Dispatching to LLM target: {:?}", target);
-        println!("Payload: {:?}", payload.body);
+        let target_label = target_label(target);
+        let payload_label = payload_summary(&payload.body)?;
+        write_line("Dispatching to LLM target", &target_label)?;
+        write_line("Payload", &payload_label)?;
         Ok(DispatchReceipt {
             dispatch_id: "llm-1".to_string(),
             target: target.clone(),
@@ -173,7 +207,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         correlation_id: None,
     };
     let result = engine.scenario_next(&request)?;
-    println!("Decision: {:?}", result.decision.outcome);
+    let outcome = outcome_summary(&result.decision.outcome);
+    write_line("Decision", &outcome)?;
 
     let submission = SubmitRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
@@ -186,7 +221,70 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         correlation_id: None,
     };
     let submit_result = engine.scenario_submit(&submission)?;
-    println!("Recorded submission: {:?}", submit_result.record.submission_id);
+    write_line("Recorded submission", &submit_result.record.submission_id)?;
 
     Ok(())
+}
+
+/// Formats a short summary for the decision outcome.
+fn outcome_summary(outcome: &DecisionOutcome) -> String {
+    match outcome {
+        DecisionOutcome::Start {
+            stage_id,
+        } => format!("start:{stage_id}"),
+        DecisionOutcome::Complete {
+            stage_id,
+        } => format!("complete:{stage_id}"),
+        DecisionOutcome::Advance {
+            from_stage,
+            to_stage,
+            timeout,
+        } => {
+            let reason = if *timeout { "timeout" } else { "gate" };
+            format!("advance:{from_stage}->{to_stage} ({reason})")
+        }
+        DecisionOutcome::Hold {
+            summary,
+        } => format!("hold:{}", summary.status),
+        DecisionOutcome::Fail {
+            reason,
+        } => format!("fail:{reason}"),
+    }
+}
+
+/// Formats a short label for the dispatch target.
+fn target_label(target: &DispatchTarget) -> String {
+    match target {
+        DispatchTarget::Agent {
+            agent_id,
+        } => format!("agent:{agent_id}"),
+        DispatchTarget::Session {
+            session_id,
+        } => format!("session:{session_id}"),
+        DispatchTarget::External {
+            system,
+            target,
+        } => format!("external:{system}:{target}"),
+        DispatchTarget::Channel {
+            channel,
+        } => format!("channel:{channel}"),
+    }
+}
+
+/// Formats a short summary for the payload body.
+fn payload_summary(body: &PayloadBody) -> Result<String, SinkError> {
+    match body {
+        PayloadBody::Json(value) => {
+            let encoded = serde_json::to_string(value)
+                .map_err(|err| SinkError::DeliveryFailed(err.to_string()))?;
+            Ok(format!("json:{encoded}"))
+        }
+        PayloadBody::Bytes(bytes) => Ok(format!("bytes:{} bytes", bytes.len())),
+    }
+}
+
+/// Writes a labeled line to stdout.
+fn write_line(label: &str, value: &str) -> Result<(), SinkError> {
+    let mut out = std::io::stdout();
+    writeln!(out, "{label}: {value}").map_err(|err| SinkError::DeliveryFailed(err.to_string()))
 }

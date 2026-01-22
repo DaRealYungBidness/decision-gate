@@ -6,8 +6,18 @@
 //! ## Overview
 //! Validates broker sources, sinks, and dispatcher wiring.
 
-#![allow(clippy::unwrap_used, reason = "Tests use unwrap on deterministic fixtures.")]
-#![allow(clippy::expect_used, reason = "Tests use expect for explicit failure messages.")]
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
 
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -83,6 +93,7 @@ fn sample_target() -> DispatchTarget {
 // SECTION: Source Tests
 // ============================================================================
 
+/// Tests file source reads bytes.
 #[test]
 fn file_source_reads_bytes() {
     let dir = tempdir().expect("temp dir");
@@ -101,11 +112,12 @@ fn file_source_reads_bytes() {
     assert_eq!(payload.bytes, b"hello");
 }
 
+/// Tests inline source decodes bytes.
 #[test]
 fn inline_source_decodes_bytes() {
     let encoded = STANDARD.encode(b"inline-bytes");
     let content_ref = ContentRef {
-        uri: format!("inline+bytes:{}", encoded),
+        uri: format!("inline+bytes:{encoded}"),
         content_hash: hash_bytes(DEFAULT_HASH_ALGORITHM, b"inline-bytes"),
         encryption: None,
     };
@@ -115,6 +127,7 @@ fn inline_source_decodes_bytes() {
     assert_eq!(payload.bytes, b"inline-bytes");
 }
 
+/// Tests http source fetches bytes.
 #[test]
 fn http_source_fetches_bytes() {
     let server = Server::http("127.0.0.1:0").expect("http server");
@@ -129,7 +142,7 @@ fn http_source_fetches_bytes() {
         }
     });
 
-    let uri = format!("http://{}", addr);
+    let uri = format!("http://{addr}");
     let content_ref = ContentRef {
         uri,
         content_hash: hash_bytes(DEFAULT_HASH_ALGORITHM, b"remote"),
@@ -146,6 +159,7 @@ fn http_source_fetches_bytes() {
 // SECTION: Sink Tests
 // ============================================================================
 
+/// Tests callback sink invokes handler.
 #[test]
 fn callback_sink_invokes_handler() {
     let target = sample_target();
@@ -157,7 +171,7 @@ fn callback_sink_invokes_handler() {
     };
 
     let expected_target = target.clone();
-    let expected_hash = content_hash.clone();
+    let expected_hash = content_hash;
     let sink = CallbackSink::new(move |target, payload| {
         assert_eq!(target, &expected_target);
         assert_eq!(payload.envelope.content_hash, expected_hash);
@@ -174,6 +188,7 @@ fn callback_sink_invokes_handler() {
     assert_eq!(receipt.dispatch_id, "callback-1");
 }
 
+/// Tests channel sink sends message.
 #[test]
 fn channel_sink_sends_message() {
     let (tx, mut rx) = tokio::sync::mpsc::channel::<DispatchMessage>(1);
@@ -192,6 +207,7 @@ fn channel_sink_sends_message() {
     assert_eq!(message.receipt, receipt);
 }
 
+/// Tests log sink writes record.
 #[test]
 fn log_sink_writes_record() {
     let buffer = Arc::new(Mutex::new(Vec::new()));
@@ -216,6 +232,7 @@ fn log_sink_writes_record() {
 // SECTION: Composite Broker Tests
 // ============================================================================
 
+/// Tests composite broker dispatches inline payload.
 #[test]
 fn composite_broker_dispatches_inline_payload() {
     let payload = PacketPayload::Json {
@@ -230,7 +247,7 @@ fn composite_broker_dispatches_inline_payload() {
     let sink = CallbackSink::new(move |_, payload| {
         match &payload.body {
             PayloadBody::Json(value) => assert_eq!(value["hello"], "world"),
-            _ => panic!("expected json payload"),
+            PayloadBody::Bytes(_) => panic!("expected json payload"),
         }
         Ok(DispatchReceipt {
             dispatch_id: "sink-1".to_string(),
@@ -246,6 +263,7 @@ fn composite_broker_dispatches_inline_payload() {
     assert_eq!(receipt.dispatch_id, "sink-1");
 }
 
+/// Tests composite broker rejects hash mismatch.
 #[test]
 fn composite_broker_rejects_hash_mismatch() {
     let dir = tempdir().expect("temp dir");
@@ -284,8 +302,7 @@ struct SharedBuffer {
 
 impl std::io::Write for SharedBuffer {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let mut guard = self.inner.lock().expect("buffer lock");
-        guard.extend_from_slice(buf);
+        self.inner.lock().expect("buffer lock").extend_from_slice(buf);
         Ok(buf.len())
     }
 

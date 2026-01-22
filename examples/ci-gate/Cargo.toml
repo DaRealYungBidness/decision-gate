@@ -1,0 +1,16 @@
+# Copyright (c) 2026 Michael Campbell. All rights reserved.
+# Decision Gate CI Gate Example manifest
+
+[package]
+name = "decision-gate-example-ci-gate"
+version = { workspace = true }
+edition = "2024"
+rust-version = "1.92"
+
+[dependencies]
+decision-gate-core = { path = "../../decision-gate-core" }
+ret-logic = { path = "../../ret-logic" }
+serde_json = "1.0"
+
+[lints]
+workspace = true

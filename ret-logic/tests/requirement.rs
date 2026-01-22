@@ -6,6 +6,19 @@
 //! ## Overview
 //! Integration tests for the core requirement types and evaluation paths.
 
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
+
 #[path = "support/flags.rs"]
 mod flags;
 #[path = "support/mocks.rs"]
@@ -29,6 +42,7 @@ use support::ensure;
 // SECTION: Mock Coverage
 // ========================================================================
 
+/// Tests mock predicate variants used.
 #[test]
 fn test_mock_predicate_variants_used() {
     let _ = mocks::all_variants();
@@ -89,6 +103,7 @@ macro_rules! check_ne {
 // SECTION: RequirementId Tests
 // ============================================================================
 
+/// Tests requirement id creation.
 #[test]
 fn test_requirement_id_creation() -> TestResult {
     let id = rid!(42);
@@ -96,6 +111,7 @@ fn test_requirement_id_creation() -> TestResult {
     Ok(())
 }
 
+/// Tests requirement id value.
 #[test]
 fn test_requirement_id_value() -> TestResult {
     let id = rid!(12345);
@@ -104,6 +120,7 @@ fn test_requirement_id_value() -> TestResult {
     Ok(())
 }
 
+/// Tests requirement id equality.
 #[test]
 fn test_requirement_id_equality() -> TestResult {
     let id1 = rid!(100);
@@ -115,6 +132,7 @@ fn test_requirement_id_equality() -> TestResult {
     Ok(())
 }
 
+/// Tests requirement id hash.
 #[test]
 fn test_requirement_id_hash() -> TestResult {
     use std::collections::HashSet;
@@ -128,6 +146,7 @@ fn test_requirement_id_hash() -> TestResult {
     Ok(())
 }
 
+/// Tests requirement id clone copy.
 #[test]
 fn test_requirement_id_clone_copy() -> TestResult {
     let id = rid!(999);
@@ -143,6 +162,7 @@ fn test_requirement_id_clone_copy() -> TestResult {
 // SECTION: Predicate Evaluation Tests
 // ============================================================================
 
+/// Tests predicate always true.
 #[test]
 fn test_predicate_always_true() -> TestResult {
     let req = Requirement::predicate(MockPredicate::AlwaysTrue);
@@ -153,6 +173,7 @@ fn test_predicate_always_true() -> TestResult {
     Ok(())
 }
 
+/// Tests predicate always false.
 #[test]
 fn test_predicate_always_false() -> TestResult {
     let req = Requirement::predicate(MockPredicate::AlwaysFalse);
@@ -163,6 +184,7 @@ fn test_predicate_always_false() -> TestResult {
     Ok(())
 }
 
+/// Tests predicate value gte.
 #[test]
 fn test_predicate_value_gte() -> TestResult {
     let req = Requirement::predicate(MockPredicate::ValueGte(50));
@@ -178,6 +200,7 @@ fn test_predicate_value_gte() -> TestResult {
     Ok(())
 }
 
+/// Tests predicate value lte.
 #[test]
 fn test_predicate_value_lte() -> TestResult {
     let req = Requirement::predicate(MockPredicate::ValueLte(50));
@@ -193,6 +216,7 @@ fn test_predicate_value_lte() -> TestResult {
     Ok(())
 }
 
+/// Tests predicate value eq.
 #[test]
 fn test_predicate_value_eq() -> TestResult {
     let req = Requirement::predicate(MockPredicate::ValueEq(42));
@@ -206,6 +230,7 @@ fn test_predicate_value_eq() -> TestResult {
     Ok(())
 }
 
+/// Tests predicate has all flags.
 #[test]
 fn test_predicate_has_all_flags() -> TestResult {
     let req = Requirement::predicate(MockPredicate::HasAllFlags(FLAG_AB));
@@ -225,6 +250,7 @@ fn test_predicate_has_all_flags() -> TestResult {
     Ok(())
 }
 
+/// Tests predicate has any flags.
 #[test]
 fn test_predicate_has_any_flags() -> TestResult {
     let req = Requirement::predicate(MockPredicate::HasAnyFlags(FLAG_AB));
@@ -244,6 +270,7 @@ fn test_predicate_has_any_flags() -> TestResult {
     Ok(())
 }
 
+/// Tests predicate has none flags.
 #[test]
 fn test_predicate_has_none_flags() -> TestResult {
     let req = Requirement::predicate(MockPredicate::HasNoneFlags(FLAG_AB));
@@ -263,6 +290,7 @@ fn test_predicate_has_none_flags() -> TestResult {
     Ok(())
 }
 
+/// Tests predicate row index even.
 #[test]
 fn test_predicate_row_index_even() -> TestResult {
     let req = Requirement::predicate(MockPredicate::RowIndexEven);
@@ -278,6 +306,7 @@ fn test_predicate_row_index_even() -> TestResult {
     Ok(())
 }
 
+/// Tests predicate row index lt.
 #[test]
 fn test_predicate_row_index_lt() -> TestResult {
     let req = Requirement::predicate(MockPredicate::RowIndexLt(3));
@@ -297,6 +326,7 @@ fn test_predicate_row_index_lt() -> TestResult {
 // SECTION: AND Evaluation Tests
 // ============================================================================
 
+/// Tests and empty trivially satisfied.
 #[test]
 fn test_and_empty_trivially_satisfied() -> TestResult {
     let req: Requirement<MockPredicate> = Requirement::and(vec![]);
@@ -308,6 +338,7 @@ fn test_and_empty_trivially_satisfied() -> TestResult {
     Ok(())
 }
 
+/// Tests and single true.
 #[test]
 fn test_and_single_true() -> TestResult {
     let req = Requirement::and(vec![Requirement::predicate(MockPredicate::AlwaysTrue)]);
@@ -318,6 +349,7 @@ fn test_and_single_true() -> TestResult {
     Ok(())
 }
 
+/// Tests and single false.
 #[test]
 fn test_and_single_false() -> TestResult {
     let req = Requirement::and(vec![Requirement::predicate(MockPredicate::AlwaysFalse)]);
@@ -328,6 +360,7 @@ fn test_and_single_false() -> TestResult {
     Ok(())
 }
 
+/// Tests and all true.
 #[test]
 fn test_and_all_true() -> TestResult {
     let req = Requirement::and(vec![
@@ -342,6 +375,7 @@ fn test_and_all_true() -> TestResult {
     Ok(())
 }
 
+/// Tests and one false.
 #[test]
 fn test_and_one_false() -> TestResult {
     let req = Requirement::and(vec![
@@ -356,6 +390,7 @@ fn test_and_one_false() -> TestResult {
     Ok(())
 }
 
+/// Tests and all false.
 #[test]
 fn test_and_all_false() -> TestResult {
     let req = Requirement::and(vec![
@@ -369,6 +404,7 @@ fn test_and_all_false() -> TestResult {
     Ok(())
 }
 
+/// Tests and short circuit on first false.
 #[test]
 fn test_and_short_circuit_on_first_false() -> TestResult {
     // The first false should cause immediate return
@@ -384,6 +420,7 @@ fn test_and_short_circuit_on_first_false() -> TestResult {
     Ok(())
 }
 
+/// Tests and with value predicates.
 #[test]
 fn test_and_with_value_predicates() -> TestResult {
     // Value must be >= 10 AND <= 20
@@ -407,6 +444,7 @@ fn test_and_with_value_predicates() -> TestResult {
 // SECTION: OR Evaluation Tests
 // ============================================================================
 
+/// Tests or empty trivially unsatisfied.
 #[test]
 fn test_or_empty_trivially_unsatisfied() -> TestResult {
     let req: Requirement<MockPredicate> = Requirement::or(vec![]);
@@ -418,6 +456,7 @@ fn test_or_empty_trivially_unsatisfied() -> TestResult {
     Ok(())
 }
 
+/// Tests or single true.
 #[test]
 fn test_or_single_true() -> TestResult {
     let req = Requirement::or(vec![Requirement::predicate(MockPredicate::AlwaysTrue)]);
@@ -428,6 +467,7 @@ fn test_or_single_true() -> TestResult {
     Ok(())
 }
 
+/// Tests or single false.
 #[test]
 fn test_or_single_false() -> TestResult {
     let req = Requirement::or(vec![Requirement::predicate(MockPredicate::AlwaysFalse)]);
@@ -438,6 +478,7 @@ fn test_or_single_false() -> TestResult {
     Ok(())
 }
 
+/// Tests or all true.
 #[test]
 fn test_or_all_true() -> TestResult {
     let req = Requirement::or(vec![
@@ -451,6 +492,7 @@ fn test_or_all_true() -> TestResult {
     Ok(())
 }
 
+/// Tests or one true.
 #[test]
 fn test_or_one_true() -> TestResult {
     let req = Requirement::or(vec![
@@ -465,6 +507,7 @@ fn test_or_one_true() -> TestResult {
     Ok(())
 }
 
+/// Tests or all false.
 #[test]
 fn test_or_all_false() -> TestResult {
     let req = Requirement::or(vec![
@@ -479,6 +522,7 @@ fn test_or_all_false() -> TestResult {
     Ok(())
 }
 
+/// Tests or short circuit on first true.
 #[test]
 fn test_or_short_circuit_on_first_true() -> TestResult {
     // The first true should cause immediate return
@@ -494,6 +538,7 @@ fn test_or_short_circuit_on_first_true() -> TestResult {
     Ok(())
 }
 
+/// Tests or with value predicates.
 #[test]
 fn test_or_with_value_predicates() -> TestResult {
     // Value < 10 OR value > 90
@@ -517,6 +562,7 @@ fn test_or_with_value_predicates() -> TestResult {
 // SECTION: NOT Evaluation Tests
 // ============================================================================
 
+/// Tests not true becomes false.
 #[test]
 fn test_not_true_becomes_false() -> TestResult {
     let req = Requirement::not(Requirement::predicate(MockPredicate::AlwaysTrue));
@@ -527,6 +573,7 @@ fn test_not_true_becomes_false() -> TestResult {
     Ok(())
 }
 
+/// Tests not false becomes true.
 #[test]
 fn test_not_false_becomes_true() -> TestResult {
     let req = Requirement::not(Requirement::predicate(MockPredicate::AlwaysFalse));
@@ -537,6 +584,7 @@ fn test_not_false_becomes_true() -> TestResult {
     Ok(())
 }
 
+/// Tests not double negation.
 #[test]
 fn test_not_double_negation() -> TestResult {
     let req = Requirement::not(Requirement::not(Requirement::predicate(MockPredicate::AlwaysTrue)));
@@ -547,6 +595,7 @@ fn test_not_double_negation() -> TestResult {
     Ok(())
 }
 
+/// Tests not with value predicate.
 #[test]
 fn test_not_with_value_predicate() -> TestResult {
     // NOT (value >= 50) is equivalent to value < 50
@@ -563,6 +612,7 @@ fn test_not_with_value_predicate() -> TestResult {
     Ok(())
 }
 
+/// Tests not and becomes nand.
 #[test]
 fn test_not_and_becomes_nand() -> TestResult {
     // NOT(A AND B) is NAND
@@ -577,6 +627,7 @@ fn test_not_and_becomes_nand() -> TestResult {
     Ok(())
 }
 
+/// Tests not or becomes nor.
 #[test]
 fn test_not_or_becomes_nor() -> TestResult {
     // NOT(A OR B) is NOR
@@ -595,6 +646,7 @@ fn test_not_or_becomes_nor() -> TestResult {
 // SECTION: RequireGroup Evaluation Tests
 // ============================================================================
 
+/// Tests require group min zero always satisfied.
 #[test]
 fn test_require_group_min_zero_always_satisfied() -> TestResult {
     let req = Requirement::require_group(
@@ -612,6 +664,7 @@ fn test_require_group_min_zero_always_satisfied() -> TestResult {
     Ok(())
 }
 
+/// Tests require group min equals total.
 #[test]
 fn test_require_group_min_equals_total() -> TestResult {
     // Equivalent to AND when min == total
@@ -630,6 +683,7 @@ fn test_require_group_min_equals_total() -> TestResult {
     Ok(())
 }
 
+/// Tests require group min one equivalent to or.
 #[test]
 fn test_require_group_min_one_equivalent_to_or() -> TestResult {
     // min=1 is equivalent to OR
@@ -648,6 +702,7 @@ fn test_require_group_min_one_equivalent_to_or() -> TestResult {
     Ok(())
 }
 
+/// Tests require group exact min satisfied.
 #[test]
 fn test_require_group_exact_min_satisfied() -> TestResult {
     // Need exactly 2 out of 3
@@ -666,6 +721,7 @@ fn test_require_group_exact_min_satisfied() -> TestResult {
     Ok(())
 }
 
+/// Tests require group more than min satisfied.
 #[test]
 fn test_require_group_more_than_min_satisfied() -> TestResult {
     // Need 2 out of 3, have 3
@@ -684,6 +740,7 @@ fn test_require_group_more_than_min_satisfied() -> TestResult {
     Ok(())
 }
 
+/// Tests require group less than min satisfied.
 #[test]
 fn test_require_group_less_than_min_satisfied() -> TestResult {
     // Need 2 out of 3, have 1
@@ -702,6 +759,7 @@ fn test_require_group_less_than_min_satisfied() -> TestResult {
     Ok(())
 }
 
+/// Tests require group none satisfied.
 #[test]
 fn test_require_group_none_satisfied() -> TestResult {
     let req = Requirement::require_group(
@@ -719,6 +777,7 @@ fn test_require_group_none_satisfied() -> TestResult {
     Ok(())
 }
 
+/// Tests require group early success exit.
 #[test]
 fn test_require_group_early_success_exit() -> TestResult {
     // Should exit early once min is reached
@@ -737,6 +796,7 @@ fn test_require_group_early_success_exit() -> TestResult {
     Ok(())
 }
 
+/// Tests require group early failure exit.
 #[test]
 fn test_require_group_early_failure_exit() -> TestResult {
     // Should exit early when success is impossible
@@ -755,6 +815,7 @@ fn test_require_group_early_failure_exit() -> TestResult {
     Ok(())
 }
 
+/// Tests require group with value predicates.
 #[test]
 fn test_require_group_with_value_predicates() -> TestResult {
     // Need at least 2 of: value >= 10, value >= 20, value >= 30
@@ -781,6 +842,7 @@ fn test_require_group_with_value_predicates() -> TestResult {
 // SECTION: Nested Requirement Tests
 // ============================================================================
 
+/// Tests nested and in or.
 #[test]
 fn test_nested_and_in_or() -> TestResult {
     // (A AND B) OR C
@@ -798,6 +860,7 @@ fn test_nested_and_in_or() -> TestResult {
     Ok(())
 }
 
+/// Tests nested or in and.
 #[test]
 fn test_nested_or_in_and() -> TestResult {
     // A AND (B OR C)
@@ -815,6 +878,7 @@ fn test_nested_or_in_and() -> TestResult {
     Ok(())
 }
 
+/// Tests deeply nested.
 #[test]
 fn test_deeply_nested() -> TestResult {
     // NOT(A AND (B OR (NOT C)))
@@ -837,6 +901,7 @@ fn test_deeply_nested() -> TestResult {
     Ok(())
 }
 
+/// Tests group with nested requirements.
 #[test]
 fn test_group_with_nested_requirements() -> TestResult {
     // At least 2 of: (A AND B), C, (D OR E)
@@ -867,6 +932,7 @@ fn test_group_with_nested_requirements() -> TestResult {
 // SECTION: Trivial Satisfaction Tests
 // ============================================================================
 
+/// Tests is trivially satisfied empty and.
 #[test]
 fn test_is_trivially_satisfied_empty_and() -> TestResult {
     let req: Requirement<MockPredicate> = Requirement::and(vec![]);
@@ -874,6 +940,7 @@ fn test_is_trivially_satisfied_empty_and() -> TestResult {
     Ok(())
 }
 
+/// Tests is trivially satisfied and of trivial.
 #[test]
 fn test_is_trivially_satisfied_and_of_trivial() -> TestResult {
     let req: Requirement<MockPredicate> =
@@ -882,6 +949,7 @@ fn test_is_trivially_satisfied_and_of_trivial() -> TestResult {
     Ok(())
 }
 
+/// Tests is trivially satisfied or of trivial.
 #[test]
 fn test_is_trivially_satisfied_or_of_trivial() -> TestResult {
     let req: Requirement<MockPredicate> = Requirement::or(vec![
@@ -892,6 +960,7 @@ fn test_is_trivially_satisfied_or_of_trivial() -> TestResult {
     Ok(())
 }
 
+/// Tests is trivially satisfied not of unsatisfiable.
 #[test]
 fn test_is_trivially_satisfied_not_of_unsatisfiable() -> TestResult {
     let req: Requirement<MockPredicate> = Requirement::not(Requirement::or(vec![]));
@@ -899,6 +968,7 @@ fn test_is_trivially_satisfied_not_of_unsatisfiable() -> TestResult {
     Ok(())
 }
 
+/// Tests is trivially satisfied group min zero.
 #[test]
 fn test_is_trivially_satisfied_group_min_zero() -> TestResult {
     let req =
@@ -907,6 +977,7 @@ fn test_is_trivially_satisfied_group_min_zero() -> TestResult {
     Ok(())
 }
 
+/// Tests is trivially satisfied group enough trivial.
 #[test]
 fn test_is_trivially_satisfied_group_enough_trivial() -> TestResult {
     let req: Requirement<MockPredicate> = Requirement::require_group(
@@ -921,6 +992,7 @@ fn test_is_trivially_satisfied_group_enough_trivial() -> TestResult {
     Ok(())
 }
 
+/// Tests is not trivially satisfied predicate.
 #[test]
 fn test_is_not_trivially_satisfied_predicate() -> TestResult {
     let req = Requirement::predicate(MockPredicate::AlwaysTrue);
@@ -928,6 +1000,7 @@ fn test_is_not_trivially_satisfied_predicate() -> TestResult {
     Ok(())
 }
 
+/// Tests is not trivially satisfied and with predicate.
 #[test]
 fn test_is_not_trivially_satisfied_and_with_predicate() -> TestResult {
     let req = Requirement::and(vec![Requirement::predicate(MockPredicate::AlwaysTrue)]);
@@ -939,6 +1012,7 @@ fn test_is_not_trivially_satisfied_and_with_predicate() -> TestResult {
 // SECTION: Trivial Unsatisfiability Tests
 // ============================================================================
 
+/// Tests is trivially unsatisfiable empty or.
 #[test]
 fn test_is_trivially_unsatisfiable_empty_or() -> TestResult {
     let req: Requirement<MockPredicate> = Requirement::or(vec![]);
@@ -946,6 +1020,7 @@ fn test_is_trivially_unsatisfiable_empty_or() -> TestResult {
     Ok(())
 }
 
+/// Tests is trivially unsatisfiable and of unsatisfiable.
 #[test]
 fn test_is_trivially_unsatisfiable_and_of_unsatisfiable() -> TestResult {
     let req: Requirement<MockPredicate> = Requirement::and(vec![
@@ -956,6 +1031,7 @@ fn test_is_trivially_unsatisfiable_and_of_unsatisfiable() -> TestResult {
     Ok(())
 }
 
+/// Tests is trivially unsatisfiable or of all unsatisfiable.
 #[test]
 fn test_is_trivially_unsatisfiable_or_of_all_unsatisfiable() -> TestResult {
     let req: Requirement<MockPredicate> =
@@ -964,6 +1040,7 @@ fn test_is_trivially_unsatisfiable_or_of_all_unsatisfiable() -> TestResult {
     Ok(())
 }
 
+/// Tests is trivially unsatisfiable not of satisfied.
 #[test]
 fn test_is_trivially_unsatisfiable_not_of_satisfied() -> TestResult {
     let req: Requirement<MockPredicate> = Requirement::not(Requirement::and(vec![]));
@@ -971,6 +1048,7 @@ fn test_is_trivially_unsatisfiable_not_of_satisfied() -> TestResult {
     Ok(())
 }
 
+/// Tests is trivially unsatisfiable group min exceeds total.
 #[test]
 fn test_is_trivially_unsatisfiable_group_min_exceeds_total() -> TestResult {
     let req = Requirement::require_group(
@@ -984,6 +1062,7 @@ fn test_is_trivially_unsatisfiable_group_min_exceeds_total() -> TestResult {
     Ok(())
 }
 
+/// Tests is trivially unsatisfiable group too many unsatisfiable.
 #[test]
 fn test_is_trivially_unsatisfiable_group_too_many_unsatisfiable() -> TestResult {
     let req: Requirement<MockPredicate> = Requirement::require_group(
@@ -998,6 +1077,7 @@ fn test_is_trivially_unsatisfiable_group_too_many_unsatisfiable() -> TestResult 
     Ok(())
 }
 
+/// Tests is not trivially unsatisfiable predicate.
 #[test]
 fn test_is_not_trivially_unsatisfiable_predicate() -> TestResult {
     let req = Requirement::predicate(MockPredicate::AlwaysFalse);
@@ -1009,6 +1089,7 @@ fn test_is_not_trivially_unsatisfiable_predicate() -> TestResult {
 // SECTION: Complexity Tests
 // ============================================================================
 
+/// Tests complexity predicate.
 #[test]
 fn test_complexity_predicate() -> TestResult {
     let req = Requirement::predicate(MockPredicate::AlwaysTrue);
@@ -1016,6 +1097,7 @@ fn test_complexity_predicate() -> TestResult {
     Ok(())
 }
 
+/// Tests complexity not.
 #[test]
 fn test_complexity_not() -> TestResult {
     let req = Requirement::not(Requirement::predicate(MockPredicate::AlwaysTrue));
@@ -1023,6 +1105,7 @@ fn test_complexity_not() -> TestResult {
     Ok(())
 }
 
+/// Tests complexity and.
 #[test]
 fn test_complexity_and() -> TestResult {
     let req = Requirement::and(vec![
@@ -1033,6 +1116,7 @@ fn test_complexity_and() -> TestResult {
     Ok(())
 }
 
+/// Tests complexity or.
 #[test]
 fn test_complexity_or() -> TestResult {
     let req = Requirement::or(vec![
@@ -1044,6 +1128,7 @@ fn test_complexity_or() -> TestResult {
     Ok(())
 }
 
+/// Tests complexity empty and.
 #[test]
 fn test_complexity_empty_and() -> TestResult {
     let req: Requirement<MockPredicate> = Requirement::and(vec![]);
@@ -1051,6 +1136,7 @@ fn test_complexity_empty_and() -> TestResult {
     Ok(())
 }
 
+/// Tests complexity require group.
 #[test]
 fn test_complexity_require_group() -> TestResult {
     let req = Requirement::require_group(
@@ -1064,6 +1150,7 @@ fn test_complexity_require_group() -> TestResult {
     Ok(())
 }
 
+/// Tests complexity nested.
 #[test]
 fn test_complexity_nested() -> TestResult {
     let req = Requirement::and(vec![
@@ -1082,6 +1169,7 @@ fn test_complexity_nested() -> TestResult {
 // SECTION: Constructor Tests
 // ============================================================================
 
+/// Tests constructor and.
 #[test]
 fn test_constructor_and() -> TestResult {
     let req = Requirement::and(vec![
@@ -1095,6 +1183,7 @@ fn test_constructor_and() -> TestResult {
     Err("Expected And variant".into())
 }
 
+/// Tests constructor or.
 #[test]
 fn test_constructor_or() -> TestResult {
     let req = Requirement::or(vec![Requirement::predicate(MockPredicate::AlwaysTrue)]);
@@ -1105,6 +1194,7 @@ fn test_constructor_or() -> TestResult {
     Err("Expected Or variant".into())
 }
 
+/// Tests constructor not.
 #[test]
 fn test_constructor_not() -> TestResult {
     let req = Requirement::not(Requirement::predicate(MockPredicate::AlwaysTrue));
@@ -1114,6 +1204,7 @@ fn test_constructor_not() -> TestResult {
     Err("Expected Not variant".into())
 }
 
+/// Tests constructor require group.
 #[test]
 fn test_constructor_require_group() -> TestResult {
     let req = Requirement::require_group(
@@ -1137,6 +1228,7 @@ fn test_constructor_require_group() -> TestResult {
     }
 }
 
+/// Tests constructor predicate.
 #[test]
 fn test_constructor_predicate() -> TestResult {
     let req = Requirement::predicate(MockPredicate::ValueEq(42));
@@ -1150,6 +1242,7 @@ fn test_constructor_predicate() -> TestResult {
 // SECTION: Default Tests
 // ============================================================================
 
+/// Tests default is empty and.
 #[test]
 fn test_default_is_empty_and() -> TestResult {
     let req: Requirement<MockPredicate> = Requirement::default();
@@ -1160,6 +1253,7 @@ fn test_default_is_empty_and() -> TestResult {
     Err("Expected empty And variant".into())
 }
 
+/// Tests default is trivially satisfied.
 #[test]
 fn test_default_is_trivially_satisfied() -> TestResult {
     let req: Requirement<MockPredicate> = Requirement::default();
@@ -1174,6 +1268,7 @@ fn test_default_is_trivially_satisfied() -> TestResult {
 // SECTION: RequirementGroup Tests
 // ============================================================================
 
+/// Tests requirement group new.
 #[test]
 fn test_requirement_group_new() -> TestResult {
     let group = RequirementGroup::new(
@@ -1188,6 +1283,7 @@ fn test_requirement_group_new() -> TestResult {
     Ok(())
 }
 
+/// Tests requirement group panics on invalid min.
 #[test]
 fn test_requirement_group_panics_on_invalid_min() -> TestResult {
     let result = RequirementGroup::new(
@@ -1210,6 +1306,7 @@ fn test_requirement_group_panics_on_invalid_min() -> TestResult {
     Ok(())
 }
 
+/// Tests requirement group all.
 #[test]
 fn test_requirement_group_all() -> TestResult {
     let group = RequirementGroup::all(vec![
@@ -1222,6 +1319,7 @@ fn test_requirement_group_all() -> TestResult {
     Ok(())
 }
 
+/// Tests requirement group any.
 #[test]
 fn test_requirement_group_any() -> TestResult {
     let group = RequirementGroup::any(vec![
@@ -1237,6 +1335,7 @@ fn test_requirement_group_any() -> TestResult {
 // SECTION: Edge Case Tests
 // ============================================================================
 
+/// Tests eval out of bounds row.
 #[test]
 fn test_eval_out_of_bounds_row() -> TestResult {
     let req = Requirement::predicate(MockPredicate::ValueGte(50));
@@ -1249,6 +1348,7 @@ fn test_eval_out_of_bounds_row() -> TestResult {
     Ok(())
 }
 
+/// Tests eval empty reader.
 #[test]
 fn test_eval_empty_reader() -> TestResult {
     let req = Requirement::predicate(MockPredicate::AlwaysTrue);
@@ -1260,6 +1360,7 @@ fn test_eval_empty_reader() -> TestResult {
     Ok(())
 }
 
+/// Tests many nested levels.
 #[test]
 fn test_many_nested_levels() -> TestResult {
     // Build a deeply nested requirement: NOT(NOT(NOT(NOT(true))))
@@ -1276,6 +1377,7 @@ fn test_many_nested_levels() -> TestResult {
     Ok(())
 }
 
+/// Tests large and requirement.
 #[test]
 fn test_large_and_requirement() -> TestResult {
     let reqs: Vec<_> =
@@ -1290,6 +1392,7 @@ fn test_large_and_requirement() -> TestResult {
     Ok(())
 }
 
+/// Tests large or requirement.
 #[test]
 fn test_large_or_requirement() -> TestResult {
     let reqs: Vec<_> =
@@ -1303,6 +1406,7 @@ fn test_large_or_requirement() -> TestResult {
     Ok(())
 }
 
+/// Tests requirement clone.
 #[test]
 fn test_requirement_clone() -> TestResult {
     let req = Requirement::and(vec![
@@ -1318,6 +1422,7 @@ fn test_requirement_clone() -> TestResult {
     Ok(())
 }
 
+/// Tests requirement equality.
 #[test]
 fn test_requirement_equality() -> TestResult {
     let req1 = Requirement::and(vec![
@@ -1358,6 +1463,7 @@ fn eval_block_by_rows(
     mask
 }
 
+/// Tests eval block matches row eval for compound logic.
 #[test]
 fn test_eval_block_matches_row_eval_for_compound_logic() -> TestResult {
     let req = Requirement::and(vec![
@@ -1377,6 +1483,7 @@ fn test_eval_block_matches_row_eval_for_compound_logic() -> TestResult {
     Ok(())
 }
 
+/// Tests eval block matches row eval for require group threshold.
 #[test]
 fn test_eval_block_matches_row_eval_for_require_group_threshold() -> TestResult {
     let req = Requirement::require_group(
@@ -1398,6 +1505,7 @@ fn test_eval_block_matches_row_eval_for_require_group_threshold() -> TestResult 
     Ok(())
 }
 
+/// Tests eval block respects start and count window.
 #[test]
 fn test_eval_block_respects_start_and_count_window() -> TestResult {
     let req = Requirement::or(vec![

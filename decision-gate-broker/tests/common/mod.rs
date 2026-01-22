@@ -4,6 +4,19 @@
 // Description: Shared helpers for decision-gate-broker tests.
 // ============================================================================
 
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
+
 use decision_gate_core::DispatchTarget;
 use decision_gate_core::PacketEnvelope;
 use decision_gate_core::PacketId;
@@ -59,12 +72,16 @@ pub fn sample_json_envelope(value: &Value) -> PacketEnvelope {
 
 /// Creates a sample dispatch target.
 pub fn sample_target() -> DispatchTarget {
-    DispatchTarget::Agent { agent_id: "test-agent".to_string() }
+    DispatchTarget::Agent {
+        agent_id: "test-agent".to_string(),
+    }
 }
 
 /// Creates a sample dispatch target with a custom agent ID.
 pub fn sample_target_with_id(agent_id: &str) -> DispatchTarget {
-    DispatchTarget::Agent { agent_id: agent_id.to_string() }
+    DispatchTarget::Agent {
+        agent_id: agent_id.to_string(),
+    }
 }
 
 // ============================================================================
@@ -99,7 +116,9 @@ pub struct SharedBuffer {
 impl SharedBuffer {
     /// Creates a new empty shared buffer.
     pub fn new() -> Self {
-        Self { inner: Arc::new(Mutex::new(Vec::new())) }
+        Self {
+            inner: Arc::new(Mutex::new(Vec::new())),
+        }
     }
 
     /// Returns the contents as a string.
@@ -129,8 +148,7 @@ impl Default for SharedBuffer {
 
 impl Write for SharedBuffer {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let mut guard = self.inner.lock().expect("buffer lock");
-        guard.extend_from_slice(buf);
+        self.inner.lock().expect("buffer lock").extend_from_slice(buf);
         Ok(buf.len())
     }
 
@@ -148,7 +166,7 @@ pub struct FailingWriter;
 
 impl Write for FailingWriter {
     fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
-        Err(std::io::Error::new(std::io::ErrorKind::Other, "simulated write failure"))
+        Err(std::io::Error::other("simulated write failure"))
     }
 
     fn flush(&mut self) -> std::io::Result<()> {

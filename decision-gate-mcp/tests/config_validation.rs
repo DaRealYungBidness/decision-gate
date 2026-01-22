@@ -1,0 +1,354 @@
+// decision-gate-mcp/tests/config_validation.rs
+// ============================================================================
+// Module: Configuration Validation Tests
+// Description: Tests for MCP config loading and validation.
+// Purpose: Verify security constraints are enforced during config parsing.
+// Dependencies: decision-gate-mcp
+// ============================================================================
+
+//! ## Overview
+//! Tests configuration validation including loopback enforcement, path limits,
+//! and provider configuration requirements.
+//!
+//! Security posture: Configuration is untrusted input - all limits must be enforced.
+//! Threat model: TM-CFG-001 - Configuration injection or bypass.
+
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
+
+use decision_gate_mcp::DecisionGateConfig;
+use decision_gate_mcp::config::EvidencePolicyConfig;
+use decision_gate_mcp::config::ProviderConfig;
+use decision_gate_mcp::config::ProviderType;
+use decision_gate_mcp::config::ServerConfig;
+use decision_gate_mcp::config::ServerTransport;
+use decision_gate_mcp::config::TrustConfig;
+
+/// Validates a standalone server config via the public config validator.
+fn validate_server_config(
+    server: ServerConfig,
+) -> Result<(), decision_gate_mcp::config::ConfigError> {
+    let mut config = DecisionGateConfig {
+        server,
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        providers: Vec::new(),
+    };
+    config.validate()
+}
+
+/// Validates a standalone provider config via the public config validator.
+fn validate_provider_config(
+    provider: ProviderConfig,
+) -> Result<(), decision_gate_mcp::config::ConfigError> {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        providers: vec![provider],
+    };
+    config.validate()
+}
+
+// ============================================================================
+// SECTION: Server Config Validation Tests
+// ============================================================================
+
+/// Verifies stdio transport requires no bind address.
+#[test]
+fn server_stdio_no_bind_required() {
+    let config = ServerConfig {
+        transport: ServerTransport::Stdio,
+        bind: None,
+        max_body_bytes: 1024 * 1024,
+    };
+    assert!(validate_server_config(config).is_ok());
+}
+
+/// Verifies HTTP transport requires bind address.
+#[test]
+fn server_http_requires_bind() {
+    let config = ServerConfig {
+        transport: ServerTransport::Http,
+        bind: None,
+        max_body_bytes: 1024 * 1024,
+    };
+    let result = validate_server_config(config);
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("bind address"));
+}
+
+/// Verifies SSE transport requires bind address.
+#[test]
+fn server_sse_requires_bind() {
+    let config = ServerConfig {
+        transport: ServerTransport::Sse,
+        bind: None,
+        max_body_bytes: 1024 * 1024,
+    };
+    let result = validate_server_config(config);
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("bind address"));
+}
+
+/// Verifies HTTP transport allows loopback bind.
+#[test]
+fn server_http_loopback_allowed() {
+    let config = ServerConfig {
+        transport: ServerTransport::Http,
+        bind: Some("127.0.0.1:8080".to_string()),
+        max_body_bytes: 1024 * 1024,
+    };
+    assert!(validate_server_config(config).is_ok());
+}
+
+/// Verifies HTTP transport allows IPv6 loopback.
+#[test]
+fn server_http_ipv6_loopback_allowed() {
+    let config = ServerConfig {
+        transport: ServerTransport::Http,
+        bind: Some("[::1]:8080".to_string()),
+        max_body_bytes: 1024 * 1024,
+    };
+    assert!(validate_server_config(config).is_ok());
+}
+
+/// Verifies HTTP transport rejects non-loopback bind.
+#[test]
+fn server_http_non_loopback_rejected() {
+    let config = ServerConfig {
+        transport: ServerTransport::Http,
+        bind: Some("0.0.0.0:8080".to_string()),
+        max_body_bytes: 1024 * 1024,
+    };
+    let result = validate_server_config(config);
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("loopback"));
+}
+
+/// Verifies HTTP transport rejects external IP bind.
+#[test]
+fn server_http_external_ip_rejected() {
+    let config = ServerConfig {
+        transport: ServerTransport::Http,
+        bind: Some("192.168.1.1:8080".to_string()),
+        max_body_bytes: 1024 * 1024,
+    };
+    let result = validate_server_config(config);
+    assert!(result.is_err());
+}
+
+/// Verifies invalid bind address format rejected.
+#[test]
+fn server_invalid_bind_format_rejected() {
+    let config = ServerConfig {
+        transport: ServerTransport::Http,
+        bind: Some("not-an-address".to_string()),
+        max_body_bytes: 1024 * 1024,
+    };
+    let result = validate_server_config(config);
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("invalid bind"));
+}
+
+/// Verifies empty bind address rejected.
+#[test]
+fn server_empty_bind_rejected() {
+    let config = ServerConfig {
+        transport: ServerTransport::Http,
+        bind: Some("   ".to_string()),
+        max_body_bytes: 1024 * 1024,
+    };
+    let result = validate_server_config(config);
+    assert!(result.is_err());
+}
+
+// ============================================================================
+// SECTION: Provider Config Validation Tests
+// ============================================================================
+
+/// Verifies builtin provider with name is valid.
+#[test]
+fn provider_builtin_valid() {
+    let config = ProviderConfig {
+        name: "time".to_string(),
+        provider_type: ProviderType::Builtin,
+        command: Vec::new(),
+        url: None,
+        allow_insecure_http: false,
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        config: None,
+    };
+    assert!(validate_provider_config(config).is_ok());
+}
+
+/// Verifies empty provider name rejected.
+#[test]
+fn provider_empty_name_rejected() {
+    let config = ProviderConfig {
+        name: String::new(),
+        provider_type: ProviderType::Builtin,
+        command: Vec::new(),
+        url: None,
+        allow_insecure_http: false,
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        config: None,
+    };
+    let result = validate_provider_config(config);
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("name"));
+}
+
+/// Verifies whitespace-only provider name rejected.
+#[test]
+fn provider_whitespace_name_rejected() {
+    let config = ProviderConfig {
+        name: "   ".to_string(),
+        provider_type: ProviderType::Builtin,
+        command: Vec::new(),
+        url: None,
+        allow_insecure_http: false,
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        config: None,
+    };
+    let result = validate_provider_config(config);
+    assert!(result.is_err());
+}
+
+/// Verifies MCP provider requires command or URL.
+#[test]
+fn provider_mcp_requires_command_or_url() {
+    let config = ProviderConfig {
+        name: "external".to_string(),
+        provider_type: ProviderType::Mcp,
+        command: Vec::new(),
+        url: None,
+        allow_insecure_http: false,
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        config: None,
+    };
+    let result = validate_provider_config(config);
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("command or url"));
+}
+
+/// Verifies MCP provider with command is valid.
+#[test]
+fn provider_mcp_with_command_valid() {
+    let config = ProviderConfig {
+        name: "external".to_string(),
+        provider_type: ProviderType::Mcp,
+        command: vec!["./provider".to_string()],
+        url: None,
+        allow_insecure_http: false,
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        config: None,
+    };
+    assert!(validate_provider_config(config).is_ok());
+}
+
+/// Verifies MCP provider with HTTPS URL is valid.
+#[test]
+fn provider_mcp_with_https_url_valid() {
+    let config = ProviderConfig {
+        name: "external".to_string(),
+        provider_type: ProviderType::Mcp,
+        command: Vec::new(),
+        url: Some("https://example.com/mcp".to_string()),
+        allow_insecure_http: false,
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        config: None,
+    };
+    assert!(validate_provider_config(config).is_ok());
+}
+
+/// Verifies MCP provider rejects HTTP without `allow_insecure` flag.
+#[test]
+fn provider_mcp_http_rejected_without_flag() {
+    let config = ProviderConfig {
+        name: "external".to_string(),
+        provider_type: ProviderType::Mcp,
+        command: Vec::new(),
+        url: Some("http://example.com/mcp".to_string()),
+        allow_insecure_http: false,
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        config: None,
+    };
+    let result = validate_provider_config(config);
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("insecure http"));
+}
+
+/// Verifies MCP provider allows HTTP with `allow_insecure` flag.
+#[test]
+fn provider_mcp_http_allowed_with_flag() {
+    let config = ProviderConfig {
+        name: "external".to_string(),
+        provider_type: ProviderType::Mcp,
+        command: Vec::new(),
+        url: Some("http://localhost:8080/mcp".to_string()),
+        allow_insecure_http: true,
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        config: None,
+    };
+    assert!(validate_provider_config(config).is_ok());
+}
+
+// ============================================================================
+// SECTION: Default Value Tests
+// ============================================================================
+
+/// Verifies default server config uses stdio.
+#[test]
+fn default_server_is_stdio() {
+    let config = ServerConfig::default();
+    assert_eq!(config.transport, ServerTransport::Stdio);
+}
+
+/// Verifies default max body bytes is 1MB.
+#[test]
+fn default_max_body_bytes_is_1mb() {
+    let config = ServerConfig::default();
+    assert_eq!(config.max_body_bytes, 1024 * 1024);
+}
+
+/// Verifies default evidence policy redacts raw values.
+#[test]
+fn default_evidence_policy_redacts() {
+    let config = EvidencePolicyConfig::default();
+    assert!(!config.allow_raw_values);
+    assert!(config.require_provider_opt_in);
+}

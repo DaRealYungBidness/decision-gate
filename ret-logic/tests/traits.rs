@@ -6,6 +6,19 @@
 //! ## Overview
 //! Integration tests for predicate and reader traits.
 
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
+
 #[path = "support/mocks.rs"]
 mod mocks;
 mod support;
@@ -24,6 +37,7 @@ use support::ensure;
 // SECTION: Mock Coverage
 // ========================================================================
 
+/// Tests mock predicate variants used.
 #[test]
 fn test_mock_predicate_variants_used() {
     let _ = mocks::all_variants();
@@ -33,6 +47,7 @@ fn test_mock_predicate_variants_used() {
 // SECTION: ReaderLen Tests
 // ============================================================================
 
+/// Tests reader len empty.
 #[test]
 fn test_reader_len_empty() -> TestResult {
     let reader = MockReader::new(&[], &[]);
@@ -41,6 +56,7 @@ fn test_reader_len_empty() -> TestResult {
     Ok(())
 }
 
+/// Tests reader len non empty.
 #[test]
 fn test_reader_len_non_empty() -> TestResult {
     let values = vec![1, 2, 3, 4, 5];
@@ -51,6 +67,7 @@ fn test_reader_len_non_empty() -> TestResult {
     Ok(())
 }
 
+/// Tests reader len single.
 #[test]
 fn test_reader_len_single() -> TestResult {
     let values = vec![42];
@@ -65,6 +82,7 @@ fn test_reader_len_single() -> TestResult {
 // SECTION: BatchPredicateEval Default Implementation Tests
 // ============================================================================
 
+/// Tests eval block empty.
 #[test]
 fn test_eval_block_empty() -> TestResult {
     let pred = MockPredicate::AlwaysTrue;
@@ -77,6 +95,7 @@ fn test_eval_block_empty() -> TestResult {
     Ok(())
 }
 
+/// Tests eval block single true.
 #[test]
 fn test_eval_block_single_true() -> TestResult {
     let pred = MockPredicate::AlwaysTrue;
@@ -89,6 +108,7 @@ fn test_eval_block_single_true() -> TestResult {
     Ok(())
 }
 
+/// Tests eval block single false.
 #[test]
 fn test_eval_block_single_false() -> TestResult {
     let pred = MockPredicate::AlwaysFalse;
@@ -101,6 +121,7 @@ fn test_eval_block_single_false() -> TestResult {
     Ok(())
 }
 
+/// Tests eval block multiple all true.
 #[test]
 fn test_eval_block_multiple_all_true() -> TestResult {
     let pred = MockPredicate::AlwaysTrue;
@@ -113,6 +134,7 @@ fn test_eval_block_multiple_all_true() -> TestResult {
     Ok(())
 }
 
+/// Tests eval block multiple all false.
 #[test]
 fn test_eval_block_multiple_all_false() -> TestResult {
     let pred = MockPredicate::AlwaysFalse;
@@ -125,6 +147,7 @@ fn test_eval_block_multiple_all_false() -> TestResult {
     Ok(())
 }
 
+/// Tests eval block alternating.
 #[test]
 fn test_eval_block_alternating() -> TestResult {
     let pred = MockPredicate::RowIndexEven;
@@ -138,6 +161,7 @@ fn test_eval_block_alternating() -> TestResult {
     Ok(())
 }
 
+/// Tests eval block with offset.
 #[test]
 fn test_eval_block_with_offset() -> TestResult {
     let pred = MockPredicate::RowIndexLt(5);
@@ -152,6 +176,7 @@ fn test_eval_block_with_offset() -> TestResult {
     Ok(())
 }
 
+/// Tests eval block value threshold.
 #[test]
 fn test_eval_block_value_threshold() -> TestResult {
     let pred = MockPredicate::ValueGte(50);
@@ -165,6 +190,7 @@ fn test_eval_block_value_threshold() -> TestResult {
     Ok(())
 }
 
+/// Tests eval block full 64.
 #[test]
 fn test_eval_block_full_64() -> TestResult {
     let pred = MockPredicate::RowIndexEven;
@@ -179,6 +205,7 @@ fn test_eval_block_full_64() -> TestResult {
     Ok(())
 }
 
+/// Tests eval block count clamped to 64.
 #[test]
 fn test_eval_block_count_clamped_to_64() -> TestResult {
     let pred = MockPredicate::AlwaysTrue;
@@ -192,6 +219,7 @@ fn test_eval_block_count_clamped_to_64() -> TestResult {
     Ok(())
 }
 
+/// Tests eval block partial window.
 #[test]
 fn test_eval_block_partial_window() -> TestResult {
     let pred = MockPredicate::AlwaysTrue;
@@ -210,6 +238,7 @@ fn test_eval_block_partial_window() -> TestResult {
 // SECTION: eval_reader_rows Tests
 // ============================================================================
 
+/// Tests eval reader rows empty.
 #[test]
 fn test_eval_reader_rows_empty() -> TestResult {
     let pred = MockPredicate::AlwaysTrue;
@@ -220,6 +249,7 @@ fn test_eval_reader_rows_empty() -> TestResult {
     Ok(())
 }
 
+/// Tests eval reader rows all pass.
 #[test]
 fn test_eval_reader_rows_all_pass() -> TestResult {
     let pred = MockPredicate::AlwaysTrue;
@@ -232,6 +262,7 @@ fn test_eval_reader_rows_all_pass() -> TestResult {
     Ok(())
 }
 
+/// Tests eval reader rows none pass.
 #[test]
 fn test_eval_reader_rows_none_pass() -> TestResult {
     let pred = MockPredicate::AlwaysFalse;
@@ -244,6 +275,7 @@ fn test_eval_reader_rows_none_pass() -> TestResult {
     Ok(())
 }
 
+/// Tests eval reader rows some pass.
 #[test]
 fn test_eval_reader_rows_some_pass() -> TestResult {
     let pred = MockPredicate::ValueGte(50);
@@ -256,6 +288,7 @@ fn test_eval_reader_rows_some_pass() -> TestResult {
     Ok(())
 }
 
+/// Tests eval reader rows alternating.
 #[test]
 fn test_eval_reader_rows_alternating() -> TestResult {
     let pred = MockPredicate::RowIndexEven;
@@ -268,6 +301,7 @@ fn test_eval_reader_rows_alternating() -> TestResult {
     Ok(())
 }
 
+/// Tests eval reader rows large reader.
 #[test]
 fn test_eval_reader_rows_large_reader() -> TestResult {
     let pred = MockPredicate::RowIndexLt(100);
@@ -282,6 +316,7 @@ fn test_eval_reader_rows_large_reader() -> TestResult {
     Ok(())
 }
 
+/// Tests eval reader rows exactly 64.
 #[test]
 fn test_eval_reader_rows_exactly_64() -> TestResult {
     let pred = MockPredicate::AlwaysTrue;
@@ -294,6 +329,7 @@ fn test_eval_reader_rows_exactly_64() -> TestResult {
     Ok(())
 }
 
+/// Tests eval reader rows just over 64.
 #[test]
 fn test_eval_reader_rows_just_over_64() -> TestResult {
     let pred = MockPredicate::AlwaysTrue;
@@ -307,6 +343,7 @@ fn test_eval_reader_rows_just_over_64() -> TestResult {
     Ok(())
 }
 
+/// Tests eval reader rows multiple windows.
 #[test]
 fn test_eval_reader_rows_multiple_windows() -> TestResult {
     let pred = MockPredicate::AlwaysTrue;
@@ -323,6 +360,7 @@ fn test_eval_reader_rows_multiple_windows() -> TestResult {
 // SECTION: Type Alias Tests
 // ============================================================================
 
+/// Tests row type.
 #[test]
 fn test_row_type() -> TestResult {
     let row: Row = 42;
@@ -330,6 +368,7 @@ fn test_row_type() -> TestResult {
     Ok(())
 }
 
+/// Tests mask64 type.
 #[test]
 fn test_mask64_type() -> TestResult {
     let mask: Mask64 = 0xDEAD_BEEF;
@@ -337,6 +376,7 @@ fn test_mask64_type() -> TestResult {
     Ok(())
 }
 
+/// Tests mask64 operations.
 #[test]
 fn test_mask64_operations() -> TestResult {
     let mask1: Mask64 = 0b1010;

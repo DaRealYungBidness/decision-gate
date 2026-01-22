@@ -6,8 +6,18 @@
 //! ## Overview
 //! Validates deterministic gate evaluation and trace output.
 
-#![allow(clippy::unwrap_used, reason = "Tests use unwrap on deterministic evidence fixtures.")]
-#![allow(clippy::expect_used, reason = "Tests use expect for explicit failure messages.")]
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
 
 use decision_gate_core::EvidenceRecord;
 use decision_gate_core::EvidenceResult;
@@ -24,6 +34,7 @@ use ret_logic::TriState;
 // SECTION: Snapshot Evaluation
 // ============================================================================
 
+/// Tests gate evaluation with snapshot.
 #[test]
 fn test_gate_evaluation_with_snapshot() {
     let gate = GateSpec {

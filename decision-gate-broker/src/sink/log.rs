@@ -7,7 +7,7 @@
 // ============================================================================
 
 //! ## Overview
-//! LogSink writes a log record for each dispatch and returns the receipt. It
+//! `LogSink` writes a log record for each dispatch and returns the receipt. It
 //! does not deliver payloads to external systems.
 
 // ============================================================================
@@ -33,7 +33,9 @@ use crate::sink::SinkError;
 
 /// Log-only payload sink.
 pub struct LogSink<W: Write + Send> {
+    /// Output writer for log records.
     writer: Mutex<W>,
+    /// Receipt factory for deterministic dispatch IDs.
     receipts: ReceiptFactory,
 }
 
@@ -86,6 +88,7 @@ impl<W: Write + Send> Sink for LogSink<W> {
         serde_json::to_writer(&mut *guard, &record)
             .map_err(|err| SinkError::LogWriteFailed(err.to_string()))?;
         guard.write_all(b"\n").map_err(|err| SinkError::LogWriteFailed(err.to_string()))?;
+        drop(guard);
         Ok(receipt)
     }
 }

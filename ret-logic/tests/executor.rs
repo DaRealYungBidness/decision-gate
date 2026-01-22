@@ -6,6 +6,19 @@
 //! ## Overview
 //! Integration tests for the requirement plan executor covering planning and execution paths.
 
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
+
 mod support;
 
 use ret_logic::ColumnKey;
@@ -213,6 +226,7 @@ fn noop_handler(
 // SECTION: PlanExecutor Creation Tests
 // ============================================================================
 
+/// Tests plan executor new.
 #[test]
 fn test_plan_executor_new() -> TestResult {
     let plan = Plan::new();
@@ -222,6 +236,7 @@ fn test_plan_executor_new() -> TestResult {
     Ok(())
 }
 
+/// Tests plan executor with plan.
 #[test]
 fn test_plan_executor_with_plan() -> TestResult {
     let mut builder = PlanBuilder::new();
@@ -238,6 +253,7 @@ fn test_plan_executor_with_plan() -> TestResult {
 // SECTION: Simple Execution Tests
 // ============================================================================
 
+/// Tests executor empty plan.
 #[test]
 fn test_executor_empty_plan() -> TestResult {
     let plan = Plan::new();
@@ -249,6 +265,7 @@ fn test_executor_empty_plan() -> TestResult {
     Ok(())
 }
 
+/// Tests executor single operation.
 #[test]
 fn test_executor_single_operation() -> TestResult {
     let mut builder = PlanBuilder::new();
@@ -269,6 +286,7 @@ fn test_executor_single_operation() -> TestResult {
 // SECTION: AND Group Tests
 // ============================================================================
 
+/// Tests executor and group all true.
 #[test]
 fn test_executor_and_group_all_true() -> TestResult {
     let mut builder = PlanBuilder::new();
@@ -289,6 +307,7 @@ fn test_executor_and_group_all_true() -> TestResult {
     Ok(())
 }
 
+/// Tests executor and group one false.
 #[test]
 fn test_executor_and_group_one_false() -> TestResult {
     let mut builder = PlanBuilder::new();
@@ -309,6 +328,7 @@ fn test_executor_and_group_one_false() -> TestResult {
     Ok(())
 }
 
+/// Tests executor empty and.
 #[test]
 fn test_executor_empty_and() -> TestResult {
     let plan = PlanBuilder::new().and_start().and_end().build();
@@ -325,6 +345,7 @@ fn test_executor_empty_and() -> TestResult {
 // SECTION: OR Group Tests
 // ============================================================================
 
+/// Tests executor or group one true.
 #[test]
 fn test_executor_or_group_one_true() -> TestResult {
     let mut builder = PlanBuilder::new();
@@ -347,6 +368,7 @@ fn test_executor_or_group_one_true() -> TestResult {
     Ok(())
 }
 
+/// Tests executor empty or.
 #[test]
 fn test_executor_empty_or() -> TestResult {
     let plan = PlanBuilder::new().or_start().or_end().build();
@@ -364,6 +386,7 @@ fn test_executor_empty_or() -> TestResult {
 // SECTION: NOT Operation Tests
 // ============================================================================
 
+/// Tests executor not true.
 #[test]
 fn test_executor_not_true() -> TestResult {
     let plan = PlanBuilder::new()
@@ -377,6 +400,7 @@ fn test_executor_not_true() -> TestResult {
     Ok(())
 }
 
+/// Tests executor not with operation.
 #[test]
 fn test_executor_not_with_operation() -> TestResult {
     let mut builder = PlanBuilder::new();
@@ -401,6 +425,7 @@ fn test_executor_not_with_operation() -> TestResult {
 // SECTION: Nested Group Tests
 // ============================================================================
 
+/// Tests executor nested and in or.
 #[test]
 fn test_executor_nested_and_in_or() -> TestResult {
     let mut builder = PlanBuilder::new();
@@ -429,6 +454,7 @@ fn test_executor_nested_and_in_or() -> TestResult {
 // SECTION: Flag Operation Tests
 // ============================================================================
 
+/// Tests executor has all flags.
 #[test]
 fn test_executor_has_all_flags() -> TestResult {
     let mut builder = PlanBuilder::new();
@@ -450,6 +476,7 @@ fn test_executor_has_all_flags() -> TestResult {
     Ok(())
 }
 
+/// Tests executor has any flags.
 #[test]
 fn test_executor_has_any_flags() -> TestResult {
     let mut builder = PlanBuilder::new();
@@ -473,6 +500,7 @@ fn test_executor_has_any_flags() -> TestResult {
 // SECTION: Multiple Row Tests
 // ============================================================================
 
+/// Tests executor multiple rows.
 #[test]
 fn test_executor_multiple_rows() -> TestResult {
     let mut builder = PlanBuilder::new();
@@ -495,6 +523,7 @@ fn test_executor_multiple_rows() -> TestResult {
 // SECTION: ExecutorBuilder Tests
 // ============================================================================
 
+/// Tests executor builder new.
 #[test]
 fn test_executor_builder_new() {
     let builder = ExecutorBuilder::<TestReader>::new();
@@ -503,6 +532,7 @@ fn test_executor_builder_new() {
     // Just verify it compiles and doesn't panic
 }
 
+/// Tests executor builder default.
 #[test]
 fn test_executor_builder_default() {
     let builder = ExecutorBuilder::<TestReader>::default();
@@ -510,6 +540,7 @@ fn test_executor_builder_default() {
     let _executor = builder.build(plan);
 }
 
+/// Tests executor builder register.
 #[test]
 fn test_executor_builder_register() -> TestResult {
     let mut plan_builder = PlanBuilder::new();
@@ -530,6 +561,7 @@ fn test_executor_builder_register() -> TestResult {
 // SECTION: Error Handling Tests
 // ============================================================================
 
+/// Tests executor stack overflow protection.
 #[test]
 fn test_executor_stack_overflow_protection() -> TestResult {
     // Create a plan that would overflow the stack (16 levels)
@@ -549,6 +581,7 @@ fn test_executor_stack_overflow_protection() -> TestResult {
     Ok(())
 }
 
+/// Tests executor malformed plan unmatched end.
 #[test]
 fn test_executor_malformed_plan_unmatched_end() -> TestResult {
     let plan = PlanBuilder::new()
@@ -567,6 +600,7 @@ fn test_executor_malformed_plan_unmatched_end() -> TestResult {
 // SECTION: Operation Helpers Tests
 // ============================================================================
 
+/// Tests operations float gte helper.
 #[test]
 fn test_operations_float_gte_helper() -> TestResult {
     let constants = vec![Constant::Float(50.0)];
@@ -579,6 +613,7 @@ fn test_operations_float_gte_helper() -> TestResult {
     Ok(())
 }
 
+/// Tests operations has all flags helper.
 #[test]
 fn test_operations_has_all_flags_helper() -> TestResult {
     let constants = vec![Constant::Flags(0b11)];
@@ -592,6 +627,7 @@ fn test_operations_has_all_flags_helper() -> TestResult {
     Ok(())
 }
 
+/// Tests operations missing value.
 #[test]
 fn test_operations_missing_value() -> TestResult {
     let constants = vec![Constant::Float(50.0)];
@@ -604,6 +640,7 @@ fn test_operations_missing_value() -> TestResult {
     Ok(())
 }
 
+/// Tests operations invalid constant.
 #[test]
 fn test_operations_invalid_constant() -> TestResult {
     let constants = vec![]; // No constants

@@ -6,8 +6,18 @@
 //! ## Overview
 //! Validates that duplicate triggers do not double-advance or duplicate packets.
 
-#![allow(clippy::unwrap_used, reason = "Tests use unwrap on deterministic control plane fixtures.")]
-#![allow(clippy::expect_used, reason = "Tests use expect for explicit failure messages.")]
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
 
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
@@ -25,6 +35,7 @@ use decision_gate_core::PacketSpec;
 use decision_gate_core::PolicyDecider;
 use decision_gate_core::PolicyDecision;
 use decision_gate_core::PredicateSpec;
+use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::RunStatus;
 use decision_gate_core::ScenarioId;
@@ -64,6 +75,13 @@ impl EvidenceProvider for TestEvidenceProvider {
             signature: None,
             content_type: Some("application/json".to_string()),
         })
+    }
+
+    fn validate_providers(
+        &self,
+        _spec: &ScenarioSpec,
+    ) -> Result<(), decision_gate_core::ProviderMissingError> {
+        Ok(())
     }
 }
 
@@ -136,9 +154,10 @@ fn sample_spec() -> ScenarioSpec {
         ],
         predicates: vec![PredicateSpec {
             predicate: "ready".into(),
-            query: EvidenceQuery::StatePredicate {
-                name: "ready".to_string(),
-                params: json!({}),
+            query: EvidenceQuery {
+                provider_id: ProviderId::new("test"),
+                predicate: "ready".to_string(),
+                params: Some(json!({})),
             },
             comparator: Comparator::Equals,
             expected: Some(json!(true)),
@@ -154,6 +173,7 @@ fn sample_spec() -> ScenarioSpec {
 // SECTION: Tests
 // ============================================================================
 
+/// Tests trigger idempotency.
 #[test]
 fn test_trigger_idempotency() {
     let store = InMemoryRunStateStore::new();
@@ -203,6 +223,7 @@ fn test_trigger_idempotency() {
     assert_eq!(status.issued_packet_ids.len(), 1);
 }
 
+/// Tests scenario next completes after terminal stage evaluation.
 #[test]
 fn scenario_next_completes_after_terminal_stage_evaluation() {
     let store = InMemoryRunStateStore::new();

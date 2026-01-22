@@ -6,6 +6,19 @@
 //! ## Overview
 //! Flag constants shared by requirement integration tests.
 
+#![allow(
+    clippy::panic,
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::use_debug,
+    clippy::dbg_macro,
+    clippy::panic_in_result_fn,
+    clippy::unwrap_in_result,
+    reason = "Test-only output and panic-based assertions are permitted."
+)]
+
 /// Flag representing capability A for tests.
 pub const FLAG_A: u64 = 0b0001;
 /// Flag representing capability B for tests.
