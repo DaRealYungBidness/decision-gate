@@ -1,0 +1,195 @@
+// system-tests/tests/helpers/mcp_client.rs
+// ============================================================================
+// Module: MCP HTTP Client
+// Description: JSON-RPC client for Decision Gate MCP server.
+// Purpose: Issue tools/list and tools/call over HTTP with transcripts.
+// Dependencies: reqwest, serde
+// ============================================================================
+
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::time::Duration;
+
+use decision_gate_contract::tooling::ToolDefinition;
+use reqwest::Client;
+use serde::Deserialize;
+use serde::Serialize;
+use serde_json::Value;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TranscriptEntry {
+    pub sequence: u64,
+    pub method: String,
+    pub request: Value,
+    pub response: Value,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct JsonRpcResponse {
+    result: Option<Value>,
+    error: Option<JsonRpcError>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct JsonRpcError {
+    message: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ToolListResult {
+    tools: Vec<ToolDefinition>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ToolCallResult {
+    content: Vec<ToolContent>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum ToolContent {
+    Json { json: Value },
+}
+
+#[derive(Debug, Serialize)]
+struct JsonRpcRequest {
+    jsonrpc: &'static str,
+    id: u64,
+    method: String,
+    params: Option<Value>,
+}
+
+/// MCP HTTP client with transcript capture.
+#[derive(Clone)]
+pub struct McpHttpClient {
+    base_url: String,
+    client: Client,
+    transcript: Arc<Mutex<Vec<TranscriptEntry>>>,
+}
+
+impl McpHttpClient {
+    /// Creates a new MCP HTTP client with a timeout.
+    pub fn new(base_url: String, timeout: Duration) -> Result<Self, String> {
+        let client = Client::builder()
+            .timeout(timeout)
+            .build()
+            .map_err(|err| format!("failed to build http client: {err}"))?;
+        Ok(Self {
+            base_url,
+            client,
+            transcript: Arc::new(Mutex::new(Vec::new())),
+        })
+    }
+
+    /// Returns the base URL for the MCP server.
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
+    /// Returns a snapshot of the transcript entries.
+    pub fn transcript(&self) -> Vec<TranscriptEntry> {
+        self.transcript.lock().map_or_else(|_| Vec::new(), |entries| entries.clone())
+    }
+
+    /// Issues a tools/list request.
+    pub async fn list_tools(&self) -> Result<Vec<ToolDefinition>, String> {
+        let request = JsonRpcRequest {
+            jsonrpc: "2.0",
+            id: 1,
+            method: "tools/list".to_string(),
+            params: None,
+        };
+        let response = self.send_request(&request).await?;
+        let result =
+            response.result.ok_or_else(|| "missing result in tools/list response".to_string())?;
+        let parsed: ToolListResult = serde_json::from_value(result)
+            .map_err(|err| format!("invalid tools/list payload: {err}"))?;
+        Ok(parsed.tools)
+    }
+
+    /// Issues a tools/call request and returns the tool JSON payload.
+    pub async fn call_tool(&self, name: &str, arguments: Value) -> Result<Value, String> {
+        let params = serde_json::json!({
+            "name": name,
+            "arguments": arguments,
+        });
+        let request = JsonRpcRequest {
+            jsonrpc: "2.0",
+            id: 1,
+            method: "tools/call".to_string(),
+            params: Some(params),
+        };
+        let response = self.send_request(&request).await?;
+        let result = response.result.ok_or_else(|| format!("missing result for tool {name}"))?;
+        let parsed: ToolCallResult = serde_json::from_value(result)
+            .map_err(|err| format!("invalid tools/call payload for {name}: {err}"))?;
+        let json = parsed
+            .content
+            .into_iter()
+            .find_map(|item| match item {
+                ToolContent::Json {
+                    json,
+                } => Some(json),
+            })
+            .ok_or_else(|| format!("tool {name} returned no json content"))?;
+        Ok(json)
+    }
+
+    /// Issues a tools/call request and decodes the response into a type.
+    pub async fn call_tool_typed<T: for<'de> Deserialize<'de>>(
+        &self,
+        name: &str,
+        arguments: Value,
+    ) -> Result<T, String> {
+        let json = self.call_tool(name, arguments).await?;
+        serde_json::from_value(json).map_err(|err| format!("decode {name} response: {err}"))
+    }
+
+    async fn send_request(&self, request: &JsonRpcRequest) -> Result<JsonRpcResponse, String> {
+        let request_value = serde_json::to_value(request)
+            .map_err(|err| format!("jsonrpc serialization failed: {err}"))?;
+        let response = self
+            .client
+            .post(&self.base_url)
+            .json(&request_value)
+            .send()
+            .await
+            .map_err(|err| format!("http request failed: {err}"))?;
+        let status = response.status();
+        let payload = response
+            .json::<JsonRpcResponse>()
+            .await
+            .map_err(|err| format!("invalid json-rpc response: {err}"))?;
+
+        let error_message = payload.error.as_ref().map(|err| err.message.clone());
+        self.record_transcript(
+            request_value,
+            serde_json::to_value(&payload).unwrap_or(Value::Null),
+            error_message.clone(),
+        );
+
+        if !status.is_success() {
+            return Err(format!("http status {status} for json-rpc request"));
+        }
+        if let Some(error) = payload.error.as_ref() {
+            return Err(error.message.clone());
+        }
+        Ok(payload)
+    }
+
+    fn record_transcript(&self, request: Value, response: Value, error: Option<String>) {
+        let mut guard = match self.transcript.lock() {
+            Ok(guard) => guard,
+            Err(_) => return,
+        };
+        let sequence = guard.len() as u64 + 1;
+        guard.push(TranscriptEntry {
+            sequence,
+            method: request.get("method").and_then(Value::as_str).unwrap_or("unknown").to_string(),
+            request,
+            response,
+            error,
+        });
+    }
+}

@@ -1880,6 +1880,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "system-tests"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "decision-gate-contract",
+ "decision-gate-core",
+ "decision-gate-mcp",
+ "jsonschema",
+ "reqwest",
+ "ret-logic",
+ "serde",
+ "serde_jcs",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "toml",
+ "url",
+]
+
+[[package]]
 name = "tempfile"
 version = "3.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

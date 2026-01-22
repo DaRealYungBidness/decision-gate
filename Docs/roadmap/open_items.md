@@ -50,9 +50,13 @@ docs and tooltips derived from the contract bundle only.
 against a real local server (stdio or loopback HTTP).
 **Why**: Only real transport exercises the full tool surface, JSON-RPC framing,
 and runpack verification in a way auditors trust.
+**Status**: Implemented. System-tests crate, registry/gaps, scripts, and coverage
+docs are in place with P0/P1 battery coverage. See `Docs/testing/` for generated
+reports and `system-tests/` for tests and harnesses.
 **How**: Spin up the MCP server with built-in providers and a stub MCP provider
-over stdio. Execute scenario define/start/next/submit/trigger paths, verify
+over HTTP. Execute scenario define/start/next/submit/trigger paths, verify
 runpacks, and include tamper and failure-path cases. Keep fixtures deterministic.
+Implementation plan: `Docs/roadmap/system_tests_world_class_plan.md`.
 
 ## 3) Authoring Formats (ScenarioSpec and Requirements)
 **What**: Define the canonical authoring format as JSON for ScenarioSpec and

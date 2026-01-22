@@ -19,6 +19,7 @@ members = [
     "examples/agent-loop",
     "examples/ci-gate",
     "examples/data-disclosure",
+    "system-tests",
 ]
 resolver = "3"
 

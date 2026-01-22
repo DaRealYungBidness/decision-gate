@@ -1,0 +1,101 @@
+// system-tests/tests/helpers/harness.rs
+// ============================================================================
+// Module: MCP Server Harness
+// Description: Helpers for spawning MCP servers in system-tests.
+// Purpose: Provide deterministic server startup and teardown for tests.
+// Dependencies: decision-gate-mcp, tokio
+// ============================================================================
+
+use std::net::SocketAddr;
+use std::net::TcpListener;
+use std::time::Duration;
+
+use decision_gate_mcp::McpServer;
+use decision_gate_mcp::config::DecisionGateConfig;
+use decision_gate_mcp::config::EvidencePolicyConfig;
+use decision_gate_mcp::config::ProviderConfig;
+use decision_gate_mcp::config::ProviderType;
+use decision_gate_mcp::config::ServerConfig;
+use decision_gate_mcp::config::ServerTransport;
+use decision_gate_mcp::config::TrustConfig;
+use decision_gate_mcp::server::McpServerError;
+use tokio::task::JoinHandle;
+
+use super::mcp_client::McpHttpClient;
+
+/// Handle for a spawned MCP server.
+pub struct McpServerHandle {
+    base_url: String,
+    join: JoinHandle<Result<(), McpServerError>>,
+}
+
+impl McpServerHandle {
+    /// Returns the MCP base URL.
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
+    /// Builds an HTTP client for the server.
+    pub fn client(&self, timeout: Duration) -> Result<McpHttpClient, String> {
+        McpHttpClient::new(self.base_url.clone(), timeout)
+    }
+}
+
+// Intentionally no Drop impl: allow runtime shutdown to cleanly tear down servers.
+
+/// Returns a free loopback address for test servers.
+pub fn allocate_bind_addr() -> Result<SocketAddr, String> {
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .map_err(|err| format!("failed to bind loopback: {err}"))?;
+    let addr =
+        listener.local_addr().map_err(|err| format!("failed to read listener address: {err}"))?;
+    drop(listener);
+    Ok(addr)
+}
+
+/// Builds a base Decision Gate config for HTTP transport.
+pub fn base_http_config(bind: &str) -> DecisionGateConfig {
+    DecisionGateConfig {
+        server: ServerConfig {
+            transport: ServerTransport::Http,
+            bind: Some(bind.to_string()),
+            max_body_bytes: 1024 * 1024,
+        },
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        providers: Vec::new(),
+    }
+}
+
+/// Builds a config with a federated MCP provider.
+pub fn config_with_provider(bind: &str, provider_name: &str, url: &str) -> DecisionGateConfig {
+    let mut config = base_http_config(bind);
+    config.providers.push(ProviderConfig {
+        name: provider_name.to_string(),
+        provider_type: ProviderType::Mcp,
+        command: Vec::new(),
+        url: Some(url.to_string()),
+        allow_insecure_http: true,
+        auth: None,
+        trust: None,
+        allow_raw: true,
+        config: None,
+    });
+    config
+}
+
+/// Spawns an MCP server in the background and returns a handle.
+pub async fn spawn_mcp_server(config: DecisionGateConfig) -> Result<McpServerHandle, String> {
+    let bind =
+        config.server.bind.clone().ok_or_else(|| "missing bind for server config".to_string())?;
+    let base_url = format!("http://{bind}/rpc");
+    let server = tokio::task::spawn_blocking(move || McpServer::from_config(config))
+        .await
+        .map_err(|err| format!("mcp server init join failed: {err}"))?
+        .map_err(|err| err.to_string())?;
+    let join = tokio::spawn(async move { server.serve().await });
+    Ok(McpServerHandle {
+        base_url,
+        join,
+    })
+}

@@ -1,0 +1,159 @@
+# Decision Gate System-Test Registry
+# Maps system-tests to categories, priorities, and hyperscaler requirements.
+# Used by: scripts/test_runner.py, scripts/coverage_report.py
+
+# =============================================================================
+# Test Categories
+# =============================================================================
+
+[categories]
+smoke = { description = "Fast sanity checks", quick = true }
+functional = { description = "Feature validation and workflows", quick = true }
+providers = { description = "Evidence providers and federation", quick = true }
+mcp_transport = { description = "MCP transport validation", quick = true }
+runpack = { description = "Runpack export/verify integrity", quick = true }
+reliability = { description = "Determinism and idempotency", quick = false }
+security = { description = "Disclosure and policy enforcement", quick = true }
+contract = { description = "Schema and contract conformance", quick = true }
+operations = { description = "Startup and configuration validation", quick = false }
+
+# =============================================================================
+# Hyperscaler Requirement Mapping
+# =============================================================================
+
+[hyperscaler_categories]
+correctness = ["smoke", "functional", "providers", "runpack"]
+crash_safety = ["runpack", "reliability"]
+concurrency = ["reliability"]
+observability = ["smoke", "functional"]
+api_contracts = ["contract"]
+operations = ["mcp_transport", "operations"]
+security = ["security"]
+
+# =============================================================================
+# P0: Must Pass
+# =============================================================================
+
+[[tests]]
+name = "smoke_define_start_next_status"
+category = "smoke"
+priority = "P0"
+hyperscaler_mapping = ["correctness", "observability"]
+description = "Define scenario, start run, advance, and check status over HTTP MCP."
+files = ["system-tests/tests/smoke.rs"]
+run_command = "cargo test -p system-tests --test smoke -- --exact smoke_define_start_next_status"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+coverage_status = "strong"
+estimated_runtime_sec = 10
+
+[[tests]]
+name = "runpack_export_verify_happy_path"
+category = "runpack"
+priority = "P0"
+hyperscaler_mapping = ["correctness", "crash_safety"]
+description = "Export a runpack and verify integrity over MCP tools."
+files = ["system-tests/tests/runpack.rs"]
+run_command = "cargo test -p system-tests --test runpack -- --exact runpack_export_verify_happy_path"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runpack/"]
+coverage_status = "strong"
+estimated_runtime_sec = 15
+
+[[tests]]
+name = "schema_conformance_all_tools"
+category = "contract"
+priority = "P0"
+hyperscaler_mapping = ["api_contracts"]
+description = "Validate MCP tool inputs/outputs against contract schemas."
+files = ["system-tests/tests/contract.rs"]
+run_command = "cargo test -p system-tests --test contract -- --exact schema_conformance_all_tools"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+coverage_status = "strong"
+estimated_runtime_sec = 20
+
+[[tests]]
+name = "evidence_redaction_default"
+category = "security"
+priority = "P0"
+hyperscaler_mapping = ["security"]
+description = "Raw evidence values are redacted by default in evidence_query."
+files = ["system-tests/tests/security.rs"]
+run_command = "cargo test -p system-tests --test security -- --exact evidence_redaction_default"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+coverage_status = "strong"
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "idempotent_trigger"
+category = "reliability"
+priority = "P0"
+hyperscaler_mapping = ["correctness", "crash_safety"]
+description = "Duplicate trigger IDs do not create duplicate decisions."
+files = ["system-tests/tests/reliability.rs"]
+run_command = "cargo test -p system-tests --test reliability -- --exact idempotent_trigger"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runpack/"]
+coverage_status = "strong"
+estimated_runtime_sec = 15
+
+[[tests]]
+name = "provider_time_after"
+category = "providers"
+priority = "P0"
+hyperscaler_mapping = ["correctness"]
+description = "Time provider predicate evaluates correctly."
+files = ["system-tests/tests/providers.rs"]
+run_command = "cargo test -p system-tests --test providers -- --exact provider_time_after"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+coverage_status = "strong"
+estimated_runtime_sec = 8
+
+# =============================================================================
+# P1: High Value
+# =============================================================================
+
+[[tests]]
+name = "http_transport_end_to_end"
+category = "mcp_transport"
+priority = "P1"
+hyperscaler_mapping = ["operations"]
+description = "HTTP JSON-RPC transport handles tools/list and tools/call."
+files = ["system-tests/tests/mcp_transport.rs"]
+run_command = "cargo test -p system-tests --test mcp_transport -- --exact http_transport_end_to_end"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+coverage_status = "strong"
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "federated_provider_echo"
+category = "providers"
+priority = "P1"
+hyperscaler_mapping = ["correctness", "operations"]
+description = "External MCP provider integration via HTTP."
+files = ["system-tests/tests/providers.rs"]
+run_command = "cargo test -p system-tests --test providers -- --exact federated_provider_echo"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+coverage_status = "strong"
+estimated_runtime_sec = 12
+
+[[tests]]
+name = "packet_disclosure_visibility"
+category = "security"
+priority = "P1"
+hyperscaler_mapping = ["security"]
+description = "Packet visibility labels and policy tags persist into envelopes."
+files = ["system-tests/tests/security.rs"]
+run_command = "cargo test -p system-tests --test security -- --exact packet_disclosure_visibility"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+coverage_status = "strong"
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "runpack_tamper_detection"
+category = "runpack"
+priority = "P1"
+hyperscaler_mapping = ["crash_safety", "correctness"]
+description = "Tampered runpack artifacts fail verification."
+files = ["system-tests/tests/runpack.rs"]
+run_command = "cargo test -p system-tests --test runpack -- --exact runpack_tamper_detection"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runpack/"]
+coverage_status = "strong"
+estimated_runtime_sec = 15

@@ -1,0 +1,50 @@
+# Decision Gate System-Test Gaps
+# Tracks missing coverage and acceptance criteria.
+
+[[gaps]]
+id = "DG-STDIO-001"
+title = "Stdio transport end-to-end system test"
+category = "mcp_transport"
+priority = "P2"
+status = "open"
+estimated_effort = "medium"
+hyperscaler_requirement = "operations"
+affected_tests = ["mcp_transport"]
+acceptance_criteria = [
+  "Spawn MCP server over stdio and perform tools/list + tools/call lifecycle.",
+  "Capture stdio transcript in tool_transcript.json.",
+  "Passes on Windows and Linux."
+]
+files_to_modify = ["system-tests/tests/mcp_transport.rs", "system-tests/tests/helpers/mcp_client.rs"]
+dependencies = ["decision-gate-cli stdio transport harness"]
+
+[[gaps]]
+id = "DG-PERF-001"
+title = "Performance smoke (non-gated)"
+category = "operations"
+priority = "P2"
+status = "open"
+estimated_effort = "medium"
+hyperscaler_requirement = "performance"
+affected_tests = ["performance"]
+acceptance_criteria = [
+  "Baseline scenario throughput measured and recorded.",
+  "Results captured in system-test artifacts."
+]
+files_to_modify = ["system-tests/tests/performance.rs", "system-tests/test_registry.toml"]
+
+[[gaps]]
+id = "DG-POLICY-001"
+title = "Policy enforcement integration test"
+category = "security"
+priority = "P2"
+status = "open"
+estimated_effort = "large"
+hyperscaler_requirement = "security"
+affected_tests = ["security"]
+acceptance_criteria = [
+  "Dispatch authorization denies unauthorized targets.",
+  "Policy denial produces deterministic error payloads.",
+  "Audit log entries recorded for denied dispatch."
+]
+files_to_modify = ["system-tests/tests/security.rs", "decision-gate-core/src/runtime/engine.rs"]

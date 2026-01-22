@@ -282,7 +282,7 @@ fn handle_request(router: &ToolRouter, request: JsonRpcRequest) -> JsonRpcRespon
             let params = request.params.unwrap_or(Value::Null);
             let call = serde_json::from_value::<ToolCallParams>(params);
             match call {
-                Ok(call) => match router.handle_tool_call(&call.name, call.arguments) {
+                Ok(call) => match call_tool_with_blocking(router, &call.name, call.arguments) {
                     Ok(result) => JsonRpcResponse {
                         jsonrpc: "2.0",
                         id: request.id,
@@ -318,6 +318,20 @@ fn handle_request(router: &ToolRouter, request: JsonRpcRequest) -> JsonRpcRespon
                 message: "method not found".to_string(),
             }),
         },
+    }
+}
+
+/// Executes a tool call, shifting to a blocking context when available.
+fn call_tool_with_blocking(
+    router: &ToolRouter,
+    name: &str,
+    arguments: Value,
+) -> Result<Value, ToolError> {
+    match tokio::runtime::Handle::try_current() {
+        Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
+            tokio::task::block_in_place(|| router.handle_tool_call(name, arguments))
+        }
+        _ => router.handle_tool_call(name, arguments),
     }
 }
 

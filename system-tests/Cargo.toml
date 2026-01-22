@@ -1,0 +1,30 @@
+# Decision Gate System Tests manifest
+# ============================================================================
+# This manifest defines the system-tests crate and its dependencies.
+# ============================================================================
+
+[package]
+name = "system-tests"
+version = { workspace = true }
+edition = "2024"
+rust-version = "1.92"
+publish = false
+
+[dependencies]
+axum = { version = "0.7", features = ["json"] }
+decision-gate-contract = { path = "../decision-gate-contract" }
+decision-gate-core = { path = "../decision-gate-core" }
+decision-gate-mcp = { path = "../decision-gate-mcp" }
+jsonschema = { version = "0.18", features = ["draft202012"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+ret-logic = { path = "../ret-logic" }
+serde = { version = "1.0", features = ["derive"] }
+serde_jcs = "0.1"
+serde_json = "1.0"
+tempfile = "3.10"
+tokio = { version = "1.43", features = ["io-util", "macros", "rt-multi-thread", "sync", "time"] }
+toml = "0.8"
+url = "2.5"
+
+[lints]
+workspace = true
