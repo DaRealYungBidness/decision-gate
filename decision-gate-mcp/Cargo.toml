@@ -14,6 +14,7 @@ rust-version = "1.92"
 axum = "0.7"
 base64 = "0.22"
 decision-gate-core = { path = "../decision-gate-core" }
+decision-gate-contract = { path = "../decision-gate-contract" }
 decision-gate-providers = { path = "../decision-gate-providers" }
 ed25519-dalek = { version = "2.1", features = ["std"] }
 futures = "0.3"
@@ -27,8 +28,10 @@ tokio-stream = "0.1"
 toml = "0.8"
 
 [dev-dependencies]
+jsonschema = { version = "0.18", features = ["draft202012"] }
 ret-logic = { path = "../ret-logic" }
 tempfile = "3.10"
+url = "2.5"
 
 [lints]
 workspace = true

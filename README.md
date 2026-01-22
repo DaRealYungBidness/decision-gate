@@ -31,11 +31,13 @@ predicate algebra used by the engine.
 - [Built-in Providers (Predicate Reference)](#built-in-providers-predicate-reference)
 - [Provider Example: MongoDB](#provider-example-mongodb)
 - [MCP Tool Surface](#mcp-tool-surface)
+- [Contract Artifacts](#contract-artifacts)
 - [Runpacks and Verification](#runpacks-and-verification)
 - [Examples](#examples)
 - [Glossary](#glossary)
 - [Docs](#docs)
 - [Security](#security)
+- [Formatting](#formatting)
 - [Quick Start](#quick-start)
 
 ## Overview
@@ -68,6 +70,7 @@ Runpack builder -> deterministic artifacts + manifest
 ## Repository Layout
 - `decision-gate-core`: deterministic engine, schemas, and runpack tooling
 - `decision-gate-broker`: reference sources/sinks and composite dispatcher
+- `decision-gate-contract`: canonical contract definitions + generator
 - `decision-gate-providers`: built-in evidence providers (time, env, json, http)
 - `decision-gate-mcp`: MCP server and evidence federation
 - `decision-gate-cli`: CLI for MCP server and runpack utilities
@@ -108,10 +111,10 @@ In practical terms, the predicate format is defined by:
 1. The `EvidenceQuery` shape in `decision-gate-core` (provider_id, predicate, params).
 2. The provider implementation that interprets `predicate` and `params`.
 
-Today, each provider documents its predicate format in code. In the next phase,
-the canonical contract crate will define provider capabilities as Rust data
-structures so the predicate schemas, docs, and tooltips are generated, not
-hand-maintained.
+The canonical contract crate (`decision-gate-contract`) defines provider
+capabilities as Rust data structures so predicate schemas, docs, and tooltips
+are generated (not hand-maintained). Generated artifacts live under
+`Docs/generated/decision-gate`.
 
 ## Scenario Authoring Walkthrough
 This is a full, end-to-end authoring flow using the core model.
@@ -264,6 +267,25 @@ Decision Gate exposes MCP tools that map directly to the control plane:
 These are thin wrappers over the same core engine and are intended to be
 code-generated into docs and SDKs.
 
+## Contract Artifacts
+The contract generator emits deterministic artifacts for docs and SDKs:
+- `Docs/generated/decision-gate/tooling.json`: MCP tool schemas
+- `Docs/generated/decision-gate/providers.json`: provider predicate schemas
+- `Docs/generated/decision-gate/schemas/`: scenario + config JSON schemas
+- `Docs/generated/decision-gate/examples/`: canonical examples
+
+Generate or verify artifacts:
+```sh
+cargo run -p decision-gate-contract -- generate
+cargo run -p decision-gate-contract -- check
+```
+
+Schema validation tests (contract + runtime conformance):
+```sh
+cargo test -p decision-gate-contract --test schema_validation
+cargo test -p decision-gate-mcp --test contract_schema_e2e
+```
+
 ## Runpacks and Verification
 Runpacks are deterministic bundles containing the scenario spec, trigger log,
 gate evaluations, decisions, submissions, and tool calls. A manifest with hashes
@@ -306,6 +328,13 @@ enables offline verification of integrity and tamper detection.
 ## Security
 Decision Gate assumes hostile inputs and fails closed on missing or invalid
 evidence. See `Docs/security/threat_model.md` for the full threat model.
+
+## Formatting
+Formatting requires nightly rustfmt. Use:
+```sh
+cargo +nightly fmt --all
+```
+Do not use `cargo fmt` in this repo.
 
 ## Quick Start
 - Run core tests: `cargo test -p decision-gate-core`

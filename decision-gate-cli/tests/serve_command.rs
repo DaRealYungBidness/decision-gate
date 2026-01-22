@@ -75,10 +75,7 @@ bind = "0.0.0.0:8080"
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("Refusing to bind to non-loopback address"),
-        "unexpected stderr: {stderr}"
-    );
+    assert!(stderr.contains("non-loopback"), "unexpected stderr: {stderr}");
 
     cleanup(&root);
 }

@@ -42,6 +42,7 @@ use std::time::UNIX_EPOCH;
 
 use clap::ArgAction;
 use clap::Args;
+use clap::CommandFactory;
 use clap::Parser;
 use clap::Subcommand;
 use clap::ValueEnum;
@@ -68,19 +69,14 @@ use thiserror::Error;
 
 /// Top-level CLI definition.
 #[derive(Parser, Debug)]
-#[command(
-    name = "decision-gate",
-    disable_help_subcommand = true,
-    disable_version_flag = true,
-    arg_required_else_help = true
-)]
+#[command(name = "decision-gate", disable_help_subcommand = true, disable_version_flag = true)]
 struct Cli {
     /// Print version information and exit.
     #[arg(long = "version", action = ArgAction::SetTrue, global = true)]
     show_version: bool,
     /// Selected subcommand to execute.
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 /// Supported CLI subcommands.
@@ -207,7 +203,12 @@ async fn run() -> CliResult<ExitCode> {
         return Ok(ExitCode::SUCCESS);
     }
 
-    match cli.command {
+    let Some(command) = cli.command else {
+        show_help()?;
+        return Ok(ExitCode::SUCCESS);
+    };
+
+    match command {
         Commands::Serve(command) => command_serve(command).await,
         Commands::Runpack {
             command,
@@ -258,6 +259,14 @@ fn warn_local_only(config: &DecisionGateConfig) -> CliResult<()> {
         write_stderr_line(&t!("serve.warn.transport_local_only"))
             .map_err(|err| CliError::new(output_error("stderr", &err)))?;
     }
+    Ok(())
+}
+
+/// Emits the top-level help message for the CLI.
+fn show_help() -> CliResult<()> {
+    let mut command = Cli::command();
+    command.print_help().map_err(|err| CliError::new(output_error("stdout", &err)))?;
+    write_stdout_line("").map_err(|err| CliError::new(output_error("stdout", &err)))?;
     Ok(())
 }
 

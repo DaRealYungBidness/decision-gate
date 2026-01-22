@@ -21,6 +21,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 
+pub use decision_gate_contract::tooling::ToolDefinition;
 use decision_gate_core::ArtifactReader;
 use decision_gate_core::DispatchReceipt;
 use decision_gate_core::DispatchTarget;
@@ -97,17 +98,7 @@ impl ToolRouter {
     /// Lists the MCP tools supported by this server.
     #[must_use]
     pub fn list_tools(&self) -> Vec<ToolDefinition> {
-        vec![
-            ToolDefinition::new("scenario_define", "Define a scenario specification."),
-            ToolDefinition::new("scenario_start", "Start a scenario run."),
-            ToolDefinition::new("scenario_status", "Fetch scenario status."),
-            ToolDefinition::new("scenario_next", "Advance scenario evaluation."),
-            ToolDefinition::new("scenario_submit", "Submit external artifacts."),
-            ToolDefinition::new("scenario_trigger", "Submit an external trigger."),
-            ToolDefinition::new("evidence_query", "Query evidence providers."),
-            ToolDefinition::new("runpack_export", "Export runpack artifacts."),
-            ToolDefinition::new("runpack_verify", "Verify runpack integrity."),
-        ]
+        decision_gate_contract::tooling::tool_definitions()
     }
 
     /// Handles a tool call by name with JSON payload.
@@ -170,28 +161,6 @@ impl ToolRouter {
 // ============================================================================
 // SECTION: Tool Requests and Responses
 // ============================================================================
-
-/// Tool definition describing supported MCP tools.
-#[derive(Debug, Clone, Serialize)]
-pub struct ToolDefinition {
-    /// Tool name.
-    pub name: String,
-    /// Tool description.
-    pub description: String,
-    /// JSON schema for tool input.
-    pub input_schema: Value,
-}
-
-impl ToolDefinition {
-    /// Creates a tool definition with a default object input schema.
-    fn new(name: &str, description: &str) -> Self {
-        Self {
-            name: name.to_string(),
-            description: description.to_string(),
-            input_schema: serde_json::json!({"type": "object"}),
-        }
-    }
-}
 
 /// Scenario definition request.
 #[derive(Debug, Clone, Serialize, Deserialize)]

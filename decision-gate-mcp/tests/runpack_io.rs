@@ -74,7 +74,13 @@ fn file_artifact_sink_and_reader_round_trip() {
     let artifact = sample_artifact("evidence/log.json", b"hello");
 
     let reference = sink.write(&artifact).unwrap();
-    assert!(reference.uri.contains("evidence/log.json"));
+    let reference_path = PathBuf::from(&reference.uri);
+    let expected = PathBuf::from("evidence").join("log.json");
+    assert!(
+        reference_path.ends_with(&expected),
+        "unexpected artifact reference path: {}",
+        reference.uri
+    );
 
     let reader = FileArtifactReader::new(root.clone()).unwrap();
     let bytes = reader.read("evidence/log.json").unwrap();

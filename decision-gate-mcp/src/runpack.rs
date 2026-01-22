@@ -171,6 +171,7 @@ fn validate_path(path: &Path) -> Result<(), ArtifactError> {
     Ok(())
 }
 
+/// Ensure a path is relative and does not escape the runpack root.
 fn ensure_relative_path(candidate: &Path) -> Result<(), ArtifactError> {
     if candidate.is_absolute() {
         return Err(ArtifactError::Sink("absolute artifact path not allowed".to_string()));

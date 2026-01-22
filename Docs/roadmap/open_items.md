@@ -38,12 +38,12 @@ drives all projections (tooling docs, schemas, tooltips, examples) and emits a
 versioned, hashed bundle in `Docs/generated/decision-gate/`.
 **Why**: This is the Doctrine of Invariance for Decision Gate. A single source
 of truth makes docs, SDKs, and website content deterministic and auditable.
-**How**: Implement a contract generator that pulls from core schema types,
-MCP tool definitions, and provider capability metadata (defined as Rust data
-structures). Emit `tooling.json`, `tooling.md`, `tooltips.json`, config and
-scenario JSON schemas, and example runpacks. Commit generated artifacts in
-this repo and sync them via an Asset-Core-Web script named for Decision Gate,
-writing to a distinct namespace to avoid collisions.
+**Status**: Rough draft complete. Contract crate, schemas, tooling docs, tooltips,
+and examples are generated and validated in tests; artifacts are emitted under
+`Docs/generated/decision-gate/`.
+**How**: Finalize the Asset-Core-Web sync script (Decision Gate namespace) and
+ensure artifact regeneration is part of CI or release gating. Keep all canonical
+docs and tooltips derived from the contract bundle only.
 
 ## 2) System Tests Crate (End-to-End)
 **What**: Create `decision-gate-system-tests` to run end-to-end MCP workflows

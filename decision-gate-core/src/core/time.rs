@@ -24,7 +24,7 @@ use serde::Serialize;
 
 /// Canonical timestamp used in Decision Gate logs and trigger records.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "value")]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum Timestamp {
     /// Unix epoch milliseconds.
     UnixMillis(i64),
