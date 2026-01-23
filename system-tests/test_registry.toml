@@ -16,6 +16,7 @@ reliability = { description = "Determinism and idempotency", quick = false }
 security = { description = "Disclosure and policy enforcement", quick = true }
 contract = { description = "Schema and contract conformance", quick = true }
 operations = { description = "Startup and configuration validation", quick = false }
+performance = { description = "Performance smoke checks", quick = false }
 
 # =============================================================================
 # Hyperscaler Requirement Mapping
@@ -29,6 +30,7 @@ observability = ["smoke", "functional"]
 api_contracts = ["contract"]
 operations = ["mcp_transport", "operations"]
 security = ["security"]
+performance = ["performance"]
 
 # =============================================================================
 # P0: Must Pass
@@ -157,3 +159,43 @@ run_command = "cargo test -p system-tests --test runpack -- --exact runpack_tamp
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runpack/"]
 coverage_status = "strong"
 estimated_runtime_sec = 15
+
+# =============================================================================
+# P2: Non-Gated / Extended Coverage
+# =============================================================================
+
+[[tests]]
+name = "stdio_transport_end_to_end"
+category = "mcp_transport"
+priority = "P2"
+hyperscaler_mapping = ["operations"]
+description = "Stdio JSON-RPC transport handles tools/list and tools/call."
+files = ["system-tests/tests/mcp_transport.rs"]
+run_command = "cargo test -p system-tests --test mcp_transport -- --exact stdio_transport_end_to_end"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "mcp.stderr.log"]
+coverage_status = "strong"
+estimated_runtime_sec = 12
+
+[[tests]]
+name = "performance_smoke"
+category = "performance"
+priority = "P2"
+hyperscaler_mapping = ["performance"]
+description = "Non-gated MCP workflow throughput smoke test."
+files = ["system-tests/tests/performance.rs"]
+run_command = "cargo test -p system-tests --test performance -- --ignored --exact performance_smoke"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "perf_metrics.json"]
+coverage_status = "new"
+estimated_runtime_sec = 25
+
+[[tests]]
+name = "policy_denies_dispatch_targets"
+category = "security"
+priority = "P2"
+hyperscaler_mapping = ["security"]
+description = "Policy decider denies dispatch and records audit state."
+files = ["system-tests/tests/security.rs"]
+run_command = "cargo test -p system-tests --test security -- --exact policy_denies_dispatch_targets"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "policy_state.json"]
+coverage_status = "new"
+estimated_runtime_sec = 8

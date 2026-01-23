@@ -14,3 +14,4 @@ pub mod mcp_client;
 pub mod provider_stub;
 pub mod readiness;
 pub mod scenarios;
+pub mod stdio_client;
