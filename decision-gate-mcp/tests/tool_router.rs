@@ -55,6 +55,7 @@ use decision_gate_mcp::tools::ScenarioTriggerRequest;
 use serde_json::json;
 
 use crate::common::define_scenario;
+use crate::common::local_request_context;
 use crate::common::sample_context;
 use crate::common::sample_router;
 use crate::common::sample_run_config_with_ids;
@@ -71,7 +72,7 @@ use crate::common::start_run;
 #[test]
 fn list_tools_returns_all_nine_tools() {
     let router = sample_router();
-    let tools = router.list_tools();
+    let tools = router.list_tools(&local_request_context()).unwrap();
 
     let names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
     assert!(names.contains(&"scenario_define"));
@@ -94,7 +95,7 @@ fn list_tools_returns_all_nine_tools() {
 #[test]
 fn unknown_tool_returns_error() {
     let router = sample_router();
-    let result = router.handle_tool_call("nonexistent_tool", json!({}));
+    let result = router.handle_tool_call(&local_request_context(), "nonexistent_tool", json!({}));
     assert!(result.is_err());
     let error = result.unwrap_err();
     assert!(error.to_string().contains("unknown tool"));
@@ -122,7 +123,11 @@ fn scenario_define_returns_id_and_hash() {
         spec,
     };
     let result = router
-        .handle_tool_call("scenario_define", serde_json::to_value(&request).unwrap())
+        .handle_tool_call(
+            &local_request_context(),
+            "scenario_define",
+            serde_json::to_value(&request).unwrap(),
+        )
         .unwrap();
     let response: ScenarioDefineResponse = serde_json::from_value(result).unwrap();
 
@@ -147,7 +152,11 @@ fn scenario_define_duplicate_returns_conflict() {
 #[test]
 fn scenario_define_invalid_params_rejected() {
     let router = sample_router();
-    let result = router.handle_tool_call("scenario_define", json!({"invalid": "params"}));
+    let result = router.handle_tool_call(
+        &local_request_context(),
+        "scenario_define",
+        json!({"invalid": "params"}),
+    );
     assert!(result.is_err());
     let error = result.unwrap_err();
     assert!(error.to_string().contains("invalid parameters"));
@@ -182,7 +191,11 @@ fn scenario_start_undefined_scenario_fails() {
         started_at: Timestamp::Logical(1),
         issue_entry_packets: false,
     };
-    let result = router.handle_tool_call("scenario_start", serde_json::to_value(&request).unwrap());
+    let result = router.handle_tool_call(
+        &local_request_context(),
+        "scenario_start",
+        serde_json::to_value(&request).unwrap(),
+    );
     assert!(result.is_err());
     let error = result.unwrap_err();
     assert!(error.to_string().contains("not found") || error.to_string().contains("not defined"));
@@ -192,7 +205,8 @@ fn scenario_start_undefined_scenario_fails() {
 #[test]
 fn scenario_start_invalid_params_rejected() {
     let router = sample_router();
-    let result = router.handle_tool_call("scenario_start", json!({"bad": "data"}));
+    let result =
+        router.handle_tool_call(&local_request_context(), "scenario_start", json!({"bad": "data"}));
     assert!(result.is_err());
 }
 
@@ -214,7 +228,11 @@ fn scenario_status_returns_status() {
         },
     };
     let result = router
-        .handle_tool_call("scenario_status", serde_json::to_value(&request).unwrap())
+        .handle_tool_call(
+            &local_request_context(),
+            "scenario_status",
+            serde_json::to_value(&request).unwrap(),
+        )
         .unwrap();
     let status: ScenarioStatus = serde_json::from_value(result).unwrap();
 
@@ -234,8 +252,11 @@ fn scenario_status_undefined_scenario_fails() {
             correlation_id: None,
         },
     };
-    let result =
-        router.handle_tool_call("scenario_status", serde_json::to_value(&request).unwrap());
+    let result = router.handle_tool_call(
+        &local_request_context(),
+        "scenario_status",
+        serde_json::to_value(&request).unwrap(),
+    );
     assert!(result.is_err());
 }
 
@@ -258,8 +279,13 @@ fn scenario_next_advances_evaluation() {
             correlation_id: None,
         },
     };
-    let result =
-        router.handle_tool_call("scenario_next", serde_json::to_value(&request).unwrap()).unwrap();
+    let result = router
+        .handle_tool_call(
+            &local_request_context(),
+            "scenario_next",
+            serde_json::to_value(&request).unwrap(),
+        )
+        .unwrap();
     let next_result: NextResult = serde_json::from_value(result).unwrap();
 
     // Should have evaluated (decision recorded with the trigger id)
@@ -281,7 +307,11 @@ fn scenario_next_undefined_scenario_fails() {
             correlation_id: None,
         },
     };
-    let result = router.handle_tool_call("scenario_next", serde_json::to_value(&request).unwrap());
+    let result = router.handle_tool_call(
+        &local_request_context(),
+        "scenario_next",
+        serde_json::to_value(&request).unwrap(),
+    );
     assert!(result.is_err());
 }
 
@@ -308,7 +338,11 @@ fn scenario_submit_accepts_submissions() {
         },
     };
     let result = router
-        .handle_tool_call("scenario_submit", serde_json::to_value(&request).unwrap())
+        .handle_tool_call(
+            &local_request_context(),
+            "scenario_submit",
+            serde_json::to_value(&request).unwrap(),
+        )
         .unwrap();
     let _submit_result: SubmitResult = serde_json::from_value(result).unwrap();
 }
@@ -331,8 +365,11 @@ fn scenario_submit_undefined_scenario_fails() {
             correlation_id: None,
         },
     };
-    let result =
-        router.handle_tool_call("scenario_submit", serde_json::to_value(&request).unwrap());
+    let result = router.handle_tool_call(
+        &local_request_context(),
+        "scenario_submit",
+        serde_json::to_value(&request).unwrap(),
+    );
     assert!(result.is_err());
 }
 
@@ -358,7 +395,11 @@ fn scenario_trigger_processes_event() {
         },
     };
     let result = router
-        .handle_tool_call("scenario_trigger", serde_json::to_value(&request).unwrap())
+        .handle_tool_call(
+            &local_request_context(),
+            "scenario_trigger",
+            serde_json::to_value(&request).unwrap(),
+        )
         .unwrap();
     let _trigger_result: TriggerResult = serde_json::from_value(result).unwrap();
 }
@@ -380,8 +421,11 @@ fn scenario_trigger_undefined_scenario_fails() {
             correlation_id: None,
         },
     };
-    let result =
-        router.handle_tool_call("scenario_trigger", serde_json::to_value(&request).unwrap());
+    let result = router.handle_tool_call(
+        &local_request_context(),
+        "scenario_trigger",
+        serde_json::to_value(&request).unwrap(),
+    );
     assert!(result.is_err());
 }
 
@@ -402,8 +446,13 @@ fn evidence_query_returns_time_now() {
         },
         context: sample_context(),
     };
-    let result =
-        router.handle_tool_call("evidence_query", serde_json::to_value(&request).unwrap()).unwrap();
+    let result = router
+        .handle_tool_call(
+            &local_request_context(),
+            "evidence_query",
+            serde_json::to_value(&request).unwrap(),
+        )
+        .unwrap();
     let response: EvidenceQueryResponse = serde_json::from_value(result).unwrap();
 
     // By default, raw values are redacted
@@ -423,7 +472,11 @@ fn evidence_query_unknown_provider_fails() {
         },
         context: sample_context(),
     };
-    let result = router.handle_tool_call("evidence_query", serde_json::to_value(&request).unwrap());
+    let result = router.handle_tool_call(
+        &local_request_context(),
+        "evidence_query",
+        serde_json::to_value(&request).unwrap(),
+    );
     assert!(result.is_err());
 }
 
@@ -431,7 +484,11 @@ fn evidence_query_unknown_provider_fails() {
 #[test]
 fn evidence_query_invalid_params_rejected() {
     let router = sample_router();
-    let result = router.handle_tool_call("evidence_query", json!({"bad": "request"}));
+    let result = router.handle_tool_call(
+        &local_request_context(),
+        "evidence_query",
+        json!({"bad": "request"}),
+    );
     assert!(result.is_err());
 }
 
@@ -454,7 +511,11 @@ fn runpack_export_missing_run_fails() {
         generated_at: Timestamp::Logical(1),
         include_verification: false,
     };
-    let result = router.handle_tool_call("runpack_export", serde_json::to_value(&request).unwrap());
+    let result = router.handle_tool_call(
+        &local_request_context(),
+        "runpack_export",
+        serde_json::to_value(&request).unwrap(),
+    );
     assert!(result.is_err());
 }
 
@@ -471,7 +532,11 @@ fn runpack_export_undefined_scenario_fails() {
         generated_at: Timestamp::Logical(1),
         include_verification: false,
     };
-    let result = router.handle_tool_call("runpack_export", serde_json::to_value(&request).unwrap());
+    let result = router.handle_tool_call(
+        &local_request_context(),
+        "runpack_export",
+        serde_json::to_value(&request).unwrap(),
+    );
     assert!(result.is_err());
 }
 
@@ -488,7 +553,11 @@ fn runpack_verify_missing_directory_fails() {
         runpack_dir: "/nonexistent/runpack/path".to_string(),
         manifest_path: "manifest.json".to_string(),
     };
-    let result = router.handle_tool_call("runpack_verify", serde_json::to_value(&request).unwrap());
+    let result = router.handle_tool_call(
+        &local_request_context(),
+        "runpack_verify",
+        serde_json::to_value(&request).unwrap(),
+    );
     assert!(result.is_err());
 }
 
@@ -496,7 +565,11 @@ fn runpack_verify_missing_directory_fails() {
 #[test]
 fn runpack_verify_invalid_params_rejected() {
     let router = sample_router();
-    let result = router.handle_tool_call("runpack_verify", json!({"not": "valid"}));
+    let result = router.handle_tool_call(
+        &local_request_context(),
+        "runpack_verify",
+        json!({"not": "valid"}),
+    );
     assert!(result.is_err());
 }
 
@@ -546,10 +619,20 @@ fn scenario_next_idempotent_same_trigger() {
         },
     };
 
-    let result1 =
-        router.handle_tool_call("scenario_next", serde_json::to_value(&request).unwrap()).unwrap();
-    let result2 =
-        router.handle_tool_call("scenario_next", serde_json::to_value(&request).unwrap()).unwrap();
+    let result1 = router
+        .handle_tool_call(
+            &local_request_context(),
+            "scenario_next",
+            serde_json::to_value(&request).unwrap(),
+        )
+        .unwrap();
+    let result2 = router
+        .handle_tool_call(
+            &local_request_context(),
+            "scenario_next",
+            serde_json::to_value(&request).unwrap(),
+        )
+        .unwrap();
 
     let next1: NextResult = serde_json::from_value(result1).unwrap();
     let next2: NextResult = serde_json::from_value(result2).unwrap();

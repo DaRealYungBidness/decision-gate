@@ -43,6 +43,9 @@ use decision_gate_core::TriggerId;
 use decision_gate_mcp::DecisionGateConfig;
 use decision_gate_mcp::FederatedEvidenceProvider;
 use decision_gate_mcp::ToolRouter;
+use decision_gate_mcp::auth::DefaultToolAuthz;
+use decision_gate_mcp::auth::NoopAuditSink;
+use decision_gate_mcp::auth::RequestContext;
 use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::config::ProviderConfig;
@@ -84,7 +87,9 @@ pub fn sample_router() -> ToolRouter {
     let store = decision_gate_core::SharedRunStateStore::from_store(
         decision_gate_core::InMemoryRunStateStore::new(),
     );
-    ToolRouter::new(evidence, config.evidence, store, Arc::new(capabilities))
+    let authz = Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
+    let audit = Arc::new(NoopAuditSink);
+    ToolRouter::new(evidence, config.evidence, store, Arc::new(capabilities), authz, audit)
 }
 
 fn builtin_providers() -> Vec<ProviderConfig> {
@@ -190,6 +195,12 @@ pub fn sample_context_with_time(trigger_time: Timestamp) -> EvidenceContext {
     }
 }
 
+/// Returns a local-only request context for tool calls.
+#[must_use]
+pub fn local_request_context() -> RequestContext {
+    RequestContext::stdio()
+}
+
 // ============================================================================
 // SECTION: Test Helper Functions
 // ============================================================================
@@ -202,7 +213,11 @@ pub fn define_scenario(router: &ToolRouter, spec: ScenarioSpec) -> Result<Scenar
         spec,
     };
     let result = router
-        .handle_tool_call("scenario_define", serde_json::to_value(&request).unwrap())
+        .handle_tool_call(
+            &local_request_context(),
+            "scenario_define",
+            serde_json::to_value(&request).unwrap(),
+        )
         .map_err(|e| e.to_string())?;
     let response: decision_gate_mcp::tools::ScenarioDefineResponse =
         serde_json::from_value(result).map_err(|e| e.to_string())?;
@@ -223,7 +238,11 @@ pub fn start_run(
         issue_entry_packets: false,
     };
     let result = router
-        .handle_tool_call("scenario_start", serde_json::to_value(&request).unwrap())
+        .handle_tool_call(
+            &local_request_context(),
+            "scenario_start",
+            serde_json::to_value(&request).unwrap(),
+        )
         .map_err(|e| e.to_string())?;
     let response: decision_gate_core::RunState =
         serde_json::from_value(result).map_err(|e| e.to_string())?;

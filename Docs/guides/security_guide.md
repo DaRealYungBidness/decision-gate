@@ -40,10 +40,12 @@ request timeouts. Overrides are supported per provider but are bounded to
 prevent disabling safeguards. Timeouts are treated as missing evidence and
 fail closed.
 
-## Local-Only Transport
-The MCP server currently runs in local-only mode without a full auth/policy
-layer. HTTP/SSE transports are restricted to loopback addresses and the CLI
-emits warnings on startup.
+## MCP Tool Auth
+Inbound MCP tool calls enforce authn/authz. The default mode is local-only:
+stdio and loopback HTTP/SSE are permitted, while non-loopback binds require an
+explicit auth policy. Configure `server.auth` to enable bearer-token or mTLS
+subject enforcement, and optionally restrict calls with a tool allowlist.
+Auth decisions are logged as structured JSON events on stderr.
 
 ## Runpack Integrity
 Runpacks are hashed using RFC 8785 canonical JSON and verified offline with

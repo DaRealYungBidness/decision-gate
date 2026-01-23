@@ -15,6 +15,7 @@
 // SECTION: Modules
 // ============================================================================
 
+pub mod auth;
 pub mod capabilities;
 pub mod config;
 pub mod evidence;
@@ -43,6 +44,12 @@ mod tests {
 // SECTION: Re-Exports
 // ============================================================================
 
+pub use auth::AuthAuditSink;
+pub use auth::AuthContext;
+pub use auth::DefaultToolAuthz;
+pub use auth::NoopAuditSink;
+pub use auth::RequestContext;
+pub use auth::ToolAuthz;
 pub use config::DecisionGateConfig;
 pub use evidence::FederatedEvidenceProvider;
 pub use evidence::ProviderClientConfig;

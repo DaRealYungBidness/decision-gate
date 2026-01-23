@@ -21,6 +21,7 @@ use std::net::SocketAddr;
 use std::path::Path;
 use std::path::PathBuf;
 
+use decision_gate_contract::ToolName;
 use decision_gate_store_sqlite::SqliteStoreMode;
 use decision_gate_store_sqlite::SqliteSyncMode;
 use serde::Deserialize;
@@ -40,6 +41,14 @@ const MAX_CONFIG_FILE_SIZE: usize = 1024 * 1024;
 const MAX_PATH_COMPONENT_LENGTH: usize = 255;
 /// Maximum total path length.
 const MAX_TOTAL_PATH_LENGTH: usize = 4096;
+/// Maximum number of server auth tokens.
+const MAX_AUTH_TOKENS: usize = 64;
+/// Maximum length of a server auth token.
+const MAX_AUTH_TOKEN_LENGTH: usize = 256;
+/// Maximum number of allowed tool entries in auth config.
+const MAX_AUTH_TOOL_RULES: usize = 128;
+/// Maximum length of an mTLS subject string.
+const MAX_AUTH_SUBJECT_LENGTH: usize = 512;
 /// Minimum MCP provider connect timeout in milliseconds.
 const MIN_PROVIDER_CONNECT_TIMEOUT_MS: u64 = 100;
 /// Maximum MCP provider connect timeout in milliseconds.
@@ -121,6 +130,9 @@ pub struct ServerConfig {
     /// Maximum request body size in bytes.
     #[serde(default = "default_max_body_bytes")]
     pub max_body_bytes: usize,
+    /// Optional authentication configuration for inbound tool calls.
+    #[serde(default)]
+    pub auth: Option<ServerAuthConfig>,
 }
 
 impl Default for ServerConfig {
@@ -129,6 +141,7 @@ impl Default for ServerConfig {
             transport: ServerTransport::Stdio,
             bind: None,
             max_body_bytes: default_max_body_bytes(),
+            auth: None,
         }
     }
 }
@@ -141,6 +154,11 @@ impl ServerConfig {
                 "max_body_bytes must be greater than zero".to_string(),
             ));
         }
+        if let Some(auth) = &self.auth {
+            auth.validate()?;
+        }
+        let auth_mode =
+            self.auth.as_ref().map(|auth| auth.mode).unwrap_or(ServerAuthMode::LocalOnly);
         match self.transport {
             ServerTransport::Http | ServerTransport::Sse => {
                 let bind = self.bind.as_deref().unwrap_or_default().trim();
@@ -152,13 +170,19 @@ impl ServerConfig {
                 let addr: SocketAddr = bind
                     .parse()
                     .map_err(|_| ConfigError::Invalid("invalid bind address".to_string()))?;
-                if !addr.ip().is_loopback() {
+                if !addr.ip().is_loopback() && auth_mode == ServerAuthMode::LocalOnly {
                     return Err(ConfigError::Invalid(
                         "non-loopback bind disallowed without auth policy".to_string(),
                     ));
                 }
             }
-            ServerTransport::Stdio => {}
+            ServerTransport::Stdio => {
+                if auth_mode != ServerAuthMode::LocalOnly {
+                    return Err(ConfigError::Invalid(
+                        "stdio transport only supports local_only auth".to_string(),
+                    ));
+                }
+            }
         }
         Ok(())
     }
@@ -175,6 +199,98 @@ pub enum ServerTransport {
     Http,
     /// Use SSE transport for responses.
     Sse,
+}
+
+/// Inbound auth modes for MCP server tool calls.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ServerAuthMode {
+    /// Local-only loopback or stdio access.
+    #[default]
+    LocalOnly,
+    /// Bearer token authentication.
+    BearerToken,
+    /// mTLS subject allowlist via trusted proxy headers.
+    Mtls,
+}
+
+/// Server authentication configuration for inbound tool calls.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ServerAuthConfig {
+    /// Auth mode for inbound MCP tool calls.
+    #[serde(default)]
+    pub mode: ServerAuthMode,
+    /// Accepted bearer tokens (required for bearer_token mode).
+    #[serde(default)]
+    pub bearer_tokens: Vec<String>,
+    /// Allowed mTLS subjects (required for mtls mode).
+    #[serde(default)]
+    pub mtls_subjects: Vec<String>,
+    /// Optional tool allowlist (per-tool authorization).
+    #[serde(default)]
+    pub allowed_tools: Vec<String>,
+}
+
+impl ServerAuthConfig {
+    /// Validates auth configuration.
+    fn validate(&self) -> Result<(), ConfigError> {
+        if self.bearer_tokens.len() > MAX_AUTH_TOKENS {
+            return Err(ConfigError::Invalid("too many auth tokens".to_string()));
+        }
+        for token in &self.bearer_tokens {
+            if token.trim().is_empty() {
+                return Err(ConfigError::Invalid("auth token must be non-empty".to_string()));
+            }
+            if token.len() > MAX_AUTH_TOKEN_LENGTH {
+                return Err(ConfigError::Invalid("auth token too long".to_string()));
+            }
+            if token.trim() != token {
+                return Err(ConfigError::Invalid(
+                    "auth token must not contain whitespace".to_string(),
+                ));
+            }
+        }
+        if self.mtls_subjects.len() > MAX_AUTH_TOKENS {
+            return Err(ConfigError::Invalid("too many mTLS subjects".to_string()));
+        }
+        for subject in &self.mtls_subjects {
+            if subject.trim().is_empty() {
+                return Err(ConfigError::Invalid("mTLS subject must be non-empty".to_string()));
+            }
+            if subject.len() > MAX_AUTH_SUBJECT_LENGTH {
+                return Err(ConfigError::Invalid("mTLS subject too long".to_string()));
+            }
+        }
+        if self.allowed_tools.len() > MAX_AUTH_TOOL_RULES {
+            return Err(ConfigError::Invalid("too many tool allowlist entries".to_string()));
+        }
+        for tool_name in &self.allowed_tools {
+            if ToolName::parse(tool_name).is_none() {
+                return Err(ConfigError::Invalid(format!(
+                    "unknown tool in allowlist: {tool_name}"
+                )));
+            }
+        }
+        match self.mode {
+            ServerAuthMode::LocalOnly => Ok(()),
+            ServerAuthMode::BearerToken => {
+                if self.bearer_tokens.is_empty() {
+                    return Err(ConfigError::Invalid(
+                        "bearer_token auth requires bearer_tokens".to_string(),
+                    ));
+                }
+                Ok(())
+            }
+            ServerAuthMode::Mtls => {
+                if self.mtls_subjects.is_empty() {
+                    return Err(ConfigError::Invalid(
+                        "mtls auth requires mtls_subjects".to_string(),
+                    ));
+                }
+                Ok(())
+            }
+        }
+    }
 }
 
 /// Trust configuration for evidence providers.

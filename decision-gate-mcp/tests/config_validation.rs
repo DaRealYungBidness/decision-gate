@@ -34,6 +34,8 @@ use decision_gate_mcp::config::ProviderConfig;
 use decision_gate_mcp::config::ProviderTimeoutConfig;
 use decision_gate_mcp::config::ProviderType;
 use decision_gate_mcp::config::RunStateStoreConfig;
+use decision_gate_mcp::config::ServerAuthConfig;
+use decision_gate_mcp::config::ServerAuthMode;
 use decision_gate_mcp::config::ServerConfig;
 use decision_gate_mcp::config::ServerTransport;
 use decision_gate_mcp::config::TrustConfig;
@@ -78,6 +80,7 @@ fn server_stdio_no_bind_required() {
         transport: ServerTransport::Stdio,
         bind: None,
         max_body_bytes: 1024 * 1024,
+        auth: None,
     };
     assert!(validate_server_config(config).is_ok());
 }
@@ -89,6 +92,7 @@ fn server_max_body_bytes_zero_rejected() {
         transport: ServerTransport::Stdio,
         bind: None,
         max_body_bytes: 0,
+        auth: None,
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -103,6 +107,7 @@ fn server_http_requires_bind() {
         transport: ServerTransport::Http,
         bind: None,
         max_body_bytes: 1024 * 1024,
+        auth: None,
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -117,6 +122,7 @@ fn server_sse_requires_bind() {
         transport: ServerTransport::Sse,
         bind: None,
         max_body_bytes: 1024 * 1024,
+        auth: None,
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -131,6 +137,7 @@ fn server_http_loopback_allowed() {
         transport: ServerTransport::Http,
         bind: Some("127.0.0.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
+        auth: None,
     };
     assert!(validate_server_config(config).is_ok());
 }
@@ -142,6 +149,7 @@ fn server_http_ipv6_loopback_allowed() {
         transport: ServerTransport::Http,
         bind: Some("[::1]:8080".to_string()),
         max_body_bytes: 1024 * 1024,
+        auth: None,
     };
     assert!(validate_server_config(config).is_ok());
 }
@@ -153,6 +161,7 @@ fn server_http_non_loopback_rejected() {
         transport: ServerTransport::Http,
         bind: Some("0.0.0.0:8080".to_string()),
         max_body_bytes: 1024 * 1024,
+        auth: None,
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -167,6 +176,7 @@ fn server_http_external_ip_rejected() {
         transport: ServerTransport::Http,
         bind: Some("192.168.1.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
+        auth: None,
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -179,6 +189,7 @@ fn server_invalid_bind_format_rejected() {
         transport: ServerTransport::Http,
         bind: Some("not-an-address".to_string()),
         max_body_bytes: 1024 * 1024,
+        auth: None,
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -193,6 +204,96 @@ fn server_empty_bind_rejected() {
         transport: ServerTransport::Http,
         bind: Some("   ".to_string()),
         max_body_bytes: 1024 * 1024,
+        auth: None,
+    };
+    let result = validate_server_config(config);
+    assert!(result.is_err());
+}
+
+/// Verifies non-loopback bind is allowed with bearer auth configured.
+#[test]
+fn server_http_non_loopback_allowed_with_bearer_auth() {
+    let config = ServerConfig {
+        transport: ServerTransport::Http,
+        bind: Some("0.0.0.0:8080".to_string()),
+        max_body_bytes: 1024 * 1024,
+        auth: Some(ServerAuthConfig {
+            mode: ServerAuthMode::BearerToken,
+            bearer_tokens: vec!["token-1".to_string()],
+            mtls_subjects: Vec::new(),
+            allowed_tools: Vec::new(),
+        }),
+    };
+    assert!(validate_server_config(config).is_ok());
+}
+
+/// Verifies stdio transport rejects bearer auth mode.
+#[test]
+fn server_stdio_rejects_bearer_auth() {
+    let config = ServerConfig {
+        transport: ServerTransport::Stdio,
+        bind: None,
+        max_body_bytes: 1024 * 1024,
+        auth: Some(ServerAuthConfig {
+            mode: ServerAuthMode::BearerToken,
+            bearer_tokens: vec!["token-1".to_string()],
+            mtls_subjects: Vec::new(),
+            allowed_tools: Vec::new(),
+        }),
+    };
+    let result = validate_server_config(config);
+    assert!(result.is_err());
+}
+
+/// Verifies bearer auth requires at least one token.
+#[test]
+fn server_auth_bearer_requires_token() {
+    let config = ServerConfig {
+        transport: ServerTransport::Http,
+        bind: Some("127.0.0.1:8080".to_string()),
+        max_body_bytes: 1024 * 1024,
+        auth: Some(ServerAuthConfig {
+            mode: ServerAuthMode::BearerToken,
+            bearer_tokens: Vec::new(),
+            mtls_subjects: Vec::new(),
+            allowed_tools: Vec::new(),
+        }),
+    };
+    let result = validate_server_config(config);
+    assert!(result.is_err());
+}
+
+/// Verifies tool allowlist rejects unknown tools.
+#[test]
+fn server_auth_rejects_unknown_tool_in_allowlist() {
+    let config = ServerConfig {
+        transport: ServerTransport::Http,
+        bind: Some("127.0.0.1:8080".to_string()),
+        max_body_bytes: 1024 * 1024,
+        auth: Some(ServerAuthConfig {
+            mode: ServerAuthMode::BearerToken,
+            bearer_tokens: vec!["token-1".to_string()],
+            mtls_subjects: Vec::new(),
+            allowed_tools: vec!["invalid_tool".to_string()],
+        }),
+    };
+    let result = validate_server_config(config);
+    assert!(result.is_err());
+}
+
+/// Verifies mTLS auth requires at least one subject.
+#[test]
+fn server_auth_mtls_requires_subjects() {
+    let config = ServerConfig {
+        transport: ServerTransport::Http,
+        bind: Some("127.0.0.1:8080".to_string()),
+        max_body_bytes: 1024 * 1024,
+        auth: Some(ServerAuthConfig {
+            mode: ServerAuthMode::Mtls,
+            bearer_tokens: Vec::new(),
+            mtls_subjects: Vec::new(),
+            allowed_tools: Vec::new(),
+        }),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());

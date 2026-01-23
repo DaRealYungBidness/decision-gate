@@ -51,7 +51,7 @@ fn test_mock_predicate_variants_used() {
 /// Creates a requirement id for test fixtures.
 macro_rules! rid {
     ($value:expr) => {
-        RequirementId::new($value)?
+        RequirementId::from_raw($value).expect("RequirementId cannot be zero")
     };
 }
 

@@ -65,6 +65,12 @@ use serde::Serialize;
 use serde_json::Value;
 use thiserror::Error;
 
+use crate::auth::AuthAction;
+use crate::auth::AuthAuditEvent;
+use crate::auth::AuthAuditSink;
+use crate::auth::AuthError;
+use crate::auth::RequestContext;
+use crate::auth::ToolAuthz;
 use crate::capabilities::CapabilityError;
 use crate::capabilities::CapabilityRegistry;
 use crate::config::EvidencePolicyConfig;
@@ -89,6 +95,10 @@ pub struct ToolRouter {
     store: SharedRunStateStore,
     /// Capability registry used for preflight validation.
     capabilities: Arc<CapabilityRegistry>,
+    /// Authn/authz policy for tool calls.
+    authz: Arc<dyn ToolAuthz>,
+    /// Audit sink for auth decisions.
+    audit: Arc<dyn AuthAuditSink>,
 }
 
 impl ToolRouter {
@@ -99,6 +109,8 @@ impl ToolRouter {
         evidence_policy: EvidencePolicyConfig,
         store: SharedRunStateStore,
         capabilities: Arc<CapabilityRegistry>,
+        authz: Arc<dyn ToolAuthz>,
+        audit: Arc<dyn AuthAuditSink>,
     ) -> Self {
         Self {
             state: Arc::new(Mutex::new(RouterState::default())),
@@ -106,13 +118,15 @@ impl ToolRouter {
             evidence_policy,
             store,
             capabilities,
+            authz,
+            audit,
         }
     }
 
     /// Lists the MCP tools supported by this server.
-    #[must_use]
-    pub fn list_tools(&self) -> Vec<ToolDefinition> {
-        decision_gate_contract::tooling::tool_definitions()
+    pub fn list_tools(&self, context: &RequestContext) -> Result<Vec<ToolDefinition>, ToolError> {
+        self.authorize(context, AuthAction::ListTools)?;
+        Ok(decision_gate_contract::tooling::tool_definitions())
     }
 
     /// Handles a tool call by name with JSON payload.
@@ -120,8 +134,14 @@ impl ToolRouter {
     /// # Errors
     ///
     /// Returns [`ToolError`] when routing fails.
-    pub fn handle_tool_call(&self, name: &str, payload: Value) -> Result<Value, ToolError> {
+    pub fn handle_tool_call(
+        &self,
+        context: &RequestContext,
+        name: &str,
+        payload: Value,
+    ) -> Result<Value, ToolError> {
         let tool = ToolName::parse(name).ok_or(ToolError::UnknownTool)?;
+        self.authorize(context, AuthAction::CallTool(&tool))?;
         match tool {
             ToolName::ScenarioDefine => {
                 let request = decode::<ScenarioDefineRequest>(payload)?;
@@ -529,6 +549,19 @@ impl ToolRouter {
         };
         runtime.ok_or_else(|| ToolError::NotFound("scenario not defined".to_string()))
     }
+
+    fn authorize(&self, context: &RequestContext, action: AuthAction<'_>) -> Result<(), ToolError> {
+        match self.authz.authorize(context, action) {
+            Ok(auth_ctx) => {
+                self.audit.record(&AuthAuditEvent::allowed(context, action, &auth_ctx));
+                Ok(())
+            }
+            Err(err) => {
+                self.audit.record(&AuthAuditEvent::denied(context, action, &err));
+                Err(err.into())
+            }
+        }
+    }
 }
 
 // ============================================================================
@@ -616,6 +649,12 @@ pub enum ToolError {
     /// Tool name not recognized.
     #[error("unknown tool")]
     UnknownTool,
+    /// Missing or invalid authentication.
+    #[error("unauthenticated: {0}")]
+    Unauthenticated(String),
+    /// Authenticated caller not authorized to access tool.
+    #[error("unauthorized: {0}")]
+    Unauthorized(String),
     /// Tool payload serialization failed.
     #[error("serialization failure")]
     Serialization,
@@ -655,6 +694,15 @@ impl From<CapabilityError> for ToolError {
         Self::CapabilityViolation {
             code: error.code().to_string(),
             message: error.to_string(),
+        }
+    }
+}
+
+impl From<AuthError> for ToolError {
+    fn from(error: AuthError) -> Self {
+        match error {
+            AuthError::Unauthenticated(message) => Self::Unauthenticated(message),
+            AuthError::Unauthorized(message) => Self::Unauthorized(message),
         }
     }
 }

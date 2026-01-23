@@ -172,22 +172,23 @@ If a CLI is built, it MUST follow the AssetCore acctl i18n pattern:
 
 ---
 
-## Policy/Auth Interface (v0 Scope)
+## Policy/Auth Interface (Current)
 
-The v0 implementation is **local/no-auth only** and is not production-safe. This is an explicit
-scoping decision, not a relaxation of standards. World-class security remains the target.
+The MCP server now enforces authn/authz for tool calls. The default is
+local-only (stdio/loopback), and production deployments must enable bearer
+token or mTLS subject enforcement.
 
 **Requirements**:
-- The architecture MUST expose explicit policy/auth interfaces from day one, even if the initial
-  implementation is a no-op or "permit all" for local testing.
-- The default configuration MUST emit warnings stating "local-only, no-auth mode" whenever the
-  MCP server is started without an auth/policy layer.
-- Evidence access MUST remain policy-gated (raw evidence is denied by default).
-- External network exposure (non-local transport) MUST be treated as unsupported until a real
-  auth/policy implementation is wired.
+- The architecture exposes explicit auth interfaces and per-tool authorization
+  with audit logging.
+- The default configuration emits warnings stating "local-only mode" whenever
+  the MCP server starts without explicit auth.
+- Evidence access remains policy-gated (raw evidence denied by default).
+- External network exposure (non-local transport) requires auth and transport
+  hardening.
 
-**Rationale**: This preserves the security posture and ensures the path to hyperscaler-grade
-deployments without forcing a redesign.
+**Rationale**: This preserves the security posture and keeps the path to
+hyperscaler-grade deployments without redesign.
 
 ---
 

@@ -85,6 +85,54 @@ coverage_status = "strong"
 estimated_runtime_sec = 8
 
 [[tests]]
+name = "http_bearer_token_required"
+category = "security"
+priority = "P0"
+hyperscaler_mapping = ["security", "operations"]
+description = "HTTP MCP tools require bearer authentication when configured."
+files = ["system-tests/tests/mcp_auth.rs"]
+run_command = "cargo test -p system-tests --test mcp_auth -- --exact http_bearer_token_required"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+coverage_status = "new"
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "http_tool_allowlist_enforced"
+category = "security"
+priority = "P0"
+hyperscaler_mapping = ["security"]
+description = "Tool allowlist denies unauthorized MCP tool calls."
+files = ["system-tests/tests/mcp_auth.rs"]
+run_command = "cargo test -p system-tests --test mcp_auth -- --exact http_tool_allowlist_enforced"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+coverage_status = "new"
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "http_mtls_subject_required"
+category = "security"
+priority = "P0"
+hyperscaler_mapping = ["security", "operations"]
+description = "HTTP MCP tools require mTLS subject header when configured."
+files = ["system-tests/tests/mcp_auth.rs"]
+run_command = "cargo test -p system-tests --test mcp_auth -- --exact http_mtls_subject_required"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+coverage_status = "new"
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "sse_bearer_token_required"
+category = "security"
+priority = "P0"
+hyperscaler_mapping = ["security", "operations"]
+description = "SSE MCP transport enforces bearer authentication."
+files = ["system-tests/tests/mcp_auth.rs"]
+run_command = "cargo test -p system-tests --test mcp_auth -- --exact sse_bearer_token_required"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+coverage_status = "new"
+estimated_runtime_sec = 8
+
+[[tests]]
 name = "idempotent_trigger"
 category = "reliability"
 priority = "P0"

@@ -19,6 +19,8 @@ use decision_gate_mcp::config::ProviderConfig;
 use decision_gate_mcp::config::ProviderTimeoutConfig;
 use decision_gate_mcp::config::ProviderType;
 use decision_gate_mcp::config::RunStateStoreConfig;
+use decision_gate_mcp::config::ServerAuthConfig;
+use decision_gate_mcp::config::ServerAuthMode;
 use decision_gate_mcp::config::ServerConfig;
 use decision_gate_mcp::config::ServerTransport;
 use decision_gate_mcp::config::TrustConfig;
@@ -70,12 +72,65 @@ pub fn base_http_config(bind: &str) -> DecisionGateConfig {
             transport: ServerTransport::Http,
             bind: Some(bind.to_string()),
             max_body_bytes: 1024 * 1024,
+            auth: None,
         },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
         providers: builtin_providers(),
     }
+}
+
+/// Builds a base HTTP config with bearer auth enabled.
+pub fn base_http_config_with_bearer(bind: &str, token: &str) -> DecisionGateConfig {
+    let mut config = base_http_config(bind);
+    config.server.auth = Some(ServerAuthConfig {
+        mode: ServerAuthMode::BearerToken,
+        bearer_tokens: vec![token.to_string()],
+        mtls_subjects: Vec::new(),
+        allowed_tools: Vec::new(),
+    });
+    config
+}
+
+/// Builds a base HTTP config with mTLS subject auth enabled.
+pub fn base_http_config_with_mtls(bind: &str, subject: &str) -> DecisionGateConfig {
+    let mut config = base_http_config(bind);
+    config.server.auth = Some(ServerAuthConfig {
+        mode: ServerAuthMode::Mtls,
+        bearer_tokens: Vec::new(),
+        mtls_subjects: vec![subject.to_string()],
+        allowed_tools: Vec::new(),
+    });
+    config
+}
+
+/// Builds a base SSE config for MCP servers.
+pub fn base_sse_config(bind: &str) -> DecisionGateConfig {
+    DecisionGateConfig {
+        server: ServerConfig {
+            transport: ServerTransport::Sse,
+            bind: Some(bind.to_string()),
+            max_body_bytes: 1024 * 1024,
+            auth: None,
+        },
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        providers: builtin_providers(),
+    }
+}
+
+/// Builds a base SSE config with bearer auth enabled.
+pub fn base_sse_config_with_bearer(bind: &str, token: &str) -> DecisionGateConfig {
+    let mut config = base_sse_config(bind);
+    config.server.auth = Some(ServerAuthConfig {
+        mode: ServerAuthMode::BearerToken,
+        bearer_tokens: vec![token.to_string()],
+        mtls_subjects: Vec::new(),
+        allowed_tools: Vec::new(),
+    });
+    config
 }
 
 /// Builds a config with a federated MCP provider.

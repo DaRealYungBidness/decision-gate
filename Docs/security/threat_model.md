@@ -30,7 +30,6 @@ agent conversations.
 - Protecting confidentiality after data is disclosed to downstream systems.
 - Protecting against full host or kernel compromise without external controls.
 - Securing external MCP providers, downstream sinks, or client applications.
-- Providing built-in transport authentication or authorization.
 - Hardware attestation, secure enclave guarantees, or key custody services.
 
 ## Assets
@@ -84,6 +83,8 @@ agent conversations.
 - Capability registry validates predicate params and allowed comparators.
 - Size and path limits for config files, provider contracts, runpack artifacts.
 - HTTP/SSE request body limits; provider-specific response size limits.
+- MCP tool calls require explicit authn/authz (local-only by default; bearer or
+  mTLS subject allowlists when configured) with audit logging.
 - Safe summaries for client-facing status; evidence redaction by policy.
 - Append-only run state logs and deterministic replay semantics.
 
@@ -105,8 +106,9 @@ agent conversations.
 
 ### Disclosure and Policy Enforcement
 - Disclosure is controlled by scenario specs and optional policy deciders.
-- Default MCP policy is permit-all; deployments must enforce authorization
-  externally.
+- Default disclosure policy is permit-all; deployments must enforce disclosure
+  authorization with policy adapters.
+- MCP tool calls enforce authn/authz before request handling.
 - Evidence query results are redacted unless raw disclosure is explicitly
   allowed.
 
@@ -140,6 +142,8 @@ agent conversations.
 ## Operational Requirements
 - Restrict MCP access to authenticated transports (mTLS, IPC ACLs, reverse
   proxy auth).
+- Configure `server.auth` for non-loopback deployments; rotate tokens and
+  maintain tool allowlists.
 - Require signature verification for external providers where integrity
   matters.
 - Configure allowlists for `env`, `json`, and `http` providers; avoid
@@ -155,5 +159,5 @@ agent conversations.
 - Do not disclose data on `Unknown` or ambiguous outcomes.
 
 ## Threat Model Delta
-- Expanded to cover assets, entry points, controls, storage integrity,
-  provider trust, broker sources/sinks, and operational requirements.
+- Added MCP tool call authn/authz with local-only defaults, bearer/mTLS modes,
+  and audit logging.

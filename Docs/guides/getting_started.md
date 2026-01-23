@@ -55,10 +55,13 @@ for durable, audit-grade runs.
 decision-gate serve --config decision-gate.toml
 ```
 
-The server emits a local-only warning because auth/policy is not wired yet.
+The server emits a local-only warning unless `server.auth` is configured.
+If you enable bearer or mTLS subject auth, include the
+appropriate Authorization header when calling tools.
 
 ## 3) Define a Scenario
-Send a `scenario_define` request:
+Send a `scenario_define` request. If `server.auth` is enabled, add
+`-H 'Authorization: Bearer <token>'` to the request.
 
 ```bash
 curl -s http://127.0.0.1:4000/rpc \

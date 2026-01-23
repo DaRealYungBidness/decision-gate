@@ -18,6 +18,8 @@ use decision_gate_mcp::tools::ScenarioDefineRequest;
 use decision_gate_mcp::tools::ToolError;
 use serde_json::json;
 
+use crate::common::local_request_context;
+
 #[test]
 fn scenario_define_rejects_disallowed_comparator() {
     let router = common::sample_router();
@@ -27,8 +29,11 @@ fn scenario_define_rejects_disallowed_comparator() {
     let request = ScenarioDefineRequest {
         spec,
     };
-    let result =
-        router.handle_tool_call("scenario_define", serde_json::to_value(&request).unwrap());
+    let result = router.handle_tool_call(
+        &local_request_context(),
+        "scenario_define",
+        serde_json::to_value(&request).unwrap(),
+    );
     let err = result.expect_err("expected comparator violation");
     match err {
         ToolError::CapabilityViolation {
@@ -47,8 +52,11 @@ fn scenario_define_rejects_expected_schema_mismatch() {
     let request = ScenarioDefineRequest {
         spec,
     };
-    let result =
-        router.handle_tool_call("scenario_define", serde_json::to_value(&request).unwrap());
+    let result = router.handle_tool_call(
+        &local_request_context(),
+        "scenario_define",
+        serde_json::to_value(&request).unwrap(),
+    );
     let err = result.expect_err("expected schema violation");
     match err {
         ToolError::CapabilityViolation {
@@ -69,7 +77,11 @@ fn evidence_query_rejects_missing_params() {
         },
         context: common::sample_context(),
     };
-    let result = router.handle_tool_call("evidence_query", serde_json::to_value(&request).unwrap());
+    let result = router.handle_tool_call(
+        &local_request_context(),
+        "evidence_query",
+        serde_json::to_value(&request).unwrap(),
+    );
     let err = result.expect_err("expected params missing error");
     match err {
         ToolError::CapabilityViolation {
@@ -90,7 +102,11 @@ fn evidence_query_rejects_invalid_params() {
         },
         context: common::sample_context(),
     };
-    let result = router.handle_tool_call("evidence_query", serde_json::to_value(&request).unwrap());
+    let result = router.handle_tool_call(
+        &local_request_context(),
+        "evidence_query",
+        serde_json::to_value(&request).unwrap(),
+    );
     let err = result.expect_err("expected params invalid error");
     match err {
         ToolError::CapabilityViolation {

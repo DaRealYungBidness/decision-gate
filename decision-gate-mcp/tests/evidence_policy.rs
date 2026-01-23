@@ -34,12 +34,15 @@ use decision_gate_core::HashAlgorithm;
 use decision_gate_core::ProviderId;
 use decision_gate_mcp::FederatedEvidenceProvider;
 use decision_gate_mcp::ToolRouter;
+use decision_gate_mcp::auth::DefaultToolAuthz;
+use decision_gate_mcp::auth::NoopAuditSink;
 use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::tools::EvidenceQueryRequest;
 use decision_gate_mcp::tools::EvidenceQueryResponse;
 use serde_json::json;
 
+use crate::common::local_request_context;
 use crate::common::sample_context;
 
 // ============================================================================
@@ -54,7 +57,16 @@ fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
     let store = decision_gate_core::SharedRunStateStore::from_store(
         decision_gate_core::InMemoryRunStateStore::new(),
     );
-    ToolRouter::new(evidence, config.evidence, store, std::sync::Arc::new(capabilities))
+    let authz = std::sync::Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
+    let audit = std::sync::Arc::new(NoopAuditSink);
+    ToolRouter::new(
+        evidence,
+        config.evidence,
+        store,
+        std::sync::Arc::new(capabilities),
+        authz,
+        audit,
+    )
 }
 
 fn query_time_now(router: &ToolRouter) -> EvidenceQueryResponse {
@@ -66,8 +78,13 @@ fn query_time_now(router: &ToolRouter) -> EvidenceQueryResponse {
         },
         context: sample_context(),
     };
-    let result =
-        router.handle_tool_call("evidence_query", serde_json::to_value(&request).unwrap()).unwrap();
+    let result = router
+        .handle_tool_call(
+            &local_request_context(),
+            "evidence_query",
+            serde_json::to_value(&request).unwrap(),
+        )
+        .unwrap();
     serde_json::from_value(result).unwrap()
 }
 
@@ -80,8 +97,13 @@ fn query_env_path(router: &ToolRouter) -> EvidenceQueryResponse {
         },
         context: sample_context(),
     };
-    let result =
-        router.handle_tool_call("evidence_query", serde_json::to_value(&request).unwrap()).unwrap();
+    let result = router
+        .handle_tool_call(
+            &local_request_context(),
+            "evidence_query",
+            serde_json::to_value(&request).unwrap(),
+        )
+        .unwrap();
     serde_json::from_value(result).unwrap()
 }
 

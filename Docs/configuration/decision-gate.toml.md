@@ -21,9 +21,35 @@ fail closed on errors.
 ### `[server]`
 | Field | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `transport` | `"stdio" | "http" | "sse"` | `stdio` | HTTP/SSE are loopback-only. |
-| `bind` | string | `null` | Required for HTTP/SSE; must be a loopback address. |
+| `transport` | `"stdio" | "http" | "sse"` | `stdio` | HTTP/SSE require `bind`; non-loopback requires auth. |
+| `bind` | string | `null` | Required for HTTP/SSE; loopback-only unless auth enabled. |
 | `max_body_bytes` | integer | `1048576` | Maximum JSON-RPC request size. |
+| `auth` | table | `null` | Inbound authn/authz for MCP tool calls. |
+
+### `[server.auth]`
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `mode` | `"local_only" | "bearer_token" | "mtls"` | `local_only` | Local-only uses loopback/stdio. |
+| `bearer_tokens` | array | `[]` | Required for `bearer_token` mode. |
+| `mtls_subjects` | array | `[]` | Required for `mtls` mode (trusted proxy header). |
+| `allowed_tools` | array | `[]` | Optional tool allowlist (per-tool authz). |
+
+Bearer token example:
+```toml
+[server.auth]
+mode = "bearer_token"
+bearer_tokens = ["token-1", "token-2"]
+allowed_tools = ["scenario_define", "scenario_start", "scenario_next"]
+```
+
+mTLS subject example (via trusted proxy header):
+```toml
+[server.auth]
+mode = "mtls"
+mtls_subjects = ["CN=decision-gate-client,O=Example Corp"]
+```
+When using `mtls` mode, the server expects the
+`x-decision-gate-client-subject` header from a trusted TLS-terminating proxy.
 
 ### `[trust]`
 | Field | Type | Default | Notes |

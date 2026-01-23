@@ -51,7 +51,10 @@ use decision_gate_core::runtime::InMemoryRunStateStore;
 use decision_gate_core::runtime::NextRequest;
 use decision_gate_core::runtime::NextResult;
 use decision_gate_mcp::DecisionGateConfig;
+use decision_gate_mcp::DefaultToolAuthz;
 use decision_gate_mcp::FederatedEvidenceProvider;
+use decision_gate_mcp::NoopAuditSink;
+use decision_gate_mcp::RequestContext;
 use decision_gate_mcp::ToolRouter;
 use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::EvidencePolicyConfig;
@@ -154,13 +157,24 @@ fn mcp_tools_match_core_control_plane() {
     let store = decision_gate_core::SharedRunStateStore::from_store(
         decision_gate_core::InMemoryRunStateStore::new(),
     );
-    let router = ToolRouter::new(evidence.clone(), config.evidence, store, Arc::new(capabilities));
+    let authz = Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
+    let audit = Arc::new(NoopAuditSink);
+    let router = ToolRouter::new(
+        evidence.clone(),
+        config.evidence,
+        store,
+        Arc::new(capabilities),
+        authz,
+        audit,
+    );
+    let context = RequestContext::stdio();
 
     let define = decision_gate_mcp::tools::ScenarioDefineRequest {
         spec: sample_spec(),
     };
-    let _ =
-        router.handle_tool_call("scenario_define", serde_json::to_value(&define).unwrap()).unwrap();
+    let _ = router
+        .handle_tool_call(&context, "scenario_define", serde_json::to_value(&define).unwrap())
+        .unwrap();
 
     let run_config = RunConfig {
         tenant_id: TenantId::new("tenant"),
@@ -176,7 +190,7 @@ fn mcp_tools_match_core_control_plane() {
         issue_entry_packets: false,
     };
     let _ = router
-        .handle_tool_call("scenario_start", serde_json::to_value(&start_request).unwrap())
+        .handle_tool_call(&context, "scenario_start", serde_json::to_value(&start_request).unwrap())
         .unwrap();
 
     let next_request = NextRequest {
@@ -191,7 +205,7 @@ fn mcp_tools_match_core_control_plane() {
         request: next_request.clone(),
     };
     let tool_result = router
-        .handle_tool_call("scenario_next", serde_json::to_value(&tool_request).unwrap())
+        .handle_tool_call(&context, "scenario_next", serde_json::to_value(&tool_request).unwrap())
         .unwrap();
     let mcp_result: NextResult = serde_json::from_value(tool_result).unwrap();
 

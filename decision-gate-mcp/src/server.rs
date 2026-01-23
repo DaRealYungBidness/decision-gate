@@ -26,8 +26,11 @@ use std::sync::Arc;
 
 use axum::Router;
 use axum::body::Bytes;
+use axum::extract::ConnectInfo;
 use axum::extract::State;
+use axum::http::HeaderMap;
 use axum::http::StatusCode;
+use axum::http::header::AUTHORIZATION;
 use axum::response::IntoResponse;
 use axum::response::Sse;
 use axum::response::sse::Event;
@@ -41,9 +44,13 @@ use serde::Serialize;
 use serde_json::Value;
 use tokio_stream::wrappers::ReceiverStream;
 
+use crate::auth::DefaultToolAuthz;
+use crate::auth::RequestContext;
+use crate::auth::StderrAuditSink;
 use crate::capabilities::CapabilityRegistry;
 use crate::config::DecisionGateConfig;
 use crate::config::RunStateStoreType;
+use crate::config::ServerAuthMode;
 use crate::config::ServerTransport;
 use crate::evidence::FederatedEvidenceProvider;
 use crate::tools::ToolDefinition;
@@ -68,14 +75,24 @@ impl McpServer {
     /// # Errors
     ///
     /// Returns [`McpServerError`] when initialization fails.
-    pub fn from_config(config: DecisionGateConfig) -> Result<Self, McpServerError> {
+    pub fn from_config(mut config: DecisionGateConfig) -> Result<Self, McpServerError> {
+        config.validate().map_err(|err| McpServerError::Config(err.to_string()))?;
         let evidence = FederatedEvidenceProvider::from_config(&config)
             .map_err(|err| McpServerError::Init(err.to_string()))?;
         let capabilities = CapabilityRegistry::from_config(&config)
             .map_err(|err| McpServerError::Init(err.to_string()))?;
         let store = build_run_state_store(&config)?;
-        let router =
-            ToolRouter::new(evidence, config.evidence.clone(), store, Arc::new(capabilities));
+        let authz = Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
+        let audit = Arc::new(StderrAuditSink);
+        let router = ToolRouter::new(
+            evidence,
+            config.evidence.clone(),
+            store,
+            Arc::new(capabilities),
+            authz,
+            audit,
+        );
+        emit_local_only_warning(&config.server);
         Ok(Self {
             config,
             router,
@@ -135,8 +152,9 @@ fn serve_stdio(router: &ToolRouter, max_body_bytes: usize) -> Result<(), McpServ
         let bytes = read_framed(&mut reader, max_body_bytes)?;
         let request: JsonRpcRequest = serde_json::from_slice(&bytes)
             .map_err(|_| McpServerError::Transport("invalid json-rpc request".to_string()))?;
-        let response = handle_request(router, request);
-        let payload = serde_json::to_vec(&response)
+        let context = RequestContext::stdio();
+        let response = handle_request(router, &context, request);
+        let payload = serde_json::to_vec(&response.1)
             .map_err(|_| McpServerError::Transport("json-rpc serialization failed".to_string()))?;
         write_framed(&mut writer, &payload)?;
     }
@@ -163,7 +181,7 @@ async fn serve_http(config: DecisionGateConfig, router: ToolRouter) -> Result<()
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .map_err(|_| McpServerError::Transport("http bind failed".to_string()))?;
-    axum::serve(listener, app)
+    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
         .await
         .map_err(|_| McpServerError::Transport("http server failed".to_string()))
 }
@@ -185,7 +203,7 @@ async fn serve_sse(config: DecisionGateConfig, router: ToolRouter) -> Result<(),
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .map_err(|_| McpServerError::Transport("sse bind failed".to_string()))?;
-    axum::serve(listener, app)
+    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
         .await
         .map_err(|_| McpServerError::Transport("sse server failed".to_string()))
 }
@@ -200,14 +218,26 @@ struct ServerState {
 }
 
 /// Handles HTTP JSON-RPC requests.
-async fn handle_http(State(state): State<Arc<ServerState>>, bytes: Bytes) -> impl IntoResponse {
-    let response = parse_request(&state, &bytes);
+async fn handle_http(
+    State(state): State<Arc<ServerState>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    bytes: Bytes,
+) -> impl IntoResponse {
+    let context = http_request_context(ServerTransport::Http, peer, &headers);
+    let response = parse_request(&state, &context, &bytes);
     (response.0, axum::Json(response.1))
 }
 
 /// Handles SSE JSON-RPC requests.
-async fn handle_sse(State(state): State<Arc<ServerState>>, bytes: Bytes) -> impl IntoResponse {
-    let response = parse_request(&state, &bytes);
+async fn handle_sse(
+    State(state): State<Arc<ServerState>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    bytes: Bytes,
+) -> impl IntoResponse {
+    let context = http_request_context(ServerTransport::Sse, peer, &headers);
+    let response = parse_request(&state, &context, &bytes);
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<Event, Infallible>>(1);
     let payload = serde_json::to_string(&response.1).unwrap_or_else(|_| {
         "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32060,\"message\":\"serialization \
@@ -294,93 +324,120 @@ enum ToolContent {
 }
 
 /// Dispatches a JSON-RPC request to the tool router.
-fn handle_request(router: &ToolRouter, request: JsonRpcRequest) -> JsonRpcResponse {
+fn handle_request(
+    router: &ToolRouter,
+    base_context: &RequestContext,
+    request: JsonRpcRequest,
+) -> (StatusCode, JsonRpcResponse) {
+    let context = base_context.clone().with_request_id(request.id.to_string());
     if request.jsonrpc != "2.0" {
-        return JsonRpcResponse {
-            jsonrpc: "2.0",
-            id: request.id,
-            result: None,
-            error: Some(JsonRpcError {
-                code: -32600,
-                message: "invalid json-rpc version".to_string(),
-            }),
-        };
+        return (
+            StatusCode::BAD_REQUEST,
+            JsonRpcResponse {
+                jsonrpc: "2.0",
+                id: request.id,
+                result: None,
+                error: Some(JsonRpcError {
+                    code: -32600,
+                    message: "invalid json-rpc version".to_string(),
+                }),
+            },
+        );
     }
     match request.method.as_str() {
-        "tools/list" => {
-            let result = ToolListResult {
-                tools: router.list_tools(),
-            };
-            match serde_json::to_value(result) {
-                Ok(value) => JsonRpcResponse {
-                    jsonrpc: "2.0",
-                    id: request.id,
-                    result: Some(value),
-                    error: None,
-                },
+        "tools/list" => match router.list_tools(&context) {
+            Ok(tools) => match serde_json::to_value(ToolListResult {
+                tools,
+            }) {
+                Ok(value) => (
+                    StatusCode::OK,
+                    JsonRpcResponse {
+                        jsonrpc: "2.0",
+                        id: request.id,
+                        result: Some(value),
+                        error: None,
+                    },
+                ),
                 Err(_) => jsonrpc_error(request.id, ToolError::Serialization),
-            }
-        }
+            },
+            Err(err) => jsonrpc_error(request.id, err),
+        },
         "tools/call" => {
             let id = request.id;
             let params = request.params.unwrap_or(Value::Null);
             let call = serde_json::from_value::<ToolCallParams>(params);
             match call {
-                Ok(call) => match call_tool_with_blocking(router, &call.name, call.arguments) {
-                    Ok(result) => match serde_json::to_value(ToolCallResult {
-                        content: vec![ToolContent::Json {
-                            json: result,
-                        }],
-                    }) {
-                        Ok(value) => JsonRpcResponse {
-                            jsonrpc: "2.0",
-                            id,
-                            result: Some(value),
-                            error: None,
+                Ok(call) => {
+                    match call_tool_with_blocking(router, context, &call.name, call.arguments) {
+                        Ok(result) => match serde_json::to_value(ToolCallResult {
+                            content: vec![ToolContent::Json {
+                                json: result,
+                            }],
+                        }) {
+                            Ok(value) => (
+                                StatusCode::OK,
+                                JsonRpcResponse {
+                                    jsonrpc: "2.0",
+                                    id,
+                                    result: Some(value),
+                                    error: None,
+                                },
+                            ),
+                            Err(_) => jsonrpc_error(id, ToolError::Serialization),
                         },
-                        Err(_) => jsonrpc_error(id, ToolError::Serialization),
+                        Err(err) => jsonrpc_error(id, err),
+                    }
+                }
+                Err(_) => (
+                    StatusCode::BAD_REQUEST,
+                    JsonRpcResponse {
+                        jsonrpc: "2.0",
+                        id,
+                        result: None,
+                        error: Some(JsonRpcError {
+                            code: -32602,
+                            message: "invalid tool params".to_string(),
+                        }),
                     },
-                    Err(err) => jsonrpc_error(id, err),
-                },
-                Err(_) => JsonRpcResponse {
-                    jsonrpc: "2.0",
-                    id,
-                    result: None,
-                    error: Some(JsonRpcError {
-                        code: -32602,
-                        message: "invalid tool params".to_string(),
-                    }),
-                },
+                ),
             }
         }
-        _ => JsonRpcResponse {
-            jsonrpc: "2.0",
-            id: request.id,
-            result: None,
-            error: Some(JsonRpcError {
-                code: -32601,
-                message: "method not found".to_string(),
-            }),
-        },
+        _ => (
+            StatusCode::BAD_REQUEST,
+            JsonRpcResponse {
+                jsonrpc: "2.0",
+                id: request.id,
+                result: None,
+                error: Some(JsonRpcError {
+                    code: -32601,
+                    message: "method not found".to_string(),
+                }),
+            },
+        ),
     }
 }
 
 /// Executes a tool call, shifting to a blocking context when available.
 fn call_tool_with_blocking(
     router: &ToolRouter,
+    context: RequestContext,
     name: &str,
     arguments: Value,
 ) -> Result<Value, ToolError> {
     match tokio::runtime::Handle::try_current() {
         Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
-            tokio::task::block_in_place(|| router.handle_tool_call(name, arguments))
+            tokio::task::block_in_place(|| router.handle_tool_call(&context, name, arguments))
         }
-        _ => router.handle_tool_call(name, arguments),
+        _ => router.handle_tool_call(&context, name, arguments),
     }
 }
 
 /// Parses and validates a JSON-RPC request payload.
-fn parse_request(state: &ServerState, bytes: &Bytes) -> (StatusCode, JsonRpcResponse) {
+fn parse_request(
+    state: &ServerState,
+    context: &RequestContext,
+    bytes: &Bytes,
+) -> (StatusCode, JsonRpcResponse) {
     if bytes.len() > state.max_body_bytes {
         return (
             StatusCode::PAYLOAD_TOO_LARGE,
@@ -411,36 +468,67 @@ fn parse_request(state: &ServerState, bytes: &Bytes) -> (StatusCode, JsonRpcResp
                 },
             )
         },
-        |request| (StatusCode::OK, handle_request(&state.router, request)),
+        |request| handle_request(&state.router, context, request),
     )
 }
 
+fn http_request_context(
+    transport: ServerTransport,
+    peer: SocketAddr,
+    headers: &HeaderMap,
+) -> RequestContext {
+    let auth_header =
+        headers.get(AUTHORIZATION).and_then(|value| value.to_str().ok()).map(str::to_string);
+    let client_subject = headers
+        .get("x-decision-gate-client-subject")
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string);
+    RequestContext::http(transport, Some(peer.ip()), auth_header, client_subject)
+}
+
+fn emit_local_only_warning(server: &crate::config::ServerConfig) {
+    let auth_mode = server.auth.as_ref().map(|auth| auth.mode).unwrap_or(ServerAuthMode::LocalOnly);
+    if auth_mode == ServerAuthMode::LocalOnly {
+        eprintln!(
+            "decision-gate-mcp: WARNING: server running in local-only mode without explicit auth; \
+             configure server.auth to enable bearer_token or mtls"
+        );
+    }
+}
+
 /// Builds a JSON-RPC error response for a tool failure.
-fn jsonrpc_error(id: Value, error: ToolError) -> JsonRpcResponse {
-    let (code, message) = match error {
-        ToolError::UnknownTool => (-32601, "unknown tool".to_string()),
-        ToolError::InvalidParams(message) => (-32602, message),
+fn jsonrpc_error(id: Value, error: ToolError) -> (StatusCode, JsonRpcResponse) {
+    let (status, code, message) = match error {
+        ToolError::UnknownTool => (StatusCode::BAD_REQUEST, -32601, "unknown tool".to_string()),
+        ToolError::Unauthenticated(_) => {
+            (StatusCode::UNAUTHORIZED, -32001, "unauthenticated".to_string())
+        }
+        ToolError::Unauthorized(_) => (StatusCode::FORBIDDEN, -32003, "unauthorized".to_string()),
+        ToolError::InvalidParams(message) => (StatusCode::BAD_REQUEST, -32602, message),
         ToolError::CapabilityViolation {
             code,
             message,
-        } => (-32602, format!("{code}: {message}")),
-        ToolError::NotFound(message) => (-32004, message),
-        ToolError::Conflict(message) => (-32009, message),
-        ToolError::Evidence(message) => (-32020, message),
-        ToolError::ControlPlane(err) => (-32030, err.to_string()),
-        ToolError::Runpack(message) => (-32040, message),
-        ToolError::Internal(message) => (-32050, message),
-        ToolError::Serialization => (-32060, "serialization failed".to_string()),
+        } => (StatusCode::BAD_REQUEST, -32602, format!("{code}: {message}")),
+        ToolError::NotFound(message) => (StatusCode::OK, -32004, message),
+        ToolError::Conflict(message) => (StatusCode::OK, -32009, message),
+        ToolError::Evidence(message) => (StatusCode::OK, -32020, message),
+        ToolError::ControlPlane(err) => (StatusCode::OK, -32030, err.to_string()),
+        ToolError::Runpack(message) => (StatusCode::OK, -32040, message),
+        ToolError::Internal(message) => (StatusCode::OK, -32050, message),
+        ToolError::Serialization => (StatusCode::OK, -32060, "serialization failed".to_string()),
     };
-    JsonRpcResponse {
-        jsonrpc: "2.0",
-        id,
-        result: None,
-        error: Some(JsonRpcError {
-            code,
-            message,
-        }),
-    }
+    (
+        status,
+        JsonRpcResponse {
+            jsonrpc: "2.0",
+            id,
+            result: None,
+            error: Some(JsonRpcError {
+                code,
+                message,
+            }),
+        },
+    )
 }
 
 // ============================================================================

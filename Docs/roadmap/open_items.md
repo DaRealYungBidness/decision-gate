@@ -35,36 +35,27 @@ explicitly revised.
 
 ## Open Items (Current)
 
-### 1) [P0] Inbound AuthN/AuthZ for MCP Tool Calls
-**What**: Add explicit auth interfaces for MCP tool calls (token/mTLS and
-per-tool authorization) with audit logging.
-**Why**: The current local-only posture is not production-safe, and tool calls
-are the highest-risk boundary.
-**Status**: Open.
-**How**: Introduce a `ToolAuthz` trait in `decision-gate-mcp`, enforce it in
-`server.rs`/`tools.rs`, and include a default local-only policy with warnings.
-
-### 2) [P1] Durable Runpack Storage
+### 1) [P1] Durable Runpack Storage
 **What**: Add production-grade `ArtifactSink` and `ArtifactReader` backends.
 **Why**: Runpacks are the audit trail; durable storage is required for real use.
 **Status**: Open.
 **How**: Implement object store or secured filesystem adapters with strict path
 validation and explicit error typing.
 
-### 3) [P0] Transport Hardening and Operational Telemetry
+### 2) [P0] Transport Hardening and Operational Telemetry
 **What**: Add rate limiting, structured error responses, TLS/mTLS, and audit logs.
 **Why**: This is required for hyperscaler/DoD-grade deployments.
 **Status**: Open.
 **How**: Harden JSON-RPC handlers and introduce structured audit logging with
 redaction policies for evidence output.
 
-### 4) [P1] Policy Engine Integration
+### 3) [P1] Policy Engine Integration
 **What**: Replace `PermitAll` with real policy adapters.
 **Why**: Dispatch authorization is critical to disclosure control.
 **Status**: Open.
 **How**: Add policy backends and include their schemas in the contract bundle.
 
-### 5) [P2] Agent Progress vs Plan State
+### 4) [P2] Agent Progress vs Plan State
 **What**: Clarify that Decision Gate evaluates evidence and run state, while
 agent planning is external. Progress signals should be modeled as evidence or
 submissions.
@@ -74,7 +65,7 @@ submissions.
 payloads or evidence predicates. If plan artifacts are desired, store them as
 explicit packet payloads or submissions, not core run state.
 
-### 6) [P2] Scenario Examples for Hold/Unknown/Branch Outcomes
+### 5) [P2] Scenario Examples for Hold/Unknown/Branch Outcomes
 **What**: Add canonical scenarios that demonstrate unknown outcomes, hold
 decisions, and branch routing for true/false/unknown.
 **Why**: Scenario authors need precise, audited examples that show how tri-state
@@ -84,7 +75,7 @@ outcomes affect routing and hold behavior.
 and a hold/unknown scenario, emit them into
 `Docs/generated/decision-gate/examples/`, and reference them in guides.
 
-### 7) [P2] Run Lifecycle Guide
+### 6) [P2] Run Lifecycle Guide
 **What**: Create a single guide that maps tool calls to run state transitions
 and runpack artifacts.
 **Why**: Integrators need a mental model that ties `scenario_define` →
@@ -94,7 +85,7 @@ mutations and artifacts.
 **How**: Add a `Docs/guides/run_lifecycle.md` with a step-by-step timeline,
 inputs/outputs, and references to tooling examples and runpack artifacts.
 
-### 8) [P0] Security Findings (Mirrored from Docs/security/audit.md)
+### 7) [P0] Security Findings (Mirrored from Docs/security/audit.md)
 **What**: Address open security findings documented in the audit log.
 **Why**: These are release-readiness blockers and should be tracked with the
 same rigor as other open items.
@@ -134,9 +125,14 @@ checks, typed errors, and retention is available and configurable.
 **Status**: Implemented. Timeout policies are enforced by tick triggers and
 documented in tooltips and generated contract docs.
 
+### H) Inbound AuthN/AuthZ for MCP Tool Calls
+**Status**: Implemented. MCP tool calls now enforce authn/authz with local-only
+defaults, bearer token or mTLS subject allowlists, per-tool authorization, and
+auth audit logging.
+
 ## Notes on Structural Readiness
 Evidence, storage, and dispatch interfaces already exist in
 `decision-gate-core/src/interfaces/mod.rs`, enabling durable backends and
-policy enforcement without core rewrites. Remaining gaps are inbound MCP
-auth, durable runpack storage, transport hardening/telemetry, policy engine
-integration, scenario examples, and run lifecycle guidance.
+policy enforcement without core rewrites. Remaining gaps are durable runpack
+storage, transport hardening/telemetry, policy engine integration, scenario
+examples, and run lifecycle guidance.

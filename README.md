@@ -67,6 +67,62 @@ Evidence sources
 Runpack builder -> deterministic artifacts + manifest
 ```
 
+### Architecture Diagrams (Mermaid)
+High-level topology and roles:
+
+```mermaid
+flowchart TB
+  Client[LLM or client] -->|MCP JSON-RPC tools| MCP[decision-gate-mcp\n(MCP server + client)]
+  MCP -->|scenario_* tools| CP[ControlPlane\n(decision-gate-core)]
+  MCP -->|evidence_query| Registry[Evidence provider registry]
+  Registry --> BuiltIn[Built-in providers\n(time, env, json, http)]
+  Registry --> External[External MCP providers\n(stdio or HTTP)]
+  External -->|MCP JSON-RPC| Remote[Other MCP servers]
+  CP --> Runpack[Runpack builder]
+  Runpack --> Artifacts[Runpack + manifest]
+```
+
+Evidence query flow (provider wiring):
+
+```mermaid
+sequenceDiagram
+  participant Client as LLM or client
+  participant MCP as decision-gate-mcp
+  participant CP as ControlPlane
+  participant Provider as Provider (built-in or external)
+  participant Runpack as Runpack builder
+
+  Client->>MCP: evidence_query
+  MCP->>CP: validate + route
+  CP->>Provider: EvidenceQuery\n(provider_id, predicate, params)
+  Provider-->>CP: EvidenceResult\n(value, hash, anchor, signature?)
+  CP-->>MCP: normalized result
+  MCP-->>Client: tool response
+  CP->>Runpack: record evidence + hashes
+```
+
+Scenario lifecycle (tools + runpacks):
+
+```mermaid
+flowchart TB
+  Define[scenario_define] --> Start[scenario_start]
+  Start --> Run[Active run state]
+  Run -->|agent step| Next[scenario_next]
+  Run -->|external event| Trigger[scenario_trigger]
+  Next --> Decision[Decision + packets]
+  Trigger --> Decision
+  Decision -->|advance/hold| Run
+  Decision -->|complete/fail| Done[Run finished]
+  Status[scenario_status] -. read-only .-> Run
+  Submit[scenario_submit] -. attach artifacts .-> Run
+  Done --> Export[runpack_export]
+  Export --> Verify[runpack_verify]
+```
+
+Provider terminology:
+- **Provider**: an evidence source (built-in or external MCP server) that answers evidence queries.
+- **Provider entry**: a `[[providers]]` config entry in `decision-gate.toml` that registers a provider.
+
 ## Repository Layout
 - `decision-gate-core`: deterministic engine, schemas, and runpack tooling
 - `decision-gate-broker`: reference sources/sinks and composite dispatcher
@@ -82,7 +138,7 @@ Runpack builder -> deterministic artifacts + manifest
 **ScenarioSpec**: The full scenario definition. It contains stages, gates, and
 predicates. A scenario is the unit of execution.
 
-**StageSpec**: A scenario stage. Each stage has one or more gates and an
+**StageSpec**: A scenario stage. Each stage has zero or more gates and an
 advance policy (`linear`, `fixed`, `branch`, or `terminal`).
 
 **GateSpec**: A gate with a requirement tree. This is where `ret-logic` applies.
@@ -152,7 +208,12 @@ Gates are requirement trees built from predicate keys.
 ```json
 {
   "gate_id": "ready",
-  "requirement": { "and": [ { "pred": "deploy_env" }, { "pred": "build_passed" } ] }
+  "requirement": {
+    "And": [
+      { "Predicate": "deploy_env" },
+      { "Predicate": "build_passed" }
+    ]
+  }
 }
 ```
 
@@ -162,8 +223,8 @@ Stages hold gates and define where the run goes next.
 ```json
 {
   "stage_id": "main",
-  "gates": [ { "gate_id": "ready", "requirement": { "pred": "deploy_env" } } ],
-  "advance_to": "terminal",
+  "gates": [ { "gate_id": "ready", "requirement": { "Predicate": "deploy_env" } } ],
+  "advance_to": { "kind": "terminal" },
   "entry_packets": [],
   "timeout": null,
   "on_timeout": "fail"
@@ -301,9 +362,9 @@ enables offline verification of integrity and tamper detection.
 - `examples/data-disclosure`: disclosure stage with packets
 
 ## Glossary
-**Provider**: An MCP server that supplies evidence for predicates.
+**Provider**: An evidence source (built-in or external MCP server) that supplies predicates.
 
-**Connector**: The configuration entry that registers a provider.
+**Provider entry**: The `[[providers]]` configuration entry that registers a provider.
 
 **Adapter**: A generic term for a provider; use "provider" in Decision Gate.
 

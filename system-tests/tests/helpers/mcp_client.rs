@@ -66,6 +66,8 @@ pub struct McpHttpClient {
     base_url: String,
     client: Client,
     transcript: Arc<Mutex<Vec<TranscriptEntry>>>,
+    bearer_token: Option<String>,
+    client_subject: Option<String>,
 }
 
 impl McpHttpClient {
@@ -79,7 +81,23 @@ impl McpHttpClient {
             base_url,
             client,
             transcript: Arc::new(Mutex::new(Vec::new())),
+            bearer_token: None,
+            client_subject: None,
         })
+    }
+
+    /// Attaches a bearer token for Authorization headers.
+    #[must_use]
+    pub fn with_bearer_token(mut self, token: String) -> Self {
+        self.bearer_token = Some(token);
+        self
+    }
+
+    /// Attaches a client subject header for mTLS proxy auth.
+    #[must_use]
+    pub fn with_client_subject(mut self, subject: String) -> Self {
+        self.client_subject = Some(subject);
+        self
     }
 
     /// Returns the base URL for the MCP server.
@@ -149,13 +167,14 @@ impl McpHttpClient {
     async fn send_request(&self, request: &JsonRpcRequest) -> Result<JsonRpcResponse, String> {
         let request_value = serde_json::to_value(request)
             .map_err(|err| format!("jsonrpc serialization failed: {err}"))?;
-        let response = self
-            .client
-            .post(&self.base_url)
-            .json(&request_value)
-            .send()
-            .await
-            .map_err(|err| format!("http request failed: {err}"))?;
+        let mut request = self.client.post(&self.base_url).json(&request_value);
+        if let Some(token) = &self.bearer_token {
+            request = request.bearer_auth(token);
+        }
+        if let Some(subject) = &self.client_subject {
+            request = request.header("x-decision-gate-client-subject", subject);
+        }
+        let response = request.send().await.map_err(|err| format!("http request failed: {err}"))?;
         let status = response.status();
         let payload = response
             .json::<JsonRpcResponse>()
@@ -169,11 +188,11 @@ impl McpHttpClient {
             error_message.clone(),
         );
 
-        if !status.is_success() {
-            return Err(format!("http status {status} for json-rpc request"));
-        }
         if let Some(error) = payload.error.as_ref() {
             return Err(error.message.clone());
+        }
+        if !status.is_success() {
+            return Err(format!("http status {status} for json-rpc request"));
         }
         Ok(payload)
     }

@@ -59,22 +59,16 @@ impl fmt::Display for RequirementIdError {
 impl std::error::Error for RequirementIdError {}
 
 impl RequirementId {
-    /// Creates a new requirement ID with the given value
-    ///
-    /// # Errors
-    ///
-    /// Returns `RequirementIdError::Zero` when `id` is zero.
-    pub fn new(id: u64) -> Result<Self, RequirementIdError> {
-        NonZeroU64::new(id).map(RequirementId).ok_or(RequirementIdError::Zero)
+    /// Creates a new requirement ID from a known non-zero value.
+    #[must_use]
+    pub const fn new(id: NonZeroU64) -> Self {
+        Self(id)
     }
 
-    /// Attempts to create a requirement ID, returning an error when the raw value is zero.
-    ///
-    /// # Errors
-    ///
-    /// Returns `RequirementIdError::Zero` when `id` is zero.
-    pub fn from_raw(id: u64) -> Result<Self, RequirementIdError> {
-        Self::new(id)
+    /// Attempts to create a requirement ID, returning `None` when the raw value is zero.
+    #[must_use]
+    pub fn from_raw(id: u64) -> Option<Self> {
+        NonZeroU64::new(id).map(Self::new)
     }
 
     /// Returns the raw ID value
@@ -94,7 +88,7 @@ impl TryFrom<u64> for RequirementId {
     type Error = RequirementIdError;
 
     fn try_from(value: u64) -> Result<Self, Self::Error> {
-        Self::new(value)
+        Self::from_raw(value).ok_or(RequirementIdError::Zero)
     }
 }
 

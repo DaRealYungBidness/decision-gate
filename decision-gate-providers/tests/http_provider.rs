@@ -68,7 +68,8 @@ fn local_provider() -> HttpProvider {
 }
 
 /// Spawns a local test server that responds with the given body and status.
-fn spawn_server(body: &'static str, status: u16) -> (String, thread::JoinHandle<()>) {
+fn spawn_server<S: Into<String>>(body: S, status: u16) -> (String, thread::JoinHandle<()>) {
+    let body = body.into();
     let server = Server::http("127.0.0.1:0").unwrap();
     let addr = server.server_addr().to_ip().unwrap();
     let url = format!("http://{addr}");
@@ -454,8 +455,7 @@ fn http_no_allowlist_allows_all() {
 #[test]
 fn http_response_exceeds_size_limit_rejected() {
     let large_body = oversized_string(200);
-    let large_body_static: &'static str = Box::leak(large_body.into_boxed_str());
-    let (url, handle) = spawn_server(large_body_static, 200);
+    let (url, handle) = spawn_server(large_body, 200);
 
     let mut allowed_hosts = BTreeSet::new();
     allowed_hosts.insert("127.0.0.1".to_string());
