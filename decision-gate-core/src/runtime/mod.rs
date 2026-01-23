@@ -43,3 +43,4 @@ pub use runpack::RunpackVerifier;
 pub use runpack::VerificationReport;
 pub use runpack::VerificationStatus;
 pub use store::InMemoryRunStateStore;
+pub use store::SharedRunStateStore;

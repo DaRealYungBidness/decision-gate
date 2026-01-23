@@ -258,6 +258,7 @@ pub fn config_schema() -> Value {
             "server": server_config_schema(),
             "trust": trust_config_schema(),
             "evidence": evidence_policy_schema(),
+            "run_state_store": run_state_store_schema(),
             "providers": {
                 "type": "array",
                 "items": provider_config_schema(),
@@ -1047,6 +1048,75 @@ fn provider_config_schema() -> Value {
                         { "required": ["url"] }
                     ],
                     "required": ["capabilities_path"]
+                }
+            }
+        ],
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for run state store config.
+#[must_use]
+fn run_state_store_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "type": {
+                "type": "string",
+                "enum": ["memory", "sqlite"],
+                "default": "memory"
+            },
+            "path": {
+                "oneOf": [
+                    { "type": "null" },
+                    schema_for_string("Path to the SQLite run state database.")
+                ],
+                "default": null
+            },
+            "busy_timeout_ms": {
+                "type": "integer",
+                "minimum": 0,
+                "default": 5000
+            },
+            "journal_mode": {
+                "type": "string",
+                "enum": ["wal", "delete"],
+                "default": "wal"
+            },
+            "sync_mode": {
+                "type": "string",
+                "enum": ["full", "normal"],
+                "default": "full"
+            },
+            "max_versions": {
+                "oneOf": [
+                    { "type": "null" },
+                    { "type": "integer", "minimum": 1 }
+                ],
+                "default": null
+            }
+        },
+        "allOf": [
+            {
+                "if": {
+                    "properties": {
+                        "type": { "const": "sqlite" }
+                    }
+                },
+                "then": {
+                    "required": ["path"]
+                }
+            },
+            {
+                "if": {
+                    "properties": {
+                        "type": { "const": "memory" }
+                    }
+                },
+                "then": {
+                    "properties": {
+                        "path": { "type": "null" }
+                    }
                 }
             }
         ],

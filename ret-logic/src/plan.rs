@@ -288,31 +288,27 @@ pub enum Constant {
 impl Constant {
     /// Attempts to interpret this constant as a float
     #[must_use]
-    #[allow(
-        clippy::cast_precision_loss,
-        reason = "lossy cast is intentional for constant projection"
-    )]
     pub const fn as_float(&self) -> Option<f32> {
         match self {
             Self::Float(f) => Some(*f),
-            Self::Int(i) => Some(*i as f32),
-            Self::UInt(u) => Some(*u as f32),
             _ => None,
         }
     }
 
     /// Attempts to interpret this constant as an integer
     #[must_use]
-    #[allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_possible_wrap,
-        reason = "lossy cast is intentional for constant projection"
-    )]
     pub const fn as_int(&self) -> Option<i32> {
         match self {
             Self::Int(i) => Some(*i),
-            Self::UInt(u) => Some(*u as i32),
-            Self::Float(f) => Some(*f as i32),
+            _ => None,
+        }
+    }
+
+    /// Attempts to interpret this constant as an unsigned integer
+    #[must_use]
+    pub const fn as_uint(&self) -> Option<u32> {
+        match self {
+            Self::UInt(u) => Some(*u),
             _ => None,
         }
     }

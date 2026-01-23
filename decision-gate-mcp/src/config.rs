@@ -21,6 +21,8 @@ use std::net::SocketAddr;
 use std::path::Path;
 use std::path::PathBuf;
 
+use decision_gate_store_sqlite::SqliteStoreMode;
+use decision_gate_store_sqlite::SqliteSyncMode;
 use serde::Deserialize;
 use thiserror::Error;
 
@@ -55,6 +57,9 @@ pub struct DecisionGateConfig {
     /// Evidence disclosure policy configuration.
     #[serde(default)]
     pub evidence: EvidencePolicyConfig,
+    /// Run state store configuration.
+    #[serde(default)]
+    pub run_state_store: RunStateStoreConfig,
     /// Evidence provider configuration entries.
     #[serde(default)]
     pub providers: Vec<ProviderConfig>,
@@ -88,6 +93,7 @@ impl DecisionGateConfig {
     /// Returns [`ConfigError`] when configuration is invalid.
     pub fn validate(&mut self) -> Result<(), ConfigError> {
         self.server.validate()?;
+        self.run_state_store.validate()?;
         for provider in &self.providers {
             provider.validate()?;
         }
@@ -192,6 +198,81 @@ impl Default for EvidencePolicyConfig {
             require_provider_opt_in: true,
         }
     }
+}
+
+/// Run state store configuration.
+#[derive(Debug, Clone, Deserialize)]
+pub struct RunStateStoreConfig {
+    /// Store backend type.
+    #[serde(rename = "type", default)]
+    pub store_type: RunStateStoreType,
+    /// `SQLite` database path when using the sqlite backend.
+    #[serde(default)]
+    pub path: Option<PathBuf>,
+    /// Busy timeout in milliseconds.
+    #[serde(default = "default_store_busy_timeout_ms")]
+    pub busy_timeout_ms: u64,
+    /// `SQLite` journal mode.
+    #[serde(default)]
+    pub journal_mode: SqliteStoreMode,
+    /// `SQLite` synchronous mode.
+    #[serde(default)]
+    pub sync_mode: SqliteSyncMode,
+    /// Optional max versions to retain per run.
+    #[serde(default)]
+    pub max_versions: Option<u64>,
+}
+
+impl Default for RunStateStoreConfig {
+    fn default() -> Self {
+        Self {
+            store_type: RunStateStoreType::default(),
+            path: None,
+            busy_timeout_ms: default_store_busy_timeout_ms(),
+            journal_mode: SqliteStoreMode::default(),
+            sync_mode: SqliteSyncMode::default(),
+            max_versions: None,
+        }
+    }
+}
+
+impl RunStateStoreConfig {
+    /// Validates run state store configuration.
+    fn validate(&self) -> Result<(), ConfigError> {
+        match self.store_type {
+            RunStateStoreType::Memory => {
+                if self.path.is_some() {
+                    return Err(ConfigError::Invalid(
+                        "memory run_state_store must not set path".to_string(),
+                    ));
+                }
+                Ok(())
+            }
+            RunStateStoreType::Sqlite => {
+                let path = self.path.as_ref().ok_or_else(|| {
+                    ConfigError::Invalid("sqlite run_state_store requires path".to_string())
+                })?;
+                validate_store_path(path)?;
+                if self.max_versions == Some(0) {
+                    return Err(ConfigError::Invalid(
+                        "run_state_store max_versions must be greater than zero".to_string(),
+                    ));
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+/// Run state store backend type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum RunStateStoreType {
+    /// Use the in-memory store.
+    #[default]
+    Memory,
+    /// Use `SQLite`-backed durable store.
+    Sqlite,
 }
 
 /// Provider trust policy configuration.
@@ -360,7 +441,29 @@ const fn default_require_provider_opt_in() -> bool {
     true
 }
 
+/// Default busy timeout for the `SQLite` store (ms).
+const fn default_store_busy_timeout_ms() -> u64 {
+    5_000
+}
+
 /// Default trust policy for providers.
 const fn default_trust_policy() -> TrustPolicy {
     TrustPolicy::Audit
+}
+
+/// Validates run state store paths against security limits.
+fn validate_store_path(path: &Path) -> Result<(), ConfigError> {
+    let text = path.to_string_lossy();
+    if text.len() > MAX_TOTAL_PATH_LENGTH {
+        return Err(ConfigError::Invalid("run_state_store path exceeds max length".to_string()));
+    }
+    for component in path.components() {
+        let value = component.as_os_str().to_string_lossy();
+        if value.len() > MAX_PATH_COMPONENT_LENGTH {
+            return Err(ConfigError::Invalid(
+                "run_state_store path component too long".to_string(),
+            ));
+        }
+    }
+    Ok(())
 }

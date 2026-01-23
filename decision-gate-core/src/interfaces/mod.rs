@@ -186,6 +186,18 @@ pub trait ArtifactReader {
 /// Run state store errors.
 #[derive(Debug, Error)]
 pub enum StoreError {
+    /// Store I/O error.
+    #[error("run state store io error: {0}")]
+    Io(String),
+    /// Store data is corrupted or fails integrity checks.
+    #[error("run state store corruption: {0}")]
+    Corrupt(String),
+    /// Store data version is incompatible.
+    #[error("run state store version mismatch: {0}")]
+    VersionMismatch(String),
+    /// Store data is invalid.
+    #[error("run state store invalid data: {0}")]
+    Invalid(String),
     /// Store reported an error.
     #[error("run state store error: {0}")]
     Store(String),

@@ -1,18 +1,3 @@
-#![cfg_attr(
-    test,
-    allow(
-        clippy::panic,
-        clippy::print_stdout,
-        clippy::print_stderr,
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::use_debug,
-        clippy::dbg_macro,
-        clippy::panic_in_result_fn,
-        clippy::unwrap_in_result,
-        reason = "Test-only output and panic-based assertions are permitted."
-    )
-)]
 // examples/file-disclosure/src/main.rs
 // ============================================================================
 // Module: Decision Gate File Disclosure Example

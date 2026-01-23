@@ -1,0 +1,23 @@
+# Decision Gate SQLite Store manifest
+# ============================================================================
+# Durable RunStateStore backed by SQLite with deterministic serialization.
+# ============================================================================
+
+[package]
+name = "decision-gate-store-sqlite"
+version = { workspace = true }
+edition = "2024"
+rust-version = "1.92"
+
+[dependencies]
+decision-gate-core = { path = "../decision-gate-core" }
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+
+[dev-dependencies]
+tempfile = "3.10"
+
+[lints]
+workspace = true

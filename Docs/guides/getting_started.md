@@ -31,6 +31,13 @@ default_policy = "audit"
 allow_raw_values = false
 require_provider_opt_in = true
 
+[run_state_store]
+type = "sqlite"
+path = "decision-gate.db"
+journal_mode = "wal"
+sync_mode = "full"
+busy_timeout_ms = 5000
+
 [[providers]]
 name = "time"
 type = "builtin"
@@ -39,6 +46,9 @@ type = "builtin"
 name = "env"
 type = "builtin"
 ```
+
+Use `type = "memory"` for ephemeral local runs, but `sqlite` is the default
+for durable, audit-grade runs.
 
 ## 2) Start the MCP Server
 ```bash
@@ -62,7 +72,7 @@ curl -s http://127.0.0.1:4000/rpc \
       "arguments": {
         "spec": {
           "scenario_id": "quickstart",
-          "spec_version": "1",
+          "spec_version": "v1",
           "stages": [
             {
               "stage_id": "main",
@@ -70,10 +80,10 @@ curl -s http://127.0.0.1:4000/rpc \
               "gates": [
                 {
                   "gate_id": "after-time",
-                  "requirement": { "pred": "after" }
+                  "requirement": { "Predicate": "after" }
                 }
               ],
-              "advance_to": "terminal",
+              "advance_to": { "kind": "terminal" },
               "timeout": null,
               "on_timeout": "fail"
             }
@@ -84,7 +94,7 @@ curl -s http://127.0.0.1:4000/rpc \
               "query": {
                 "provider_id": "time",
                 "predicate": "after",
-                "params": { "timestamp": { "kind": "unix_millis", "value": 0 } }
+                "params": { "timestamp": 1710000000000 }
               },
               "comparator": "equals",
               "expected": true,
@@ -136,11 +146,14 @@ curl -s http://127.0.0.1:4000/rpc \
     "params": {
       "name": "scenario_next",
       "arguments": {
-        "run_id": "run-1",
-        "trigger_id": "trigger-1",
-        "agent_id": "agent-1",
-        "time": { "kind": "unix_millis", "value": 1710000000000 },
-        "correlation_id": null
+        "scenario_id": "quickstart",
+        "request": {
+          "run_id": "run-1",
+          "trigger_id": "trigger-1",
+          "agent_id": "agent-1",
+          "time": { "kind": "unix_millis", "value": 1710000000000 },
+          "correlation_id": null
+        }
       }
     }
   }'
@@ -149,4 +162,3 @@ curl -s http://127.0.0.1:4000/rpc \
 ## Next Steps
 - Explore `Docs/guides/integration_patterns.md` for CI and agent-loop patterns.
 - Use `decision-gate-cli` to export and verify runpacks.
-

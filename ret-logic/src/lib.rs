@@ -1,18 +1,3 @@
-#![cfg_attr(
-    test,
-    allow(
-        clippy::panic,
-        clippy::print_stdout,
-        clippy::print_stderr,
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::use_debug,
-        clippy::dbg_macro,
-        clippy::panic_in_result_fn,
-        clippy::unwrap_in_result,
-        reason = "Test-only output and panic-based assertions are permitted."
-    )
-)]
 // world_engine/src/requirement/mod.rs
 // ============================================================================
 // Module: Requirement Root
@@ -38,6 +23,23 @@ pub mod requirement;
 pub mod serde_support;
 pub mod traits;
 pub mod tristate;
+
+#[cfg(test)]
+mod tests {
+    //! Test-only lint relaxations for panic-based assertions and debug output.
+    #![allow(
+        clippy::panic,
+        clippy::print_stdout,
+        clippy::print_stderr,
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::use_debug,
+        clippy::dbg_macro,
+        clippy::panic_in_result_fn,
+        clippy::unwrap_in_result,
+        reason = "Test-only output and panic-based assertions are permitted."
+    )]
+}
 
 // ============================================================================
 // SECTION: Re-Exports

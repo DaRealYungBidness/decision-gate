@@ -111,8 +111,12 @@ are the highest-risk boundary.
 **What**: Implement a persistent `RunStateStore` backend.
 **Why**: In-memory storage is not acceptable for production use or audit-grade
 system testing.
-**How**: Add a database or log-backed store with deterministic serialization
-and typed errors. Keep interfaces compatible with `decision_gate_core`.
+**Status**: Implemented. SQLite WAL-backed store with canonical JSON snapshots,
+integrity checks, typed errors, and configurable retention is available and
+selectable via `decision-gate.toml`.
+**How**: Added `decision-gate-store-sqlite` with versioned snapshot history,
+hash verification, and strict path validation. `decision-gate-mcp` now supports
+`run_state_store` configuration to select `memory` or `sqlite` backends.
 
 ## 8) Durable Runpack Storage
 **What**: Add production-grade `ArtifactSink` and `ArtifactReader` backends.
@@ -139,6 +143,24 @@ as explicit packet payloads or submissions, not core run state.
 **What**: Replace `PermitAll` with real policy adapters.
 **Why**: Dispatch authorization is critical to disclosure control.
 **How**: Add policy backends and include their schemas in the contract bundle.
+
+## 12) Timeout Policy Enforcement and Documentation
+**What**: Implement timeout policy handling (`advance_with_flag`, `alternate_branch`) and document the exact decision outcomes.
+**Why**: The schema exposes timeout policies, but runtime behavior is not yet enforced, which creates drift between contract and execution.
+**Status**: Not implemented. Timeout policy is modeled in schemas but not honored in the runtime evaluator.
+**How**: On `TriggerKind::Tick`, resolve `on_timeout` per stage. Emit a decision outcome that records timeout, apply policy tags, and optionally branch to the configured stage. Add a doc section that lists each policy and its decision semantics.
+
+## 13) Scenario Examples for Hold/Unknown/Branch Outcomes
+**What**: Add canonical scenarios that demonstrate `unknown` outcomes, hold decisions, and branch routing for true/false/unknown.
+**Why**: Scenario authors need precise, audited examples that show how tri-state outcomes affect routing and hold behavior.
+**Status**: Partial. Current examples cover only the happy path.
+**How**: Extend `decision-gate-contract` examples to include a branch scenario and a hold/unknown scenario, emit them into `Docs/generated/decision-gate/examples/`, and reference them in guides.
+
+## 14) Run Lifecycle Guide
+**What**: Create a single guide that maps tool calls to run state transitions and runpack artifacts.
+**Why**: Integrators need a mental model that ties `scenario_define` → `scenario_start` → `scenario_next`/`scenario_trigger` → `runpack_export` to state mutations and artifacts.
+**Status**: Missing.
+**How**: Add a `Docs/guides/run_lifecycle.md` with a step-by-step timeline, inputs/outputs, and references to the tooling examples and runpack artifacts.
 
 ## Notes on Structural Readiness
 Evidence, storage, and dispatch interfaces already exist in

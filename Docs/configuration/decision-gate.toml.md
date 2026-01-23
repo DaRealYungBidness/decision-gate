@@ -42,6 +42,27 @@ default_policy = { require_signature = { keys = ["key1.pub"] } }
 | `allow_raw_values` | bool | `false` | Enables raw evidence disclosure. |
 | `require_provider_opt_in` | bool | `true` | Providers must opt in via `allow_raw`. |
 
+### `[run_state_store]`
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `type` | `"memory" | "sqlite"` | `memory` | Store backend selection. |
+| `path` | string | `null` | SQLite database path (required for `sqlite`). |
+| `busy_timeout_ms` | integer | `5000` | SQLite busy timeout. |
+| `journal_mode` | `"wal" | "delete"` | `wal` | SQLite journal mode. |
+| `sync_mode` | `"full" | "normal"` | `full` | SQLite sync mode. |
+| `max_versions` | integer | `null` | Optional max versions retained per run. |
+
+SQLite example:
+```toml
+[run_state_store]
+type = "sqlite"
+path = "decision-gate.db"
+journal_mode = "wal"
+sync_mode = "full"
+busy_timeout_ms = 5000
+max_versions = 1000
+```
+
 ### `[[providers]]`
 Provider entries register built-in or MCP providers.
 

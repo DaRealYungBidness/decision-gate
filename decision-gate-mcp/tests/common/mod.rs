@@ -47,6 +47,7 @@ use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::config::ProviderConfig;
 use decision_gate_mcp::config::ProviderType;
+use decision_gate_mcp::config::RunStateStoreConfig;
 use decision_gate_mcp::config::ServerConfig;
 use decision_gate_mcp::config::TrustConfig;
 use serde_json::json;
@@ -62,6 +63,7 @@ pub fn sample_config() -> DecisionGateConfig {
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
         providers: builtin_providers(),
     }
 }
@@ -78,7 +80,10 @@ pub fn sample_router() -> ToolRouter {
     let config = sample_config();
     let evidence = FederatedEvidenceProvider::from_config(&config).unwrap();
     let capabilities = CapabilityRegistry::from_config(&config).unwrap();
-    ToolRouter::new(evidence, config.evidence, Arc::new(capabilities))
+    let store = decision_gate_core::SharedRunStateStore::from_store(
+        decision_gate_core::InMemoryRunStateStore::new(),
+    );
+    ToolRouter::new(evidence, config.evidence, store, Arc::new(capabilities))
 }
 
 fn builtin_providers() -> Vec<ProviderConfig> {

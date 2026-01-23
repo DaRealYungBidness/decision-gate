@@ -348,3 +348,5 @@ Do not use `cargo fmt` in this repo.
   - `cargo run -p decision-gate-example-data-disclosure`
 - Run the CLI:
   - `cargo run -p decision-gate-cli -- serve --config decision-gate.toml`
+- Durable run state: configure `run_state_store` in `decision-gate.toml` to use
+  the SQLite backend (see `Docs/configuration/decision-gate.toml.md`).

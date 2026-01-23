@@ -28,6 +28,7 @@ use decision_gate_core::hashing::HashAlgorithm;
 use decision_gate_core::hashing::hash_bytes;
 use serde::Serialize;
 use serde_jcs;
+use serde_json;
 
 use crate::ContractError;
 use crate::authoring;
@@ -85,19 +86,19 @@ impl ContractBuilder {
             markdown_artifact("authoring.md", authoring::authoring_markdown()),
             json_artifact("tooling.json", &tool_contracts)?,
             markdown_artifact("tooling.md", tooling::tooling_markdown(&tool_contracts)),
-            json_artifact("tooltips.json", &tooltips::tooltips())?,
+            json_artifact("tooltips.json", &tooltips::tooltips_manifest())?,
             json_artifact("providers.json", &provider_contracts)?,
             markdown_artifact("providers.md", providers::providers_markdown(&provider_contracts)),
             json_artifact("schemas/scenario.schema.json", &schemas::scenario_schema())?,
             json_artifact("schemas/config.schema.json", &schemas::config_schema())?,
-            json_artifact("examples/scenario.json", &examples::scenario_example())?,
+            pretty_json_artifact("examples/scenario.json", &examples::scenario_example())?,
             text_artifact(
                 "examples/scenario.ron",
                 examples::scenario_example_ron()
                     .map_err(|err| ContractError::Serialization(err.to_string()))?,
                 "text/plain",
             ),
-            json_artifact("examples/run-config.json", &examples::run_config_example())?,
+            pretty_json_artifact("examples/run-config.json", &examples::run_config_example())?,
             text_artifact(
                 "examples/decision-gate.toml",
                 examples::config_toml_example(),
@@ -199,6 +200,19 @@ fn json_artifact<T: Serialize>(path: &str, value: &T) -> Result<ContractArtifact
     })
 }
 
+/// Builds a JSON artifact with pretty formatting for display.
+fn pretty_json_artifact<T: Serialize>(
+    path: &str,
+    value: &T,
+) -> Result<ContractArtifact, ContractError> {
+    let bytes = serialize_json_pretty(value)?;
+    Ok(ContractArtifact {
+        path: path.to_string(),
+        content_type: String::from("application/json"),
+        bytes,
+    })
+}
+
 /// Builds a markdown artifact from content.
 fn markdown_artifact(path: &str, content: String) -> ContractArtifact {
     text_artifact(path, content, "text/markdown")
@@ -216,6 +230,11 @@ fn text_artifact(path: &str, content: String, content_type: &str) -> ContractArt
 /// Serializes a value into canonical JSON bytes.
 fn serialize_json<T: Serialize>(value: &T) -> Result<Vec<u8>, ContractError> {
     serde_jcs::to_vec(value).map_err(|err| ContractError::Serialization(err.to_string()))
+}
+
+/// Serializes a value into pretty JSON bytes for display purposes.
+fn serialize_json_pretty<T: Serialize>(value: &T) -> Result<Vec<u8>, ContractError> {
+    serde_json::to_vec_pretty(value).map_err(|err| ContractError::Serialization(err.to_string()))
 }
 
 /// Builds the manifest from generated artifacts.

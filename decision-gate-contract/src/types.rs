@@ -183,8 +183,45 @@ pub struct ToolContract {
     pub input_schema: Value,
     /// JSON schema for tool response payload.
     pub output_schema: Value,
+    /// Example payloads for documentation and SDKs.
+    pub examples: Vec<ToolExample>,
     /// Notes describing tool usage and security considerations.
     pub notes: Vec<String>,
+}
+
+/// Tool example with input/output payloads.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ToolExample {
+    /// Short example description.
+    pub description: String,
+    /// Example input payload.
+    pub input: Value,
+    /// Example output payload.
+    pub output: Value,
+}
+
+// ============================================================================
+// SECTION: Tooltip Catalog
+// ============================================================================
+
+/// Tooltip manifest used to annotate documentation code blocks.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TooltipsManifest {
+    /// Tooltip manifest version.
+    pub version: String,
+    /// Tooltip entries, ordered by term.
+    pub entries: Vec<TooltipEntry>,
+}
+
+/// Tooltip entry for a term used in documentation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TooltipEntry {
+    /// Term to highlight in code blocks.
+    pub term: String,
+    /// Tooltip title label.
+    pub title: String,
+    /// Tooltip body description.
+    pub description: String,
 }
 
 // ============================================================================

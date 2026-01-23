@@ -222,7 +222,8 @@ fn test_opcode_values() -> TestResult {
 fn test_constant_float() -> TestResult {
     let c = Constant::Float(SAMPLE_FLOAT);
     ensure(c.as_float() == Some(SAMPLE_FLOAT), "Expected float constant roundtrip")?;
-    ensure(c.as_int() == Some(3), "Expected float constant to coerce to int")?;
+    ensure(c.as_int().is_none(), "Expected float constant to skip int")?;
+    ensure(c.as_uint().is_none(), "Expected float constant to skip uint")?;
     ensure(c.as_flags().is_none(), "Expected float constant to skip flags")?;
     ensure(c.as_string().is_none(), "Expected float constant to skip string")?;
     Ok(())
@@ -232,8 +233,9 @@ fn test_constant_float() -> TestResult {
 #[test]
 fn test_constant_int() -> TestResult {
     let c = Constant::Int(42);
-    ensure(c.as_float() == Some(42.0), "Expected int constant to coerce to float")?;
+    ensure(c.as_float().is_none(), "Expected int constant to skip float")?;
     ensure(c.as_int() == Some(42), "Expected int constant roundtrip")?;
+    ensure(c.as_uint().is_none(), "Expected int constant to skip uint")?;
     ensure(c.as_flags().is_none(), "Expected int constant to skip flags")?;
     ensure(c.as_string().is_none(), "Expected int constant to skip string")?;
     Ok(())
@@ -243,8 +245,9 @@ fn test_constant_int() -> TestResult {
 #[test]
 fn test_constant_uint() -> TestResult {
     let c = Constant::UInt(100);
-    ensure(c.as_float() == Some(100.0), "Expected uint constant to coerce to float")?;
-    ensure(c.as_int() == Some(100), "Expected uint constant to coerce to int")?;
+    ensure(c.as_float().is_none(), "Expected uint constant to skip float")?;
+    ensure(c.as_int().is_none(), "Expected uint constant to skip int")?;
+    ensure(c.as_uint() == Some(100), "Expected uint constant roundtrip")?;
     ensure(c.as_flags() == Some(100), "Expected uint constant to coerce to flags")?;
     ensure(c.as_string().is_none(), "Expected uint constant to skip string")?;
     Ok(())
@@ -256,6 +259,7 @@ fn test_constant_string() -> TestResult {
     let c = Constant::String("hello".to_string());
     ensure(c.as_float().is_none(), "Expected string constant to skip float")?;
     ensure(c.as_int().is_none(), "Expected string constant to skip int")?;
+    ensure(c.as_uint().is_none(), "Expected string constant to skip uint")?;
     ensure(c.as_flags().is_none(), "Expected string constant to skip flags")?;
     ensure(c.as_string() == Some("hello"), "Expected string constant roundtrip")?;
     Ok(())
@@ -267,6 +271,7 @@ fn test_constant_flags() -> TestResult {
     let c = Constant::Flags(0xDEAD_BEEF);
     ensure(c.as_float().is_none(), "Expected flags constant to skip float")?;
     ensure(c.as_int().is_none(), "Expected flags constant to skip int")?;
+    ensure(c.as_uint().is_none(), "Expected flags constant to skip uint")?;
     ensure(c.as_flags() == Some(0xDEAD_BEEF), "Expected flags constant roundtrip")?;
     ensure(c.as_string().is_none(), "Expected flags constant to skip string")?;
     Ok(())
@@ -278,6 +283,7 @@ fn test_constant_custom() -> TestResult {
     let c = Constant::Custom(vec![1, 2, 3, 4]);
     ensure(c.as_float().is_none(), "Expected custom constant to skip float")?;
     ensure(c.as_int().is_none(), "Expected custom constant to skip int")?;
+    ensure(c.as_uint().is_none(), "Expected custom constant to skip uint")?;
     ensure(c.as_flags().is_none(), "Expected custom constant to skip flags")?;
     ensure(c.as_string().is_none(), "Expected custom constant to skip string")?;
     Ok(())
@@ -287,8 +293,9 @@ fn test_constant_custom() -> TestResult {
 #[test]
 fn test_constant_negative_int() -> TestResult {
     let c = Constant::Int(-100);
-    ensure(c.as_float() == Some(-100.0), "Expected negative int to coerce to float")?;
+    ensure(c.as_float().is_none(), "Expected negative int to skip float")?;
     ensure(c.as_int() == Some(-100), "Expected negative int roundtrip")?;
+    ensure(c.as_uint().is_none(), "Expected negative int to skip uint")?;
     Ok(())
 }
 

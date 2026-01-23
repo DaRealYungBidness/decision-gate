@@ -1,18 +1,3 @@
-#![cfg_attr(
-    test,
-    allow(
-        clippy::panic,
-        clippy::print_stdout,
-        clippy::print_stderr,
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::use_debug,
-        clippy::dbg_macro,
-        clippy::panic_in_result_fn,
-        clippy::unwrap_in_result,
-        reason = "Test-only output and panic-based assertions are permitted."
-    )
-)]
 // decision-gate-cli/src/main.rs
 // ============================================================================
 // Module: Decision Gate CLI Entry Point
@@ -694,4 +679,21 @@ fn output_error(stream: &str, error: &std::io::Error) -> String {
 fn emit_error(message: &str) -> ExitCode {
     let _ = write_stderr_line(message);
     ExitCode::FAILURE
+}
+
+#[cfg(test)]
+mod tests {
+    //! Test-only lint relaxations for panic-based assertions and debug output.
+    #![allow(
+        clippy::panic,
+        clippy::print_stdout,
+        clippy::print_stderr,
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::use_debug,
+        clippy::dbg_macro,
+        clippy::panic_in_result_fn,
+        clippy::unwrap_in_result,
+        reason = "Test-only output and panic-based assertions are permitted."
+    )]
 }

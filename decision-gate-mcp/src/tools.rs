@@ -41,6 +41,7 @@ use decision_gate_core::RunState;
 use decision_gate_core::RunStateStore;
 use decision_gate_core::ScenarioId;
 use decision_gate_core::ScenarioSpec;
+use decision_gate_core::SharedRunStateStore;
 use decision_gate_core::Timestamp;
 use decision_gate_core::TriggerEvent;
 use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
@@ -48,7 +49,6 @@ use decision_gate_core::hashing::hash_canonical_json;
 use decision_gate_core::runtime::ControlPlane;
 use decision_gate_core::runtime::ControlPlaneConfig;
 use decision_gate_core::runtime::ControlPlaneError;
-use decision_gate_core::runtime::InMemoryRunStateStore;
 use decision_gate_core::runtime::NextRequest;
 use decision_gate_core::runtime::NextResult;
 use decision_gate_core::runtime::RunpackBuilder;
@@ -85,6 +85,8 @@ pub struct ToolRouter {
     evidence: FederatedEvidenceProvider,
     /// Evidence disclosure policy configuration.
     evidence_policy: EvidencePolicyConfig,
+    /// Run state store for scenario runtimes.
+    store: SharedRunStateStore,
     /// Capability registry used for preflight validation.
     capabilities: Arc<CapabilityRegistry>,
 }
@@ -95,12 +97,14 @@ impl ToolRouter {
     pub fn new(
         evidence: FederatedEvidenceProvider,
         evidence_policy: EvidencePolicyConfig,
+        store: SharedRunStateStore,
         capabilities: Arc<CapabilityRegistry>,
     ) -> Self {
         Self {
             state: Arc::new(Mutex::new(RouterState::default())),
             evidence,
             evidence_policy,
+            store,
             capabilities,
         }
     }
@@ -313,10 +317,9 @@ struct ScenarioRuntime {
     /// Scenario specification.
     spec: ScenarioSpec,
     /// Run state store for the scenario.
-    store: InMemoryRunStateStore,
+    store: SharedRunStateStore,
     /// Control plane instance for the scenario.
-    control:
-        ControlPlane<FederatedEvidenceProvider, McpDispatcher, InMemoryRunStateStore, PermitAll>,
+    control: ControlPlane<FederatedEvidenceProvider, McpDispatcher, SharedRunStateStore, PermitAll>,
 }
 
 // ============================================================================
@@ -342,7 +345,7 @@ impl ToolRouter {
 
         self.capabilities.validate_spec(&request.spec).map_err(ToolError::from)?;
 
-        let store = InMemoryRunStateStore::new();
+        let store = self.store.clone();
         let dispatcher = McpDispatcher::new(DEFAULT_HASH_ALGORITHM);
         let policy = PermitAll;
         let control = ControlPlane::new(

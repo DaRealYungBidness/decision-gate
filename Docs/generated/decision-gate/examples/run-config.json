@@ -1,1 +1,12 @@
-{"dispatch_targets":[{"agent_id":"agent-alpha","kind":"agent"}],"policy_tags":[],"run_id":"run-0001","scenario_id":"example-scenario","tenant_id":"tenant-001"}
+{
+  "tenant_id": "tenant-001",
+  "run_id": "run-0001",
+  "scenario_id": "example-scenario",
+  "dispatch_targets": [
+    {
+      "kind": "agent",
+      "agent_id": "agent-alpha"
+    }
+  ],
+  "policy_tags": []
+}

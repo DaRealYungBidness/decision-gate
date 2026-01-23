@@ -43,5 +43,13 @@ emits warnings on startup.
 Runpacks are hashed using RFC 8785 canonical JSON and verified offline with
 SHA-256 digests. Any missing or tampered artifacts fail verification.
 
-See `Docs/security/threat_model.md` for the full threat model.
+## Run State Store (SQLite)
+SQLite-backed run state storage treats the database as untrusted input. The
+store verifies hashes on every load and fails closed on corruption or version
+mismatches. In production deployments:
 
+- Restrict filesystem permissions on the database and WAL files.
+- Back up the `.db`, `-wal`, and `-shm` files together.
+- Keep the storage path on a durable volume; do not use temp directories.
+
+See `Docs/security/threat_model.md` for the full threat model.

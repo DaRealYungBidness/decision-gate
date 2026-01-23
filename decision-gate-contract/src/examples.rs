@@ -104,6 +104,14 @@ default_policy = "audit"
 allow_raw_values = false
 require_provider_opt_in = true
 
+[run_state_store]
+type = "sqlite"
+path = "decision-gate.db"
+journal_mode = "wal"
+sync_mode = "full"
+busy_timeout_ms = 5000
+max_versions = 1000
+
 [[providers]]
 name = "time"
 type = "builtin"

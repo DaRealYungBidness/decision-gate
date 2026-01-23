@@ -57,6 +57,7 @@ use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::config::ProviderConfig;
 use decision_gate_mcp::config::ProviderType;
+use decision_gate_mcp::config::RunStateStoreConfig;
 use decision_gate_mcp::config::ServerConfig;
 use decision_gate_mcp::config::TrustConfig;
 use serde_json::json;
@@ -143,11 +144,15 @@ fn mcp_tools_match_core_control_plane() {
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
         providers: vec![builtin_provider("time")],
     };
     let evidence = FederatedEvidenceProvider::from_config(&config).unwrap();
     let capabilities = CapabilityRegistry::from_config(&config).unwrap();
-    let router = ToolRouter::new(evidence.clone(), config.evidence, Arc::new(capabilities));
+    let store = decision_gate_core::SharedRunStateStore::from_store(
+        decision_gate_core::InMemoryRunStateStore::new(),
+    );
+    let router = ToolRouter::new(evidence.clone(), config.evidence, store, Arc::new(capabilities));
 
     let define = decision_gate_mcp::tools::ScenarioDefineRequest {
         spec: sample_spec(),

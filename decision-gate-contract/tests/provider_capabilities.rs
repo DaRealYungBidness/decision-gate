@@ -11,6 +11,10 @@
 use decision_gate_contract::providers::provider_contracts;
 use decision_gate_contract::types::DeterminismClass;
 use decision_gate_core::Comparator;
+use jsonschema::CompilationOptions;
+use jsonschema::Draft;
+use jsonschema::JSONSchema;
+use serde_json::Value;
 
 fn comparator_order() -> [Comparator; 10] {
     [
@@ -33,6 +37,12 @@ fn comparator_index(comparator: Comparator) -> usize {
 
 fn is_canonical_order(list: &[Comparator]) -> bool {
     list.windows(2).all(|pair| comparator_index(pair[0]) <= comparator_index(pair[1]))
+}
+
+fn compile_schema(schema: &Value) -> JSONSchema {
+    let mut options = CompilationOptions::default();
+    options.with_draft(Draft::Draft202012);
+    options.compile(schema).expect("provider schema compilation failed")
 }
 
 #[test]
@@ -126,4 +136,37 @@ fn provider_determinism_metadata_is_set() {
         .find(|predicate| predicate.name == "get")
         .expect("env.get predicate missing");
     assert_eq!(env_predicate.determinism, DeterminismClass::External);
+}
+
+#[test]
+fn provider_predicate_examples_match_schemas() {
+    let contracts = provider_contracts();
+    for provider in contracts {
+        for predicate in provider.predicates {
+            assert!(
+                !predicate.examples.is_empty(),
+                "{}.{} missing examples",
+                provider.provider_id,
+                predicate.name
+            );
+            let params_schema = compile_schema(&predicate.params_schema);
+            let result_schema = compile_schema(&predicate.result_schema);
+            for example in predicate.examples {
+                let result = params_schema.validate(&example.params);
+                assert!(
+                    result.is_ok(),
+                    "{}.{} example params failed",
+                    provider.provider_id,
+                    predicate.name
+                );
+                let result = result_schema.validate(&example.result);
+                assert!(
+                    result.is_ok(),
+                    "{}.{} example result failed",
+                    provider.provider_id,
+                    predicate.name
+                );
+            }
+        }
+    }
 }

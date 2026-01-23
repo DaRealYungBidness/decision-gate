@@ -15,6 +15,7 @@ axum = { version = "0.7", features = ["json"] }
 decision-gate-contract = { path = "../decision-gate-contract" }
 decision-gate-core = { path = "../decision-gate-core" }
 decision-gate-mcp = { path = "../decision-gate-mcp" }
+decision-gate-store-sqlite = { path = "../decision-gate-store-sqlite" }
 jsonschema = { version = "0.18", features = ["draft202012"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 ret-logic = { path = "../ret-logic" }

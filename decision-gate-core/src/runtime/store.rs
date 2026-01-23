@@ -61,3 +61,42 @@ impl RunStateStore for InMemoryRunStateStore {
         Ok(())
     }
 }
+
+// ============================================================================
+// SECTION: Shared Store Wrapper
+// ============================================================================
+
+/// Shared run state store backed by an `Arc` trait object.
+#[derive(Clone)]
+pub struct SharedRunStateStore {
+    /// Inner store implementation.
+    inner: Arc<dyn RunStateStore + Send + Sync>,
+}
+
+impl SharedRunStateStore {
+    /// Wraps a run state store in a shared, clonable wrapper.
+    #[must_use]
+    pub fn from_store(store: impl RunStateStore + Send + Sync + 'static) -> Self {
+        Self {
+            inner: Arc::new(store),
+        }
+    }
+
+    /// Wraps an existing shared store.
+    #[must_use]
+    pub const fn new(store: Arc<dyn RunStateStore + Send + Sync>) -> Self {
+        Self {
+            inner: store,
+        }
+    }
+}
+
+impl RunStateStore for SharedRunStateStore {
+    fn load(&self, run_id: &RunId) -> Result<Option<RunState>, StoreError> {
+        self.inner.load(run_id)
+    }
+
+    fn save(&self, state: &RunState) -> Result<(), StoreError> {
+        self.inner.save(state)
+    }
+}

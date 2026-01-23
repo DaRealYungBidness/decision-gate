@@ -16,6 +16,7 @@ base64 = "0.22"
 decision-gate-core = { path = "../decision-gate-core" }
 decision-gate-contract = { path = "../decision-gate-contract" }
 decision-gate-providers = { path = "../decision-gate-providers" }
+decision-gate-store-sqlite = { path = "../decision-gate-store-sqlite" }
 ed25519-dalek = { version = "2.1", features = ["std"] }
 futures = "0.3"
 jsonschema = { version = "0.18", features = ["draft202012"] }

@@ -16,6 +16,8 @@
 // SECTION: Imports
 // ============================================================================
 
+use std::fmt::Write;
+
 use decision_gate_core::Comparator;
 use serde_json::Value;
 use serde_json::json;
@@ -56,27 +58,74 @@ pub fn providers_markdown(contracts: &[ProviderContract]) -> String {
         out.push_str(provider.description.as_str());
         out.push('\n');
         out.push('\n');
-        out.push_str("Predicates:\n");
-        for predicate in &provider.predicates {
-            out.push_str("- ");
-            out.push_str(&predicate.name);
-            out.push_str(": ");
-            out.push_str(&predicate.description);
-            out.push_str(" (");
-            out.push_str(predicate.determinism.as_str());
-            out.push(')');
-            out.push('\n');
-            out.push_str("  - Allowed comparators: ");
-            out.push_str(&render_comparator_list(&predicate.allowed_comparators));
-            out.push('\n');
-        }
+        out.push_str("**Provider contract**\n\n");
+        out.push_str("- Name: ");
+        out.push_str(&provider.name);
+        out.push('\n');
+        out.push_str("- Transport: ");
+        out.push_str(&provider.transport);
+        out.push('\n');
         out.push('\n');
         if !provider.notes.is_empty() {
-            out.push_str("Notes:\n");
+            out.push_str("**Notes**\n\n");
             for note in &provider.notes {
                 out.push_str("- ");
                 out.push_str(note);
                 out.push('\n');
+            }
+            out.push('\n');
+        }
+        out.push_str("### Configuration schema\n\n");
+        out.push_str("Config fields:\n\n");
+        for line in render_schema_fields(&provider.config_schema) {
+            out.push_str(&line);
+            out.push('\n');
+        }
+        out.push('\n');
+        render_json_block(&mut out, &provider.config_schema);
+        out.push('\n');
+        out.push_str("### Predicates\n\n");
+        for predicate in &provider.predicates {
+            out.push_str("#### ");
+            out.push_str(&predicate.name);
+            out.push('\n');
+            out.push('\n');
+            out.push_str(&predicate.description);
+            out.push('\n');
+            out.push('\n');
+            out.push_str("- Determinism: ");
+            out.push_str(predicate.determinism.as_str());
+            out.push('\n');
+            out.push_str("- Params required: ");
+            out.push_str(if predicate.params_required { "yes" } else { "no" });
+            out.push('\n');
+            out.push_str("- Allowed comparators: ");
+            out.push_str(&render_comparator_list(&predicate.allowed_comparators));
+            out.push('\n');
+            if !predicate.anchor_types.is_empty() {
+                out.push_str("- Anchor types: ");
+                out.push_str(&predicate.anchor_types.join(", "));
+                out.push('\n');
+            }
+            if !predicate.content_types.is_empty() {
+                out.push_str("- Content types: ");
+                out.push_str(&predicate.content_types.join(", "));
+                out.push('\n');
+            }
+            out.push('\n');
+            out.push_str("Params fields:\n\n");
+            for line in render_schema_fields(&predicate.params_schema) {
+                out.push_str(&line);
+                out.push('\n');
+            }
+            out.push('\n');
+            out.push_str("Params schema:\n");
+            render_json_block(&mut out, &predicate.params_schema);
+            out.push_str("Result schema:\n");
+            render_json_block(&mut out, &predicate.result_schema);
+            if !predicate.examples.is_empty() {
+                out.push_str("Examples:\n\n");
+                render_predicate_examples(&mut out, &predicate.examples);
             }
             out.push('\n');
         }
@@ -197,7 +246,7 @@ fn env_provider_contract() -> ProviderContract {
                 "type": "object",
                 "required": ["key"],
                 "properties": {
-                    "key": { "type": "string" }
+                    "key": { "type": "string", "description": "Environment variable key." }
                 },
                 "additionalProperties": false
             }),
@@ -245,8 +294,8 @@ fn json_provider_contract() -> ProviderContract {
                 "type": "object",
                 "required": ["file"],
                 "properties": {
-                    "file": { "type": "string" },
-                    "jsonpath": { "type": "string" }
+                    "file": { "type": "string", "description": "Path to a JSON or YAML file." },
+                    "jsonpath": { "type": "string", "description": "Optional JSONPath selector." }
                 },
                 "additionalProperties": false
             }),
@@ -483,6 +532,115 @@ const fn comparator_label(comparator: Comparator) -> &'static str {
     }
 }
 
+/// Render a JSON value in a fenced markdown code block.
+fn render_json_block(out: &mut String, value: &Value) {
+    let rendered = serde_json::to_string_pretty(value).unwrap_or_else(|_| String::from("{}"));
+    out.push_str("```json\n");
+    out.push_str(&rendered);
+    out.push_str("\n```\n");
+}
+
+/// Render predicate examples with params and result payloads.
+fn render_predicate_examples(out: &mut String, examples: &[PredicateExample]) {
+    for (idx, example) in examples.iter().enumerate() {
+        if examples.len() > 1 {
+            out.push_str("Example ");
+            out.push_str(&(idx + 1).to_string());
+            out.push_str(": ");
+        }
+        out.push_str(&example.description);
+        out.push('\n');
+        out.push('\n');
+        out.push_str("Params:\n");
+        render_json_block(out, &example.params);
+        out.push_str("Result:\n");
+        render_json_block(out, &example.result);
+    }
+}
+
+/// Renders schema fields as markdown list entries.
+fn render_schema_fields(schema: &Value) -> Vec<String> {
+    let props = schema.get("properties").and_then(Value::as_object);
+    let Some(props) = props else {
+        return vec![String::from("_No fields._")];
+    };
+    if props.is_empty() {
+        return vec![String::from("_No fields._")];
+    }
+    let required: Vec<String> = schema
+        .get("required")
+        .and_then(Value::as_array)
+        .map(|items| items.iter().filter_map(Value::as_str).map(String::from).collect())
+        .unwrap_or_default();
+
+    let mut keys: Vec<&String> = props.keys().collect();
+    keys.sort();
+    keys.into_iter()
+        .map(|key| {
+            let entry = &props[key];
+            let required_label = if required.contains(key) { "required" } else { "optional" };
+            let description = schema_description(entry);
+            format!("- `{key}` ({required_label}): {description}")
+        })
+        .collect()
+}
+
+/// Builds a short description for a JSON schema fragment.
+fn schema_description(schema: &Value) -> String {
+    let mut description = schema.get("description").and_then(Value::as_str).map_or_else(
+        || {
+            if let Some(reference) = schema.get("$ref").and_then(Value::as_str) {
+                return format!("Schema reference {reference}.");
+            }
+            if let Some(enum_values) = schema.get("enum").and_then(Value::as_array) {
+                let labels: Vec<&str> = enum_values.iter().filter_map(Value::as_str).collect();
+                return if labels.is_empty() {
+                    String::from("See schema for details.")
+                } else {
+                    format!("Enum: {}.", labels.join(", "))
+                };
+            }
+            if let Some(schema_type) = schema.get("type") {
+                return match schema_type {
+                    Value::String(kind) => format!("Type: {kind}."),
+                    Value::Array(kinds) => {
+                        let labels: Vec<&str> = kinds.iter().filter_map(Value::as_str).collect();
+                        if labels.is_empty() {
+                            String::from("See schema for details.")
+                        } else {
+                            format!("Type: {}.", labels.join("|"))
+                        }
+                    }
+                    _ => String::from("See schema for details."),
+                };
+            }
+            if let Some(options) = schema.get("oneOf").and_then(Value::as_array) {
+                return format!("One of {} schema variants.", options.len());
+            }
+            if let Some(options) = schema.get("anyOf").and_then(Value::as_array) {
+                return format!("Any of {} schema variants.", options.len());
+            }
+            if let Some(options) = schema.get("allOf").and_then(Value::as_array) {
+                return format!("All of {} schema variants.", options.len());
+            }
+            String::from("See schema for details.")
+        },
+        str::to_string,
+    );
+
+    if let Some(default_value) = schema.get("default") {
+        let default_text =
+            serde_json::to_string(default_value).unwrap_or_else(|_| String::from("null"));
+        if !description.ends_with('.') {
+            description.push('.');
+        }
+        description.push(' ');
+        let _ = write!(description, "Default: {default_text}.");
+    }
+
+    description
+}
+
 // ============================================================================
 // SECTION: Provider Schema Helpers
 // ============================================================================
@@ -493,7 +651,11 @@ fn time_config_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "allow_logical": { "type": "boolean" }
+            "allow_logical": {
+                "type": "boolean",
+                "description": "Allow logical trigger timestamps in comparisons.",
+                "default": true
+            }
         },
         "additionalProperties": false
     })
@@ -507,17 +669,31 @@ fn env_config_schema() -> Value {
         "properties": {
             "allowlist": {
                 "type": "array",
-                "items": { "type": "string" }
+                "items": { "type": "string" },
+                "description": "Optional allowlist of environment keys."
             },
             "denylist": {
                 "type": "array",
-                "items": { "type": "string" }
+                "items": { "type": "string" },
+                "description": "Explicit denylist of environment keys.",
+                "default": []
             },
-            "max_value_bytes": { "type": "integer", "minimum": 0 },
-            "max_key_bytes": { "type": "integer", "minimum": 0 },
+            "max_value_bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Maximum bytes allowed for an environment value.",
+                "default": 65536
+            },
+            "max_key_bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Maximum bytes allowed for an environment key.",
+                "default": 255
+            },
             "overrides": {
                 "type": "object",
-                "additionalProperties": { "type": "string" }
+                "additionalProperties": { "type": "string" },
+                "description": "Optional deterministic override map for env lookups."
             }
         },
         "additionalProperties": false
@@ -530,9 +706,18 @@ fn json_config_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "root": { "type": "string" },
-            "max_bytes": { "type": "integer", "minimum": 0 },
-            "allow_yaml": { "type": "boolean" }
+            "root": { "type": "string", "description": "Optional root directory for file resolution." },
+            "max_bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Maximum file size in bytes.",
+                "default": 1_048_576
+            },
+            "allow_yaml": {
+                "type": "boolean",
+                "description": "Allow YAML parsing for .yaml/.yml files.",
+                "default": true
+            }
         },
         "additionalProperties": false
     })
@@ -544,15 +729,39 @@ fn http_config_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "allow_http": { "type": "boolean" },
-            "timeout_ms": { "type": "integer", "minimum": 0 },
-            "max_response_bytes": { "type": "integer", "minimum": 0 },
+            "allow_http": {
+                "type": "boolean",
+                "description": "Allow cleartext http:// URLs.",
+                "default": false
+            },
+            "timeout_ms": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Request timeout in milliseconds.",
+                "default": 5000
+            },
+            "max_response_bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Maximum response size in bytes.",
+                "default": 1_048_576
+            },
             "allowed_hosts": {
                 "type": "array",
-                "items": { "type": "string" }
+                "items": { "type": "string" },
+                "description": "Optional allowlist of hostnames."
             },
-            "user_agent": { "type": "string" },
-            "hash_algorithm": { "type": "string", "enum": ["sha256"] }
+            "user_agent": {
+                "type": "string",
+                "description": "User agent string for outbound requests.",
+                "default": "decision-gate/0.1"
+            },
+            "hash_algorithm": {
+                "type": "string",
+                "enum": ["sha256"],
+                "description": "Hash algorithm used for body_hash responses.",
+                "default": "sha256"
+            }
         },
         "additionalProperties": false
     })
@@ -569,7 +778,8 @@ fn time_threshold_schema() -> Value {
                 "oneOf": [
                     { "type": "integer" },
                     { "type": "string" }
-                ]
+                ],
+                "description": "Unix millis number or RFC3339 timestamp string."
             }
         },
         "additionalProperties": false
@@ -583,7 +793,7 @@ fn http_url_schema() -> Value {
         "type": "object",
         "required": ["url"],
         "properties": {
-            "url": { "type": "string" }
+            "url": { "type": "string", "description": "URL to query." }
         },
         "additionalProperties": false
     })

@@ -10,6 +10,7 @@ members = [
     "decision-gate-broker",
     "decision-gate-contract",
     "decision-gate-providers",
+    "decision-gate-store-sqlite",
     "decision-gate-mcp",
     "decision-gate-cli",
     "ret-logic",

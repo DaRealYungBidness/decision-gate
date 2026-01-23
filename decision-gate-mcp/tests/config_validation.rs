@@ -32,6 +32,7 @@ use decision_gate_mcp::DecisionGateConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::config::ProviderConfig;
 use decision_gate_mcp::config::ProviderType;
+use decision_gate_mcp::config::RunStateStoreConfig;
 use decision_gate_mcp::config::ServerConfig;
 use decision_gate_mcp::config::ServerTransport;
 use decision_gate_mcp::config::TrustConfig;
@@ -45,6 +46,7 @@ fn validate_server_config(
         server,
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
         providers: Vec::new(),
     };
     config.validate()
@@ -58,6 +60,7 @@ fn validate_provider_config(
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
         providers: vec![provider],
     };
     config.validate()
@@ -297,6 +300,96 @@ fn provider_mcp_with_https_url_valid() {
         config: None,
     };
     assert!(validate_provider_config(config).is_ok());
+}
+
+// ============================================================================
+// SECTION: Run State Store Validation Tests
+// ============================================================================
+
+/// Verifies sqlite run_state_store requires a path.
+#[test]
+fn run_state_store_sqlite_requires_path() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        run_state_store: RunStateStoreConfig {
+            store_type: decision_gate_mcp::config::RunStateStoreType::Sqlite,
+            path: None,
+            busy_timeout_ms: 5_000,
+            journal_mode: decision_gate_store_sqlite::SqliteStoreMode::Wal,
+            sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
+            max_versions: None,
+        },
+        providers: Vec::new(),
+    };
+    let result = config.validate();
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("run_state_store"));
+}
+
+/// Verifies memory run_state_store rejects a path.
+#[test]
+fn run_state_store_memory_rejects_path() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        run_state_store: RunStateStoreConfig {
+            store_type: decision_gate_mcp::config::RunStateStoreType::Memory,
+            path: Some(PathBuf::from("store.db")),
+            busy_timeout_ms: 5_000,
+            journal_mode: decision_gate_store_sqlite::SqliteStoreMode::Wal,
+            sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
+            max_versions: None,
+        },
+        providers: Vec::new(),
+    };
+    let result = config.validate();
+    assert!(result.is_err());
+}
+
+/// Verifies sqlite run_state_store accepts a valid path.
+#[test]
+fn run_state_store_sqlite_accepts_path() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        run_state_store: RunStateStoreConfig {
+            store_type: decision_gate_mcp::config::RunStateStoreType::Sqlite,
+            path: Some(PathBuf::from("store.db")),
+            busy_timeout_ms: 5_000,
+            journal_mode: decision_gate_store_sqlite::SqliteStoreMode::Wal,
+            sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
+            max_versions: Some(10),
+        },
+        providers: Vec::new(),
+    };
+    let result = config.validate();
+    assert!(result.is_ok());
+}
+
+/// Verifies sqlite run_state_store rejects max_versions of zero.
+#[test]
+fn run_state_store_sqlite_rejects_zero_retention() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        run_state_store: RunStateStoreConfig {
+            store_type: decision_gate_mcp::config::RunStateStoreType::Sqlite,
+            path: Some(PathBuf::from("store.db")),
+            busy_timeout_ms: 5_000,
+            journal_mode: decision_gate_store_sqlite::SqliteStoreMode::Wal,
+            sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
+            max_versions: Some(0),
+        },
+        providers: Vec::new(),
+    };
+    let result = config.validate();
+    assert!(result.is_err());
 }
 
 // ============================================================================

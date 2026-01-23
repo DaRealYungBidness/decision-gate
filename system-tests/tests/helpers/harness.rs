@@ -17,6 +17,7 @@ use decision_gate_mcp::config::DecisionGateConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::config::ProviderConfig;
 use decision_gate_mcp::config::ProviderType;
+use decision_gate_mcp::config::RunStateStoreConfig;
 use decision_gate_mcp::config::ServerConfig;
 use decision_gate_mcp::config::ServerTransport;
 use decision_gate_mcp::config::TrustConfig;
@@ -40,6 +41,12 @@ impl McpServerHandle {
     /// Builds an HTTP client for the server.
     pub fn client(&self, timeout: Duration) -> Result<McpHttpClient, String> {
         McpHttpClient::new(self.base_url.clone(), timeout)
+    }
+
+    /// Shuts down the server task.
+    pub async fn shutdown(self) {
+        self.join.abort();
+        let _ = self.join.await;
     }
 }
 
@@ -65,6 +72,7 @@ pub fn base_http_config(bind: &str) -> DecisionGateConfig {
         },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
         providers: builtin_providers(),
     }
 }

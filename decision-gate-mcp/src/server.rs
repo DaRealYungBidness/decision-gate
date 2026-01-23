@@ -32,6 +32,10 @@ use axum::response::IntoResponse;
 use axum::response::Sse;
 use axum::response::sse::Event;
 use axum::routing::post;
+use decision_gate_core::InMemoryRunStateStore;
+use decision_gate_core::SharedRunStateStore;
+use decision_gate_store_sqlite::SqliteRunStateStore;
+use decision_gate_store_sqlite::SqliteStoreConfig;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
@@ -39,6 +43,7 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use crate::capabilities::CapabilityRegistry;
 use crate::config::DecisionGateConfig;
+use crate::config::RunStateStoreType;
 use crate::config::ServerTransport;
 use crate::evidence::FederatedEvidenceProvider;
 use crate::tools::ToolDefinition;
@@ -68,7 +73,9 @@ impl McpServer {
             .map_err(|err| McpServerError::Init(err.to_string()))?;
         let capabilities = CapabilityRegistry::from_config(&config)
             .map_err(|err| McpServerError::Init(err.to_string()))?;
-        let router = ToolRouter::new(evidence, config.evidence.clone(), Arc::new(capabilities));
+        let store = build_run_state_store(&config)?;
+        let router =
+            ToolRouter::new(evidence, config.evidence.clone(), store, Arc::new(capabilities));
         Ok(Self {
             config,
             router,
@@ -88,6 +95,31 @@ impl McpServer {
             ServerTransport::Sse => serve_sse(self.config, self.router).await,
         }
     }
+}
+
+/// Builds the run state store from MCP configuration.
+fn build_run_state_store(
+    config: &DecisionGateConfig,
+) -> Result<SharedRunStateStore, McpServerError> {
+    let store = match config.run_state_store.store_type {
+        RunStateStoreType::Memory => SharedRunStateStore::from_store(InMemoryRunStateStore::new()),
+        RunStateStoreType::Sqlite => {
+            let path = config.run_state_store.path.clone().ok_or_else(|| {
+                McpServerError::Config("sqlite run_state_store requires path".to_string())
+            })?;
+            let sqlite_config = SqliteStoreConfig {
+                path,
+                busy_timeout_ms: config.run_state_store.busy_timeout_ms,
+                journal_mode: config.run_state_store.journal_mode,
+                sync_mode: config.run_state_store.sync_mode,
+                max_versions: config.run_state_store.max_versions,
+            };
+            let store = SqliteRunStateStore::new(sqlite_config)
+                .map_err(|err| McpServerError::Init(err.to_string()))?;
+            SharedRunStateStore::from_store(store)
+        }
+    };
+    Ok(store)
 }
 
 // ============================================================================

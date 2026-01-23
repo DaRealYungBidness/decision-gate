@@ -51,7 +51,10 @@ fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
     config.evidence = policy;
     let evidence = FederatedEvidenceProvider::from_config(&config).unwrap();
     let capabilities = CapabilityRegistry::from_config(&config).unwrap();
-    ToolRouter::new(evidence, config.evidence, std::sync::Arc::new(capabilities))
+    let store = decision_gate_core::SharedRunStateStore::from_store(
+        decision_gate_core::InMemoryRunStateStore::new(),
+    );
+    ToolRouter::new(evidence, config.evidence, store, std::sync::Arc::new(capabilities))
 }
 
 fn query_time_now(router: &ToolRouter) -> EvidenceQueryResponse {
