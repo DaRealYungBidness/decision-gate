@@ -18,6 +18,7 @@
 // SECTION: Modules
 // ============================================================================
 
+pub mod authoring;
 pub mod contract;
 pub mod examples;
 pub mod providers;
@@ -55,8 +56,12 @@ pub enum ContractError {
 // SECTION: Re-Exports
 // ============================================================================
 
+pub use authoring::AuthoringError;
+pub use authoring::AuthoringFormat;
+pub use authoring::NormalizedScenario;
 pub use contract::ContractBuilder;
 pub use types::ContractArtifact;
 pub use types::ContractBundle;
 pub use types::ContractManifest;
 pub use types::ManifestArtifact;
+pub use types::ToolName;

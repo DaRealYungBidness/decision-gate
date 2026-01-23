@@ -13,7 +13,9 @@ This document summarizes the MCP tool surface and expected usage. Full schemas a
 
 ## Artifact references
 
+- `authoring.md`: authoring formats and normalization guidance.
 - `examples/scenario.json`: full ScenarioSpec example.
+- `examples/scenario.ron`: authoring-friendly ScenarioSpec example.
 - `examples/run-config.json`: run config example for scenario_start.
 - `examples/decision-gate.toml`: MCP config example for providers.
 

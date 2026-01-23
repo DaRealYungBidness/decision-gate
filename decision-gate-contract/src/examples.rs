@@ -40,6 +40,7 @@ use decision_gate_core::identifiers::SpecVersion;
 use decision_gate_core::identifiers::StageId;
 use decision_gate_core::identifiers::TenantId;
 use ret_logic::Requirement;
+use ron::ser::PrettyConfig;
 use serde_json::Value;
 use serde_json::json;
 
@@ -59,6 +60,19 @@ pub fn scenario_example() -> ScenarioSpec {
         schemas: Vec::new(),
         default_tenant_id: None,
     }
+}
+
+/// Returns a RON authoring example for the canonical scenario spec.
+///
+/// # Errors
+///
+/// Returns a RON serialization error when the example cannot be rendered.
+#[must_use]
+pub fn scenario_example_ron() -> Result<String, ron::Error> {
+    let value = serde_json::to_value(scenario_example())
+        .map_err(|err| ron::Error::Message(err.to_string()))?;
+    let pretty = PrettyConfig::new().depth_limit(6).separate_tuple_members(true);
+    ron::ser::to_string_pretty(&value, pretty)
 }
 
 /// Returns a canonical example run configuration.

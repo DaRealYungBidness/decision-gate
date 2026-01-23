@@ -24,6 +24,7 @@ use std::io;
 use std::sync::Arc;
 
 use decision_gate_contract::ContractBuilder;
+use decision_gate_contract::ToolName;
 use decision_gate_contract::examples;
 use decision_gate_contract::schemas;
 use decision_gate_contract::types::ProviderContract;
@@ -225,7 +226,7 @@ fn tooling_and_provider_schemas_compile_and_examples_validate() -> Result<(), Bo
         let output_schema = compile_schema(&contract.output_schema, &resolver)?;
         let example = examples::scenario_example();
         let example_value = serde_json::to_value(example)?;
-        if contract.name == "scenario_define" {
+        if contract.name == ToolName::ScenarioDefine {
             let input = json!({ "spec": example_value });
             assert_valid(&input_schema, &input, "scenario_define input")?;
         }
@@ -236,7 +237,7 @@ fn tooling_and_provider_schemas_compile_and_examples_validate() -> Result<(), Bo
                 "value": "5c3a5b6bce0f4a2c9e22c4fa6a1e6d8d90b0f2dfed1b7f1e9b3d3b3d1f0c9b21"
             }
         });
-        if contract.name == "scenario_define" {
+        if contract.name == ToolName::ScenarioDefine {
             assert_valid(&output_schema, &output, "scenario_define output")?;
         }
     }

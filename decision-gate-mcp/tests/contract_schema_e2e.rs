@@ -29,6 +29,7 @@ use std::error::Error;
 use std::io;
 use std::sync::Arc;
 
+use decision_gate_contract::ToolName;
 use decision_gate_contract::schemas;
 use decision_gate_contract::tooling::tool_contracts;
 use decision_gate_core::EvidenceContext;
@@ -122,7 +123,7 @@ fn compile_schema(
 
 fn compile_tool_schemas(
     resolver: &ContractSchemaResolver,
-) -> Result<BTreeMap<String, ToolSchemas>, Box<dyn Error>> {
+) -> Result<BTreeMap<ToolName, ToolSchemas>, Box<dyn Error>> {
     let mut output = BTreeMap::new();
     for contract in tool_contracts() {
         let input = compile_schema(&contract.input_schema, resolver)?;
@@ -149,10 +150,10 @@ fn assert_valid(schema: &JSONSchema, instance: &Value, label: &str) -> Result<()
 }
 
 fn tool_schema<'a>(
-    map: &'a BTreeMap<String, ToolSchemas>,
-    name: &str,
+    map: &'a BTreeMap<ToolName, ToolSchemas>,
+    name: ToolName,
 ) -> Result<&'a ToolSchemas, Box<dyn Error>> {
-    map.get(name).ok_or_else(|| format!("missing tool schema: {name}").into())
+    map.get(&name).ok_or_else(|| format!("missing tool schema: {name}").into())
 }
 
 #[test]
@@ -168,7 +169,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
         spec,
     };
     let define_input = serde_json::to_value(&define_request)?;
-    let define_schema = tool_schema(&tool_schemas, "scenario_define")?;
+    let define_schema = tool_schema(&tool_schemas, ToolName::ScenarioDefine)?;
     assert_valid(&define_schema.input, &define_input, "scenario_define input")?;
     let define_output = router.handle_tool_call("scenario_define", define_input)?;
     assert_valid(&define_schema.output, &define_output, "scenario_define output")?;
@@ -186,7 +187,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
         issue_entry_packets: false,
     };
     let start_input = serde_json::to_value(&start_request)?;
-    let start_schema = tool_schema(&tool_schemas, "scenario_start")?;
+    let start_schema = tool_schema(&tool_schemas, ToolName::ScenarioStart)?;
     assert_valid(&start_schema.input, &start_input, "scenario_start input")?;
     let start_output = router.handle_tool_call("scenario_start", start_input)?;
     assert_valid(&start_schema.output, &start_output, "scenario_start output")?;
@@ -200,7 +201,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
         },
     };
     let status_input = serde_json::to_value(&status_request)?;
-    let status_schema = tool_schema(&tool_schemas, "scenario_status")?;
+    let status_schema = tool_schema(&tool_schemas, ToolName::ScenarioStatus)?;
     assert_valid(&status_schema.input, &status_input, "scenario_status input")?;
     let status_output = router.handle_tool_call("scenario_status", status_input)?;
     assert_valid(&status_schema.output, &status_output, "scenario_status output")?;
@@ -216,7 +217,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
         },
     };
     let next_input = serde_json::to_value(&next_request)?;
-    let next_schema = tool_schema(&tool_schemas, "scenario_next")?;
+    let next_schema = tool_schema(&tool_schemas, ToolName::ScenarioNext)?;
     assert_valid(&next_schema.input, &next_input, "scenario_next input")?;
     let next_output = router.handle_tool_call("scenario_next", next_input)?;
     assert_valid(&next_schema.output, &next_output, "scenario_next output")?;
@@ -235,7 +236,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
         },
     };
     let submit_input = serde_json::to_value(&submit_request)?;
-    let submit_schema = tool_schema(&tool_schemas, "scenario_submit")?;
+    let submit_schema = tool_schema(&tool_schemas, ToolName::ScenarioSubmit)?;
     assert_valid(&submit_schema.input, &submit_input, "scenario_submit input")?;
     let submit_output = router.handle_tool_call("scenario_submit", submit_input)?;
     assert_valid(&submit_schema.output, &submit_output, "scenario_submit output")?;
@@ -253,7 +254,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
         },
     };
     let trigger_input = serde_json::to_value(&trigger_request)?;
-    let trigger_schema = tool_schema(&tool_schemas, "scenario_trigger")?;
+    let trigger_schema = tool_schema(&tool_schemas, ToolName::ScenarioTrigger)?;
     assert_valid(&trigger_schema.input, &trigger_input, "scenario_trigger input")?;
     let trigger_output = router.handle_tool_call("scenario_trigger", trigger_input)?;
     assert_valid(&trigger_schema.output, &trigger_output, "scenario_trigger output")?;
@@ -276,7 +277,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
         context,
     };
     let evidence_input = serde_json::to_value(&evidence_request)?;
-    let evidence_schema = tool_schema(&tool_schemas, "evidence_query")?;
+    let evidence_schema = tool_schema(&tool_schemas, ToolName::EvidenceQuery)?;
     assert_valid(&evidence_schema.input, &evidence_input, "evidence_query input")?;
     let evidence_output = router.handle_tool_call("evidence_query", evidence_input)?;
     assert_valid(&evidence_schema.output, &evidence_output, "evidence_query output")?;
@@ -293,7 +294,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
         include_verification: true,
     };
     let export_input = serde_json::to_value(&export_request)?;
-    let export_schema = tool_schema(&tool_schemas, "runpack_export")?;
+    let export_schema = tool_schema(&tool_schemas, ToolName::RunpackExport)?;
     assert_valid(&export_schema.input, &export_input, "runpack_export input")?;
     let export_output = router.handle_tool_call("runpack_export", export_input)?;
     assert_valid(&export_schema.output, &export_output, "runpack_export output")?;
@@ -303,7 +304,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
         manifest_path: manifest_name,
     };
     let verify_input = serde_json::to_value(&verify_request)?;
-    let verify_schema = tool_schema(&tool_schemas, "runpack_verify")?;
+    let verify_schema = tool_schema(&tool_schemas, ToolName::RunpackVerify)?;
     assert_valid(&verify_schema.input, &verify_input, "runpack_verify input")?;
     let verify_output = router.handle_tool_call("runpack_verify", verify_input)?;
     assert_valid(&verify_schema.output, &verify_output, "runpack_verify output")?;

@@ -380,6 +380,7 @@ name = "decision-gate-cli"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "decision-gate-contract",
  "decision-gate-core",
  "decision-gate-mcp",
  "serde",
@@ -397,6 +398,7 @@ dependencies = [
  "decision-gate-core",
  "jsonschema",
  "ret-logic",
+ "ron",
  "serde",
  "serde_jcs",
  "serde_json",

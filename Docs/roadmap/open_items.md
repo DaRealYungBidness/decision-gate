@@ -63,6 +63,10 @@ Implementation plan: `Docs/roadmap/system_tests_world_class_plan.md`.
 requirements. Optionally accept RON as a human-friendly authoring input.
 **Why**: JSON is the most tooling-friendly and stable for codegen, schemas, and
 audits. YAML adds ambiguity and non-determinism without strong value here.
+**Status**: Implemented. `decision-gate authoring validate|normalize` supports
+JSON and RON, emits canonical JSON (RFC 8785), and enforces schema + spec
+validation. Contract artifacts now include `authoring.md` and
+`examples/scenario.ron`.
 **How**: Provide a conversion path in the contract crate or CLI that takes RON
 and emits canonical JSON. Do not store YAML as a primary format.
 
@@ -71,6 +75,9 @@ and emits canonical JSON. Do not store YAML as a primary format.
 and documentation) and keep it generated from the canonical contract.
 **Why**: MCP tools are the primary integration surface; drift-free tooling docs
 are essential for inspection and SDK generation.
+**Status**: Implemented. Tool names are modeled as `ToolName` enums with string
+wire compatibility; schemas, tooltips, and tooling docs remain generated from
+the contract bundle.
 **How**: Model tool names as a Rust enum internally (for correctness) while
 preserving string names on the wire. Generate tool schemas and tooltips from
 the contract crate so the website can render hoverable tooltips without manual

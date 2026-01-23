@@ -114,6 +114,31 @@ fn catalog() -> &'static HashMap<&'static str, &'static str> {
             ("runpack.verify.md.errors_header", "## Errors"),
             ("runpack.verify.md.error_line", "- {error}"),
             ("runpack.verify.md.no_errors", "- None"),
+            ("authoring.read_failed", "Failed to read authoring input at {path}: {error}"),
+            (
+                "authoring.format.missing",
+                "Unable to determine authoring format for {path}; specify --format.",
+            ),
+            ("authoring.parse_failed", "Failed to parse {format} input at {path}: {error}"),
+            ("authoring.schema_failed", "Schema validation failed for {path}: {error}"),
+            (
+                "authoring.deserialize_failed",
+                "Failed to deserialize ScenarioSpec from {path}: {error}",
+            ),
+            ("authoring.spec_failed", "ScenarioSpec validation failed for {path}: {error}"),
+            (
+                "authoring.canonicalize_failed",
+                "Failed to canonicalize ScenarioSpec from {path}: {error}",
+            ),
+            (
+                "authoring.normalize.write_failed",
+                "Failed to write normalized output to {path}: {error}",
+            ),
+            ("authoring.normalize.ok", "Normalized scenario written to {path}"),
+            (
+                "authoring.validate.ok",
+                "ScenarioSpec valid (scenario_id={scenario_id}, spec_hash={spec_hash})",
+            ),
         ])
     })
 }

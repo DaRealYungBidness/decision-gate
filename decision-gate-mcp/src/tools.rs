@@ -21,6 +21,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use decision_gate_contract::ToolName;
 pub use decision_gate_contract::tooling::ToolDefinition;
 use decision_gate_core::ArtifactReader;
 use decision_gate_core::DispatchReceipt;
@@ -107,53 +108,53 @@ impl ToolRouter {
     ///
     /// Returns [`ToolError`] when routing fails.
     pub fn handle_tool_call(&self, name: &str, payload: Value) -> Result<Value, ToolError> {
-        match name {
-            "scenario_define" => {
+        let tool = ToolName::parse(name).ok_or(ToolError::UnknownTool)?;
+        match tool {
+            ToolName::ScenarioDefine => {
                 let request = decode::<ScenarioDefineRequest>(payload)?;
                 let response = self.define_scenario(request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
-            "scenario_start" => {
+            ToolName::ScenarioStart => {
                 let request = decode::<ScenarioStartRequest>(payload)?;
                 let response = self.start_run(request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
-            "scenario_status" => {
+            ToolName::ScenarioStatus => {
                 let request = decode::<ScenarioStatusRequest>(payload)?;
                 let response = self.status(&request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
-            "scenario_next" => {
+            ToolName::ScenarioNext => {
                 let request = decode::<ScenarioNextRequest>(payload)?;
                 let response = self.next(&request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
-            "scenario_submit" => {
+            ToolName::ScenarioSubmit => {
                 let request = decode::<ScenarioSubmitRequest>(payload)?;
                 let response = self.submit(&request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
-            "scenario_trigger" => {
+            ToolName::ScenarioTrigger => {
                 let request = decode::<ScenarioTriggerRequest>(payload)?;
                 let response = self.trigger(&request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
-            "evidence_query" => {
+            ToolName::EvidenceQuery => {
                 let request = decode::<EvidenceQueryRequest>(payload)?;
                 let response = self.query_evidence(&request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
-            "runpack_export" => {
+            ToolName::RunpackExport => {
                 let request = decode::<RunpackExportRequest>(payload)?;
                 let response = self.export_runpack(&request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
-            "runpack_verify" => {
+            ToolName::RunpackVerify => {
                 let request = decode::<RunpackVerifyRequest>(payload)?;
                 let response = Self::verify_runpack(&request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
-            _ => Err(ToolError::UnknownTool),
         }
     }
 }

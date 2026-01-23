@@ -47,6 +47,10 @@ use clap::Parser;
 use clap::Subcommand;
 use clap::ValueEnum;
 use decision_gate_cli::t;
+use decision_gate_contract::AuthoringError;
+use decision_gate_contract::AuthoringFormat;
+use decision_gate_contract::authoring;
+use decision_gate_core::HashAlgorithm;
 use decision_gate_core::RunState;
 use decision_gate_core::RunpackManifest;
 use decision_gate_core::ScenarioSpec;
@@ -90,6 +94,12 @@ enum Commands {
         #[command(subcommand)]
         command: RunpackCommand,
     },
+    /// ScenarioSpec authoring utilities.
+    Authoring {
+        /// Selected authoring subcommand.
+        #[command(subcommand)]
+        command: AuthoringCommand,
+    },
 }
 
 /// Configuration for the `serve` command.
@@ -107,6 +117,49 @@ enum RunpackCommand {
     Export(RunpackExportCommand),
     /// Verify a runpack manifest against its artifacts.
     Verify(RunpackVerifyCommand),
+}
+
+/// Authoring subcommands.
+#[derive(Subcommand, Debug)]
+enum AuthoringCommand {
+    /// Validate a ScenarioSpec authoring input.
+    Validate(AuthoringValidateCommand),
+    /// Normalize a ScenarioSpec authoring input to canonical JSON.
+    Normalize(AuthoringNormalizeCommand),
+}
+
+/// Supported authoring formats for ScenarioSpec inputs.
+#[derive(ValueEnum, Copy, Clone, Debug)]
+enum AuthoringFormatArg {
+    /// Canonical JSON authoring format.
+    Json,
+    /// Human-friendly RON authoring format.
+    Ron,
+}
+
+/// Arguments for authoring validation.
+#[derive(Args, Debug)]
+struct AuthoringValidateCommand {
+    /// Path to the ScenarioSpec authoring input.
+    #[arg(long, value_name = "PATH")]
+    input: PathBuf,
+    /// Explicit authoring format override.
+    #[arg(long, value_enum, value_name = "FORMAT")]
+    format: Option<AuthoringFormatArg>,
+}
+
+/// Arguments for authoring normalization.
+#[derive(Args, Debug)]
+struct AuthoringNormalizeCommand {
+    /// Path to the ScenarioSpec authoring input.
+    #[arg(long, value_name = "PATH")]
+    input: PathBuf,
+    /// Explicit authoring format override.
+    #[arg(long, value_enum, value_name = "FORMAT")]
+    format: Option<AuthoringFormatArg>,
+    /// Output path for canonical JSON (defaults to stdout).
+    #[arg(long, value_name = "PATH")]
+    output: Option<PathBuf>,
 }
 
 /// Arguments for runpack export.
@@ -213,6 +266,9 @@ async fn run() -> CliResult<ExitCode> {
         Commands::Runpack {
             command,
         } => command_runpack(command),
+        Commands::Authoring {
+            command,
+        } => command_authoring(command),
     }
 }
 
@@ -280,6 +336,59 @@ fn command_runpack(command: RunpackCommand) -> CliResult<ExitCode> {
         RunpackCommand::Export(command) => command_runpack_export(&command),
         RunpackCommand::Verify(command) => command_runpack_verify(command),
     }
+}
+
+// ============================================================================
+// SECTION: Authoring Commands
+// ============================================================================
+
+/// Dispatches authoring subcommands.
+fn command_authoring(command: AuthoringCommand) -> CliResult<ExitCode> {
+    match command {
+        AuthoringCommand::Validate(command) => command_authoring_validate(&command),
+        AuthoringCommand::Normalize(command) => command_authoring_normalize(&command),
+    }
+}
+
+/// Executes the authoring validation command.
+fn command_authoring_validate(command: &AuthoringValidateCommand) -> CliResult<ExitCode> {
+    let normalized = normalize_authoring_input(&command.input, command.format)?;
+    let summary = t!(
+        "authoring.validate.ok",
+        scenario_id = normalized.spec.scenario_id.as_str(),
+        spec_hash = format_hash_digest(&normalized.spec_hash)
+    );
+    write_stdout_line(&summary).map_err(|err| CliError::new(output_error("stdout", &err)))?;
+    Ok(ExitCode::SUCCESS)
+}
+
+/// Executes the authoring normalization command.
+fn command_authoring_normalize(command: &AuthoringNormalizeCommand) -> CliResult<ExitCode> {
+    let normalized = normalize_authoring_input(&command.input, command.format)?;
+    let summary = t!(
+        "authoring.validate.ok",
+        scenario_id = normalized.spec.scenario_id.as_str(),
+        spec_hash = format_hash_digest(&normalized.spec_hash)
+    );
+
+    if let Some(output) = &command.output {
+        fs::write(output, &normalized.canonical_json).map_err(|err| {
+            CliError::new(t!(
+                "authoring.normalize.write_failed",
+                path = output.display(),
+                error = err
+            ))
+        })?;
+        write_stdout_line(&t!("authoring.normalize.ok", path = output.display()))
+            .map_err(|err| CliError::new(output_error("stdout", &err)))?;
+        write_stdout_line(&summary).map_err(|err| CliError::new(output_error("stdout", &err)))?;
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    write_stdout_bytes(&normalized.canonical_json)
+        .map_err(|err| CliError::new(output_error("stdout", &err)))?;
+    write_stderr_line(&summary).map_err(|err| CliError::new(output_error("stderr", &err)))?;
+    Ok(ExitCode::SUCCESS)
 }
 
 /// Executes the runpack export command.
@@ -476,6 +585,80 @@ fn format_verification_status(status: VerificationStatus) -> String {
 }
 
 // ============================================================================
+// SECTION: Authoring Helpers
+// ============================================================================
+
+/// Resolves an authoring format from flags or file extension.
+fn resolve_authoring_format(
+    path: &Path,
+    format: Option<AuthoringFormatArg>,
+) -> CliResult<AuthoringFormat> {
+    if let Some(format) = format {
+        return Ok(format.into());
+    }
+    authoring::detect_format(path)
+        .ok_or_else(|| CliError::new(t!("authoring.format.missing", path = path.display())))
+}
+
+/// Reads authoring input from disk.
+fn read_authoring_input(path: &Path) -> CliResult<String> {
+    fs::read_to_string(path).map_err(|err| {
+        CliError::new(t!("authoring.read_failed", path = path.display(), error = err))
+    })
+}
+
+/// Normalizes ScenarioSpec authoring input and maps errors to CLI messages.
+fn normalize_authoring_input(
+    path: &Path,
+    format: Option<AuthoringFormatArg>,
+) -> CliResult<decision_gate_contract::NormalizedScenario> {
+    let input = read_authoring_input(path)?;
+    let format = resolve_authoring_format(path, format)?;
+    authoring::normalize_scenario(&input, format).map_err(|err| map_authoring_error(err, path))
+}
+
+/// Maps authoring errors into localized CLI messages.
+fn map_authoring_error(error: AuthoringError, path: &Path) -> CliError {
+    let message = match error {
+        AuthoringError::Parse {
+            format,
+            error,
+        } => t!("authoring.parse_failed", format = format, path = path.display(), error = error),
+        AuthoringError::Schema {
+            error,
+        } => t!("authoring.schema_failed", path = path.display(), error = error),
+        AuthoringError::Deserialize {
+            error,
+        } => t!("authoring.deserialize_failed", path = path.display(), error = error),
+        AuthoringError::Spec {
+            error,
+        } => t!("authoring.spec_failed", path = path.display(), error = error),
+        AuthoringError::Canonicalization {
+            error,
+        } => t!("authoring.canonicalize_failed", path = path.display(), error = error),
+    };
+    CliError::new(message)
+}
+
+/// Formats a hash digest for CLI output.
+fn format_hash_digest(digest: &decision_gate_core::HashDigest) -> String {
+    let algorithm = match digest.algorithm {
+        HashAlgorithm::Sha256 => "sha256",
+    };
+    format!("{algorithm}:{}", digest.value)
+}
+
+/// Converts CLI format selection to authoring formats.
+impl From<AuthoringFormatArg> for AuthoringFormat {
+    fn from(value: AuthoringFormatArg) -> Self {
+        match value {
+            AuthoringFormatArg::Json => AuthoringFormat::Json,
+            AuthoringFormatArg::Ron => AuthoringFormat::Ron,
+        }
+    }
+}
+
+// ============================================================================
 // SECTION: Output Helpers
 // ============================================================================
 
@@ -483,6 +666,12 @@ fn format_verification_status(status: VerificationStatus) -> String {
 fn write_stdout_line(message: &str) -> std::io::Result<()> {
     let mut stdout = std::io::stdout();
     writeln!(&mut stdout, "{message}")
+}
+
+/// Writes raw bytes to stdout without adding a newline.
+fn write_stdout_bytes(bytes: &[u8]) -> std::io::Result<()> {
+    let mut stdout = std::io::stdout();
+    stdout.write_all(bytes)
 }
 
 /// Writes a single line to stderr.

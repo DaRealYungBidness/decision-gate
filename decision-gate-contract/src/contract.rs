@@ -30,6 +30,7 @@ use serde::Serialize;
 use serde_jcs;
 
 use crate::ContractError;
+use crate::authoring;
 use crate::examples;
 use crate::providers;
 use crate::schemas;
@@ -81,6 +82,7 @@ impl ContractBuilder {
         let tool_contracts = tooling::tool_contracts();
         let provider_contracts = providers::provider_contracts();
         let mut artifacts = vec![
+            markdown_artifact("authoring.md", authoring::authoring_markdown()),
             json_artifact("tooling.json", &tool_contracts)?,
             markdown_artifact("tooling.md", tooling::tooling_markdown(&tool_contracts)),
             json_artifact("tooltips.json", &tooltips::tooltips())?,
@@ -89,6 +91,12 @@ impl ContractBuilder {
             json_artifact("schemas/scenario.schema.json", &schemas::scenario_schema())?,
             json_artifact("schemas/config.schema.json", &schemas::config_schema())?,
             json_artifact("examples/scenario.json", &examples::scenario_example())?,
+            text_artifact(
+                "examples/scenario.ron",
+                examples::scenario_example_ron()
+                    .map_err(|err| ContractError::Serialization(err.to_string()))?,
+                "text/plain",
+            ),
             json_artifact("examples/run-config.json", &examples::run_config_example())?,
             text_artifact(
                 "examples/decision-gate.toml",

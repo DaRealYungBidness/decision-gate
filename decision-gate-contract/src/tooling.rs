@@ -25,6 +25,7 @@ use crate::examples;
 use crate::schemas;
 use crate::types::ToolContract;
 pub use crate::types::ToolDefinition;
+use crate::types::ToolName;
 
 // ============================================================================
 // SECTION: Tool Contracts
@@ -36,7 +37,7 @@ pub use crate::types::ToolDefinition;
 pub fn tool_contracts() -> Vec<ToolContract> {
     vec![
         build_tool_contract(
-            "scenario_define",
+            ToolName::ScenarioDefine,
             "Register a ScenarioSpec, validate it, and return the canonical hash used for \
              integrity checks.",
             scenario_define_input_schema(),
@@ -51,7 +52,7 @@ pub fn tool_contracts() -> Vec<ToolContract> {
             ],
         ),
         build_tool_contract(
-            "scenario_start",
+            ToolName::ScenarioStart,
             "Create a new run state for a scenario and optionally emit entry packets.",
             scenario_start_input_schema(),
             schemas::run_state_schema(),
@@ -65,7 +66,7 @@ pub fn tool_contracts() -> Vec<ToolContract> {
             ],
         ),
         build_tool_contract(
-            "scenario_status",
+            ToolName::ScenarioStatus,
             "Fetch a read-only run snapshot and safe summary without changing state.",
             scenario_status_input_schema(),
             schemas::scenario_status_schema(),
@@ -76,7 +77,7 @@ pub fn tool_contracts() -> Vec<ToolContract> {
             ],
         ),
         build_tool_contract(
-            "scenario_next",
+            ToolName::ScenarioNext,
             "Evaluate gates in response to an agent-driven next request.",
             scenario_next_input_schema(),
             schemas::next_result_schema(),
@@ -87,7 +88,7 @@ pub fn tool_contracts() -> Vec<ToolContract> {
             ],
         ),
         build_tool_contract(
-            "scenario_submit",
+            ToolName::ScenarioSubmit,
             "Submit external artifacts into run state for audit and later evaluation.",
             scenario_submit_input_schema(),
             schemas::submit_result_schema(),
@@ -98,7 +99,7 @@ pub fn tool_contracts() -> Vec<ToolContract> {
             ],
         ),
         build_tool_contract(
-            "scenario_trigger",
+            ToolName::ScenarioTrigger,
             "Submit a trigger event (scheduler/external) and evaluate the run.",
             scenario_trigger_input_schema(),
             schemas::trigger_result_schema(),
@@ -109,7 +110,7 @@ pub fn tool_contracts() -> Vec<ToolContract> {
             ],
         ),
         build_tool_contract(
-            "evidence_query",
+            ToolName::EvidenceQuery,
             "Query an evidence provider with full run context and disclosure policy.",
             evidence_query_input_schema(),
             evidence_query_output_schema(),
@@ -122,7 +123,7 @@ pub fn tool_contracts() -> Vec<ToolContract> {
             ],
         ),
         build_tool_contract(
-            "runpack_export",
+            ToolName::RunpackExport,
             "Export deterministic runpack artifacts for offline verification.",
             runpack_export_input_schema(),
             runpack_export_output_schema(),
@@ -134,7 +135,7 @@ pub fn tool_contracts() -> Vec<ToolContract> {
             ],
         ),
         build_tool_contract(
-            "runpack_verify",
+            ToolName::RunpackVerify,
             "Verify a runpack manifest and artifacts offline.",
             runpack_verify_input_schema(),
             runpack_verify_output_schema(),
@@ -179,14 +180,16 @@ pub fn tooling_markdown(contracts: &[ToolContract]) -> String {
     out.push_str("- `scenario_submit` appends external artifacts for audit and later checks.\n");
     out.push_str("- `runpack_export` and `runpack_verify` support offline verification.\n\n");
     out.push_str("## Artifact references\n\n");
+    out.push_str("- `authoring.md`: authoring formats and normalization guidance.\n");
     out.push_str("- `examples/scenario.json`: full ScenarioSpec example.\n");
+    out.push_str("- `examples/scenario.ron`: authoring-friendly ScenarioSpec example.\n");
     out.push_str("- `examples/run-config.json`: run config example for scenario_start.\n");
     out.push_str("- `examples/decision-gate.toml`: MCP config example for providers.\n\n");
     out.push_str("| Tool | Description |\n");
     out.push_str("| --- | --- |\n");
     for contract in contracts {
         out.push_str("| ");
-        out.push_str(&contract.name);
+        out.push_str(contract.name.as_str());
         out.push_str(" | ");
         out.push_str(&contract.description);
         out.push_str(" |\n");
@@ -194,7 +197,7 @@ pub fn tooling_markdown(contracts: &[ToolContract]) -> String {
     out.push('\n');
     for contract in contracts {
         out.push_str("## ");
-        out.push_str(&contract.name);
+        out.push_str(contract.name.as_str());
         out.push('\n');
         out.push('\n');
         out.push_str(contract.description.as_str());
@@ -215,7 +218,7 @@ pub fn tooling_markdown(contracts: &[ToolContract]) -> String {
             }
             out.push('\n');
         }
-        append_tool_examples(&mut out, &contract.name);
+        append_tool_examples(&mut out, contract.name);
     }
     out
 }
@@ -329,10 +332,8 @@ fn schema_is_nullable(schema: &Value) -> bool {
 }
 
 /// Append example input/output payloads for a tool, if defined.
-fn append_tool_examples(out: &mut String, tool_name: &str) {
-    let Some(examples) = tool_examples(tool_name) else {
-        return;
-    };
+fn append_tool_examples(out: &mut String, tool_name: ToolName) {
+    let examples = tool_examples(tool_name);
     if examples.is_empty() {
         return;
     }
@@ -363,9 +364,9 @@ fn render_json_block(out: &mut String, value: &Value) {
 
 /// Return example payloads for a tool, if any are defined.
 #[allow(clippy::too_many_lines, reason = "long static list of tool examples for documentation")]
-fn tool_examples(tool_name: &str) -> Option<Vec<ToolExample>> {
+fn tool_examples(tool_name: ToolName) -> Vec<ToolExample> {
     match tool_name {
-        "scenario_define" => Some(vec![ToolExample {
+        ToolName::ScenarioDefine => vec![ToolExample {
             description: "Register the example scenario spec.",
             input: json!({
                 "spec": example_scenario_spec()
@@ -374,8 +375,8 @@ fn tool_examples(tool_name: &str) -> Option<Vec<ToolExample>> {
                 "scenario_id": EXAMPLE_SCENARIO_ID,
                 "spec_hash": example_hash_digest()
             }),
-        }]),
-        "scenario_start" => Some(vec![ToolExample {
+        }],
+        ToolName::ScenarioStart => vec![ToolExample {
             description: "Start a run for the example scenario and issue entry packets.",
             input: json!({
                 "scenario_id": EXAMPLE_SCENARIO_ID,
@@ -384,8 +385,8 @@ fn tool_examples(tool_name: &str) -> Option<Vec<ToolExample>> {
                 "issue_entry_packets": true
             }),
             output: example_run_state(),
-        }]),
-        "scenario_status" => Some(vec![ToolExample {
+        }],
+        ToolName::ScenarioStatus => vec![ToolExample {
             description: "Poll run status without advancing the run.",
             input: json!({
                 "scenario_id": EXAMPLE_SCENARIO_ID,
@@ -404,8 +405,8 @@ fn tool_examples(tool_name: &str) -> Option<Vec<ToolExample>> {
                 "issued_packet_ids": [],
                 "safe_summary": null
             }),
-        }]),
-        "scenario_next" => Some(vec![ToolExample {
+        }],
+        ToolName::ScenarioNext => vec![ToolExample {
             description: "Evaluate the next agent-driven step for a run.",
             input: json!({
                 "scenario_id": EXAMPLE_SCENARIO_ID,
@@ -422,8 +423,8 @@ fn tool_examples(tool_name: &str) -> Option<Vec<ToolExample>> {
                 "packets": [],
                 "status": "completed"
             }),
-        }]),
-        "scenario_submit" => Some(vec![ToolExample {
+        }],
+        ToolName::ScenarioSubmit => vec![ToolExample {
             description: "Submit an external artifact for audit and later evaluation.",
             input: json!({
                 "scenario_id": EXAMPLE_SCENARIO_ID,
@@ -445,8 +446,8 @@ fn tool_examples(tool_name: &str) -> Option<Vec<ToolExample>> {
             output: json!({
                 "record": example_submission_record()
             }),
-        }]),
-        "scenario_trigger" => Some(vec![ToolExample {
+        }],
+        ToolName::ScenarioTrigger => vec![ToolExample {
             description: "Advance a run from a scheduler or external trigger.",
             input: json!({
                 "scenario_id": EXAMPLE_SCENARIO_ID,
@@ -465,8 +466,8 @@ fn tool_examples(tool_name: &str) -> Option<Vec<ToolExample>> {
                 "packets": [],
                 "status": "completed"
             }),
-        }]),
-        "evidence_query" => Some(vec![ToolExample {
+        }],
+        ToolName::EvidenceQuery => vec![ToolExample {
             description: "Query an evidence provider using the run context.",
             input: json!({
                 "query": {
@@ -500,8 +501,8 @@ fn tool_examples(tool_name: &str) -> Option<Vec<ToolExample>> {
                     "content_type": "text/plain"
                 }
             }),
-        }]),
-        "runpack_export" => Some(vec![ToolExample {
+        }],
+        ToolName::RunpackExport => vec![ToolExample {
             description: "Export a runpack with manifest metadata.",
             input: json!({
                 "scenario_id": EXAMPLE_SCENARIO_ID,
@@ -515,8 +516,8 @@ fn tool_examples(tool_name: &str) -> Option<Vec<ToolExample>> {
                 "manifest": example_runpack_manifest(),
                 "report": null
             }),
-        }]),
-        "runpack_verify" => Some(vec![ToolExample {
+        }],
+        ToolName::RunpackVerify => vec![ToolExample {
             description: "Verify a runpack manifest and artifacts offline.",
             input: json!({
                 "runpack_dir": "/var/lib/decision-gate/runpacks/run-0001",
@@ -530,8 +531,7 @@ fn tool_examples(tool_name: &str) -> Option<Vec<ToolExample>> {
                 },
                 "status": "pass"
             }),
-        }]),
-        _ => None,
+        }],
     }
 }
 
@@ -853,14 +853,14 @@ fn runpack_verify_output_schema() -> Value {
 /// Builds a tool contract from the provided schema payloads.
 #[must_use]
 fn build_tool_contract(
-    name: &str,
+    name: ToolName,
     description: &str,
     input_schema: Value,
     output_schema: Value,
     notes: Vec<String>,
 ) -> ToolContract {
     ToolContract {
-        name: name.to_string(),
+        name,
         description: description.to_string(),
         input_schema,
         output_schema,
@@ -1042,9 +1042,10 @@ mod tests {
         for contract in tool_contracts() {
             let input_schema = compile_schema(&contract.input_schema, &resolver);
             let output_schema = compile_schema(&contract.output_schema, &resolver);
-            let Some(examples) = tool_examples(&contract.name) else {
+            let examples = tool_examples(contract.name);
+            if examples.is_empty() {
                 continue;
-            };
+            }
             for example in examples {
                 let result = input_schema.validate(&example.input);
                 assert!(result.is_ok(), "input example failed for {}", contract.name);

@@ -36,7 +36,7 @@ async fn http_transport_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let tools = client.list_tools().await?;
-    let names: Vec<String> = tools.into_iter().map(|tool| tool.name).collect();
+    let names: Vec<String> = tools.into_iter().map(|tool| tool.name.as_str().to_string()).collect();
     assert!(names.contains(&"scenario_define".to_string()));
 
     let fixture = ScenarioFixture::time_after("transport-scenario", "run-1", 0);
