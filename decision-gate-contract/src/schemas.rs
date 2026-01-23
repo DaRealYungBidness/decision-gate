@@ -1007,6 +1007,13 @@ fn provider_config_schema() -> Value {
                 "type": "boolean",
                 "default": false
             },
+            "capabilities_path": {
+                "oneOf": [
+                    { "type": "null" },
+                    schema_for_string("Path to provider capability contract JSON.")
+                ],
+                "default": null
+            },
             "auth": {
                 "oneOf": [
                     { "type": "null" },
@@ -1038,7 +1045,8 @@ fn provider_config_schema() -> Value {
                     "anyOf": [
                         { "required": ["command"] },
                         { "required": ["url"] }
-                    ]
+                    ],
+                    "required": ["capabilities_path"]
                 }
             }
         ],

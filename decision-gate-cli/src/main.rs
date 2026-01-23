@@ -94,7 +94,7 @@ enum Commands {
         #[command(subcommand)]
         command: RunpackCommand,
     },
-    /// ScenarioSpec authoring utilities.
+    /// `ScenarioSpec` authoring utilities.
     Authoring {
         /// Selected authoring subcommand.
         #[command(subcommand)]
@@ -122,13 +122,13 @@ enum RunpackCommand {
 /// Authoring subcommands.
 #[derive(Subcommand, Debug)]
 enum AuthoringCommand {
-    /// Validate a ScenarioSpec authoring input.
+    /// Validate a `ScenarioSpec` authoring input.
     Validate(AuthoringValidateCommand),
-    /// Normalize a ScenarioSpec authoring input to canonical JSON.
+    /// Normalize a `ScenarioSpec` authoring input to canonical JSON.
     Normalize(AuthoringNormalizeCommand),
 }
 
-/// Supported authoring formats for ScenarioSpec inputs.
+/// Supported authoring formats for `ScenarioSpec` inputs.
 #[derive(ValueEnum, Copy, Clone, Debug)]
 enum AuthoringFormatArg {
     /// Canonical JSON authoring format.
@@ -140,7 +140,7 @@ enum AuthoringFormatArg {
 /// Arguments for authoring validation.
 #[derive(Args, Debug)]
 struct AuthoringValidateCommand {
-    /// Path to the ScenarioSpec authoring input.
+    /// Path to the `ScenarioSpec` authoring input.
     #[arg(long, value_name = "PATH")]
     input: PathBuf,
     /// Explicit authoring format override.
@@ -151,7 +151,7 @@ struct AuthoringValidateCommand {
 /// Arguments for authoring normalization.
 #[derive(Args, Debug)]
 struct AuthoringNormalizeCommand {
-    /// Path to the ScenarioSpec authoring input.
+    /// Path to the `ScenarioSpec` authoring input.
     #[arg(long, value_name = "PATH")]
     input: PathBuf,
     /// Explicit authoring format override.
@@ -607,7 +607,7 @@ fn read_authoring_input(path: &Path) -> CliResult<String> {
     })
 }
 
-/// Normalizes ScenarioSpec authoring input and maps errors to CLI messages.
+/// Normalizes `ScenarioSpec` authoring input and maps errors to CLI messages.
 fn normalize_authoring_input(
     path: &Path,
     format: Option<AuthoringFormatArg>,
@@ -652,8 +652,8 @@ fn format_hash_digest(digest: &decision_gate_core::HashDigest) -> String {
 impl From<AuthoringFormatArg> for AuthoringFormat {
     fn from(value: AuthoringFormatArg) -> Self {
         match value {
-            AuthoringFormatArg::Json => AuthoringFormat::Json,
-            AuthoringFormatArg::Ron => AuthoringFormat::Ron,
+            AuthoringFormatArg::Json => Self::Json,
+            AuthoringFormatArg::Ron => Self::Ron,
         }
     }
 }

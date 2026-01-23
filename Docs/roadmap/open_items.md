@@ -88,8 +88,16 @@ maintenance.
 params schema, response schema, determinism class, and anchor expectations).
 **Why**: Capability metadata enables strict validation, richer errors, and
 automatic documentation. It also supports future SDK generation.
-**How**: Extend provider registry validation to verify predicate support and
-param schemas. Emit `providers.json` and tooltips from the same metadata.
+**Status**: Implemented. Capability contracts now include determinism and
+allowed comparator allow-lists; MCP config requires `capabilities_path` for
+external providers; `decision-gate-mcp` validates ScenarioSpec and evidence
+queries against the registry before execution. Tests cover comparator
+allow-lists, schema enforcement, and external provider contract loading.
+**How**: Maintain a `CapabilityRegistry` in `decision-gate-mcp` built from
+`decision-gate-contract` and external provider contract JSON files. Enforce:
+predicate existence, required params, JSON schema validation, and comparator
+allow-lists at scenario define time and evidence query time. Keep
+`providers.json` and `providers.md` generated from the same contract metadata.
 
 ## 6) Inbound AuthN/AuthZ for MCP Tool Calls
 **What**: Add explicit auth interfaces for MCP tool calls (token/mTLS and

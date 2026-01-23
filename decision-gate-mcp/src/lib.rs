@@ -30,6 +30,7 @@
 // SECTION: Modules
 // ============================================================================
 
+pub mod capabilities;
 pub mod config;
 pub mod evidence;
 pub mod runpack;

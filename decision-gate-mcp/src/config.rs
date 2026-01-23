@@ -224,6 +224,9 @@ pub struct ProviderConfig {
     /// Allow insecure HTTP for MCP providers.
     #[serde(default)]
     pub allow_insecure_http: bool,
+    /// Path to the provider capability contract JSON.
+    #[serde(default)]
+    pub capabilities_path: Option<PathBuf>,
     /// Optional authentication configuration for the provider.
     #[serde(default)]
     pub auth: Option<ProviderAuthConfig>,
@@ -245,11 +248,23 @@ impl ProviderConfig {
             return Err(ConfigError::Invalid("provider name is empty".to_string()));
         }
         match self.provider_type {
-            ProviderType::Builtin => Ok(()),
+            ProviderType::Builtin => {
+                if self.capabilities_path.is_some() {
+                    return Err(ConfigError::Invalid(
+                        "builtin provider does not accept capabilities_path".to_string(),
+                    ));
+                }
+                Ok(())
+            }
             ProviderType::Mcp => {
                 if self.command.is_empty() && self.url.as_deref().unwrap_or_default().is_empty() {
                     return Err(ConfigError::Invalid(
                         "mcp provider requires command or url".to_string(),
+                    ));
+                }
+                if self.capabilities_path.is_none() {
+                    return Err(ConfigError::Invalid(
+                        "mcp provider requires capabilities_path".to_string(),
                     ));
                 }
                 if let Some(url) = &self.url

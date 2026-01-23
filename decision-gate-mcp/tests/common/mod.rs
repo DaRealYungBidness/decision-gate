@@ -19,6 +19,8 @@
 // SECTION: Imports
 // ============================================================================
 
+use std::sync::Arc;
+
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
 use decision_gate_core::EvidenceContext;
@@ -41,7 +43,10 @@ use decision_gate_core::TriggerId;
 use decision_gate_mcp::DecisionGateConfig;
 use decision_gate_mcp::FederatedEvidenceProvider;
 use decision_gate_mcp::ToolRouter;
+use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::EvidencePolicyConfig;
+use decision_gate_mcp::config::ProviderConfig;
+use decision_gate_mcp::config::ProviderType;
 use decision_gate_mcp::config::ServerConfig;
 use decision_gate_mcp::config::TrustConfig;
 use serde_json::json;
@@ -57,7 +62,7 @@ pub fn sample_config() -> DecisionGateConfig {
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
-        providers: Vec::new(),
+        providers: builtin_providers(),
     }
 }
 
@@ -72,7 +77,32 @@ pub fn sample_evidence() -> FederatedEvidenceProvider {
 pub fn sample_router() -> ToolRouter {
     let config = sample_config();
     let evidence = FederatedEvidenceProvider::from_config(&config).unwrap();
-    ToolRouter::new(evidence, config.evidence)
+    let capabilities = CapabilityRegistry::from_config(&config).unwrap();
+    ToolRouter::new(evidence, config.evidence, Arc::new(capabilities))
+}
+
+fn builtin_providers() -> Vec<ProviderConfig> {
+    vec![
+        builtin_provider("time"),
+        builtin_provider("env"),
+        builtin_provider("json"),
+        builtin_provider("http"),
+    ]
+}
+
+fn builtin_provider(name: &str) -> ProviderConfig {
+    ProviderConfig {
+        name: name.to_string(),
+        provider_type: ProviderType::Builtin,
+        command: Vec::new(),
+        url: None,
+        allow_insecure_http: false,
+        capabilities_path: None,
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        config: None,
+    }
 }
 
 /// Creates a minimal scenario spec for testing.

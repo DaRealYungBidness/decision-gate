@@ -52,7 +52,7 @@ impl SystemTestEnv {
 // ============================================================================
 
 /// Typed system test configuration derived from environment variables.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SystemTestConfig {
     /// Optional run root override.
     pub run_root: Option<PathBuf>,
@@ -64,33 +64,25 @@ pub struct SystemTestConfig {
     pub timeout: Option<Duration>,
 }
 
-impl Default for SystemTestConfig {
-    fn default() -> Self {
-        Self {
-            run_root: None,
-            http_bind: None,
-            provider_url: None,
-            timeout: None,
-        }
-    }
-}
-
 impl SystemTestConfig {
     /// Loads configuration from environment variables.
-    #[must_use]
-    pub fn load() -> Self {
-        let run_root = read_env_strict(SystemTestEnv::RunRoot.as_str()).map(PathBuf::from);
-        let http_bind = read_env_strict(SystemTestEnv::HttpBind.as_str());
-        let provider_url = read_env_strict(SystemTestEnv::ProviderUrl.as_str());
-        let timeout = read_env_strict(SystemTestEnv::TimeoutSeconds.as_str())
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when an environment value is not valid UTF-8.
+    pub fn load() -> Result<Self, String> {
+        let run_root = read_env_strict(SystemTestEnv::RunRoot.as_str())?.map(PathBuf::from);
+        let http_bind = read_env_strict(SystemTestEnv::HttpBind.as_str())?;
+        let provider_url = read_env_strict(SystemTestEnv::ProviderUrl.as_str())?;
+        let timeout = read_env_strict(SystemTestEnv::TimeoutSeconds.as_str())?
             .and_then(|value| value.parse::<u64>().ok())
             .map(Duration::from_secs);
-        Self {
+        Ok(Self {
             run_root,
             http_bind,
             provider_url,
             timeout,
-        }
+        })
     }
 }
 
@@ -100,17 +92,11 @@ impl SystemTestConfig {
 
 /// Reads an environment variable and enforces UTF-8 validity.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics when the environment variable contains invalid UTF-8.
-#[must_use]
-pub fn read_env_strict(name: &str) -> Option<String> {
-    if let Some(raw) = std::env::var_os(name) {
-        match raw.into_string() {
-            Ok(value) => Some(value),
-            Err(_) => panic!("{name} must be valid UTF-8"),
-        }
-    } else {
-        None
-    }
+/// Returns an error when the environment variable contains invalid UTF-8.
+pub fn read_env_strict(name: &str) -> Result<Option<String>, String> {
+    std::env::var_os(name).map_or(Ok(None), |raw| {
+        raw.into_string().map(Some).map_err(|_| format!("{name} must be valid UTF-8"))
+    })
 }

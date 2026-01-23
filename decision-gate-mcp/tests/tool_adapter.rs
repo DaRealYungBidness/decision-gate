@@ -21,6 +21,8 @@
     reason = "Test-only output and panic-based assertions are permitted."
 )]
 
+use std::sync::Arc;
+
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
 use decision_gate_core::DispatchReceipt;
@@ -51,7 +53,10 @@ use decision_gate_core::runtime::NextResult;
 use decision_gate_mcp::DecisionGateConfig;
 use decision_gate_mcp::FederatedEvidenceProvider;
 use decision_gate_mcp::ToolRouter;
+use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::EvidencePolicyConfig;
+use decision_gate_mcp::config::ProviderConfig;
+use decision_gate_mcp::config::ProviderType;
 use decision_gate_mcp::config::ServerConfig;
 use decision_gate_mcp::config::TrustConfig;
 use serde_json::json;
@@ -116,6 +121,21 @@ fn sample_spec() -> ScenarioSpec {
     }
 }
 
+fn builtin_provider(name: &str) -> ProviderConfig {
+    ProviderConfig {
+        name: name.to_string(),
+        provider_type: ProviderType::Builtin,
+        command: Vec::new(),
+        url: None,
+        allow_insecure_http: false,
+        capabilities_path: None,
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        config: None,
+    }
+}
+
 /// Tests mcp tools match core control plane.
 #[test]
 fn mcp_tools_match_core_control_plane() {
@@ -123,10 +143,11 @@ fn mcp_tools_match_core_control_plane() {
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
-        providers: Vec::new(),
+        providers: vec![builtin_provider("time")],
     };
     let evidence = FederatedEvidenceProvider::from_config(&config).unwrap();
-    let router = ToolRouter::new(evidence.clone(), config.evidence);
+    let capabilities = CapabilityRegistry::from_config(&config).unwrap();
+    let router = ToolRouter::new(evidence.clone(), config.evidence, Arc::new(capabilities));
 
     let define = decision_gate_mcp::tools::ScenarioDefineRequest {
         spec: sample_spec(),

@@ -65,6 +65,8 @@ use serde::Serialize;
 use serde_json::Value;
 use thiserror::Error;
 
+use crate::capabilities::CapabilityError;
+use crate::capabilities::CapabilityRegistry;
 use crate::config::EvidencePolicyConfig;
 use crate::evidence::FederatedEvidenceProvider;
 use crate::runpack::FileArtifactReader;
@@ -83,16 +85,23 @@ pub struct ToolRouter {
     evidence: FederatedEvidenceProvider,
     /// Evidence disclosure policy configuration.
     evidence_policy: EvidencePolicyConfig,
+    /// Capability registry used for preflight validation.
+    capabilities: Arc<CapabilityRegistry>,
 }
 
 impl ToolRouter {
     /// Creates a new tool router.
     #[must_use]
-    pub fn new(evidence: FederatedEvidenceProvider, evidence_policy: EvidencePolicyConfig) -> Self {
+    pub fn new(
+        evidence: FederatedEvidenceProvider,
+        evidence_policy: EvidencePolicyConfig,
+        capabilities: Arc<CapabilityRegistry>,
+    ) -> Self {
         Self {
             state: Arc::new(Mutex::new(RouterState::default())),
             evidence,
             evidence_policy,
+            capabilities,
         }
     }
 
@@ -331,6 +340,8 @@ impl ToolRouter {
             }
         }
 
+        self.capabilities.validate_spec(&request.spec).map_err(ToolError::from)?;
+
         let store = InMemoryRunStateStore::new();
         let dispatcher = McpDispatcher::new(DEFAULT_HASH_ALGORITHM);
         let policy = PermitAll;
@@ -417,6 +428,7 @@ impl ToolRouter {
         &self,
         request: &EvidenceQueryRequest,
     ) -> Result<EvidenceQueryResponse, ToolError> {
+        self.capabilities.validate_query(&request.query).map_err(ToolError::from)?;
         let mut result = self
             .evidence
             .query(&request.query, &request.context)
@@ -602,6 +614,14 @@ pub enum ToolError {
     /// Tool payload deserialization failed.
     #[error("invalid parameters: {0}")]
     InvalidParams(String),
+    /// Capability registry validation error.
+    #[error("capability violation: {code}: {message}")]
+    CapabilityViolation {
+        /// Stable error code.
+        code: String,
+        /// Human-readable message.
+        message: String,
+    },
     /// Scenario not found.
     #[error("not found: {0}")]
     NotFound(String),
@@ -620,6 +640,15 @@ pub enum ToolError {
     /// Internal error.
     #[error("internal error: {0}")]
     Internal(String),
+}
+
+impl From<CapabilityError> for ToolError {
+    fn from(error: CapabilityError) -> Self {
+        Self::CapabilityViolation {
+            code: error.code().to_string(),
+            message: error.to_string(),
+        }
+    }
 }
 
 /// Decodes a JSON value into a typed request payload.

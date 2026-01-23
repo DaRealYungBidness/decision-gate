@@ -67,7 +67,7 @@ pub fn scenario_example() -> ScenarioSpec {
 /// # Errors
 ///
 /// Returns a RON serialization error when the example cannot be rendered.
-#[must_use]
+#[must_use = "use the rendered RON example or handle the error"]
 pub fn scenario_example_ron() -> Result<String, ron::Error> {
     let value = serde_json::to_value(scenario_example())
         .map_err(|err| ron::Error::Message(err.to_string()))?;

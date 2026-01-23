@@ -143,5 +143,17 @@ pub fn tooltips() -> TooltipCatalog {
         String::from("config.providers"),
         String::from("Provider registrations for built-in and external MCP providers."),
     );
+    catalog.insert(
+        String::from("config.providers.capabilities_path"),
+        String::from("Path to the provider capability contract JSON for MCP providers."),
+    );
+    catalog.insert(
+        String::from("provider.predicates.determinism"),
+        String::from("Determinism class for predicate outputs (deterministic/time/external)."),
+    );
+    catalog.insert(
+        String::from("provider.predicates.allowed_comparators"),
+        String::from("Comparator allow-list enforced during scenario authoring."),
+    );
     catalog
 }

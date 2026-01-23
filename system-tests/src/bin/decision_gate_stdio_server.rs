@@ -8,6 +8,8 @@
 
 //! Stdio MCP server binary for system-tests.
 
+use std::io::Write;
+
 use decision_gate_mcp::DecisionGateConfig;
 use decision_gate_mcp::McpServer;
 
@@ -16,7 +18,7 @@ async fn main() {
     let config = match DecisionGateConfig::load(None) {
         Ok(config) => config,
         Err(err) => {
-            eprintln!("decision-gate-stdio-server: config load failed: {err}");
+            write_stderr_line(&format!("decision-gate-stdio-server: config load failed: {err}"));
             std::process::exit(1);
         }
     };
@@ -25,18 +27,24 @@ async fn main() {
         Ok(result) => match result {
             Ok(server) => server,
             Err(err) => {
-                eprintln!("decision-gate-stdio-server: init failed: {err}");
+                write_stderr_line(&format!("decision-gate-stdio-server: init failed: {err}"));
                 std::process::exit(1);
             }
         },
         Err(err) => {
-            eprintln!("decision-gate-stdio-server: init join failed: {err}");
+            write_stderr_line(&format!("decision-gate-stdio-server: init join failed: {err}"));
             std::process::exit(1);
         }
     };
 
     if let Err(err) = server.serve().await {
-        eprintln!("decision-gate-stdio-server: server failed: {err}");
+        write_stderr_line(&format!("decision-gate-stdio-server: server failed: {err}"));
         std::process::exit(1);
     }
+}
+
+/// Writes a single line to stderr without panicking.
+fn write_stderr_line(message: &str) {
+    let mut stderr = std::io::stderr();
+    let _ = writeln!(&mut stderr, "{message}");
 }

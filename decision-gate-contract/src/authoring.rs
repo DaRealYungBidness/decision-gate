@@ -7,7 +7,7 @@
 // ============================================================================
 
 //! ## Overview
-//! This module validates and normalizes ScenarioSpec authoring inputs. JSON is
+//! This module validates and normalizes `ScenarioSpec` authoring inputs. JSON is
 //! the canonical format; RON is accepted for human-friendly authoring and is
 //! normalized into canonical JSON (RFC 8785 / JCS).
 //! Security posture: authoring inputs are untrusted; see
@@ -35,7 +35,7 @@ use crate::schemas;
 // SECTION: Authoring Formats
 // ============================================================================
 
-/// Supported authoring formats for ScenarioSpec.
+/// Supported authoring formats for `ScenarioSpec`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthoringFormat {
     /// Canonical JSON authoring format.
@@ -81,7 +81,7 @@ impl fmt::Display for AuthoringFormat {
 // SECTION: Normalized Outputs
 // ============================================================================
 
-/// Normalized ScenarioSpec output with canonical JSON and hash metadata.
+/// Normalized `ScenarioSpec` output with canonical JSON and hash metadata.
 #[derive(Debug, Clone)]
 pub struct NormalizedScenario {
     /// Parsed scenario specification.
@@ -113,16 +113,16 @@ pub enum AuthoringError {
         /// Schema validation details.
         error: String,
     },
-    /// Failed to deserialize into core ScenarioSpec types.
+    /// Failed to deserialize into core `ScenarioSpec` types.
     #[error("failed to deserialize ScenarioSpec: {error}")]
     Deserialize {
         /// Deserialization error details.
         error: String,
     },
-    /// ScenarioSpec semantic validation failed.
+    /// `ScenarioSpec` semantic validation failed.
     #[error("ScenarioSpec validation failed: {error}")]
     Spec {
-        /// ScenarioSpec validation error details.
+        /// `ScenarioSpec` validation error details.
         error: String,
     },
     /// Canonical JSON serialization failed.
@@ -145,13 +145,13 @@ pub fn detect_format(path: &Path) -> Option<AuthoringFormat> {
         .and_then(AuthoringFormat::from_extension)
 }
 
-/// Normalize ScenarioSpec authoring input into canonical JSON bytes.
+/// Normalize `ScenarioSpec` authoring input into canonical JSON bytes.
 ///
 /// # Errors
 ///
 /// Returns [`AuthoringError`] when parsing, validation, or canonicalization
 /// fails.
-#[must_use]
+#[must_use = "use the normalized scenario output or handle the error"]
 pub fn normalize_scenario(
     input: &str,
     format: AuthoringFormat,
@@ -239,7 +239,7 @@ fn parse_value(input: &str, format: AuthoringFormat) -> Result<Value, AuthoringE
     }
 }
 
-/// Validate ScenarioSpec input against the JSON schema.
+/// Validate `ScenarioSpec` input against the JSON schema.
 fn validate_scenario_schema(instance: &Value) -> Result<(), AuthoringError> {
     let schema = schemas::scenario_schema();
     let compiled = compile_schema(&schema)?;
@@ -254,7 +254,7 @@ fn validate_scenario_schema(instance: &Value) -> Result<(), AuthoringError> {
     }
 }
 
-/// Compile the ScenarioSpec JSON schema for validation.
+/// Compile the `ScenarioSpec` JSON schema for validation.
 fn compile_schema(schema: &Value) -> Result<JSONSchema, AuthoringError> {
     let mut options = CompilationOptions::default();
     options.with_draft(Draft::Draft202012);

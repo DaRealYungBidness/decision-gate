@@ -10,6 +10,12 @@
 
 mod helpers;
 
+use std::path::PathBuf;
+
+use decision_gate_contract::types::DeterminismClass;
+use decision_gate_contract::types::PredicateContract;
+use decision_gate_contract::types::PredicateExample;
+use decision_gate_contract::types::ProviderContract;
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
 use decision_gate_core::DecisionOutcome;
@@ -113,7 +119,8 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
     let provider = spawn_provider_stub(json!(true)).await?;
 
     let bind = allocate_bind_addr()?.to_string();
-    let config = config_with_provider(&bind, "echo", provider.base_url());
+    let capabilities_path = write_echo_contract(&reporter, "echo")?;
+    let config = config_with_provider(&bind, "echo", provider.base_url(), &capabilities_path);
     let server = spawn_mcp_server(config).await?;
     let client = server.client(std::time::Duration::from_secs(5))?;
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
@@ -205,7 +212,56 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
             "summary.json".to_string(),
             "summary.md".to_string(),
             "tool_transcript.json".to_string(),
+            "echo_provider_contract.json".to_string(),
         ],
     )?;
     Ok(())
+}
+
+fn write_echo_contract(
+    reporter: &TestReporter,
+    provider_id: &str,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let contract = ProviderContract {
+        provider_id: provider_id.to_string(),
+        name: "Echo Provider".to_string(),
+        description: "Echo predicate used by system-tests for MCP federation.".to_string(),
+        transport: "mcp".to_string(),
+        config_schema: json!({
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+        }),
+        predicates: vec![PredicateContract {
+            name: "echo".to_string(),
+            description: "Return the configured echo value.".to_string(),
+            determinism: DeterminismClass::External,
+            params_required: true,
+            params_schema: json!({
+                "type": "object",
+                "required": ["value"],
+                "properties": {
+                    "value": { "type": "boolean" }
+                },
+                "additionalProperties": false
+            }),
+            result_schema: json!({ "type": "boolean" }),
+            allowed_comparators: vec![
+                Comparator::Equals,
+                Comparator::NotEquals,
+                Comparator::Exists,
+                Comparator::NotExists,
+            ],
+            anchor_types: vec![String::from("stub")],
+            content_types: vec![String::from("application/json")],
+            examples: vec![PredicateExample {
+                description: "Return true for echo=true.".to_string(),
+                params: json!({ "value": true }),
+                result: json!(true),
+            }],
+        }],
+        notes: vec![String::from("Used only for system-tests MCP federation flows.")],
+    };
+    let path = reporter.artifacts().write_json("echo_provider_contract.json", &contract)?;
+    Ok(path)
 }

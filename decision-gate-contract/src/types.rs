@@ -19,6 +19,7 @@
 
 use std::fmt;
 
+use decision_gate_core::Comparator;
 use decision_gate_core::hashing::HashAlgorithm;
 use decision_gate_core::hashing::HashDigest;
 use serde::Deserialize;
@@ -94,7 +95,7 @@ pub struct ToolDefinition {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ToolName {
-    /// Register a ScenarioSpec and compute its hash.
+    /// Register a `ScenarioSpec` and compute its hash.
     ScenarioDefine,
     /// Start a new scenario run.
     ScenarioStart,
@@ -133,17 +134,17 @@ impl ToolName {
 
     /// Returns all Decision Gate tool names in canonical order.
     #[must_use]
-    pub const fn all() -> &'static [ToolName] {
+    pub const fn all() -> &'static [Self] {
         &[
-            ToolName::ScenarioDefine,
-            ToolName::ScenarioStart,
-            ToolName::ScenarioStatus,
-            ToolName::ScenarioNext,
-            ToolName::ScenarioSubmit,
-            ToolName::ScenarioTrigger,
-            ToolName::EvidenceQuery,
-            ToolName::RunpackExport,
-            ToolName::RunpackVerify,
+            Self::ScenarioDefine,
+            Self::ScenarioStart,
+            Self::ScenarioStatus,
+            Self::ScenarioNext,
+            Self::ScenarioSubmit,
+            Self::ScenarioTrigger,
+            Self::EvidenceQuery,
+            Self::RunpackExport,
+            Self::RunpackVerify,
         ]
     }
 
@@ -209,6 +210,30 @@ pub struct ProviderContract {
     pub notes: Vec<String>,
 }
 
+/// Determinism classification for provider predicates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeterminismClass {
+    /// Outputs are fully determined by inputs and internal state.
+    Deterministic,
+    /// Outputs depend on caller-supplied time or trigger context.
+    TimeDependent,
+    /// Outputs depend on external systems or mutable environments.
+    External,
+}
+
+impl DeterminismClass {
+    /// Returns a stable string label for documentation.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Deterministic => "deterministic",
+            Self::TimeDependent => "time_dependent",
+            Self::External => "external",
+        }
+    }
+}
+
 /// Predicate contract describing parameters and output value.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PredicateContract {
@@ -216,12 +241,16 @@ pub struct PredicateContract {
     pub name: String,
     /// Predicate description.
     pub description: String,
+    /// Determinism classification for predicate outputs.
+    pub determinism: DeterminismClass,
     /// Whether `EvidenceQuery.params` is required for this predicate.
     pub params_required: bool,
     /// JSON schema for predicate parameters.
     pub params_schema: Value,
     /// JSON schema for predicate output value.
     pub result_schema: Value,
+    /// Allow-list of supported comparators for this predicate.
+    pub allowed_comparators: Vec<Comparator>,
     /// Evidence anchor types emitted by this predicate.
     pub anchor_types: Vec<String>,
     /// Content types returned for populated evidence values.

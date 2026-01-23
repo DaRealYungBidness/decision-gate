@@ -32,12 +32,10 @@ mod common;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::HashAlgorithm;
 use decision_gate_core::ProviderId;
-use decision_gate_mcp::DecisionGateConfig;
 use decision_gate_mcp::FederatedEvidenceProvider;
 use decision_gate_mcp::ToolRouter;
+use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::EvidencePolicyConfig;
-use decision_gate_mcp::config::ServerConfig;
-use decision_gate_mcp::config::TrustConfig;
 use decision_gate_mcp::tools::EvidenceQueryRequest;
 use decision_gate_mcp::tools::EvidenceQueryResponse;
 use serde_json::json;
@@ -49,14 +47,11 @@ use crate::common::sample_context;
 // ============================================================================
 
 fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
-    let config = DecisionGateConfig {
-        server: ServerConfig::default(),
-        trust: TrustConfig::default(),
-        evidence: policy,
-        providers: Vec::new(),
-    };
+    let mut config = common::sample_config();
+    config.evidence = policy;
     let evidence = FederatedEvidenceProvider::from_config(&config).unwrap();
-    ToolRouter::new(evidence, config.evidence)
+    let capabilities = CapabilityRegistry::from_config(&config).unwrap();
+    ToolRouter::new(evidence, config.evidence, std::sync::Arc::new(capabilities))
 }
 
 fn query_time_now(router: &ToolRouter) -> EvidenceQueryResponse {

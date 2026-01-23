@@ -37,6 +37,7 @@ use serde::Serialize;
 use serde_json::Value;
 use tokio_stream::wrappers::ReceiverStream;
 
+use crate::capabilities::CapabilityRegistry;
 use crate::config::DecisionGateConfig;
 use crate::config::ServerTransport;
 use crate::evidence::FederatedEvidenceProvider;
@@ -65,7 +66,9 @@ impl McpServer {
     pub fn from_config(config: DecisionGateConfig) -> Result<Self, McpServerError> {
         let evidence = FederatedEvidenceProvider::from_config(&config)
             .map_err(|err| McpServerError::Init(err.to_string()))?;
-        let router = ToolRouter::new(evidence, config.evidence.clone());
+        let capabilities = CapabilityRegistry::from_config(&config)
+            .map_err(|err| McpServerError::Init(err.to_string()))?;
+        let router = ToolRouter::new(evidence, config.evidence.clone(), Arc::new(capabilities));
         Ok(Self {
             config,
             router,
@@ -376,6 +379,10 @@ fn jsonrpc_error(id: Value, error: ToolError) -> JsonRpcResponse {
     let (code, message) = match error {
         ToolError::UnknownTool => (-32601, "unknown tool".to_string()),
         ToolError::InvalidParams(message) => (-32602, message),
+        ToolError::CapabilityViolation {
+            code,
+            message,
+        } => (-32602, format!("{code}: {message}")),
         ToolError::NotFound(message) => (-32004, message),
         ToolError::Conflict(message) => (-32009, message),
         ToolError::Evidence(message) => (-32020, message),

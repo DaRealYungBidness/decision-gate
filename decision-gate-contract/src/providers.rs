@@ -16,10 +16,12 @@
 // SECTION: Imports
 // ============================================================================
 
+use decision_gate_core::Comparator;
 use serde_json::Value;
 use serde_json::json;
 
 use crate::schemas;
+use crate::types::DeterminismClass;
 use crate::types::PredicateContract;
 use crate::types::PredicateExample;
 use crate::types::ProviderContract;
@@ -60,6 +62,12 @@ pub fn providers_markdown(contracts: &[ProviderContract]) -> String {
             out.push_str(&predicate.name);
             out.push_str(": ");
             out.push_str(&predicate.description);
+            out.push_str(" (");
+            out.push_str(predicate.determinism.as_str());
+            out.push(')');
+            out.push('\n');
+            out.push_str("  - Allowed comparators: ");
+            out.push_str(&render_comparator_list(&predicate.allowed_comparators));
             out.push('\n');
         }
         out.push('\n');
@@ -83,6 +91,11 @@ pub fn providers_markdown(contracts: &[ProviderContract]) -> String {
 /// Returns the contract for the built-in time provider.
 #[must_use]
 fn time_provider_contract() -> ProviderContract {
+    let now_schema = timestamp_value_schema();
+    let now_allowed = allowed_comparators_for_schema(&now_schema);
+    let threshold_schema = time_threshold_schema();
+    let bool_schema = json!({ "type": "boolean" });
+    let bool_allowed = allowed_comparators_for_schema(&bool_schema);
     ProviderContract {
         provider_id: String::from("time"),
         name: String::from("Time Provider"),
@@ -95,9 +108,11 @@ fn time_provider_contract() -> ProviderContract {
             PredicateContract {
                 name: String::from("now"),
                 description: String::from("Return the trigger timestamp as a JSON number."),
+                determinism: DeterminismClass::TimeDependent,
                 params_required: false,
                 params_schema: empty_params_schema("No parameters required."),
-                result_schema: timestamp_value_schema(),
+                result_schema: now_schema,
+                allowed_comparators: now_allowed,
                 anchor_types: vec![
                     String::from("trigger_time_unix_millis"),
                     String::from("trigger_time_logical"),
@@ -112,9 +127,11 @@ fn time_provider_contract() -> ProviderContract {
             PredicateContract {
                 name: String::from("after"),
                 description: String::from("Return true if trigger time is after the threshold."),
+                determinism: DeterminismClass::TimeDependent,
                 params_required: true,
-                params_schema: time_threshold_schema(),
-                result_schema: json!({ "type": "boolean" }),
+                params_schema: threshold_schema.clone(),
+                result_schema: bool_schema.clone(),
+                allowed_comparators: bool_allowed.clone(),
                 anchor_types: vec![
                     String::from("trigger_time_unix_millis"),
                     String::from("trigger_time_logical"),
@@ -129,9 +146,11 @@ fn time_provider_contract() -> ProviderContract {
             PredicateContract {
                 name: String::from("before"),
                 description: String::from("Return true if trigger time is before the threshold."),
+                determinism: DeterminismClass::TimeDependent,
                 params_required: true,
-                params_schema: time_threshold_schema(),
-                result_schema: json!({ "type": "boolean" }),
+                params_schema: threshold_schema,
+                result_schema: bool_schema,
+                allowed_comparators: bool_allowed,
                 anchor_types: vec![
                     String::from("trigger_time_unix_millis"),
                     String::from("trigger_time_logical"),
@@ -154,6 +173,13 @@ fn time_provider_contract() -> ProviderContract {
 /// Returns the contract for the built-in env provider.
 #[must_use]
 fn env_provider_contract() -> ProviderContract {
+    let result_schema = json!({
+        "oneOf": [
+            { "type": "string" },
+            { "type": "null" }
+        ]
+    });
+    let allowed_comparators = allowed_comparators_for_schema(&result_schema);
     ProviderContract {
         provider_id: String::from("env"),
         name: String::from("Environment Provider"),
@@ -165,6 +191,7 @@ fn env_provider_contract() -> ProviderContract {
         predicates: vec![PredicateContract {
             name: String::from("get"),
             description: String::from("Fetch an environment variable by key."),
+            determinism: DeterminismClass::External,
             params_required: true,
             params_schema: json!({
                 "type": "object",
@@ -174,12 +201,8 @@ fn env_provider_contract() -> ProviderContract {
                 },
                 "additionalProperties": false
             }),
-            result_schema: json!({
-                "oneOf": [
-                    { "type": "string" },
-                    { "type": "null" }
-                ]
-            }),
+            result_schema,
+            allowed_comparators,
             anchor_types: vec![String::from("env")],
             content_types: vec![String::from("text/plain")],
             examples: vec![PredicateExample {
@@ -198,6 +221,13 @@ fn env_provider_contract() -> ProviderContract {
 /// Returns the contract for the built-in json provider.
 #[must_use]
 fn json_provider_contract() -> ProviderContract {
+    let result_schema = json!({
+        "oneOf": [
+            { "description": "JSONPath result." },
+            { "type": "null" }
+        ]
+    });
+    let allowed_comparators = allowed_comparators_for_schema(&result_schema);
     ProviderContract {
         provider_id: String::from("json"),
         name: String::from("JSON Provider"),
@@ -209,6 +239,7 @@ fn json_provider_contract() -> ProviderContract {
         predicates: vec![PredicateContract {
             name: String::from("path"),
             description: String::from("Select values via JSONPath from a JSON/YAML file."),
+            determinism: DeterminismClass::External,
             params_required: true,
             params_schema: json!({
                 "type": "object",
@@ -219,12 +250,8 @@ fn json_provider_contract() -> ProviderContract {
                 },
                 "additionalProperties": false
             }),
-            result_schema: json!({
-                "oneOf": [
-                    { "description": "JSONPath result." },
-                    { "type": "null" }
-                ]
-            }),
+            result_schema,
+            allowed_comparators,
             anchor_types: vec![String::from("file_path")],
             content_types: vec![String::from("application/json"), String::from("application/yaml")],
             examples: vec![
@@ -250,6 +277,10 @@ fn json_provider_contract() -> ProviderContract {
 /// Returns the contract for the built-in http provider.
 #[must_use]
 fn http_provider_contract() -> ProviderContract {
+    let status_schema = json!({ "type": "integer" });
+    let status_allowed = allowed_comparators_for_schema(&status_schema);
+    let hash_schema = schemas::hash_digest_schema();
+    let hash_allowed = allowed_comparators_for_schema(&hash_schema);
     ProviderContract {
         provider_id: String::from("http"),
         name: String::from("HTTP Provider"),
@@ -262,9 +293,11 @@ fn http_provider_contract() -> ProviderContract {
             PredicateContract {
                 name: String::from("status"),
                 description: String::from("Return HTTP status code for a URL."),
+                determinism: DeterminismClass::External,
                 params_required: true,
                 params_schema: http_url_schema(),
-                result_schema: json!({ "type": "integer" }),
+                result_schema: status_schema,
+                allowed_comparators: status_allowed,
                 anchor_types: vec![String::from("url")],
                 content_types: vec![String::from("application/json")],
                 examples: vec![PredicateExample {
@@ -276,9 +309,11 @@ fn http_provider_contract() -> ProviderContract {
             PredicateContract {
                 name: String::from("body_hash"),
                 description: String::from("Return a hash of the response body."),
+                determinism: DeterminismClass::External,
                 params_required: true,
                 params_schema: http_url_schema(),
-                result_schema: schemas::hash_digest_schema(),
+                result_schema: hash_schema,
+                allowed_comparators: hash_allowed,
                 anchor_types: vec![String::from("url")],
                 content_types: vec![String::from("application/json")],
                 examples: vec![PredicateExample {
@@ -295,6 +330,156 @@ fn http_provider_contract() -> ProviderContract {
             String::from("Scheme and host allowlists are enforced by configuration."),
             String::from("Responses are size-limited and hashed deterministically."),
         ],
+    }
+}
+
+// ============================================================================
+// SECTION: Comparator Defaults
+// ============================================================================
+
+/// Returns the comparator allow-list for a predicate result schema.
+#[must_use]
+fn allowed_comparators_for_schema(schema: &Value) -> Vec<Comparator> {
+    if let Some(options) = schema.get("oneOf").and_then(Value::as_array) {
+        let mut allowed = Vec::new();
+        for option in options {
+            merge_comparators(&mut allowed, allowed_comparators_for_schema(option));
+        }
+        return canonicalize_comparators(allowed);
+    }
+    if let Some(options) = schema.get("anyOf").and_then(Value::as_array) {
+        let mut allowed = Vec::new();
+        for option in options {
+            merge_comparators(&mut allowed, allowed_comparators_for_schema(option));
+        }
+        return canonicalize_comparators(allowed);
+    }
+
+    let mut allowed = Vec::new();
+    if let Some(schema_type) = schema.get("type") {
+        match schema_type {
+            Value::String(kind) => {
+                merge_comparators(&mut allowed, comparators_for_type(kind));
+            }
+            Value::Array(kinds) => {
+                for kind in kinds {
+                    if let Some(kind) = kind.as_str() {
+                        merge_comparators(&mut allowed, comparators_for_type(kind));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if allowed.is_empty() {
+        merge_comparators(&mut allowed, default_comparators());
+    }
+
+    canonicalize_comparators(allowed)
+}
+
+/// Returns comparators for a JSON schema type.
+#[must_use]
+fn comparators_for_type(kind: &str) -> Vec<Comparator> {
+    match kind {
+        "integer" | "number" => vec![
+            Comparator::Equals,
+            Comparator::NotEquals,
+            Comparator::GreaterThan,
+            Comparator::GreaterThanOrEqual,
+            Comparator::LessThan,
+            Comparator::LessThanOrEqual,
+            Comparator::InSet,
+            Comparator::Exists,
+            Comparator::NotExists,
+        ],
+        "string" | "array" => vec![
+            Comparator::Equals,
+            Comparator::NotEquals,
+            Comparator::Contains,
+            Comparator::InSet,
+            Comparator::Exists,
+            Comparator::NotExists,
+        ],
+        "boolean" | "object" | "null" => {
+            vec![
+                Comparator::Equals,
+                Comparator::NotEquals,
+                Comparator::Exists,
+                Comparator::NotExists,
+            ]
+        }
+        _ => default_comparators(),
+    }
+}
+
+/// Returns the default comparator allow-list for untyped schemas.
+#[must_use]
+fn default_comparators() -> Vec<Comparator> {
+    vec![Comparator::Equals, Comparator::NotEquals, Comparator::Exists, Comparator::NotExists]
+}
+
+/// Ensures comparator lists are unique and in canonical order.
+#[must_use]
+fn canonicalize_comparators(input: Vec<Comparator>) -> Vec<Comparator> {
+    let mut unique = Vec::new();
+    for comparator in input {
+        if !unique.contains(&comparator) {
+            unique.push(comparator);
+        }
+    }
+    comparator_order().iter().filter(|candidate| unique.contains(candidate)).copied().collect()
+}
+
+/// Returns the canonical comparator ordering.
+#[must_use]
+const fn comparator_order() -> [Comparator; 10] {
+    [
+        Comparator::Equals,
+        Comparator::NotEquals,
+        Comparator::GreaterThan,
+        Comparator::GreaterThanOrEqual,
+        Comparator::LessThan,
+        Comparator::LessThanOrEqual,
+        Comparator::Contains,
+        Comparator::InSet,
+        Comparator::Exists,
+        Comparator::NotExists,
+    ]
+}
+
+/// Merges comparator lists without duplicates.
+fn merge_comparators(target: &mut Vec<Comparator>, source: Vec<Comparator>) {
+    for comparator in source {
+        if !target.contains(&comparator) {
+            target.push(comparator);
+        }
+    }
+}
+
+/// Renders comparator names in a stable order.
+#[must_use]
+fn render_comparator_list(comparators: &[Comparator]) -> String {
+    let items: Vec<&str> =
+        comparators.iter().map(|comparator| comparator_label(*comparator)).collect();
+    items.join(", ")
+}
+
+/// Returns the comparator label used in docs.
+#[must_use]
+const fn comparator_label(comparator: Comparator) -> &'static str {
+    match comparator {
+        Comparator::Equals => "equals",
+        Comparator::NotEquals => "not_equals",
+        Comparator::GreaterThan => "greater_than",
+        Comparator::GreaterThanOrEqual => "greater_than_or_equal",
+        Comparator::LessThan => "less_than",
+        Comparator::LessThanOrEqual => "less_than_or_equal",
+        Comparator::Contains => "contains",
+        Comparator::InSet => "in_set",
+        Comparator::Exists => "exists",
+        Comparator::NotExists => "not_exists",
     }
 }
 

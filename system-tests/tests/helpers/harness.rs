@@ -8,6 +8,8 @@
 
 use std::net::SocketAddr;
 use std::net::TcpListener;
+use std::path::Path;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use decision_gate_mcp::McpServer;
@@ -63,12 +65,17 @@ pub fn base_http_config(bind: &str) -> DecisionGateConfig {
         },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
-        providers: Vec::new(),
+        providers: builtin_providers(),
     }
 }
 
 /// Builds a config with a federated MCP provider.
-pub fn config_with_provider(bind: &str, provider_name: &str, url: &str) -> DecisionGateConfig {
+pub fn config_with_provider(
+    bind: &str,
+    provider_name: &str,
+    url: &str,
+    capabilities_path: &Path,
+) -> DecisionGateConfig {
     let mut config = base_http_config(bind);
     config.providers.push(ProviderConfig {
         name: provider_name.to_string(),
@@ -76,12 +83,37 @@ pub fn config_with_provider(bind: &str, provider_name: &str, url: &str) -> Decis
         command: Vec::new(),
         url: Some(url.to_string()),
         allow_insecure_http: true,
+        capabilities_path: Some(PathBuf::from(capabilities_path)),
         auth: None,
         trust: None,
         allow_raw: true,
         config: None,
     });
     config
+}
+
+fn builtin_providers() -> Vec<ProviderConfig> {
+    vec![
+        builtin_provider("time"),
+        builtin_provider("env"),
+        builtin_provider("json"),
+        builtin_provider("http"),
+    ]
+}
+
+fn builtin_provider(name: &str) -> ProviderConfig {
+    ProviderConfig {
+        name: name.to_string(),
+        provider_type: ProviderType::Builtin,
+        command: Vec::new(),
+        url: None,
+        allow_insecure_http: false,
+        capabilities_path: None,
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        config: None,
+    }
 }
 
 /// Spawns an MCP server in the background and returns a handle.

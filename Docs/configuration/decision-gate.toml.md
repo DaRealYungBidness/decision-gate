@@ -52,6 +52,7 @@ Provider entries register built-in or MCP providers.
 | `command` | array | no | Stdio command for MCP providers. |
 | `url` | string | no | HTTP endpoint for MCP providers. |
 | `allow_insecure_http` | bool | `false` | Allow `http://` for MCP providers. |
+| `capabilities_path` | string | yes (MCP) | Path to the provider capability contract JSON. |
 | `auth` | table | no | Bearer token for MCP providers. |
 | `trust` | table | no | Per-provider trust override. |
 | `allow_raw` | bool | `false` | Allow raw evidence disclosure for this provider. |
@@ -65,6 +66,15 @@ auth = { bearer_token = "token" }
 `trust` override form:
 ```toml
 trust = { require_signature = { keys = ["provider.pub"] } }
+```
+
+`capabilities_path` example for MCP providers:
+```toml
+[[providers]]
+name = "mongo"
+type = "mcp"
+command = ["mongo-provider", "--stdio"]
+capabilities_path = "contracts/mongo_provider.json"
 ```
 
 ## Built-In Provider Config

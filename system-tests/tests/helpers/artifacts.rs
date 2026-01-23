@@ -46,7 +46,8 @@ pub struct TestArtifacts {
 impl TestArtifacts {
     /// Creates the artifact root for a test.
     pub fn new(test_name: &str) -> io::Result<Self> {
-        let config = SystemTestConfig::load();
+        let config =
+            SystemTestConfig::load().map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
         let root = config.run_root.unwrap_or_else(|| default_run_root(test_name));
         fs::create_dir_all(&root)?;
         Ok(Self {

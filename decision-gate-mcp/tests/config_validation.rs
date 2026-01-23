@@ -26,6 +26,8 @@
     reason = "Test-only output and panic-based assertions are permitted."
 )]
 
+use std::path::PathBuf;
+
 use decision_gate_mcp::DecisionGateConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::config::ProviderConfig;
@@ -33,6 +35,7 @@ use decision_gate_mcp::config::ProviderType;
 use decision_gate_mcp::config::ServerConfig;
 use decision_gate_mcp::config::ServerTransport;
 use decision_gate_mcp::config::TrustConfig;
+use tempfile::TempDir;
 
 /// Validates a standalone server config via the public config validator.
 fn validate_server_config(
@@ -190,6 +193,7 @@ fn provider_builtin_valid() {
         command: Vec::new(),
         url: None,
         allow_insecure_http: false,
+        capabilities_path: None,
         auth: None,
         trust: None,
         allow_raw: false,
@@ -207,6 +211,7 @@ fn provider_empty_name_rejected() {
         command: Vec::new(),
         url: None,
         allow_insecure_http: false,
+        capabilities_path: None,
         auth: None,
         trust: None,
         allow_raw: false,
@@ -227,6 +232,7 @@ fn provider_whitespace_name_rejected() {
         command: Vec::new(),
         url: None,
         allow_insecure_http: false,
+        capabilities_path: None,
         auth: None,
         trust: None,
         allow_raw: false,
@@ -245,6 +251,7 @@ fn provider_mcp_requires_command_or_url() {
         command: Vec::new(),
         url: None,
         allow_insecure_http: false,
+        capabilities_path: Some(PathBuf::from("provider.json")),
         auth: None,
         trust: None,
         allow_raw: false,
@@ -265,6 +272,7 @@ fn provider_mcp_with_command_valid() {
         command: vec!["./provider".to_string()],
         url: None,
         allow_insecure_http: false,
+        capabilities_path: Some(PathBuf::from("provider.json")),
         auth: None,
         trust: None,
         allow_raw: false,
@@ -282,12 +290,65 @@ fn provider_mcp_with_https_url_valid() {
         command: Vec::new(),
         url: Some("https://example.com/mcp".to_string()),
         allow_insecure_http: false,
+        capabilities_path: Some(PathBuf::from("provider.json")),
         auth: None,
         trust: None,
         allow_raw: false,
         config: None,
     };
     assert!(validate_provider_config(config).is_ok());
+}
+
+// ============================================================================
+// SECTION: Config Load Validation Tests
+// ============================================================================
+
+/// Verifies loading rejects MCP providers missing capabilities_path.
+#[test]
+fn config_load_rejects_mcp_without_capabilities_path() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("decision-gate.toml");
+    let config = r#"
+[server]
+transport = "stdio"
+
+[[providers]]
+name = "echo"
+type = "mcp"
+command = ["echo-provider"]
+"#;
+    std::fs::write(&config_path, config.as_bytes()).unwrap();
+
+    let result = DecisionGateConfig::load(Some(&config_path));
+    let err = result.expect_err("expected missing capabilities_path rejection");
+    assert!(err.to_string().contains("capabilities_path"));
+}
+
+/// Verifies loading accepts MCP providers with capabilities_path.
+#[test]
+fn config_load_accepts_mcp_with_capabilities_path() {
+    let temp = TempDir::new().unwrap();
+    let contract_path = temp.path().join("provider.json");
+    std::fs::write(&contract_path, "{}").unwrap();
+    let config_path = temp.path().join("decision-gate.toml");
+    let contract_path = contract_path.to_string_lossy().replace('\\', "/");
+    let config = format!(
+        r#"
+[server]
+transport = "stdio"
+
+[[providers]]
+name = "echo"
+type = "mcp"
+command = ["echo-provider"]
+capabilities_path = "{}"
+"#,
+        contract_path
+    );
+    std::fs::write(&config_path, config.as_bytes()).unwrap();
+
+    let result = DecisionGateConfig::load(Some(&config_path));
+    assert!(result.is_ok());
 }
 
 /// Verifies MCP provider rejects HTTP without `allow_insecure` flag.
@@ -299,6 +360,7 @@ fn provider_mcp_http_rejected_without_flag() {
         command: Vec::new(),
         url: Some("http://example.com/mcp".to_string()),
         allow_insecure_http: false,
+        capabilities_path: Some(PathBuf::from("provider.json")),
         auth: None,
         trust: None,
         allow_raw: false,
@@ -319,6 +381,7 @@ fn provider_mcp_http_allowed_with_flag() {
         command: Vec::new(),
         url: Some("http://localhost:8080/mcp".to_string()),
         allow_insecure_http: true,
+        capabilities_path: Some(PathBuf::from("provider.json")),
         auth: None,
         trust: None,
         allow_raw: false,

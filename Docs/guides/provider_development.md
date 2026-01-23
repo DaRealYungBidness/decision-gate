@@ -50,10 +50,32 @@ Return JSON-RPC errors for:
 
 Decision Gate treats errors as missing evidence and fails closed.
 
+## Capability Contracts (Required)
+Decision Gate requires every MCP provider to ship a capability contract that
+declares:
+- Provider metadata (`provider_id`, description, transport)
+- Predicate names and descriptions
+- JSON Schemas for `params` and predicate results
+- Determinism classification and allowed comparator allow-lists
+
+The contract is loaded from `capabilities_path` in `decision-gate.toml` and is
+validated before any scenario or evidence query is accepted.
+
+Example configuration:
+```toml
+[[providers]]
+name = "mongo"
+type = "mcp"
+command = ["mongo-provider", "--stdio"]
+capabilities_path = "contracts/mongo_provider.json"
+```
+
+Use `Docs/generated/decision-gate/providers.json` as a reference for the
+canonical contract shape and predicate schema patterns.
+
 ## Trust and Signatures
 If your provider signs evidence:
 - Populate `signature.scheme`, `signature.key_id`, and `signature.signature`.
 - Configure Decision Gate trust policy to require the signing key.
 
 See `Docs/guides/security_guide.md` for trust policy details.
-

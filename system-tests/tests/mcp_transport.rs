@@ -65,7 +65,14 @@ async fn stdio_transport_end_to_end() -> Result<(), Box<dyn std::error::Error>> 
     let mut reporter = TestReporter::new("stdio_transport_end_to_end")?;
     let temp_dir = TempDir::new()?;
     let config_path = temp_dir.path().join("decision-gate.toml");
-    std::fs::write(&config_path, "[server]\ntransport = \"stdio\"\n")?;
+    let config_contents = r#"[server]
+transport = "stdio"
+
+[[providers]]
+name = "time"
+type = "builtin"
+"#;
+    std::fs::write(&config_path, config_contents)?;
 
     let stderr_path = reporter.artifacts().root().join("mcp.stderr.log");
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_decision_gate_stdio_server"));
