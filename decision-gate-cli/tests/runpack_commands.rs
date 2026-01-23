@@ -176,6 +176,42 @@ fn cli_runpack_export_writes_manifest() {
     cleanup(&root);
 }
 
+/// Verifies runpack export rejects manifest path traversal.
+#[test]
+fn cli_runpack_export_rejects_manifest_traversal() {
+    let root = temp_root("export-manifest-traversal");
+    let spec = minimal_spec();
+    let state = minimal_state(&spec);
+    let spec_path = root.join("spec.json");
+    let state_path = root.join("state.json");
+    write_json(&spec_path, &spec);
+    write_json(&state_path, &state);
+
+    let output = Command::new(decision_gate_bin())
+        .args([
+            "runpack",
+            "export",
+            "--spec",
+            spec_path.to_string_lossy().as_ref(),
+            "--state",
+            state_path.to_string_lossy().as_ref(),
+            "--output-dir",
+            root.to_string_lossy().as_ref(),
+            "--manifest-name",
+            "../runpack.json",
+            "--generated-at-unix-ms",
+            "1700000000000",
+        ])
+        .output()
+        .expect("runpack export traversal");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("runpack sink"), "unexpected stderr: {stderr}");
+
+    cleanup(&root);
+}
+
 // ============================================================================
 // SECTION: Runpack Verify Tests
 // ============================================================================

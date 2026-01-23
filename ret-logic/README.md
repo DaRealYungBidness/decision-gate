@@ -11,7 +11,13 @@ RET stands for **Requirement Evaluation Tree**.
 > I'M SUPPOSED TO STOP BUT I CAN'T."**
 > — _Michael "Yung Bidness" Campbell, in reverence of Roy Jones Jr., on the eternal return of recursive formalism and falsity of premature abstraction_
 
-A universal predicate evaluation engine that separates boolean algebra from domain semantics, enabling efficient row-based evaluation over ECS chunks.
+A universal predicate evaluation engine that separates propositional logic from domain semantics, enabling efficient row-based evaluation over ECS chunks. This crate comes from an attempt to derive the general class structure of "quests" for video games. At their core, quests ultimately culminate in the predicate "Has X been done?"; given the data-driven nature of those systems, we can generalize "X" to be "any data source." Structurally, "Kill five shidar at the behest of Arx the Purifier" is the same as "Did the football/soccer team score more than its opponent?" In both cases we can strip out the surrounding context and focus purely on the operative condition.
+
+Hence this crate.
+
+That said, this crate exists because of my frustration with recreating the same mathematical form — if you're just doing `if (x && y)`, you probably don't need this crate (as much as you might want it...)
+
+Most of the subsequent text in this README is AI-generated.
 
 ## Table of Contents
 

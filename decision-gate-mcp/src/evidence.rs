@@ -28,6 +28,7 @@ use std::process::ChildStdout;
 use std::process::Command;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::time::Duration;
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as Base64;
@@ -56,6 +57,13 @@ use crate::config::DecisionGateConfig;
 use crate::config::ProviderConfig;
 use crate::config::ProviderType;
 use crate::config::TrustPolicy;
+
+// ============================================================================
+// SECTION: Constants
+// ============================================================================
+
+/// Maximum size of MCP provider responses (bytes).
+const MAX_MCP_PROVIDER_RESPONSE_BYTES: usize = 1024 * 1024;
 
 // ============================================================================
 // SECTION: Public Types
@@ -210,8 +218,6 @@ impl EvidenceProvider for FederatedEvidenceProvider {
 struct McpProviderClient {
     /// Transport selection and state.
     transport: McpTransport,
-    /// HTTP client for MCP requests.
-    client: Client,
     /// Optional bearer token for authentication.
     bearer_token: Option<String>,
 }
@@ -228,6 +234,8 @@ enum McpTransport {
     Http {
         /// Base URL for MCP HTTP requests.
         url: String,
+        /// HTTP client for MCP requests.
+        client: Client,
     },
 }
 
@@ -249,9 +257,6 @@ impl McpProviderClient {
     ///
     /// Returns [`EvidenceError`] if the provider transport configuration is invalid.
     fn from_config(config: &ProviderConfig) -> Result<Self, EvidenceError> {
-        let client = Client::builder()
-            .build()
-            .map_err(|_| EvidenceError::Provider("http client build failed".to_string()))?;
         let bearer_token = config.auth.as_ref().and_then(|auth| auth.bearer_token.clone());
 
         if !config.command.is_empty() {
@@ -260,7 +265,6 @@ impl McpProviderClient {
                 transport: McpTransport::Stdio {
                     process: Mutex::new(process),
                 },
-                client,
                 bearer_token,
             });
         }
@@ -272,12 +276,18 @@ impl McpProviderClient {
         if !config.allow_insecure_http && url.starts_with("http://") {
             return Err(EvidenceError::Provider("insecure http disabled for provider".to_string()));
         }
+        let timeouts = &config.timeouts;
+        let client = Client::builder()
+            .connect_timeout(Duration::from_millis(timeouts.connect_timeout_ms))
+            .timeout(Duration::from_millis(timeouts.request_timeout_ms))
+            .build()
+            .map_err(|_| EvidenceError::Provider("http client build failed".to_string()))?;
 
         Ok(Self {
             transport: McpTransport::Http {
                 url,
+                client,
             },
-            client,
             bearer_token,
         })
     }
@@ -300,7 +310,8 @@ impl EvidenceProvider for McpProviderClient {
         let response = match &self.transport {
             McpTransport::Http {
                 url,
-            } => call_http(&self.client, url, self.bearer_token.as_deref(), &request)?,
+                client,
+            } => call_http(client, url, self.bearer_token.as_deref(), &request)?,
             McpTransport::Stdio {
                 process,
             } => call_stdio(process, &request)?,
@@ -393,10 +404,15 @@ fn call_http(
     if let Some(token) = bearer {
         builder = builder.bearer_auth(token);
     }
-    let response =
-        builder.send().map_err(|_| EvidenceError::Provider("http request failed".to_string()))?;
-    response
-        .json::<JsonRpcResponse>()
+    let mut response = builder.send().map_err(map_http_send_error)?;
+    if !response.status().is_success() {
+        return Err(EvidenceError::Provider(format!(
+            "http request failed with status {}",
+            response.status()
+        )));
+    }
+    let bytes = read_http_body(&mut response, MAX_MCP_PROVIDER_RESPONSE_BYTES)?;
+    serde_json::from_slice(&bytes)
         .map_err(|_| EvidenceError::Provider("invalid json-rpc response".to_string()))
 }
 
@@ -418,7 +434,7 @@ fn call_stdio(
     let payload = serde_json::to_vec(request)
         .map_err(|_| EvidenceError::Provider("mcp request serialization failed".to_string()))?;
     write_framed(&mut guard.stdin, &payload)?;
-    let response_bytes = read_framed(&mut guard.stdout)?;
+    let response_bytes = read_framed(&mut guard.stdout, MAX_MCP_PROVIDER_RESPONSE_BYTES)?;
     drop(guard);
     serde_json::from_slice(&response_bytes)
         .map_err(|_| EvidenceError::Provider("invalid json-rpc response".to_string()))
@@ -437,7 +453,10 @@ fn write_framed(writer: &mut ChildStdin, payload: &[u8]) -> Result<(), EvidenceE
 }
 
 /// Reads a framed JSON-RPC payload from the MCP process.
-fn read_framed(reader: &mut BufReader<ChildStdout>) -> Result<Vec<u8>, EvidenceError> {
+fn read_framed(
+    reader: &mut BufReader<impl Read>,
+    max_body_bytes: usize,
+) -> Result<Vec<u8>, EvidenceError> {
     let mut content_length: Option<usize> = None;
     let mut line = String::new();
     loop {
@@ -461,11 +480,52 @@ fn read_framed(reader: &mut BufReader<ChildStdout>) -> Result<Vec<u8>, EvidenceE
     }
     let len = content_length
         .ok_or_else(|| EvidenceError::Provider("missing content length header".to_string()))?;
+    if len > max_body_bytes {
+        return Err(EvidenceError::Provider("mcp response too large".to_string()));
+    }
     let mut buf = vec![0u8; len];
     reader
         .read_exact(&mut buf)
         .map_err(|_| EvidenceError::Provider("mcp read failed".to_string()))?;
     Ok(buf)
+}
+
+/// Reads an HTTP response body with a maximum size limit.
+fn read_http_body(
+    response: &mut reqwest::blocking::Response,
+    max_bytes: usize,
+) -> Result<Vec<u8>, EvidenceError> {
+    let max_bytes_u64 = match u64::try_from(max_bytes) {
+        Ok(value) => value,
+        Err(_) => u64::MAX,
+    };
+    if let Some(length) = response.content_length() {
+        if length > max_bytes_u64 {
+            return Err(EvidenceError::Provider("http response too large".to_string()));
+        }
+    }
+    let mut limited = response.take(max_bytes_u64.saturating_add(1));
+    let mut buf = Vec::new();
+    limited.read_to_end(&mut buf).map_err(|err| {
+        if err.kind() == std::io::ErrorKind::TimedOut {
+            EvidenceError::Provider("http response timed out".to_string())
+        } else {
+            EvidenceError::Provider("http response read failed".to_string())
+        }
+    })?;
+    if buf.len() > max_bytes {
+        return Err(EvidenceError::Provider("http response too large".to_string()));
+    }
+    Ok(buf)
+}
+
+/// Maps reqwest send errors to stable provider error messages.
+fn map_http_send_error(error: reqwest::Error) -> EvidenceError {
+    if error.is_timeout() {
+        EvidenceError::Provider("http request timed out".to_string())
+    } else {
+        EvidenceError::Provider("http request failed".to_string())
+    }
 }
 
 /// Decodes the MCP tool response into an evidence result.
@@ -687,5 +747,58 @@ impl ProviderConfig {
                     .map_err(|err| EvidenceError::Provider(format!("provider config error: {err}")))
             },
         )
+    }
+}
+
+// ============================================================================
+// SECTION: Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    #![allow(
+        clippy::panic,
+        clippy::print_stdout,
+        clippy::print_stderr,
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::use_debug,
+        clippy::dbg_macro,
+        clippy::panic_in_result_fn,
+        clippy::unwrap_in_result,
+        reason = "Test-only framing assertions."
+    )]
+
+    use std::io::BufReader;
+    use std::io::Cursor;
+
+    use super::read_framed;
+
+    #[test]
+    fn read_framed_rejects_large_payloads() {
+        let payload = br#"{"jsonrpc":"2.0","id":1,"method":"tools/call"}"#;
+        let framed = format!(
+            "Content-Length: {}\r\n\r\n{}",
+            payload.len(),
+            String::from_utf8_lossy(payload)
+        );
+        let mut reader = BufReader::new(Cursor::new(framed.into_bytes()));
+        let result = read_framed(&mut reader, payload.len() - 1);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn read_framed_accepts_payload_at_limit() {
+        let payload = br#"{"jsonrpc":"2.0","id":1,"method":"tools/call"}"#;
+        let framed = format!(
+            "Content-Length: {}\r\n\r\n{}",
+            payload.len(),
+            String::from_utf8_lossy(payload)
+        );
+        let mut reader = BufReader::new(Cursor::new(framed.into_bytes()));
+        let result = read_framed(&mut reader, payload.len());
+        assert!(result.is_ok());
+        let bytes = result.expect("payload read");
+        assert_eq!(bytes, payload);
     }
 }

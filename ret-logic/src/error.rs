@@ -1,4 +1,4 @@
-// world_engine/src/requirement/error.rs
+// ret-logic/src/error.rs
 // ============================================================================
 // Module: Requirement Error Definitions
 // Description: Structured diagnostics for the requirement system.

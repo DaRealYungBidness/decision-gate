@@ -109,6 +109,16 @@ fn file_artifact_sink_rejects_absolute_paths() {
     cleanup(&root);
 }
 
+/// Verifies manifest path traversal is rejected.
+#[test]
+fn file_artifact_sink_rejects_manifest_traversal() {
+    let root = temp_root("manifest-traversal");
+    let result = FileArtifactSink::new(root.clone(), "../manifest.json");
+    assert!(result.is_err());
+
+    cleanup(&root);
+}
+
 /// Verifies parent traversal is rejected for readers.
 #[test]
 fn file_artifact_reader_rejects_parent_traversal() {

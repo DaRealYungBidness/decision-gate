@@ -9,6 +9,8 @@
 //! ## Overview
 //! `HttpSource` resolves `http://` and `https://` URIs into payload bytes.
 //! Non-success status codes fail closed.
+//! Security posture: treats remote content as untrusted; see
+//! `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports
@@ -19,6 +21,7 @@ use std::time::Duration;
 use decision_gate_core::ContentRef;
 use reqwest::blocking::Client;
 use reqwest::header::CONTENT_TYPE;
+use reqwest::redirect::Policy;
 use url::Url;
 
 use crate::source::Source;
@@ -44,6 +47,7 @@ impl HttpSource {
     /// Returns [`SourceError`] when the HTTP client cannot be constructed.
     pub fn new() -> Result<Self, SourceError> {
         let client = Client::builder()
+            .redirect(Policy::none())
             .timeout(Duration::from_secs(30))
             .build()
             .map_err(|err| SourceError::Http(err.to_string()))?;
@@ -75,6 +79,13 @@ impl Source for HttpSource {
             .get(url.as_str())
             .send()
             .map_err(|err| SourceError::Http(err.to_string()))?;
+        if response.url() != &url {
+            return Err(SourceError::Http(format!(
+                "redirected from {} to {}",
+                url,
+                response.url()
+            )));
+        }
         if !response.status().is_success() {
             return Err(SourceError::Http(format!("http status {}", response.status())));
         }

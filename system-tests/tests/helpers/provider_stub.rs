@@ -6,6 +6,8 @@
 // Dependencies: axum, decision-gate-core
 // ============================================================================
 
+use std::time::Duration;
+
 use axum::Router;
 use axum::body::Bytes;
 use axum::extract::State;
@@ -18,12 +20,14 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
 use tokio::task::JoinHandle;
+use tokio::time::sleep;
 
 use super::harness::allocate_bind_addr;
 
 #[derive(Clone)]
 struct ProviderState {
     response_value: Value,
+    response_delay: Duration,
 }
 
 /// Handle for the stub MCP provider server.
@@ -47,9 +51,18 @@ impl Drop for ProviderStubHandle {
 
 /// Spawn a stub MCP provider that returns a fixed JSON value.
 pub async fn spawn_provider_stub(response_value: Value) -> Result<ProviderStubHandle, String> {
+    spawn_provider_stub_with_delay(response_value, Duration::from_millis(0)).await
+}
+
+/// Spawn a stub MCP provider with a response delay.
+pub async fn spawn_provider_stub_with_delay(
+    response_value: Value,
+    response_delay: Duration,
+) -> Result<ProviderStubHandle, String> {
     let addr = allocate_bind_addr()?;
     let state = ProviderState {
         response_value,
+        response_delay,
     };
     let app = Router::new().route("/rpc", post(handle_rpc)).with_state(state);
     let listener = tokio::net::TcpListener::bind(addr)
@@ -106,6 +119,9 @@ enum ToolContent {
 
 async fn handle_rpc(State(state): State<ProviderState>, bytes: Bytes) -> impl IntoResponse {
     let request: Result<JsonRpcRequest, _> = serde_json::from_slice(bytes.as_ref());
+    if state.response_delay > Duration::from_millis(0) {
+        sleep(state.response_delay).await;
+    }
     let response = match request {
         Ok(request) => handle_request(&state, request),
         Err(_) => JsonRpcResponse {

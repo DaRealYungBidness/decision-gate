@@ -157,12 +157,23 @@ impl ArtifactSink for InMemoryArtifacts {
 }
 
 impl ArtifactReader for InMemoryArtifacts {
-    fn read(&self, path: &str) -> Result<Vec<u8>, ArtifactError> {
+    fn read_with_limit(&self, path: &str, max_bytes: usize) -> Result<Vec<u8>, ArtifactError> {
         let guard = self
             .files
             .lock()
             .map_err(|_| ArtifactError::Sink("artifact store mutex poisoned".to_string()))?;
-        guard.get(path).cloned().ok_or_else(|| ArtifactError::Sink("missing artifact".to_string()))
+        let bytes = guard
+            .get(path)
+            .cloned()
+            .ok_or_else(|| ArtifactError::Sink("missing artifact".to_string()))?;
+        if bytes.len() > max_bytes {
+            return Err(ArtifactError::TooLarge {
+                path: path.to_string(),
+                max_bytes,
+                actual_bytes: bytes.len(),
+            });
+        }
+        Ok(bytes)
     }
 }
 

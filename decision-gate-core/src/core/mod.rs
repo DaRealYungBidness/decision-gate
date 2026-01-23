@@ -38,6 +38,7 @@ pub use disclosure::PacketRecord;
 pub use disclosure::VisibilityPolicy;
 pub use evidence::Comparator;
 pub use evidence::EvidenceAnchor;
+pub use evidence::EvidenceProviderError;
 pub use evidence::EvidenceQuery;
 pub use evidence::EvidenceRef;
 pub use evidence::EvidenceResult;

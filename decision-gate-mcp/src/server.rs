@@ -89,8 +89,9 @@ impl McpServer {
     /// Returns [`McpServerError`] when the server fails.
     pub async fn serve(self) -> Result<(), McpServerError> {
         let transport = self.config.server.transport;
+        let max_body_bytes = self.config.server.max_body_bytes;
         match transport {
-            ServerTransport::Stdio => serve_stdio(&self.router),
+            ServerTransport::Stdio => serve_stdio(&self.router, max_body_bytes),
             ServerTransport::Http => serve_http(self.config, self.router).await,
             ServerTransport::Sse => serve_sse(self.config, self.router).await,
         }
@@ -127,11 +128,11 @@ fn build_run_state_store(
 // ============================================================================
 
 /// Serves JSON-RPC requests over stdin/stdout.
-fn serve_stdio(router: &ToolRouter) -> Result<(), McpServerError> {
+fn serve_stdio(router: &ToolRouter, max_body_bytes: usize) -> Result<(), McpServerError> {
     let mut reader = BufReader::new(std::io::stdin());
     let mut writer = std::io::stdout();
     loop {
-        let bytes = read_framed(&mut reader)?;
+        let bytes = read_framed(&mut reader, max_body_bytes)?;
         let request: JsonRpcRequest = serde_json::from_slice(&bytes)
             .map_err(|_| McpServerError::Transport("invalid json-rpc request".to_string()))?;
         let response = handle_request(router, request);
@@ -208,7 +209,11 @@ async fn handle_http(State(state): State<Arc<ServerState>>, bytes: Bytes) -> imp
 async fn handle_sse(State(state): State<Arc<ServerState>>, bytes: Bytes) -> impl IntoResponse {
     let response = parse_request(&state, &bytes);
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<Event, Infallible>>(1);
-    let payload = serde_json::to_string(&response.1).unwrap_or_else(|_| "{}".to_string());
+    let payload = serde_json::to_string(&response.1).unwrap_or_else(|_| {
+        "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32060,\"message\":\"serialization \
+         failed\"}}"
+            .to_string()
+    });
     let _ = tx.send(Ok(Event::default().data(payload))).await;
     Sse::new(ReceiverStream::new(rx))
 }
@@ -306,36 +311,40 @@ fn handle_request(router: &ToolRouter, request: JsonRpcRequest) -> JsonRpcRespon
             let result = ToolListResult {
                 tools: router.list_tools(),
             };
-            JsonRpcResponse {
-                jsonrpc: "2.0",
-                id: request.id,
-                result: Some(serde_json::to_value(result).unwrap_or_else(|_| Value::Null)),
-                error: None,
+            match serde_json::to_value(result) {
+                Ok(value) => JsonRpcResponse {
+                    jsonrpc: "2.0",
+                    id: request.id,
+                    result: Some(value),
+                    error: None,
+                },
+                Err(_) => jsonrpc_error(request.id, ToolError::Serialization),
             }
         }
         "tools/call" => {
+            let id = request.id;
             let params = request.params.unwrap_or(Value::Null);
             let call = serde_json::from_value::<ToolCallParams>(params);
             match call {
                 Ok(call) => match call_tool_with_blocking(router, &call.name, call.arguments) {
-                    Ok(result) => JsonRpcResponse {
-                        jsonrpc: "2.0",
-                        id: request.id,
-                        result: Some(
-                            serde_json::to_value(ToolCallResult {
-                                content: vec![ToolContent::Json {
-                                    json: result,
-                                }],
-                            })
-                            .unwrap_or_else(|_| Value::Null),
-                        ),
-                        error: None,
+                    Ok(result) => match serde_json::to_value(ToolCallResult {
+                        content: vec![ToolContent::Json {
+                            json: result,
+                        }],
+                    }) {
+                        Ok(value) => JsonRpcResponse {
+                            jsonrpc: "2.0",
+                            id,
+                            result: Some(value),
+                            error: None,
+                        },
+                        Err(_) => jsonrpc_error(id, ToolError::Serialization),
                     },
-                    Err(err) => jsonrpc_error(request.id, err),
+                    Err(err) => jsonrpc_error(id, err),
                 },
                 Err(_) => JsonRpcResponse {
                     jsonrpc: "2.0",
-                    id: request.id,
+                    id,
                     result: None,
                     error: Some(JsonRpcError {
                         code: -32602,
@@ -439,7 +448,10 @@ fn jsonrpc_error(id: Value, error: ToolError) -> JsonRpcResponse {
 // ============================================================================
 
 /// Reads a framed stdio payload using MCP Content-Length headers.
-fn read_framed(reader: &mut BufReader<impl Read>) -> Result<Vec<u8>, McpServerError> {
+fn read_framed(
+    reader: &mut BufReader<impl Read>,
+    max_body_bytes: usize,
+) -> Result<Vec<u8>, McpServerError> {
     let mut content_length: Option<usize> = None;
     let mut line = String::new();
     loop {
@@ -463,6 +475,9 @@ fn read_framed(reader: &mut BufReader<impl Read>) -> Result<Vec<u8>, McpServerEr
     }
     let len = content_length
         .ok_or_else(|| McpServerError::Transport("missing content length".to_string()))?;
+    if len > max_body_bytes {
+        return Err(McpServerError::Transport("payload too large".to_string()));
+    }
     let mut buf = vec![0u8; len];
     reader
         .read_exact(&mut buf)
@@ -498,4 +513,57 @@ pub enum McpServerError {
     /// Transport errors.
     #[error("transport error: {0}")]
     Transport(String),
+}
+
+// ============================================================================
+// SECTION: Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    #![allow(
+        clippy::panic,
+        clippy::print_stdout,
+        clippy::print_stderr,
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::use_debug,
+        clippy::dbg_macro,
+        clippy::panic_in_result_fn,
+        clippy::unwrap_in_result,
+        reason = "Test-only framing assertions."
+    )]
+
+    use std::io::BufReader;
+    use std::io::Cursor;
+
+    use super::read_framed;
+
+    #[test]
+    fn read_framed_rejects_payload_over_limit() {
+        let payload = br#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#;
+        let framed = format!(
+            "Content-Length: {}\r\n\r\n{}",
+            payload.len(),
+            String::from_utf8_lossy(payload)
+        );
+        let mut reader = BufReader::new(Cursor::new(framed.into_bytes()));
+        let result = read_framed(&mut reader, payload.len() - 1);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn read_framed_accepts_payload_at_limit() {
+        let payload = br#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#;
+        let framed = format!(
+            "Content-Length: {}\r\n\r\n{}",
+            payload.len(),
+            String::from_utf8_lossy(payload)
+        );
+        let mut reader = BufReader::new(Cursor::new(framed.into_bytes()));
+        let result = read_framed(&mut reader, payload.len());
+        assert!(result.is_ok());
+        let bytes = result.expect("payload read");
+        assert_eq!(bytes, payload);
+    }
 }

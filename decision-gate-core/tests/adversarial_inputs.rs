@@ -88,3 +88,14 @@ fn comparator_returns_unknown_when_missing_value() {
     );
     assert_eq!(result, TriState::Unknown);
 }
+
+#[test]
+/// Ensures decimal comparisons return Unknown.
+fn comparator_rejects_decimal_numbers() {
+    let result = evaluate_comparator(
+        Comparator::GreaterThan,
+        Some(&json!(1.5)),
+        &empty_result_with_value(EvidenceValue::Json(json!(2.0))),
+    );
+    assert_eq!(result, TriState::Unknown);
+}

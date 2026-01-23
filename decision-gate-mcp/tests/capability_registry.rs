@@ -25,6 +25,7 @@ use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::DecisionGateConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::config::ProviderConfig;
+use decision_gate_mcp::config::ProviderTimeoutConfig;
 use decision_gate_mcp::config::ProviderType;
 use decision_gate_mcp::config::RunStateStoreConfig;
 use decision_gate_mcp::config::ServerConfig;
@@ -53,6 +54,7 @@ fn mcp_provider(name: &str, path: &Path) -> ProviderConfig {
         auth: None,
         trust: None,
         allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
         config: None,
     }
 }
@@ -68,6 +70,7 @@ fn builtin_provider(name: &str) -> ProviderConfig {
         auth: None,
         trust: None,
         allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
         config: None,
     }
 }

@@ -9,6 +9,8 @@
 //! ## Overview
 //! `CompositeBroker` implements Decision Gate's dispatcher interface by resolving
 //! external payloads with sources and delivering them with sinks.
+//! Security posture: treats content references as untrusted input; see
+//! `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports
@@ -68,6 +70,22 @@ pub enum BrokerError {
     /// JSON parsing failed.
     #[error("json parse failure: {0}")]
     JsonParse(String),
+    /// Packet payload kind does not match declared content type.
+    #[error("payload kind {payload_kind} does not match content type {content_type}")]
+    PayloadKindMismatch {
+        /// Payload kind label.
+        payload_kind: String,
+        /// Declared content type string.
+        content_type: String,
+    },
+    /// Source-reported content type does not match envelope content type.
+    #[error("source content type mismatch (expected {expected}, got {actual})")]
+    SourceContentTypeMismatch {
+        /// Expected content type from the envelope.
+        expected: String,
+        /// Content type reported by the source.
+        actual: String,
+    },
     /// Source failed to resolve payload.
     #[error("source failure: {0}")]
     Source(#[from] SourceError),
@@ -165,6 +183,10 @@ impl CompositeBroker {
             PacketPayload::Json {
                 value,
             } => {
+                ensure_payload_kind_matches_content_type(
+                    envelope.content_type.as_str(),
+                    PayloadKind::Json,
+                )?;
                 let body = PayloadBody::Json(value.clone());
                 Self::validate_payload_hash(
                     &body,
@@ -179,6 +201,10 @@ impl CompositeBroker {
             PacketPayload::Bytes {
                 bytes,
             } => {
+                ensure_payload_kind_matches_content_type(
+                    envelope.content_type.as_str(),
+                    PayloadKind::Bytes,
+                )?;
                 let body = PayloadBody::Bytes(bytes.clone());
                 Self::validate_payload_hash(
                     &body,
@@ -201,6 +227,14 @@ impl CompositeBroker {
                 }
                 let source = self.resolve_source(&content_ref.uri)?;
                 let resolved = source.fetch(content_ref)?;
+                if let Some(content_type) = &resolved.content_type
+                    && !content_type_matches(envelope.content_type.as_str(), content_type)
+                {
+                    return Err(BrokerError::SourceContentTypeMismatch {
+                        expected: envelope.content_type.clone(),
+                        actual: content_type.clone(),
+                    });
+                }
                 let body = Self::build_body(&resolved.bytes, envelope.content_type.as_str())?;
                 Self::validate_payload_hash(
                     &body,
@@ -262,7 +296,7 @@ impl Dispatcher for CompositeBroker {
 
 /// Returns true when the content type indicates JSON.
 fn is_json_content_type(content_type: &str) -> bool {
-    let content_type = content_type.split(';').next().unwrap_or(content_type).trim();
+    let content_type = normalize_content_type(content_type);
     content_type == "application/json" || content_type.ends_with("+json")
 }
 
@@ -275,5 +309,55 @@ fn compute_payload_hash(
         PayloadBody::Json(value) => hash_canonical_json(algorithm, value)
             .map_err(|err| BrokerError::Hashing(err.to_string())),
         PayloadBody::Bytes(bytes) => Ok(hash_bytes(algorithm, bytes)),
+    }
+}
+
+/// Payload kind used for content type validation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PayloadKind {
+    Json,
+    Bytes,
+}
+
+impl PayloadKind {
+    fn label(self) -> &'static str {
+        match self {
+            PayloadKind::Json => "json",
+            PayloadKind::Bytes => "bytes",
+        }
+    }
+}
+
+/// Normalizes a content type string to a lowercase base type.
+fn normalize_content_type(content_type: &str) -> String {
+    content_type.split(';').next().unwrap_or(content_type).trim().to_ascii_lowercase()
+}
+
+/// Returns true when source and envelope content types are compatible.
+fn content_type_matches(expected: &str, actual: &str) -> bool {
+    let expected = normalize_content_type(expected);
+    let actual = normalize_content_type(actual);
+    let expected_is_json = expected == "application/json" || expected.ends_with("+json");
+    let actual_is_json = actual == "application/json" || actual.ends_with("+json");
+    if expected_is_json || actual_is_json {
+        return expected_is_json && actual_is_json;
+    }
+    expected == actual
+}
+
+/// Ensures payload kind matches the declared content type.
+fn ensure_payload_kind_matches_content_type(
+    content_type: &str,
+    kind: PayloadKind,
+) -> Result<(), BrokerError> {
+    let is_json = is_json_content_type(content_type);
+    match (kind, is_json) {
+        (PayloadKind::Json, true) | (PayloadKind::Bytes, false) => Ok(()),
+        (PayloadKind::Json, false) | (PayloadKind::Bytes, true) => {
+            Err(BrokerError::PayloadKindMismatch {
+                payload_kind: kind.label().to_string(),
+                content_type: content_type.to_string(),
+            })
+        }
     }
 }

@@ -371,9 +371,9 @@ fn test_plan_add_operation() -> TestResult {
 #[test]
 fn test_plan_add_constant() -> TestResult {
     let mut plan = Plan::new();
-    let idx1 = plan.add_constant(Constant::Float(SAMPLE_FLOAT));
-    let idx2 = plan.add_constant(Constant::Int(42));
-    let idx3 = plan.add_constant(Constant::Flags(0xFF));
+    let idx1 = plan.add_constant(Constant::Float(SAMPLE_FLOAT))?;
+    let idx2 = plan.add_constant(Constant::Int(42))?;
+    let idx3 = plan.add_constant(Constant::Flags(0xFF))?;
 
     ensure(idx1.0 == 0, "Expected float constant index to be 0")?;
     ensure(idx2.0 == 1, "Expected int constant index to be 1")?;
@@ -486,10 +486,10 @@ fn test_plan_builder_or_start_end() -> TestResult {
 #[test]
 fn test_plan_builder_add_constants() -> TestResult {
     let mut builder = PlanBuilder::new();
-    let float_idx = builder.add_float_constant(SAMPLE_FLOAT);
-    let int_idx = builder.add_int_constant(42);
-    let flags_idx = builder.add_flags_constant(0xFF);
-    let string_idx = builder.add_string_constant("test".to_string());
+    let float_idx = builder.add_float_constant(SAMPLE_FLOAT)?;
+    let int_idx = builder.add_int_constant(42)?;
+    let flags_idx = builder.add_flags_constant(0xFF)?;
+    let string_idx = builder.add_string_constant("test".to_string())?;
 
     let plan = builder.build();
 
@@ -517,12 +517,30 @@ fn test_plan_builder_add_constants() -> TestResult {
     Ok(())
 }
 
+/// Tests constant pool overflow handling.
+#[test]
+fn test_plan_builder_constant_pool_overflow() -> TestResult {
+    let mut builder = PlanBuilder::new();
+    let max_constants = usize::from(u16::MAX) + 1;
+
+    for _ in 0 .. max_constants {
+        builder.add_int_constant(0)?;
+    }
+
+    let overflow = builder.add_int_constant(0);
+    ensure(
+        matches!(overflow, Err(ret_logic::PlanError::ConstantPoolOverflow { .. })),
+        "Expected constant pool overflow error",
+    )?;
+    Ok(())
+}
+
 /// Tests plan builder complex plan.
 #[test]
 fn test_plan_builder_complex_plan() -> TestResult {
     let mut builder = PlanBuilder::new();
-    let threshold_idx = builder.add_float_constant(50.0);
-    let flags_idx = builder.add_flags_constant(0b11);
+    let threshold_idx = builder.add_float_constant(50.0)?;
+    let flags_idx = builder.add_flags_constant(0b11)?;
 
     let plan = builder
         .require_column(ColumnKey::new(0)) // Health
@@ -563,7 +581,7 @@ fn test_plan_builder_nested_groups() -> TestResult {
 #[test]
 fn test_plan_clone() -> TestResult {
     let mut builder = PlanBuilder::new();
-    builder.add_float_constant(SAMPLE_FLOAT);
+    builder.add_float_constant(SAMPLE_FLOAT)?;
 
     let plan = builder
         .require_column(ColumnKey::new(1))

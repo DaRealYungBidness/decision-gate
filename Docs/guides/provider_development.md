@@ -79,6 +79,14 @@ Return JSON-RPC errors for:
 
 Decision Gate treats errors as missing evidence and fails closed.
 
+## Timeout Expectations
+Decision Gate enforces HTTP timeouts for external MCP providers. Providers
+should respond quickly and avoid long-running work in the request path. If a
+provider must perform expensive work, move it upstream (precompute, cache) or
+return a fast error rather than blocking until completion. Timeout overrides
+can be configured per provider in `decision-gate.toml` and are bounded for
+safety.
+
 ## Capability Contracts (Required)
 Decision Gate requires every MCP provider to ship a capability contract that
 declares:

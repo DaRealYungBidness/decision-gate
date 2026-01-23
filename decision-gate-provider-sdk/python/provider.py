@@ -21,6 +21,9 @@ import sys
 from typing import Any, Dict, Optional
 
 HEADER_SEPARATOR = b"\r\n\r\n"
+MAX_HEADER_BYTES = 8 * 1024
+MAX_BODY_BYTES = 1024 * 1024
+DISCARD_CHUNK_BYTES = 8 * 1024
 
 TOOL_LIST_RESULT = {
     "tools": [
@@ -33,12 +36,26 @@ TOOL_LIST_RESULT = {
 }
 
 
+class FrameError(Exception):
+    """Represents framing errors for Content-Length payloads."""
+
+    def __init__(self, message: str, fatal: bool) -> None:
+        super().__init__(message)
+        self.fatal = fatal
+
+
 def main() -> None:
     """Entry point for the MCP stdio loop."""
     stdin = sys.stdin.buffer
     stdout = sys.stdout.buffer
     while True:
-        payload = read_frame(stdin)
+        try:
+            payload = read_frame(stdin)
+        except FrameError as exc:
+            write_frame(stdout, build_error_response(None, -32600, str(exc)))
+            if exc.fatal:
+                return
+            continue
         if payload is None:
             return
         request = parse_request(payload)
@@ -52,18 +69,43 @@ def main() -> None:
 def read_frame(stream: Any) -> Optional[bytes]:
     """Reads a Content-Length framed payload from stdio."""
     content_length = None
+    header_bytes = 0
     while True:
         line = stream.readline()
         if not line:
             return None
+        header_bytes += len(line)
+        if header_bytes > MAX_HEADER_BYTES:
+            raise FrameError("headers too large", True)
         if line in (b"\r\n", b"\n"):
             break
         if line.lower().startswith(b"content-length:"):
             value = line.split(b":", 1)[1].strip()
-            content_length = int(value)
+            try:
+                content_length = int(value)
+            except ValueError as exc:
+                raise FrameError("invalid content length", True) from exc
     if content_length is None:
-        return None
-    return stream.read(content_length)
+        raise FrameError("missing content length", True)
+    if content_length <= 0:
+        raise FrameError("invalid content length", True)
+    if content_length > MAX_BODY_BYTES:
+        discard_bytes(stream, content_length)
+        raise FrameError("payload too large", False)
+    payload = stream.read(content_length)
+    if len(payload) != content_length:
+        raise FrameError("unexpected eof", True)
+    return payload
+
+
+def discard_bytes(stream: Any, count: int) -> None:
+    """Drains oversized payloads without buffering them in memory."""
+    remaining = count
+    while remaining > 0:
+        chunk = stream.read(min(remaining, DISCARD_CHUNK_BYTES))
+        if not chunk:
+            raise FrameError("unexpected eof", True)
+        remaining -= len(chunk)
 
 
 def parse_request(payload: bytes) -> Optional[Dict[str, Any]]:
@@ -142,4 +184,3 @@ def write_frame(stream: Any, response: Dict[str, Any]) -> None:
 
 if __name__ == "__main__":
     main()
-

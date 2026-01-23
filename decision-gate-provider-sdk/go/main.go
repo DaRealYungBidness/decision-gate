@@ -19,8 +19,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 )
+
+const maxHeaderBytes = 8 * 1024
+const maxBodyBytes = 1024 * 1024
 
 type jsonRpcRequest struct {
 	JSONRPC string          `json:"jsonrpc"`
@@ -81,12 +85,21 @@ type evidenceValue struct {
 }
 
 type evidenceResult struct {
-	Value         *evidenceValue `json:"value"`
-	EvidenceHash  any            `json:"evidence_hash"`
-	EvidenceRef   any            `json:"evidence_ref"`
-	EvidenceAnchor any           `json:"evidence_anchor"`
-	Signature     any            `json:"signature"`
-	ContentType   string         `json:"content_type"`
+	Value          *evidenceValue `json:"value"`
+	EvidenceHash   any            `json:"evidence_hash"`
+	EvidenceRef    any            `json:"evidence_ref"`
+	EvidenceAnchor any            `json:"evidence_anchor"`
+	Signature      any            `json:"signature"`
+	ContentType    string         `json:"content_type"`
+}
+
+type frameError struct {
+	message string
+	fatal   bool
+}
+
+func (err frameError) Error() string {
+	return err.message
 }
 
 func main() {
@@ -99,7 +112,14 @@ func main() {
 			return
 		}
 		if err != nil {
-			writeFrame(writer, buildErrorResponse(nil, -32700, "invalid request"))
+			fatal := false
+			if frameErr, ok := err.(frameError); ok {
+				fatal = frameErr.fatal
+			}
+			writeFrame(writer, buildErrorResponse(nil, -32600, err.Error()))
+			if fatal {
+				return
+			}
 			continue
 		}
 
@@ -200,11 +220,16 @@ func buildErrorResponse(id any, code int, message string) jsonRpcResponse {
 }
 
 func readFrame(reader *bufio.Reader) ([]byte, error) {
-	contentLength := 0
+	contentLength := -1
+	headerBytes := 0
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			return nil, err
+		}
+		headerBytes += len(line)
+		if headerBytes > maxHeaderBytes {
+			return nil, frameError{message: "headers too large", fatal: true}
 		}
 		line = strings.TrimRight(line, "\r\n")
 		if line == "" {
@@ -212,19 +237,37 @@ func readFrame(reader *bufio.Reader) ([]byte, error) {
 		}
 		if strings.HasPrefix(strings.ToLower(line), "content-length:") {
 			value := strings.TrimSpace(strings.TrimPrefix(line, "content-length:"))
-			if _, err := fmt.Sscanf(value, "%d", &contentLength); err != nil {
-				return nil, fmt.Errorf("invalid content length")
+			parsed, err := strconv.Atoi(value)
+			if err != nil {
+				return nil, frameError{message: "invalid content length", fatal: true}
 			}
+			contentLength = parsed
 		}
 	}
-	if contentLength == 0 {
-		return nil, fmt.Errorf("missing content length")
+	if contentLength < 0 {
+		return nil, frameError{message: "missing content length", fatal: true}
+	}
+	if contentLength <= 0 {
+		return nil, frameError{message: "invalid content length", fatal: true}
+	}
+	if contentLength > maxBodyBytes {
+		if err := discardPayload(reader, contentLength); err != nil {
+			return nil, err
+		}
+		return nil, frameError{message: "payload too large", fatal: false}
 	}
 	payload := make([]byte, contentLength)
 	if _, err := io.ReadFull(reader, payload); err != nil {
 		return nil, err
 	}
 	return payload, nil
+}
+
+func discardPayload(reader *bufio.Reader, contentLength int) error {
+	if _, err := io.CopyN(io.Discard, reader, int64(contentLength)); err != nil {
+		return frameError{message: "unexpected eof", fatal: true}
+	}
+	return nil
 }
 
 func writeFrame(writer *bufio.Writer, response jsonRpcResponse) {
@@ -237,4 +280,3 @@ func writeFrame(writer *bufio.Writer, response jsonRpcResponse) {
 	_, _ = writer.Write(payload)
 	_ = writer.Flush()
 }
-

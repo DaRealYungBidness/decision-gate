@@ -57,6 +57,7 @@ fn test_gate_evaluation_with_snapshot() {
                 signature: None,
                 content_type: None,
             },
+            error: None,
         },
         EvidenceRecord {
             predicate: PredicateKey::from("b"),
@@ -69,6 +70,7 @@ fn test_gate_evaluation_with_snapshot() {
                 signature: None,
                 content_type: None,
             },
+            error: None,
         },
     ]);
 

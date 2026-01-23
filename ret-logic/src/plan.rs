@@ -1,4 +1,4 @@
-// world_engine/src/requirement/plan.rs
+// ret-logic/src/plan.rs
 // ============================================================================
 // Module: Requirement Plan
 // Description: Compiled representation of requirement evaluation plans.
@@ -68,10 +68,44 @@ pub struct Plan {
 }
 
 // ============================================================================
+// SECTION: Plan Errors
+// ============================================================================
+
+/// Errors that can occur while building a [`Plan`]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlanError {
+    /// The constant pool exceeded the maximum representable index.
+    ConstantPoolOverflow {
+        /// Maximum number of constants allowed.
+        max_constants: usize,
+        /// Attempted total after insertion.
+        attempted: usize,
+    },
+}
+
+impl std::fmt::Display for PlanError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ConstantPoolOverflow {
+                max_constants,
+                attempted,
+            } => write!(
+                f,
+                "constant pool overflow: attempted {attempted} constants (max {max_constants})"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for PlanError {}
+
+// ============================================================================
 // SECTION: Plan APIs
 // ============================================================================
 
 impl Plan {
+    const MAX_CONSTANTS: usize = u16::MAX as usize + 1;
+
     /// Creates a new empty plan
     #[must_use]
     pub fn new() -> Self {
@@ -116,10 +150,25 @@ impl Plan {
     }
 
     /// Adds a constant and returns its index
-    pub fn add_constant(&mut self, constant: Constant) -> ConstantIndex {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PlanError::ConstantPoolOverflow`] when the pool exceeds `u16::MAX`.
+    pub fn add_constant(&mut self, constant: Constant) -> Result<ConstantIndex, PlanError> {
         let index = self.constants.len();
+        if index >= Self::MAX_CONSTANTS {
+            return Err(PlanError::ConstantPoolOverflow {
+                max_constants: Self::MAX_CONSTANTS,
+                attempted: index + 1,
+            });
+        }
+
         self.constants.push(constant);
-        ConstantIndex(u16::try_from(index).unwrap_or(u16::MAX))
+        let index_u16 = u16::try_from(index).map_err(|_| PlanError::ConstantPoolOverflow {
+            max_constants: Self::MAX_CONSTANTS,
+            attempted: index + 1,
+        })?;
+        Ok(ConstantIndex(index_u16))
     }
 }
 
@@ -371,22 +420,38 @@ impl PlanBuilder {
     }
 
     /// Adds a float constant and returns its index
-    pub fn add_float_constant(&mut self, value: f32) -> ConstantIndex {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PlanError::ConstantPoolOverflow`] when the pool exceeds `u16::MAX`.
+    pub fn add_float_constant(&mut self, value: f32) -> Result<ConstantIndex, PlanError> {
         self.plan.add_constant(Constant::Float(value))
     }
 
     /// Adds an integer constant and returns its index
-    pub fn add_int_constant(&mut self, value: i32) -> ConstantIndex {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PlanError::ConstantPoolOverflow`] when the pool exceeds `u16::MAX`.
+    pub fn add_int_constant(&mut self, value: i32) -> Result<ConstantIndex, PlanError> {
         self.plan.add_constant(Constant::Int(value))
     }
 
     /// Adds a flags constant and returns its index
-    pub fn add_flags_constant(&mut self, flags: u64) -> ConstantIndex {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PlanError::ConstantPoolOverflow`] when the pool exceeds `u16::MAX`.
+    pub fn add_flags_constant(&mut self, flags: u64) -> Result<ConstantIndex, PlanError> {
         self.plan.add_constant(Constant::Flags(flags))
     }
 
     /// Adds a string constant and returns its index
-    pub fn add_string_constant(&mut self, value: String) -> ConstantIndex {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PlanError::ConstantPoolOverflow`] when the pool exceeds `u16::MAX`.
+    pub fn add_string_constant(&mut self, value: String) -> Result<ConstantIndex, PlanError> {
         self.plan.add_constant(Constant::String(value))
     }
 
@@ -427,7 +492,11 @@ impl PlanBuilder {
     }
 
     /// Adds an integer constant and returns its index (mutable borrow)
-    pub fn add_int_constant_mut(&mut self, value: i32) -> ConstantIndex {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PlanError::ConstantPoolOverflow`] when the pool exceeds `u16::MAX`.
+    pub fn add_int_constant_mut(&mut self, value: i32) -> Result<ConstantIndex, PlanError> {
         self.plan.add_constant(Constant::Int(value))
     }
 }

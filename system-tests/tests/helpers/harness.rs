@@ -16,6 +16,7 @@ use decision_gate_mcp::McpServer;
 use decision_gate_mcp::config::DecisionGateConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::config::ProviderConfig;
+use decision_gate_mcp::config::ProviderTimeoutConfig;
 use decision_gate_mcp::config::ProviderType;
 use decision_gate_mcp::config::RunStateStoreConfig;
 use decision_gate_mcp::config::ServerConfig;
@@ -95,6 +96,32 @@ pub fn config_with_provider(
         auth: None,
         trust: None,
         allow_raw: true,
+        timeouts: ProviderTimeoutConfig::default(),
+        config: None,
+    });
+    config
+}
+
+/// Builds a config with a federated MCP provider using explicit timeouts.
+pub fn config_with_provider_timeouts(
+    bind: &str,
+    provider_name: &str,
+    url: &str,
+    capabilities_path: &Path,
+    timeouts: ProviderTimeoutConfig,
+) -> DecisionGateConfig {
+    let mut config = base_http_config(bind);
+    config.providers.push(ProviderConfig {
+        name: provider_name.to_string(),
+        provider_type: ProviderType::Mcp,
+        command: Vec::new(),
+        url: Some(url.to_string()),
+        allow_insecure_http: true,
+        capabilities_path: Some(PathBuf::from(capabilities_path)),
+        auth: None,
+        trust: None,
+        allow_raw: true,
+        timeouts,
         config: None,
     });
     config
@@ -120,6 +147,7 @@ fn builtin_provider(name: &str) -> ProviderConfig {
         auth: None,
         trust: None,
         allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
         config: None,
     }
 }

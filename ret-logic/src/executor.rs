@@ -1,4 +1,4 @@
-// world_engine/src/requirement/executor.rs
+// ret-logic/src/executor.rs
 // ============================================================================
 // Module: Requirement Executor
 // Description: Prepared plan execution infrastructure for requirements.
@@ -37,6 +37,32 @@ type EvalFn<R> = fn(&R, Row, &Operation, &[Constant]) -> RequirementResult<bool>
 /// Type alias for the complete evaluation dispatch table.
 /// Contains 256 function pointers, one for each possible opcode value.
 type EvalTable<R> = [EvalFn<R>; 256];
+
+// ============================================================================
+// SECTION: Internal Combine Mode
+// ============================================================================
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CombineMode {
+    And,
+    Or,
+}
+
+impl CombineMode {
+    const fn identity(self) -> bool {
+        match self {
+            Self::And => true,
+            Self::Or => false,
+        }
+    }
+
+    const fn combine(self, lhs: bool, rhs: bool) -> bool {
+        match self {
+            Self::And => lhs && rhs,
+            Self::Or => lhs || rhs,
+        }
+    }
+}
 
 // ============================================================================
 // SECTION: Plan Executor
@@ -98,8 +124,12 @@ impl<R: 'static> PredicateEval for PlanExecutor<R> {
 
     fn eval_row(&self, reader: &Self::Reader<'_>, row: Row) -> bool {
         // Use a small stack for boolean logic evaluation
-        let mut stack: [bool; 16] = [true; 16];
+        let mut stack_values: [bool; 16] = [false; 16];
+        let mut stack_modes: [CombineMode; 16] = [CombineMode::And; 16];
         let mut stack_pointer = 0usize;
+
+        stack_modes[0] = CombineMode::And;
+        stack_values[0] = CombineMode::And.identity();
 
         // Execute operations in sequence
         for operation in self.plan.operations() {
@@ -107,48 +137,52 @@ impl<R: 'static> PredicateEval for PlanExecutor<R> {
                 OpCode::AndStart => {
                     // Push a new AND context
                     stack_pointer += 1;
-                    if stack_pointer >= stack.len() {
+                    if stack_pointer >= stack_values.len() {
                         // Stack overflow protection - treat as false
                         return false;
                     }
-                    stack[stack_pointer] = true;
+                    stack_modes[stack_pointer] = CombineMode::And;
+                    stack_values[stack_pointer] = CombineMode::And.identity();
                 }
 
                 OpCode::AndEnd => {
                     // Pop AND context and combine with parent
-                    if stack_pointer == 0 {
+                    if stack_pointer == 0 || stack_modes[stack_pointer] != CombineMode::And {
                         // Malformed plan - no matching start
                         return false;
                     }
-                    let and_result = stack[stack_pointer];
+                    let and_result = stack_values[stack_pointer];
                     stack_pointer -= 1;
-                    stack[stack_pointer] = stack[stack_pointer] && and_result;
+                    stack_values[stack_pointer] =
+                        stack_modes[stack_pointer].combine(stack_values[stack_pointer], and_result);
                 }
 
                 OpCode::OrStart => {
                     // Push a new OR context
                     stack_pointer += 1;
-                    if stack_pointer >= stack.len() {
+                    if stack_pointer >= stack_values.len() {
                         // Stack overflow protection - treat as false
                         return false;
                     }
-                    stack[stack_pointer] = false;
+                    stack_modes[stack_pointer] = CombineMode::Or;
+                    stack_values[stack_pointer] = CombineMode::Or.identity();
                 }
 
                 OpCode::OrEnd => {
                     // Pop OR context and combine with parent
-                    if stack_pointer == 0 {
+                    if stack_pointer == 0 || stack_modes[stack_pointer] != CombineMode::Or {
                         // Malformed plan - no matching start
                         return false;
                     }
-                    let or_result = stack[stack_pointer];
+                    let or_result = stack_values[stack_pointer];
                     stack_pointer -= 1;
-                    stack[stack_pointer] = stack[stack_pointer] || or_result;
+                    stack_values[stack_pointer] =
+                        stack_modes[stack_pointer].combine(stack_values[stack_pointer], or_result);
                 }
 
                 OpCode::Not => {
                     // NOT operation inverts the current context
-                    stack[stack_pointer] = !stack[stack_pointer];
+                    stack_values[stack_pointer] = !stack_values[stack_pointer];
                 }
 
                 _ => {
@@ -157,27 +191,21 @@ impl<R: 'static> PredicateEval for PlanExecutor<R> {
 
                     match eval_fn(reader, row, operation, &self.plan.constants) {
                         Ok(result) => {
-                            // For AND contexts, combine with AND
-                            // For OR contexts, combine with OR
-                            // This assumes the context determines the combination logic
-                            stack[stack_pointer] = stack[stack_pointer] && result;
+                            stack_values[stack_pointer] = stack_modes[stack_pointer]
+                                .combine(stack_values[stack_pointer], result);
                         }
                         Err(_) => {
-                            // Evaluation error - treat as false
-                            stack[stack_pointer] = false;
+                            // Evaluation error - treat as false and keep fail-closed semantics
+                            stack_values[stack_pointer] = stack_modes[stack_pointer]
+                                .combine(stack_values[stack_pointer], false);
                         }
                     }
                 }
             }
-
-            // Early exit optimization for top-level AND
-            if stack_pointer == 0 && !stack[0] {
-                return false;
-            }
         }
 
         // Return the final result
-        stack[0]
+        stack_values[0]
     }
 }
 

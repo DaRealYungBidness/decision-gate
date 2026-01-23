@@ -9,11 +9,14 @@
 //! ## Overview
 //! `FileSource` resolves `file://` URIs into payload bytes. A root directory can
 //! be configured to fail closed on path traversal.
+//! Security posture: treats file paths as untrusted input; see
+//! `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports
 // ============================================================================
 
+use std::io::ErrorKind;
 use std::path::PathBuf;
 
 use decision_gate_core::ContentRef;
@@ -64,8 +67,13 @@ impl FileSource {
         if let Some(root) = &self.root {
             let root =
                 std::fs::canonicalize(root).map_err(|err| SourceError::Io(err.to_string()))?;
-            let resolved = std::fs::canonicalize(&path)
-                .map_err(|err| SourceError::NotFound(err.to_string()))?;
+            let resolved = std::fs::canonicalize(&path).map_err(|err| {
+                if err.kind() == ErrorKind::NotFound {
+                    SourceError::NotFound(err.to_string())
+                } else {
+                    SourceError::Io(err.to_string())
+                }
+            })?;
             if !resolved.starts_with(&root) {
                 return Err(SourceError::InvalidUri(
                     "file path escapes configured root".to_string(),

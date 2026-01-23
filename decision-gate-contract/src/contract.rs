@@ -84,6 +84,7 @@ impl ContractBuilder {
         let provider_contracts = providers::provider_contracts();
         let mut artifacts = vec![
             markdown_artifact("authoring.md", authoring::authoring_markdown()),
+            markdown_artifact("glossary.md", tooltips::tooltips_glossary_markdown()),
             json_artifact("tooling.json", &tool_contracts)?,
             markdown_artifact("tooling.md", tooling::tooling_markdown(&tool_contracts)),
             json_artifact("tooltips.json", &tooltips::tooltips_manifest())?,

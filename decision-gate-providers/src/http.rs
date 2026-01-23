@@ -8,8 +8,8 @@
 
 //! ## Overview
 //! The HTTP provider issues bounded GET requests and returns status codes or
-//! body hashes. It enforces scheme restrictions, host allowlists, and size
-//! limits to preserve fail-closed behavior.
+//! body hashes. It enforces scheme restrictions, host allowlists, redirects
+//! disabled by default, and size limits to preserve fail-closed behavior.
 //! Security posture: evidence inputs are untrusted; see `Docs/security/threat_model.md`.
 
 // ============================================================================
@@ -35,6 +35,7 @@ use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
 use decision_gate_core::hashing::hash_bytes;
 use reqwest::Url;
 use reqwest::blocking::Client;
+use reqwest::redirect::Policy;
 use serde::Deserialize;
 use serde_json::Number;
 use serde_json::Value;
@@ -95,6 +96,7 @@ impl HttpProvider {
         let client = Client::builder()
             .timeout(Duration::from_millis(config.timeout_ms))
             .user_agent(config.user_agent.clone())
+            .redirect(Policy::none())
             .build()
             .map_err(|_| EvidenceError::Provider("http client build failed".to_string()))?;
         Ok(Self {
@@ -213,7 +215,9 @@ fn read_response_limited(
 ) -> Result<Vec<u8>, EvidenceError> {
     let mut buf = Vec::new();
     let limit = max_bytes.saturating_add(1);
-    let mut handle = response.take(limit as u64);
+    let limit = u64::try_from(limit)
+        .map_err(|_| EvidenceError::Provider("response size limit exceeds u64".to_string()))?;
+    let mut handle = response.take(limit);
     handle
         .read_to_end(&mut buf)
         .map_err(|_| EvidenceError::Provider("failed to read response".to_string()))?;

@@ -240,7 +240,7 @@ fn test_plan_executor_new() -> TestResult {
 #[test]
 fn test_plan_executor_with_plan() -> TestResult {
     let mut builder = PlanBuilder::new();
-    builder.add_float_constant(50.0);
+    builder.add_float_constant(50.0)?;
 
     let plan = builder.require_column(ColumnKey::new(0)).add_op(OpCode::FloatGte, 0, 0, 0).build();
 
@@ -269,7 +269,7 @@ fn test_executor_empty_plan() -> TestResult {
 #[test]
 fn test_executor_single_operation() -> TestResult {
     let mut builder = PlanBuilder::new();
-    let threshold_idx = builder.add_float_constant(50.0);
+    let threshold_idx = builder.add_float_constant(50.0)?;
 
     let plan = builder.add_op(OpCode::FloatGte, 0, threshold_idx.0, 0).build();
 
@@ -290,8 +290,8 @@ fn test_executor_single_operation() -> TestResult {
 #[test]
 fn test_executor_and_group_all_true() -> TestResult {
     let mut builder = PlanBuilder::new();
-    let low_idx = builder.add_float_constant(10.0);
-    let high_idx = builder.add_float_constant(90.0);
+    let low_idx = builder.add_float_constant(10.0)?;
+    let high_idx = builder.add_float_constant(90.0)?;
 
     let plan = builder
         .and_start()
@@ -311,8 +311,8 @@ fn test_executor_and_group_all_true() -> TestResult {
 #[test]
 fn test_executor_and_group_one_false() -> TestResult {
     let mut builder = PlanBuilder::new();
-    let low_idx = builder.add_float_constant(10.0);
-    let high_idx = builder.add_float_constant(40.0);
+    let low_idx = builder.add_float_constant(10.0)?;
+    let high_idx = builder.add_float_constant(40.0)?;
 
     let plan = builder
         .and_start()
@@ -349,8 +349,8 @@ fn test_executor_empty_and() -> TestResult {
 #[test]
 fn test_executor_or_group_one_true() -> TestResult {
     let mut builder = PlanBuilder::new();
-    let low_idx = builder.add_float_constant(100.0);
-    let high_idx = builder.add_float_constant(0.0);
+    let low_idx = builder.add_float_constant(100.0)?;
+    let high_idx = builder.add_float_constant(0.0)?;
 
     let plan = builder
         .or_start()
@@ -362,8 +362,6 @@ fn test_executor_or_group_one_true() -> TestResult {
     let executor = PlanExecutor::new(plan, &TEST_DISPATCH_TABLE);
     let reader = TestReader::new(vec![50.0], vec![0]);
 
-    // Note: In the stack machine, OR combines with || but operations AND into context
-    // This test may need adjustment based on exact semantics
     ensure(executor.eval_row(&reader, 0), "Expected OR group to evaluate true")?;
     Ok(())
 }
@@ -376,9 +374,8 @@ fn test_executor_empty_or() -> TestResult {
     let executor = PlanExecutor::new(plan, &TEST_DISPATCH_TABLE);
     let reader = TestReader::new(vec![0.0], vec![0]);
 
-    // Empty OR should be false (combined with parent using ||)
-    // Result depends on stack semantics
-    ensure(executor.eval_row(&reader, 0), "Expected empty OR group to preserve parent true")?;
+    // Empty OR should be false (identity for OR)
+    ensure(!executor.eval_row(&reader, 0), "Expected empty OR group to evaluate false")?;
     Ok(())
 }
 
@@ -404,7 +401,7 @@ fn test_executor_not_true() -> TestResult {
 #[test]
 fn test_executor_not_with_operation() -> TestResult {
     let mut builder = PlanBuilder::new();
-    let threshold_idx = builder.add_float_constant(50.0);
+    let threshold_idx = builder.add_float_constant(50.0)?;
 
     let plan = builder
         .add_op(OpCode::FloatGte, 0, threshold_idx.0, 0)
@@ -414,9 +411,7 @@ fn test_executor_not_with_operation() -> TestResult {
     let executor = PlanExecutor::new(plan, &TEST_DISPATCH_TABLE);
     let reader = TestReader::new(vec![25.0, 75.0], vec![0, 0]);
 
-    // NOT(25 >= 50) = NOT(false) = true... but AND semantics
-    // This test needs to understand the stack machine behavior
-    ensure(!executor.eval_row(&reader, 0), "Expected NOT false to evaluate true")?;
+    ensure(executor.eval_row(&reader, 0), "Expected NOT false to evaluate true")?;
     ensure(!executor.eval_row(&reader, 1), "Expected NOT true to evaluate false")?;
     Ok(())
 }
@@ -429,8 +424,8 @@ fn test_executor_not_with_operation() -> TestResult {
 #[test]
 fn test_executor_nested_and_in_or() -> TestResult {
     let mut builder = PlanBuilder::new();
-    let val1 = builder.add_float_constant(100.0);
-    let val2 = builder.add_float_constant(0.0);
+    let val1 = builder.add_float_constant(100.0)?;
+    let val2 = builder.add_float_constant(0.0)?;
 
     let plan = builder
         .or_start()
@@ -458,7 +453,7 @@ fn test_executor_nested_and_in_or() -> TestResult {
 #[test]
 fn test_executor_has_all_flags() -> TestResult {
     let mut builder = PlanBuilder::new();
-    let flags_idx = builder.add_flags_constant(0b11);
+    let flags_idx = builder.add_flags_constant(0b11)?;
 
     let plan = builder.add_op(OpCode::HasAllFlags, 1, flags_idx.0, 0).build();
 
@@ -480,7 +475,7 @@ fn test_executor_has_all_flags() -> TestResult {
 #[test]
 fn test_executor_has_any_flags() -> TestResult {
     let mut builder = PlanBuilder::new();
-    let flags_idx = builder.add_flags_constant(0b11);
+    let flags_idx = builder.add_flags_constant(0b11)?;
 
     let plan = builder.add_op(OpCode::HasAnyFlags, 1, flags_idx.0, 0).build();
 
@@ -504,7 +499,7 @@ fn test_executor_has_any_flags() -> TestResult {
 #[test]
 fn test_executor_multiple_rows() -> TestResult {
     let mut builder = PlanBuilder::new();
-    let threshold_idx = builder.add_float_constant(50.0);
+    let threshold_idx = builder.add_float_constant(50.0)?;
 
     let plan = builder.add_op(OpCode::FloatGte, 0, threshold_idx.0, 0).build();
 
@@ -544,7 +539,7 @@ fn test_executor_builder_default() {
 #[test]
 fn test_executor_builder_register() -> TestResult {
     let mut plan_builder = PlanBuilder::new();
-    let threshold = plan_builder.add_float_constant(50.0);
+    let threshold = plan_builder.add_float_constant(50.0)?;
 
     let plan = plan_builder.add_op(OpCode::FloatGte, 0, threshold.0, 0).build();
 

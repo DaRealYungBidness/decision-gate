@@ -11,6 +11,7 @@
 mod helpers;
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 use decision_gate_contract::types::DeterminismClass;
 use decision_gate_contract::types::PredicateContract;
@@ -35,6 +36,7 @@ use decision_gate_core::Timestamp;
 use decision_gate_core::TriggerId;
 use decision_gate_core::TriggerKind;
 use decision_gate_core::runtime::TriggerResult;
+use decision_gate_mcp::config::ProviderTimeoutConfig;
 use decision_gate_mcp::tools::ScenarioDefineRequest;
 use decision_gate_mcp::tools::ScenarioDefineResponse;
 use decision_gate_mcp::tools::ScenarioStartRequest;
@@ -43,8 +45,10 @@ use helpers::artifacts::TestReporter;
 use helpers::harness::allocate_bind_addr;
 use helpers::harness::base_http_config;
 use helpers::harness::config_with_provider;
+use helpers::harness::config_with_provider_timeouts;
 use helpers::harness::spawn_mcp_server;
 use helpers::provider_stub::spawn_provider_stub;
+use helpers::provider_stub::spawn_provider_stub_with_delay;
 use helpers::readiness::wait_for_server_ready;
 use helpers::scenarios::ScenarioFixture;
 use serde_json::json;
@@ -208,6 +212,58 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
     reporter.finish(
         "pass",
         vec!["federated provider executed evidence query".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+            "echo_provider_contract.json".to_string(),
+        ],
+    )?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn federated_provider_timeout_enforced() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("federated_provider_timeout_enforced")?;
+    let provider =
+        spawn_provider_stub_with_delay(json!(true), Duration::from_millis(1_500)).await?;
+
+    let bind = allocate_bind_addr()?.to_string();
+    let capabilities_path = write_echo_contract(&reporter, "echo-timeout")?;
+    let timeouts = ProviderTimeoutConfig {
+        connect_timeout_ms: 500,
+        request_timeout_ms: 500,
+    };
+    let config = config_with_provider_timeouts(
+        &bind,
+        "echo-timeout",
+        provider.base_url(),
+        &capabilities_path,
+        timeouts,
+    );
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(Duration::from_secs(5))?;
+    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+
+    let fixture = ScenarioFixture::time_after("timeout-scenario", "run-1", 0);
+    let request = decision_gate_mcp::tools::EvidenceQueryRequest {
+        query: EvidenceQuery {
+            provider_id: ProviderId::new("echo-timeout"),
+            predicate: "echo".to_string(),
+            params: Some(json!({"value": true})),
+        },
+        context: fixture.evidence_context("timeout-trigger", Timestamp::Logical(1)),
+    };
+    let input = serde_json::to_value(&request)?;
+    let result = client.call_tool("evidence_query", input).await;
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.contains("timed out"));
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["federated provider timeouts are enforced".to_string()],
         vec![
             "summary.json".to_string(),
             "summary.md".to_string(),

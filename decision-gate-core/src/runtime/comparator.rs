@@ -9,7 +9,7 @@
 //! ## Overview
 //! Comparator evaluation converts evidence results into tri-state outcomes.
 //! Missing or invalid evidence yields `Unknown` to preserve fail-closed
-//! behavior.
+//! behavior. Numeric ordering is integer-only; decimal values return `Unknown`.
 
 // ============================================================================
 // SECTION: Imports
@@ -176,15 +176,43 @@ fn compare_in_set(value: &Value, expected: &Value) -> TriState {
     }
 }
 
-/// Compares two JSON numbers using integer then float semantics.
+/// Compares two JSON numbers using integer-only semantics.
 fn numeric_cmp(left: &Number, right: &Number) -> Option<std::cmp::Ordering> {
-    if let (Some(left_int), Some(right_int)) = (left.as_i64(), right.as_i64()) {
-        return Some(left_int.cmp(&right_int));
+    let left = integer_value(left)?;
+    let right = integer_value(right)?;
+
+    match (left, right) {
+        (IntegerValue::Signed(left), IntegerValue::Signed(right)) => Some(left.cmp(&right)),
+        (IntegerValue::Unsigned(left), IntegerValue::Unsigned(right)) => Some(left.cmp(&right)),
+        (IntegerValue::Signed(left), IntegerValue::Unsigned(right)) => {
+            if left < 0 {
+                Some(std::cmp::Ordering::Less)
+            } else {
+                let left = u64::try_from(left).ok()?;
+                Some(left.cmp(&right))
+            }
+        }
+        (IntegerValue::Unsigned(left), IntegerValue::Signed(right)) => {
+            if right < 0 {
+                Some(std::cmp::Ordering::Greater)
+            } else {
+                let right = u64::try_from(right).ok()?;
+                Some(left.cmp(&right))
+            }
+        }
     }
-    if let (Some(left_uint), Some(right_uint)) = (left.as_u64(), right.as_u64()) {
-        return Some(left_uint.cmp(&right_uint));
+}
+
+/// Integer representation of JSON numbers for deterministic comparison.
+enum IntegerValue {
+    Signed(i64),
+    Unsigned(u64),
+}
+
+/// Extracts integer values and rejects decimals.
+fn integer_value(value: &Number) -> Option<IntegerValue> {
+    if let Some(value) = value.as_i64() {
+        return Some(IntegerValue::Signed(value));
     }
-    let left_float = left.as_f64()?;
-    let right_float = right.as_f64()?;
-    left_float.partial_cmp(&right_float)
+    value.as_u64().map(IntegerValue::Unsigned)
 }

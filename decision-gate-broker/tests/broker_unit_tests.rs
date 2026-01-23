@@ -616,6 +616,48 @@ fn broker_parses_json_with_charset() {
     assert!(result.is_ok());
 }
 
+/// Tests broker parses json content type case-insensitively.
+#[test]
+fn broker_parses_json_content_type_case_insensitive() {
+    let dir = tempdir().expect("temp dir");
+    let path = dir.path().join("data.json");
+    let json_bytes = br#"{"case": "insensitive"}"#;
+    std::fs::write(&path, json_bytes).expect("write file");
+
+    let uri = Url::from_file_path(&path).expect("file url").to_string();
+    let content_hash =
+        hash_canonical_json(DEFAULT_HASH_ALGORITHM, &json!({"case": "insensitive"})).expect("hash");
+    let content_ref = ContentRef {
+        uri,
+        content_hash: content_hash.clone(),
+        encryption: None,
+    };
+    let envelope = sample_envelope("Application/JSON; Charset=UTF-8", content_hash);
+    let payload = PacketPayload::External {
+        content_ref,
+    };
+
+    let sink = CallbackSink::new(|_, payload| {
+        assert!(matches!(payload.body, PayloadBody::Json(_)));
+        Ok(DispatchReceipt {
+            dispatch_id: "json-case".to_string(),
+            target: sample_target(),
+            receipt_hash: payload.envelope.content_hash.clone(),
+            dispatched_at: Timestamp::Logical(1),
+            dispatcher: "test".to_string(),
+        })
+    });
+
+    let broker = CompositeBroker::builder()
+        .source("file", FileSource::new(dir.path()))
+        .sink(sink)
+        .build()
+        .expect("build broker");
+
+    let result = broker.dispatch(&sample_target(), &envelope, &payload);
+    assert!(result.is_ok());
+}
+
 /// Tests broker parses vendor json type.
 #[test]
 fn broker_parses_vendor_json_type() {
@@ -656,6 +698,68 @@ fn broker_parses_vendor_json_type() {
 
     let result = broker.dispatch(&sample_target(), &envelope, &payload);
     assert!(result.is_ok());
+}
+
+// ============================================================================
+// SECTION: Content Type Validation Tests
+// ============================================================================
+
+/// Tests broker rejects json payload with non-json content type.
+#[test]
+fn broker_rejects_json_payload_with_non_json_content_type() {
+    let json_value = json!({"key": "value"});
+    let content_hash = hash_canonical_json(DEFAULT_HASH_ALGORITHM, &json_value).expect("hash");
+    let envelope = sample_envelope("application/octet-stream", content_hash);
+    let payload = PacketPayload::Json {
+        value: json_value,
+    };
+
+    let broker = CompositeBroker::builder().sink(success_sink()).build().expect("build broker");
+
+    let err = broker.dispatch(&sample_target(), &envelope, &payload).unwrap_err();
+    assert!(err.to_string().contains("payload kind json"));
+}
+
+/// Tests broker rejects bytes payload with json content type.
+#[test]
+fn broker_rejects_bytes_payload_with_json_content_type() {
+    let bytes = b"binary data";
+    let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, bytes);
+    let envelope = sample_envelope("application/json", content_hash);
+    let payload = PacketPayload::Bytes {
+        bytes: bytes.to_vec(),
+    };
+
+    let broker = CompositeBroker::builder().sink(success_sink()).build().expect("build broker");
+
+    let err = broker.dispatch(&sample_target(), &envelope, &payload).unwrap_err();
+    assert!(err.to_string().contains("payload kind bytes"));
+}
+
+/// Tests broker rejects source content type mismatch.
+#[test]
+fn broker_rejects_source_content_type_mismatch() {
+    let data = b"inline external";
+    let encoded = STANDARD.encode(data);
+    let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, data);
+    let content_ref = ContentRef {
+        uri: format!("inline+bytes:{encoded}"),
+        content_hash: content_hash.clone(),
+        encryption: None,
+    };
+    let envelope = sample_envelope("application/json", content_hash);
+    let payload = PacketPayload::External {
+        content_ref,
+    };
+
+    let broker = CompositeBroker::builder()
+        .source("inline", InlineSource::new())
+        .sink(success_sink())
+        .build()
+        .expect("build broker");
+
+    let err = broker.dispatch(&sample_target(), &envelope, &payload).unwrap_err();
+    assert!(err.to_string().contains("source content type mismatch"));
 }
 
 /// Tests broker keeps binary for non json type.

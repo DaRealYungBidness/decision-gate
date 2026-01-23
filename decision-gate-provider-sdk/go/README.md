@@ -23,5 +23,5 @@ go run .
 
 ## Notes
 - Uses Content-Length framing over stdio.
+- Frames larger than 1 MiB or headers over 8 KiB are rejected.
 - Returns JSON-RPC errors for invalid requests.
-

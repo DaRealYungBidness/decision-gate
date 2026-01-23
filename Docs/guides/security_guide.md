@@ -34,6 +34,12 @@ Configuration controls:
 - `evidence.require_provider_opt_in = true` requires providers to opt in.
 - Provider config `allow_raw = true` allows raw results for that provider.
 
+## Provider Timeouts
+External MCP providers called over HTTP are guarded by strict connect and
+request timeouts. Overrides are supported per provider but are bounded to
+prevent disabling safeguards. Timeouts are treated as missing evidence and
+fail closed.
+
 ## Local-Only Transport
 The MCP server currently runs in local-only mode without a full auth/policy
 layer. HTTP/SSE transports are restricted to loopback addresses and the CLI

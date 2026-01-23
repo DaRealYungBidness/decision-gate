@@ -31,6 +31,7 @@ use std::path::PathBuf;
 use decision_gate_mcp::DecisionGateConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::config::ProviderConfig;
+use decision_gate_mcp::config::ProviderTimeoutConfig;
 use decision_gate_mcp::config::ProviderType;
 use decision_gate_mcp::config::RunStateStoreConfig;
 use decision_gate_mcp::config::ServerConfig;
@@ -79,6 +80,20 @@ fn server_stdio_no_bind_required() {
         max_body_bytes: 1024 * 1024,
     };
     assert!(validate_server_config(config).is_ok());
+}
+
+/// Verifies max_body_bytes must be non-zero.
+#[test]
+fn server_max_body_bytes_zero_rejected() {
+    let config = ServerConfig {
+        transport: ServerTransport::Stdio,
+        bind: None,
+        max_body_bytes: 0,
+    };
+    let result = validate_server_config(config);
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("max_body_bytes"));
 }
 
 /// Verifies HTTP transport requires bind address.
@@ -200,6 +215,7 @@ fn provider_builtin_valid() {
         auth: None,
         trust: None,
         allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
         config: None,
     };
     assert!(validate_provider_config(config).is_ok());
@@ -218,6 +234,7 @@ fn provider_empty_name_rejected() {
         auth: None,
         trust: None,
         allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
         config: None,
     };
     let result = validate_provider_config(config);
@@ -239,6 +256,7 @@ fn provider_whitespace_name_rejected() {
         auth: None,
         trust: None,
         allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
         config: None,
     };
     let result = validate_provider_config(config);
@@ -258,6 +276,7 @@ fn provider_mcp_requires_command_or_url() {
         auth: None,
         trust: None,
         allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
         config: None,
     };
     let result = validate_provider_config(config);
@@ -279,6 +298,7 @@ fn provider_mcp_with_command_valid() {
         auth: None,
         trust: None,
         allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
         config: None,
     };
     assert!(validate_provider_config(config).is_ok());
@@ -297,9 +317,60 @@ fn provider_mcp_with_https_url_valid() {
         auth: None,
         trust: None,
         allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
         config: None,
     };
     assert!(validate_provider_config(config).is_ok());
+}
+
+/// Verifies provider timeouts reject out-of-range connect values.
+#[test]
+fn provider_timeouts_reject_connect_out_of_range() {
+    let config = ProviderConfig {
+        name: "external".to_string(),
+        provider_type: ProviderType::Mcp,
+        command: Vec::new(),
+        url: Some("https://example.com/mcp".to_string()),
+        allow_insecure_http: false,
+        capabilities_path: Some(PathBuf::from("provider.json")),
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        timeouts: ProviderTimeoutConfig {
+            connect_timeout_ms: 50,
+            request_timeout_ms: 1_000,
+        },
+        config: None,
+    };
+    let result = validate_provider_config(config);
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("connect_timeout_ms"));
+}
+
+/// Verifies provider timeouts require request timeout >= connect timeout.
+#[test]
+fn provider_timeouts_reject_request_below_connect() {
+    let config = ProviderConfig {
+        name: "external".to_string(),
+        provider_type: ProviderType::Mcp,
+        command: Vec::new(),
+        url: Some("https://example.com/mcp".to_string()),
+        allow_insecure_http: false,
+        capabilities_path: Some(PathBuf::from("provider.json")),
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        timeouts: ProviderTimeoutConfig {
+            connect_timeout_ms: 2_000,
+            request_timeout_ms: 1_000,
+        },
+        config: None,
+    };
+    let result = validate_provider_config(config);
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("request_timeout_ms"));
 }
 
 // ============================================================================
@@ -457,6 +528,7 @@ fn provider_mcp_http_rejected_without_flag() {
         auth: None,
         trust: None,
         allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
         config: None,
     };
     let result = validate_provider_config(config);
@@ -478,6 +550,7 @@ fn provider_mcp_http_allowed_with_flag() {
         auth: None,
         trust: None,
         allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
         config: None,
     };
     assert!(validate_provider_config(config).is_ok());

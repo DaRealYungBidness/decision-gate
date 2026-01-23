@@ -9,6 +9,8 @@
 //! ## Overview
 //! Sources fetch external content referenced by Decision Gate packet payloads.
 //! Implementations must fail closed on invalid URIs or fetch errors.
+//! Security posture: all source inputs are untrusted; see
+//! `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports

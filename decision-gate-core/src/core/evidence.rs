@@ -118,6 +118,15 @@ pub struct EvidenceSignature {
 // SECTION: Evidence Results
 // ============================================================================
 
+/// Evidence provider error metadata recorded for audit trails.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EvidenceProviderError {
+    /// Stable error code string.
+    pub code: String,
+    /// Provider error message.
+    pub message: String,
+}
+
 /// Evidence result returned by providers.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvidenceResult {

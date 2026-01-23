@@ -13,6 +13,8 @@
 //! trees without writing nested RON/JSON. It supports boolean composition
 //! (`and`, `or`, `not`), the `require_group`/`at_least` operator, and predicate
 //! symbols that are resolved through a user-supplied [`PredicateResolver`].
+//! Security posture: DSL input is untrusted; enforce validation and limits per
+//! Docs/security/threat_model.md.
 //!
 //! ### Grammar (informal)
 //! - **Predicates**: `is_alive`, `has_ap`, `stunned` (any identifier resolved by the resolver)

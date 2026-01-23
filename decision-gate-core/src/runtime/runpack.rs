@@ -60,6 +60,8 @@ const SUBMISSION_LOG_PATH: &str = "artifacts/submissions.json";
 const TOOL_LOG_PATH: &str = "artifacts/tool_calls.json";
 /// Runpack path for verifier reports.
 const VERIFIER_REPORT_PATH: &str = "artifacts/verifier_report.json";
+/// Maximum artifact size accepted by the runpack verifier.
+pub const MAX_RUNPACK_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 
 // ============================================================================
 // SECTION: Builder
@@ -276,7 +278,7 @@ impl RunpackVerifier {
         }
 
         for entry in &manifest.integrity.file_hashes {
-            match reader.read(&entry.path) {
+            match reader.read_with_limit(&entry.path, MAX_RUNPACK_ARTIFACT_BYTES) {
                 Ok(bytes) => {
                     let actual = hash_bytes(self.hash_algorithm, &bytes);
                     if actual != entry.hash {
@@ -284,8 +286,8 @@ impl RunpackVerifier {
                     }
                     checked = checked.saturating_add(1);
                 }
-                Err(_) => {
-                    errors.push(format!("missing artifact {}", entry.path));
+                Err(err) => {
+                    errors.push(format!("artifact read failed for {}: {}", entry.path, err));
                 }
             }
         }
@@ -414,7 +416,9 @@ fn build_integrity(
 
 /// Verifies decision log structure and uniqueness.
 fn verify_decisions<R: ArtifactReader>(reader: &R) -> Result<(), String> {
-    let bytes = reader.read(DECISION_LOG_PATH).map_err(|_| "missing decision log".to_string())?;
+    let bytes = reader
+        .read_with_limit(DECISION_LOG_PATH, MAX_RUNPACK_ARTIFACT_BYTES)
+        .map_err(|err| format!("decision log read failed: {err}"))?;
     let decisions: Vec<DecisionRecord> =
         serde_json::from_slice(&bytes).map_err(|err| format!("invalid decision log: {err}"))?;
 

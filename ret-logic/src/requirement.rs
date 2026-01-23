@@ -1,4 +1,4 @@
-// world_engine/src/requirement/requirement.rs
+// ret-logic/src/requirement.rs
 // ============================================================================
 // Module: Requirement Core Types
 // Description: Universal Boolean algebra over typed predicates.
@@ -68,7 +68,7 @@ impl RequirementId {
         NonZeroU64::new(id).map(RequirementId).ok_or(RequirementIdError::Zero)
     }
 
-    /// Attempts to create a requirement ID, returning `None` when the raw value is zero.
+    /// Attempts to create a requirement ID, returning an error when the raw value is zero.
     ///
     /// # Errors
     ///

@@ -323,6 +323,7 @@ fn sample_run_state() -> RunState {
         predicate: predicate.clone(),
         status: ret_logic::TriState::True,
         result: evidence_result,
+        error: None,
     };
 
     let evaluation = GateEvaluation {

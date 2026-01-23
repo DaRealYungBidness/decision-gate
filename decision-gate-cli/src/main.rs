@@ -40,6 +40,8 @@ use decision_gate_core::RunState;
 use decision_gate_core::RunpackManifest;
 use decision_gate_core::ScenarioSpec;
 use decision_gate_core::Timestamp;
+use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
+use decision_gate_core::runtime::MAX_RUNPACK_ARTIFACT_BYTES;
 use decision_gate_core::runtime::RunpackBuilder;
 use decision_gate_core::runtime::RunpackVerifier;
 use decision_gate_core::runtime::VerificationReport;
@@ -51,6 +53,19 @@ use decision_gate_mcp::McpServer;
 use decision_gate_mcp::config::ServerTransport;
 use serde::de::DeserializeOwned;
 use thiserror::Error;
+
+// ============================================================================
+// SECTION: Limits
+// ============================================================================
+
+/// Maximum size of a ScenarioSpec JSON input.
+const MAX_SPEC_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;
+/// Maximum size of a RunState JSON input.
+const MAX_RUN_STATE_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES * 8;
+/// Maximum size of a runpack manifest JSON input.
+const MAX_MANIFEST_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;
+/// Maximum size of an authoring input payload.
+const MAX_AUTHORING_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;
 
 // ============================================================================
 // SECTION: CLI Types
@@ -85,6 +100,12 @@ enum Commands {
         #[command(subcommand)]
         command: AuthoringCommand,
     },
+    /// Configuration utilities.
+    Config {
+        /// Selected config subcommand.
+        #[command(subcommand)]
+        command: ConfigCommand,
+    },
 }
 
 /// Configuration for the `serve` command.
@@ -111,6 +132,13 @@ enum AuthoringCommand {
     Validate(AuthoringValidateCommand),
     /// Normalize a `ScenarioSpec` authoring input to canonical JSON.
     Normalize(AuthoringNormalizeCommand),
+}
+
+/// Config subcommands.
+#[derive(Subcommand, Debug)]
+enum ConfigCommand {
+    /// Validate a Decision Gate configuration file.
+    Validate(ConfigValidateCommand),
 }
 
 /// Supported authoring formats for `ScenarioSpec` inputs.
@@ -145,6 +173,14 @@ struct AuthoringNormalizeCommand {
     /// Output path for canonical JSON (defaults to stdout).
     #[arg(long, value_name = "PATH")]
     output: Option<PathBuf>,
+}
+
+/// Arguments for config validation.
+#[derive(Args, Debug)]
+struct ConfigValidateCommand {
+    /// Optional config file path (defaults to decision-gate.toml or env override).
+    #[arg(long, value_name = "PATH")]
+    config: Option<PathBuf>,
 }
 
 /// Arguments for runpack export.
@@ -254,6 +290,9 @@ async fn run() -> CliResult<ExitCode> {
         Commands::Authoring {
             command,
         } => command_authoring(command),
+        Commands::Config {
+            command,
+        } => command_config(command),
     }
 }
 
@@ -335,6 +374,26 @@ fn command_authoring(command: AuthoringCommand) -> CliResult<ExitCode> {
     }
 }
 
+// ============================================================================
+// SECTION: Config Commands
+// ============================================================================
+
+/// Dispatches config subcommands.
+fn command_config(command: ConfigCommand) -> CliResult<ExitCode> {
+    match command {
+        ConfigCommand::Validate(command) => command_config_validate(&command),
+    }
+}
+
+/// Executes the config validation command.
+fn command_config_validate(command: &ConfigValidateCommand) -> CliResult<ExitCode> {
+    let _config = DecisionGateConfig::load(command.config.as_deref())
+        .map_err(|err| CliError::new(t!("config.load_failed", error = err)))?;
+    write_stdout_line(&t!("config.validate.ok"))
+        .map_err(|err| CliError::new(output_error("stdout", &err)))?;
+    Ok(ExitCode::SUCCESS)
+}
+
 /// Executes the authoring validation command.
 fn command_authoring_validate(command: &AuthoringValidateCommand) -> CliResult<ExitCode> {
     let normalized = normalize_authoring_input(&command.input, command.format)?;
@@ -380,8 +439,11 @@ fn command_authoring_normalize(command: &AuthoringNormalizeCommand) -> CliResult
 fn command_runpack_export(command: &RunpackExportCommand) -> CliResult<ExitCode> {
     let spec_label = t!("runpack.export.kind.spec");
     let state_label = t!("runpack.export.kind.state");
-    let spec: ScenarioSpec = read_export_json(&command.spec, &spec_label)?;
-    let state: RunState = read_export_json(&command.state, &state_label)?;
+    let spec: ScenarioSpec = read_export_json(&command.spec, &spec_label, MAX_SPEC_BYTES)?;
+    spec.validate().map_err(|err| {
+        CliError::new(t!("runpack.export.spec_failed", path = command.spec.display(), error = err))
+    })?;
+    let state: RunState = read_export_json(&command.state, &state_label, MAX_RUN_STATE_BYTES)?;
     let generated_at = resolve_generated_at(command.generated_at_unix_ms)?;
 
     fs::create_dir_all(&command.output_dir).map_err(|err| {
@@ -429,13 +491,13 @@ fn command_runpack_export(command: &RunpackExportCommand) -> CliResult<ExitCode>
 
 /// Executes the runpack verification command.
 fn command_runpack_verify(command: RunpackVerifyCommand) -> CliResult<ExitCode> {
-    let manifest: RunpackManifest = read_manifest_json(&command.manifest)?;
+    let manifest: RunpackManifest = read_manifest_json(&command.manifest, MAX_MANIFEST_BYTES)?;
     let runpack_dir = resolve_runpack_dir(&command.manifest, command.runpack_dir)?;
     let reader = FileArtifactReader::new(runpack_dir.clone()).map_err(|err| {
         CliError::new(t!("runpack.verify.reader_failed", path = runpack_dir.display(), error = err))
     })?;
 
-    let verifier = RunpackVerifier::new(manifest.hash_algorithm);
+    let verifier = RunpackVerifier::new(DEFAULT_HASH_ALGORITHM);
     let report = verifier
         .verify_manifest(&reader, &manifest)
         .map_err(|err| CliError::new(t!("runpack.verify.failed", error = err)))?;
@@ -455,15 +517,60 @@ fn command_runpack_verify(command: RunpackVerifyCommand) -> CliResult<ExitCode> 
 // SECTION: Runpack Helpers
 // ============================================================================
 
+/// Errors returned by bounded file reads.
+#[derive(Debug)]
+enum ReadLimitError {
+    /// File I/O failure.
+    Io(std::io::Error),
+    /// File size exceeds the configured limit.
+    TooLarge {
+        /// Actual size in bytes.
+        size: u64,
+        /// Allowed limit in bytes.
+        limit: usize,
+    },
+}
+
+/// Reads a file from disk while enforcing a hard size limit.
+fn read_bytes_with_limit(path: &Path, max_bytes: usize) -> Result<Vec<u8>, ReadLimitError> {
+    let metadata = fs::metadata(path).map_err(ReadLimitError::Io)?;
+    let size = metadata.len();
+    let limit = u64::try_from(max_bytes).map_err(|_| ReadLimitError::TooLarge {
+        size,
+        limit: max_bytes,
+    })?;
+    if size > limit {
+        return Err(ReadLimitError::TooLarge {
+            size,
+            limit: max_bytes,
+        });
+    }
+    fs::read(path).map_err(ReadLimitError::Io)
+}
+
 /// Reads a JSON file for runpack export inputs.
-fn read_export_json<T: DeserializeOwned>(path: &Path, kind: &str) -> CliResult<T> {
-    let bytes = fs::read(path).map_err(|err| {
-        CliError::new(t!(
+fn read_export_json<T: DeserializeOwned>(
+    path: &Path,
+    kind: &str,
+    max_bytes: usize,
+) -> CliResult<T> {
+    let bytes = read_bytes_with_limit(path, max_bytes).map_err(|err| match err {
+        ReadLimitError::Io(err) => CliError::new(t!(
             "runpack.export.read_failed",
             kind = kind,
             path = path.display(),
             error = err
-        ))
+        )),
+        ReadLimitError::TooLarge {
+            size,
+            limit,
+        } => CliError::new(t!(
+            "input.read_too_large",
+            kind = kind,
+            path = path.display(),
+            size = size,
+            limit = limit
+        )),
     })?;
     serde_json::from_slice(&bytes).map_err(|err| {
         CliError::new(t!(
@@ -476,9 +583,21 @@ fn read_export_json<T: DeserializeOwned>(path: &Path, kind: &str) -> CliResult<T
 }
 
 /// Reads a JSON manifest file for runpack verification.
-fn read_manifest_json<T: DeserializeOwned>(path: &Path) -> CliResult<T> {
-    let bytes = fs::read(path).map_err(|err| {
-        CliError::new(t!("runpack.verify.read_failed", path = path.display(), error = err))
+fn read_manifest_json<T: DeserializeOwned>(path: &Path, max_bytes: usize) -> CliResult<T> {
+    let bytes = read_bytes_with_limit(path, max_bytes).map_err(|err| match err {
+        ReadLimitError::Io(err) => {
+            CliError::new(t!("runpack.verify.read_failed", path = path.display(), error = err))
+        }
+        ReadLimitError::TooLarge {
+            size,
+            limit,
+        } => CliError::new(t!(
+            "input.read_too_large",
+            kind = t!("runpack.verify.kind.manifest"),
+            path = path.display(),
+            size = size,
+            limit = limit
+        )),
     })?;
     serde_json::from_slice(&bytes).map_err(|err| {
         CliError::new(t!("runpack.verify.parse_failed", path = path.display(), error = err))
@@ -503,6 +622,9 @@ fn resolve_runpack_dir(manifest: &Path, override_dir: Option<PathBuf>) -> CliRes
 /// Determines the `generated_at` timestamp for runpack export.
 fn resolve_generated_at(override_unix_ms: Option<i64>) -> CliResult<Timestamp> {
     if let Some(value) = override_unix_ms {
+        if value < 0 {
+            return Err(CliError::new(t!("runpack.export.time.negative")));
+        }
         return Ok(Timestamp::UnixMillis(value));
     }
 
@@ -587,7 +709,22 @@ fn resolve_authoring_format(
 
 /// Reads authoring input from disk.
 fn read_authoring_input(path: &Path) -> CliResult<String> {
-    fs::read_to_string(path).map_err(|err| {
+    let bytes = read_bytes_with_limit(path, MAX_AUTHORING_BYTES).map_err(|err| match err {
+        ReadLimitError::Io(err) => {
+            CliError::new(t!("authoring.read_failed", path = path.display(), error = err))
+        }
+        ReadLimitError::TooLarge {
+            size,
+            limit,
+        } => CliError::new(t!(
+            "input.read_too_large",
+            kind = t!("authoring.kind.input"),
+            path = path.display(),
+            size = size,
+            limit = limit
+        )),
+    })?;
+    String::from_utf8(bytes).map_err(|err| {
         CliError::new(t!("authoring.read_failed", path = path.display(), error = err))
     })
 }

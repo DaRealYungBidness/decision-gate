@@ -172,7 +172,9 @@ fn read_file_limited(path: &Path, max_bytes: usize) -> Result<Vec<u8>, EvidenceE
         .map_err(|_| EvidenceError::Provider("unable to open json file".to_string()))?;
     let mut buf = Vec::new();
     let limit = max_bytes.saturating_add(1);
-    let mut handle = file.take(limit as u64);
+    let limit = u64::try_from(limit)
+        .map_err(|_| EvidenceError::Provider("json size limit exceeds u64".to_string()))?;
+    let mut handle = file.take(limit);
     handle
         .read_to_end(&mut buf)
         .map_err(|_| EvidenceError::Provider("unable to read json file".to_string()))?;

@@ -361,9 +361,7 @@ fn http_source_handles_redirect_codes_as_failure() {
         encryption: None,
     };
 
-    // Default reqwest client follows redirects, but if target is invalid,
-    // or max redirects exceeded, it should fail
-    // For our test, the redirect target doesn't exist in this server
+    // HttpSource disables redirects by default, so 3xx should fail closed.
     let source = HttpSource::new().expect("http source");
     let result = source.fetch(&content_ref);
 

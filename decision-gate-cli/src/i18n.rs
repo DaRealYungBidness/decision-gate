@@ -77,6 +77,12 @@ fn catalog() -> &'static HashMap<&'static str, &'static str> {
             ("output.stream.stderr", "stderr"),
             ("output.stream.unknown", "output"),
             ("output.write_failed", "Failed to write to {stream}: {error}"),
+            (
+                "input.read_too_large",
+                "Refusing to read {kind} at {path} because it is {size} bytes (limit {limit}).",
+            ),
+            ("config.load_failed", "Failed to load config: {error}"),
+            ("config.validate.ok", "Config valid."),
             ("serve.config.load_failed", "Failed to load config: {error}"),
             ("serve.bind.parse_failed", "Invalid bind address {bind}: {error}"),
             (
@@ -87,6 +93,7 @@ fn catalog() -> &'static HashMap<&'static str, &'static str> {
             ("serve.failed", "MCP server failed: {error}"),
             ("runpack.export.read_failed", "Failed to read {kind} file at {path}: {error}"),
             ("runpack.export.parse_failed", "Failed to parse {kind} JSON at {path}: {error}"),
+            ("runpack.export.spec_failed", "ScenarioSpec validation failed for {path}: {error}"),
             (
                 "runpack.export.output_dir_failed",
                 "Failed to create output directory {path}: {error}",
@@ -102,10 +109,15 @@ fn catalog() -> &'static HashMap<&'static str, &'static str> {
                 "Failed to read system time for runpack generation: {error}",
             ),
             ("runpack.export.time.overflow", "System time is out of range for runpack generation."),
+            (
+                "runpack.export.time.negative",
+                "generated_at must be a non-negative unix timestamp in milliseconds.",
+            ),
             ("runpack.verify.read_failed", "Failed to read runpack manifest at {path}: {error}"),
             ("runpack.verify.parse_failed", "Failed to parse runpack manifest at {path}: {error}"),
             ("runpack.verify.reader_failed", "Failed to open runpack directory {path}: {error}"),
             ("runpack.verify.failed", "Failed to verify runpack: {error}"),
+            ("runpack.verify.kind.manifest", "runpack manifest"),
             ("runpack.verify.status.pass", "pass"),
             ("runpack.verify.status.fail", "fail"),
             ("runpack.verify.md.header", "# Decision Gate Runpack Verification"),
@@ -115,6 +127,7 @@ fn catalog() -> &'static HashMap<&'static str, &'static str> {
             ("runpack.verify.md.error_line", "- {error}"),
             ("runpack.verify.md.no_errors", "- None"),
             ("authoring.read_failed", "Failed to read authoring input at {path}: {error}"),
+            ("authoring.kind.input", "authoring input"),
             (
                 "authoring.format.missing",
                 "Unable to determine authoring format for {path}; specify --format.",

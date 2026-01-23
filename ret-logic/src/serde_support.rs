@@ -1,4 +1,4 @@
-// world_engine/src/requirement/serde_support.rs
+// ret-logic/src/serde_support.rs
 // ============================================================================
 // Module: Requirement Serde Support
 // Description: Serde helpers for requirement serialization and validation.
@@ -9,6 +9,8 @@
 //! ## Overview
 //! Strongly typed serde helpers give deterministic serialization/deserialization
 //! outcomes while exposing consistent validation errors for requirement structures.
+//! Security posture: deserialized requirements are untrusted; validate and fail
+//! closed per Docs/security/threat_model.md.
 
 // ============================================================================
 // SECTION: Imports
@@ -502,13 +504,54 @@ pub mod convenience {
 
 /// Utilities for working with RON requirement files
 pub mod ron_utils {
+    use std::error::Error;
+    use std::fmt;
     use std::fs;
+    use std::io::Read;
     use std::path::Path;
 
     use super::Deserialize;
     use super::Requirement;
     use super::Serialize;
     use super::convenience;
+
+    const MAX_RON_FILE_BYTES: usize = 1024 * 1024;
+
+    #[derive(Debug)]
+    enum RonFileError {
+        FileTooLarge { max_bytes: usize, actual_bytes: usize },
+    }
+
+    impl fmt::Display for RonFileError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::FileTooLarge {
+                    max_bytes,
+                    actual_bytes,
+                } => {
+                    write!(f, "RON file exceeds size limit: {actual_bytes} bytes (max {max_bytes})")
+                }
+            }
+        }
+    }
+
+    impl Error for RonFileError {}
+
+    fn read_to_string_with_limit(path: impl AsRef<Path>) -> Result<String, Box<dyn Error>> {
+        let file = fs::File::open(path)?;
+        let mut contents = String::new();
+        let mut limited = file.take((MAX_RON_FILE_BYTES + 1) as u64);
+        limited.read_to_string(&mut contents)?;
+
+        if contents.len() > MAX_RON_FILE_BYTES {
+            return Err(Box::new(RonFileError::FileTooLarge {
+                max_bytes: MAX_RON_FILE_BYTES,
+                actual_bytes: contents.len(),
+            }));
+        }
+
+        Ok(contents)
+    }
 
     /// Load a requirement from a RON file
     ///
@@ -519,14 +562,15 @@ pub mod ron_utils {
     /// Loaded and validated requirement
     ///
     /// # Errors
-    /// Returns an error if file IO fails or parsing/validation fails.
+    /// Returns an error if file IO fails, parsing/validation fails, or the file
+    /// exceeds `MAX_RON_FILE_BYTES`.
     pub fn load_from_file<P>(
         path: impl AsRef<Path>,
     ) -> Result<Requirement<P>, Box<dyn std::error::Error>>
     where
         P: for<'de> Deserialize<'de>,
     {
-        let content = fs::read_to_string(path)?;
+        let content = read_to_string_with_limit(path)?;
         let requirement = convenience::from_ron(&content)?;
         Ok(requirement)
     }
@@ -563,12 +607,13 @@ pub mod ron_utils {
     /// `Ok(())` if file is valid, error with details if invalid
     ///
     /// # Errors
-    /// Returns an error if file IO fails or parsing/validation fails.
+    /// Returns an error if file IO fails, parsing/validation fails, or the file
+    /// exceeds `MAX_RON_FILE_BYTES`.
     pub fn validate_file<P>(path: impl AsRef<Path>) -> Result<(), Box<dyn std::error::Error>>
     where
         P: for<'de> Deserialize<'de>,
     {
-        let content = fs::read_to_string(path)?;
+        let content = read_to_string_with_limit(path)?;
         convenience::validate::<P>(&convenience::from_ron(&content)?)?;
         Ok(())
     }

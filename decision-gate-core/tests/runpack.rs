@@ -84,12 +84,30 @@ impl ArtifactSink for InMemoryArtifactStore {
 }
 
 impl ArtifactReader for InMemoryArtifactStore {
-    fn read(&self, path: &str) -> Result<Vec<u8>, ArtifactError> {
+    fn read_with_limit(&self, path: &str, max_bytes: usize) -> Result<Vec<u8>, ArtifactError> {
         let guard = self
             .files
             .lock()
             .map_err(|_| ArtifactError::Sink("artifact store mutex poisoned".to_string()))?;
-        guard.get(path).cloned().ok_or_else(|| ArtifactError::Sink("missing artifact".to_string()))
+        let bytes = guard
+            .get(path)
+            .cloned()
+            .ok_or_else(|| ArtifactError::Sink("missing artifact".to_string()))?;
+        if bytes.len() > max_bytes {
+            return Err(ArtifactError::TooLarge {
+                path: path.to_string(),
+                max_bytes,
+                actual_bytes: bytes.len(),
+            });
+        }
+        Ok(bytes)
+    }
+}
+
+impl InMemoryArtifactStore {
+    fn insert_bytes(&self, path: &str, bytes: Vec<u8>) {
+        let mut guard = self.files.lock().expect("artifact store mutex poisoned");
+        guard.insert(path.to_string(), bytes);
     }
 }
 
@@ -151,4 +169,41 @@ fn test_runpack_build_and_verify() {
     let report = verifier.verify_manifest(&store, &manifest).expect("runpack verify");
 
     assert_eq!(report.status, decision_gate_core::runtime::VerificationStatus::Pass);
+}
+
+/// Tests verifier rejection of oversized artifacts.
+#[test]
+fn runpack_verifier_rejects_oversized_artifact() {
+    let spec = minimal_spec();
+    let spec_hash = spec.canonical_hash_with(DEFAULT_HASH_ALGORITHM).expect("spec hash");
+
+    let state = RunState {
+        tenant_id: TenantId::new("tenant"),
+        run_id: RunId::new("run-1"),
+        scenario_id: ScenarioId::new("scenario"),
+        spec_hash,
+        current_stage_id: StageId::new("stage-1"),
+        status: RunStatus::Active,
+        dispatch_targets: vec![],
+        triggers: vec![],
+        gate_evals: vec![],
+        decisions: vec![],
+        packets: vec![],
+        submissions: vec![],
+        tool_calls: vec![],
+    };
+
+    let mut store = InMemoryArtifactStore::default();
+    let builder = RunpackBuilder::default();
+    let manifest =
+        builder.build(&mut store, &spec, &state, Timestamp::Logical(1)).expect("runpack build");
+
+    let oversized = vec![0u8; decision_gate_core::runtime::MAX_RUNPACK_ARTIFACT_BYTES + 1];
+    store.insert_bytes("artifacts/decisions.json", oversized);
+
+    let verifier = RunpackVerifier::new(DEFAULT_HASH_ALGORITHM);
+    let report = verifier.verify_manifest(&store, &manifest).expect("runpack verify");
+
+    assert_eq!(report.status, decision_gate_core::runtime::VerificationStatus::Fail);
+    assert!(report.errors.iter().any(|err| err.contains("artifact too large")));
 }

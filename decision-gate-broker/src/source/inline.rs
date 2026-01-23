@@ -9,6 +9,8 @@
 //! ## Overview
 //! `InlineSource` resolves `inline:` URIs that embed payload bytes directly.
 //! Supported prefixes: `inline+json:`, `inline+bytes:`, and `inline:`.
+//! Security posture: treats inline payloads as untrusted input; see
+//! `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports

@@ -3,7 +3,7 @@
 // Module: SQLite Store Tests
 // Description: Validate SQLite RunStateStore behavior.
 // Purpose: Ensure durable persistence and integrity checks.
-// Dependencies: decision-gate-store-sqlite, decision-gate-core
+// Dependencies: decision-gate-store-sqlite, decision-gate-core, rusqlite, serde_json, tempfile
 // ============================================================================
 
 //! SQLite store conformance tests.
@@ -241,6 +241,46 @@ fn sqlite_store_rejects_run_id_mismatch() {
 
     let result = store.load(&RunId::new("run-1"));
     assert!(matches!(result, Err(StoreError::Invalid(_))));
+}
+
+#[test]
+fn sqlite_store_rejects_invalid_latest_version_on_load() {
+    let temp = TempDir::new().unwrap();
+    let path = temp.path().join("store.sqlite");
+    let store = store_for(&path);
+    let state = sample_state("run-1");
+    store.save(&state).unwrap();
+
+    let connection = rusqlite::Connection::open(&path).unwrap();
+    connection
+        .execute(
+            "UPDATE runs SET latest_version = -1 WHERE run_id = ?1",
+            rusqlite::params![state.run_id.as_str()],
+        )
+        .unwrap();
+
+    let result = store.load(&RunId::new("run-1"));
+    assert!(matches!(result, Err(StoreError::Corrupt(_))));
+}
+
+#[test]
+fn sqlite_store_rejects_latest_version_overflow_on_save() {
+    let temp = TempDir::new().unwrap();
+    let path = temp.path().join("store.sqlite");
+    let store = store_for(&path);
+    let state = sample_state("run-1");
+    store.save(&state).unwrap();
+
+    let connection = rusqlite::Connection::open(&path).unwrap();
+    connection
+        .execute(
+            "UPDATE runs SET latest_version = ?1 WHERE run_id = ?2",
+            rusqlite::params![i64::MAX, state.run_id.as_str()],
+        )
+        .unwrap();
+
+    let result = store.save(&state);
+    assert!(matches!(result, Err(StoreError::Corrupt(_))));
 }
 
 #[test]

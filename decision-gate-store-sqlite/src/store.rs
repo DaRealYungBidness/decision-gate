@@ -3,7 +3,7 @@
 // Module: SQLite Run State Store
 // Description: Durable RunStateStore backed by SQLite WAL.
 // Purpose: Persist run state snapshots with deterministic serialization.
-// Dependencies: decision-gate-core, rusqlite
+// Dependencies: decision-gate-core, rusqlite, serde, serde_json, thiserror
 // ============================================================================
 
 //! ## Overview
@@ -219,9 +219,21 @@ impl SqliteRunStateStore {
                 )
                 .optional()
                 .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+            let latest_version = match latest_version {
+                None => None,
+                Some(value) => {
+                    if value < 1 {
+                        return Err(SqliteStoreError::Corrupt(format!(
+                            "invalid latest_version for run {}",
+                            run_id.as_str()
+                        )));
+                    }
+                    Some(value)
+                }
+            };
             let row = if let Some(latest_version) = latest_version {
-                Some(
-                    tx.query_row(
+                let row = tx
+                    .query_row(
                         "SELECT state_json, state_hash, hash_algorithm FROM run_state_versions \
                          WHERE run_id = ?1 AND version = ?2",
                         params![run_id.as_str(), latest_version],
@@ -232,8 +244,17 @@ impl SqliteRunStateStore {
                             Ok((bytes, hash, algorithm))
                         },
                     )
-                    .map_err(|err| SqliteStoreError::Db(err.to_string()))?,
-                )
+                    .optional()
+                    .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+                match row {
+                    Some(row) => Some(row),
+                    None => {
+                        return Err(SqliteStoreError::Corrupt(format!(
+                            "missing run state version {latest_version} for run {}",
+                            run_id.as_str()
+                        )));
+                    }
+                }
             } else {
                 None
             };
@@ -282,7 +303,23 @@ impl SqliteRunStateStore {
                 )
                 .optional()
                 .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-            let next_version = latest_version.unwrap_or(0) + 1;
+            let next_version = match latest_version {
+                None => 1,
+                Some(value) => {
+                    if value < 1 {
+                        return Err(SqliteStoreError::Corrupt(format!(
+                            "invalid latest_version for run {}",
+                            state.run_id.as_str()
+                        )));
+                    }
+                    value.checked_add(1).ok_or_else(|| {
+                        SqliteStoreError::Corrupt(format!(
+                            "run state version overflow for run {}",
+                            state.run_id.as_str()
+                        ))
+                    })?
+                }
+            };
             tx.execute(
                 "INSERT INTO runs (run_id, latest_version) VALUES (?1, ?2) ON CONFLICT(run_id) DO \
                  UPDATE SET latest_version = excluded.latest_version",

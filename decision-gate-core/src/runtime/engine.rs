@@ -60,6 +60,7 @@ use crate::core::hashing::HashDigest;
 use crate::core::hashing::HashError;
 use crate::core::hashing::hash_bytes;
 use crate::core::hashing::hash_canonical_json;
+use crate::core::hashing::hash_canonical_json_with_limit;
 use crate::core::summary::SafeSummary;
 use crate::interfaces::ArtifactError;
 use crate::interfaces::DispatchError;
@@ -76,6 +77,15 @@ use crate::runtime::GateEvaluator;
 use crate::runtime::comparator::evaluate_comparator;
 use crate::runtime::gate::EvidenceSnapshot;
 use crate::runtime::gate::collect_predicates;
+
+// ============================================================================
+// SECTION: Constants
+// ============================================================================
+
+/// Maximum bytes allowed for evidence payloads before hashing.
+pub const MAX_EVIDENCE_VALUE_BYTES: usize = 1024 * 1024;
+/// Maximum bytes allowed for packet and submission payloads before hashing.
+pub const MAX_PAYLOAD_BYTES: usize = 2 * 1024 * 1024;
 
 // ============================================================================
 // SECTION: Control Plane Configuration
@@ -201,14 +211,16 @@ where
                 payload_ref: None,
                 correlation_id: None,
             };
+            let trigger_seq = next_seq(&state.triggers)?;
             state.triggers.push(TriggerRecord {
-                seq: next_seq(&state.triggers),
+                seq: trigger_seq,
                 event: init_trigger,
             });
-            let decision_id = Self::next_decision_id(&state);
+            let decision_seq = next_seq(&state.decisions)?;
+            let decision_id = DecisionId::new(format!("decision-{decision_seq}"));
             let decision = DecisionRecord {
                 decision_id,
-                seq: next_seq(&state.decisions),
+                seq: decision_seq,
                 trigger_id,
                 stage_id: initial_stage.clone(),
                 decided_at: started_at,
@@ -430,7 +442,7 @@ where
             return Ok((state, result));
         }
 
-        let trigger_seq = next_seq(&state.triggers);
+        let trigger_seq = next_seq(&state.triggers)?;
         state.triggers.push(TriggerRecord {
             seq: trigger_seq,
             event: trigger.clone(),
@@ -468,8 +480,8 @@ where
 
         state.gate_evals.extend(gate_eval_records.clone());
 
-        let decision_seq = next_seq(&state.decisions);
-        let decision_id = Self::next_decision_id(&state);
+        let decision_seq = next_seq(&state.decisions)?;
+        let decision_id = DecisionId::new(format!("decision-{decision_seq}"));
         let (decision, packets) = if gates_passed(&gate_eval_records) {
             if let Some(next_stage) =
                 resolve_next_stage(&self.spec, stage_def, &gate_outcomes, &state)?
@@ -569,23 +581,34 @@ where
     ) -> Result<Vec<EvidenceRecord>, ControlPlaneError> {
         let mut records = Vec::with_capacity(predicate_specs.len());
         for spec in predicate_specs {
-            let result = self.evidence.query(&spec.query, context).map_or(
-                EvidenceResult {
-                    value: None,
-                    evidence_hash: None,
-                    evidence_ref: None,
-                    evidence_anchor: None,
-                    signature: None,
-                    content_type: None,
-                },
-                |result| result,
-            );
+            let (result, error) = match self.evidence.query(&spec.query, context) {
+                Ok(result) => (result, None),
+                Err(err) => (
+                    EvidenceResult {
+                        value: None,
+                        evidence_hash: None,
+                        evidence_ref: None,
+                        evidence_anchor: None,
+                        signature: None,
+                        content_type: None,
+                    },
+                    Some(crate::core::EvidenceProviderError {
+                        code: "provider_error".to_string(),
+                        message: err.to_string(),
+                    }),
+                ),
+            };
             let normalized = normalize_evidence_result(&result, self.config.hash_algorithm)?;
-            let status = evaluate_comparator(spec.comparator, spec.expected.as_ref(), &normalized);
+            let status = if error.is_some() {
+                TriState::Unknown
+            } else {
+                evaluate_comparator(spec.comparator, spec.expected.as_ref(), &normalized)
+            };
             records.push(EvidenceRecord {
                 predicate: spec.predicate.clone(),
                 status,
                 result: normalized,
+                error,
             });
         }
         Ok(records)
@@ -646,12 +669,6 @@ where
     /// Loads the run state or returns an error if missing.
     fn load_run(&self, run_id: &RunId) -> Result<RunState, ControlPlaneError> {
         self.store.load(run_id)?.ok_or_else(|| ControlPlaneError::RunNotFound(run_id.to_string()))
-    }
-
-    /// Builds the next decision identifier for a run.
-    fn next_decision_id(state: &RunState) -> DecisionId {
-        let next = state.decisions.len() as u64 + 1;
-        DecisionId::new(format!("decision-{next}"))
     }
 }
 
@@ -837,6 +854,25 @@ pub enum ControlPlaneError {
     /// Run is inactive.
     #[error("run is not active: {0:?}")]
     RunInactive(RunStatus),
+    /// Run state sequence counters exceeded addressable range.
+    #[error("run state sequence overflow")]
+    SequenceOverflow,
+    /// Evidence payload exceeds size limits.
+    #[error("evidence payload exceeds size limit ({actual} > {max})")]
+    EvidenceTooLarge {
+        /// Maximum allowed bytes.
+        max: usize,
+        /// Actual payload size in bytes.
+        actual: usize,
+    },
+    /// Packet payload exceeds size limits.
+    #[error("payload exceeds size limit ({actual} > {max})")]
+    PayloadTooLarge {
+        /// Maximum allowed bytes.
+        max: usize,
+        /// Actual payload size in bytes.
+        actual: usize,
+    },
     /// Stage identifier not found.
     #[error("unknown stage identifier: {0}")]
     StageNotFound(String),
@@ -1015,10 +1051,28 @@ fn payload_hash(
     match payload {
         PacketPayload::Json {
             value,
-        } => hash_canonical_json(algorithm, value).map_err(ControlPlaneError::Hash),
+        } => match hash_canonical_json_with_limit(algorithm, value, MAX_PAYLOAD_BYTES) {
+            Ok(hash) => Ok(hash),
+            Err(HashError::SizeLimitExceeded {
+                limit,
+                actual,
+            }) => Err(ControlPlaneError::PayloadTooLarge {
+                max: limit,
+                actual,
+            }),
+            Err(err) => Err(ControlPlaneError::Hash(err)),
+        },
         PacketPayload::Bytes {
             bytes,
-        } => Ok(hash_bytes(algorithm, bytes)),
+        } => {
+            if bytes.len() > MAX_PAYLOAD_BYTES {
+                return Err(ControlPlaneError::PayloadTooLarge {
+                    max: MAX_PAYLOAD_BYTES,
+                    actual: bytes.len(),
+                });
+            }
+            Ok(hash_bytes(algorithm, bytes))
+        }
         PacketPayload::External {
             content_ref,
         } => {
@@ -1040,8 +1094,30 @@ fn normalize_evidence_result(
     let mut normalized = result.clone();
     if let Some(value) = &result.value {
         let hash = match value {
-            EvidenceValue::Json(json) => hash_canonical_json(algorithm, json)?,
-            EvidenceValue::Bytes(bytes) => hash_bytes(algorithm, bytes),
+            EvidenceValue::Json(json) => {
+                match hash_canonical_json_with_limit(algorithm, json, MAX_EVIDENCE_VALUE_BYTES) {
+                    Ok(hash) => hash,
+                    Err(HashError::SizeLimitExceeded {
+                        limit,
+                        actual,
+                    }) => {
+                        return Err(ControlPlaneError::EvidenceTooLarge {
+                            max: limit,
+                            actual,
+                        });
+                    }
+                    Err(err) => return Err(ControlPlaneError::Hash(err)),
+                }
+            }
+            EvidenceValue::Bytes(bytes) => {
+                if bytes.len() > MAX_EVIDENCE_VALUE_BYTES {
+                    return Err(ControlPlaneError::EvidenceTooLarge {
+                        max: MAX_EVIDENCE_VALUE_BYTES,
+                        actual: bytes.len(),
+                    });
+                }
+                hash_bytes(algorithm, bytes)
+            }
         };
         normalized.evidence_hash = Some(hash);
     }
@@ -1069,8 +1145,9 @@ fn packets_for_decision(state: &RunState, decision_id: &DecisionId) -> Vec<Packe
 }
 
 /// Computes the next sequence number for an append-only list.
-const fn next_seq<T>(items: &[T]) -> u64 {
-    items.len() as u64 + 1
+fn next_seq<T>(items: &[T]) -> Result<u64, ControlPlaneError> {
+    let base = u64::try_from(items.len()).map_err(|_| ControlPlaneError::SequenceOverflow)?;
+    base.checked_add(1).ok_or(ControlPlaneError::SequenceOverflow)
 }
 
 /// Builds a tool call record with hashed request/response payloads.

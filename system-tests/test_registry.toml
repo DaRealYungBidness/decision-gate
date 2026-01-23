@@ -137,6 +137,18 @@ coverage_status = "strong"
 estimated_runtime_sec = 12
 
 [[tests]]
+name = "federated_provider_timeout_enforced"
+category = "providers"
+priority = "P1"
+hyperscaler_mapping = ["operations", "security"]
+description = "External MCP provider HTTP timeouts fail closed."
+files = ["system-tests/tests/providers.rs"]
+run_command = "cargo test -p system-tests --test providers -- --exact federated_provider_timeout_enforced"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "echo_provider_contract.json"]
+coverage_status = "new"
+estimated_runtime_sec = 12
+
+[[tests]]
 name = "packet_disclosure_visibility"
 category = "security"
 priority = "P1"

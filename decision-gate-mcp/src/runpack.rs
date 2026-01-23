@@ -56,7 +56,13 @@ impl FileArtifactSink {
     /// Returns [`ArtifactError`] when the root path is invalid.
     pub fn new(root: PathBuf, manifest_name: &str) -> Result<Self, ArtifactError> {
         validate_path(&root)?;
-        let manifest_path = root.join(manifest_name);
+        let manifest_relative = PathBuf::from(manifest_name);
+        if manifest_relative.file_name().is_none() {
+            return Err(ArtifactError::Sink("manifest name missing filename".to_string()));
+        }
+        ensure_relative_path(&manifest_relative)?;
+        let manifest_path = root.join(&manifest_relative);
+        validate_path(&manifest_path)?;
         Ok(Self {
             root,
             manifest_path,
@@ -123,9 +129,32 @@ impl FileArtifactReader {
 }
 
 impl ArtifactReader for FileArtifactReader {
-    fn read(&self, path: &str) -> Result<Vec<u8>, ArtifactError> {
+    fn read_with_limit(&self, path: &str, max_bytes: usize) -> Result<Vec<u8>, ArtifactError> {
         let resolved = resolve_path(&self.root, path)?;
-        fs::read(&resolved).map_err(|_| ArtifactError::Sink("unable to read artifact".to_string()))
+        let metadata = fs::metadata(&resolved)
+            .map_err(|_| ArtifactError::Sink("unable to read artifact metadata".to_string()))?;
+        let actual_bytes = usize::try_from(metadata.len()).unwrap_or(usize::MAX);
+        let max_bytes_u64 = match u64::try_from(max_bytes) {
+            Ok(value) => value,
+            Err(_) => u64::MAX,
+        };
+        if metadata.len() > max_bytes_u64 {
+            return Err(ArtifactError::TooLarge {
+                path: path.to_string(),
+                max_bytes,
+                actual_bytes,
+            });
+        }
+        let bytes = fs::read(&resolved)
+            .map_err(|_| ArtifactError::Sink("unable to read artifact".to_string()))?;
+        if bytes.len() > max_bytes {
+            return Err(ArtifactError::TooLarge {
+                path: path.to_string(),
+                max_bytes,
+                actual_bytes: bytes.len(),
+            });
+        }
+        Ok(bytes)
     }
 }
 

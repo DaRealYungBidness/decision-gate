@@ -1,10 +1,10 @@
-// world_engine/src/requirement/mod.rs
+// ret-logic/src/lib.rs
 // ============================================================================
 // Module: Requirement Root
 // Description: Public API surface for the requirement subsystem.
 // Purpose: Wire together core modules, re-exports, and the DSL macro.
-// Dependencies: crate::requirement::{error, executor, plan, requirement, traits}
-// ============================================================================
+// Dependencies: crate::{builder, dsl, error, executor, plan, requirement, serde_support, traits,
+// tristate} ============================================================================
 
 //! ## Overview
 //! This module exposes the building blocks (errors, plans, traits, execution)
@@ -58,6 +58,7 @@ pub use plan::OpCode;
 pub use plan::Operation;
 pub use plan::Plan;
 pub use plan::PlanBuilder;
+pub use plan::PlanError;
 pub use requirement::Requirement;
 pub use requirement::RequirementGroup;
 pub use requirement::RequirementGroupError;

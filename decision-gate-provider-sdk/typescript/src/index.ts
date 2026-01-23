@@ -83,10 +83,31 @@ const TOOL_LIST_RESULT = {
 };
 
 const HEADER_SEPARATOR = "\r\n\r\n";
+const MAX_HEADER_BYTES = 8 * 1024;
+const MAX_BODY_BYTES = 1024 * 1024;
 
 let buffer = Buffer.alloc(0);
+let discardBytes = 0;
+let stopped = false;
 
 process.stdin.on("data", (chunk) => {
+  if (stopped) {
+    return;
+  }
+  if (discardBytes > 0) {
+    const toDiscard = Math.min(discardBytes, chunk.length);
+    discardBytes -= toDiscard;
+    chunk = chunk.slice(toDiscard);
+    if (chunk.length === 0) {
+      return;
+    }
+  }
+  if (buffer.length + chunk.length > MAX_HEADER_BYTES + MAX_BODY_BYTES) {
+    writeFrame(buildErrorResponse(null, -32600, "frame too large"));
+    buffer = Buffer.alloc(0);
+    stopServer();
+    return;
+  }
   buffer = Buffer.concat([buffer, chunk]);
   processBuffer();
 });
@@ -95,6 +116,18 @@ function processBuffer(): void {
   while (true) {
     const headerEnd = buffer.indexOf(HEADER_SEPARATOR);
     if (headerEnd === -1) {
+      if (buffer.length > MAX_HEADER_BYTES) {
+        writeFrame(buildErrorResponse(null, -32600, "headers too large"));
+        buffer = Buffer.alloc(0);
+        stopServer();
+      }
+      return;
+    }
+
+    if (headerEnd > MAX_HEADER_BYTES) {
+      writeFrame(buildErrorResponse(null, -32600, "headers too large"));
+      buffer = Buffer.alloc(0);
+      stopServer();
       return;
     }
 
@@ -102,6 +135,27 @@ function processBuffer(): void {
     const contentLength = parseContentLength(headerText);
     if (contentLength === null) {
       writeFrame(buildErrorResponse(null, -32600, "missing Content-Length"));
+      buffer = Buffer.alloc(0);
+      stopServer();
+      return;
+    }
+
+    if (contentLength <= 0) {
+      writeFrame(buildErrorResponse(null, -32600, "invalid Content-Length"));
+      buffer = Buffer.alloc(0);
+      stopServer();
+      return;
+    }
+
+    if (contentLength > MAX_BODY_BYTES) {
+      writeFrame(buildErrorResponse(null, -32600, "payload too large"));
+      const bodyStart = headerEnd + HEADER_SEPARATOR.length;
+      const available = buffer.length - bodyStart;
+      if (available >= contentLength) {
+        buffer = buffer.slice(bodyStart + contentLength);
+        continue;
+      }
+      discardBytes = contentLength - available;
       buffer = Buffer.alloc(0);
       return;
     }
@@ -229,3 +283,11 @@ function writeFrame(response: JsonRpcResponse): void {
   process.stdout.write(payload);
 }
 
+function stopServer(): void {
+  if (stopped) {
+    return;
+  }
+  stopped = true;
+  process.stdin.removeAllListeners("data");
+  process.stdin.pause();
+}

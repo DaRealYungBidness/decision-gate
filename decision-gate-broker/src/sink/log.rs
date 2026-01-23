@@ -22,7 +22,6 @@ use decision_gate_core::DispatchTarget;
 use serde_json::json;
 
 use crate::payload::Payload;
-use crate::payload::PayloadBody;
 use crate::sink::ReceiptFactory;
 use crate::sink::Sink;
 use crate::sink::SinkError;
@@ -55,14 +54,6 @@ impl<W: Write + Send> LogSink<W> {
             receipts: ReceiptFactory::new(dispatcher),
         }
     }
-
-    /// Returns the payload length in bytes.
-    fn payload_len(payload: &Payload) -> usize {
-        match &payload.body {
-            PayloadBody::Json(value) => serde_json::to_vec(value).map_or(0, |bytes| bytes.len()),
-            PayloadBody::Bytes(bytes) => bytes.len(),
-        }
-    }
 }
 
 impl<W: Write + Send> Sink for LogSink<W> {
@@ -78,7 +69,7 @@ impl<W: Write + Send> Sink for LogSink<W> {
             "target": receipt.target,
             "content_type": payload.envelope.content_type,
             "content_hash": payload.envelope.content_hash,
-            "payload_len": Self::payload_len(payload),
+            "payload_len": payload.len(),
             "dispatched_at": receipt.dispatched_at,
         });
         let mut guard = self

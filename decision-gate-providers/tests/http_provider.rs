@@ -43,6 +43,7 @@ use decision_gate_providers::HttpProvider;
 use decision_gate_providers::HttpProviderConfig;
 use serde_json::Value;
 use serde_json::json;
+use tiny_http::Header;
 use tiny_http::Response;
 use tiny_http::Server;
 
@@ -165,6 +166,36 @@ fn http_provider_sets_evidence_metadata() {
 
     let evidence_ref = result.evidence_ref.unwrap();
     assert!(evidence_ref.uri.contains("127.0.0.1"));
+
+    handle.join().unwrap();
+}
+
+/// Tests that redirects are not followed for status checks.
+#[test]
+fn http_provider_does_not_follow_redirects() {
+    let server = Server::http("127.0.0.1:0").unwrap();
+    let addr = server.server_addr().to_ip().unwrap();
+    let url = format!("http://{addr}");
+
+    let handle = thread::spawn(move || {
+        if let Ok(request) = server.recv() {
+            let location = Header::from_bytes(&b"Location"[..], b"http://127.0.0.1:1").unwrap();
+            let response = Response::empty(302).with_header(location);
+            let _ = request.respond(response);
+        }
+    });
+
+    let provider = local_provider();
+    let query = EvidenceQuery {
+        provider_id: ProviderId::new("http"),
+        predicate: "status".to_string(),
+        params: Some(json!({"url": url})),
+    };
+    let result = provider.query(&query, &sample_context()).unwrap();
+    let EvidenceValue::Json(Value::Number(number)) = result.value.unwrap() else {
+        panic!("expected numeric evidence");
+    };
+    assert_eq!(number.as_u64(), Some(302));
 
     handle.join().unwrap();
 }

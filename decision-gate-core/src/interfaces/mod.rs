@@ -150,6 +150,16 @@ pub enum ArtifactError {
     /// Artifact sink reported an error.
     #[error("artifact error: {0}")]
     Sink(String),
+    /// Artifact exceeds size limit.
+    #[error("artifact too large: {path} ({actual_bytes} > {max_bytes})")]
+    TooLarge {
+        /// Artifact path.
+        path: String,
+        /// Maximum allowed bytes.
+        max_bytes: usize,
+        /// Actual artifact size in bytes.
+        actual_bytes: usize,
+    },
 }
 
 /// Artifact sink for runpack generation.
@@ -176,7 +186,16 @@ pub trait ArtifactReader {
     /// # Errors
     ///
     /// Returns [`ArtifactError`] when reading fails.
-    fn read(&self, path: &str) -> Result<Vec<u8>, ArtifactError>;
+    fn read(&self, path: &str) -> Result<Vec<u8>, ArtifactError> {
+        self.read_with_limit(path, usize::MAX)
+    }
+
+    /// Reads artifact bytes from a runpack with a size limit.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ArtifactError`] when reading fails or the artifact exceeds `max_bytes`.
+    fn read_with_limit(&self, path: &str, max_bytes: usize) -> Result<Vec<u8>, ArtifactError>;
 }
 
 // ============================================================================

@@ -77,6 +77,7 @@ Provider entries register built-in or MCP providers.
 | `auth` | table | no | Bearer token for MCP providers. |
 | `trust` | table | no | Per-provider trust override. |
 | `allow_raw` | bool | `false` | Allow raw evidence disclosure for this provider. |
+| `timeouts` | table | no | HTTP timeout overrides for MCP providers. |
 | `config` | table | no | Built-in provider configuration blob. |
 
 `auth` form:
@@ -97,6 +98,31 @@ type = "mcp"
 command = ["mongo-provider", "--stdio"]
 capabilities_path = "contracts/mongo_provider.json"
 ```
+
+`timeouts` form (HTTP MCP providers):
+```toml
+timeouts = { connect_timeout_ms = 2000, request_timeout_ms = 10000 }
+```
+
+`timeouts` fields:
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `connect_timeout_ms` | integer | `2000` | TCP/TLS connect timeout (100-10000). |
+| `request_timeout_ms` | integer | `10000` | Total request timeout (500-30000, >= connect). |
+
+HTTP provider example with timeouts:
+```toml
+[[providers]]
+name = "ci"
+type = "mcp"
+url = "https://ci.example.com/rpc"
+capabilities_path = "contracts/ci_provider.json"
+timeouts = { connect_timeout_ms = 2000, request_timeout_ms = 10000 }
+```
+
+Timeout constraints:
+- `connect_timeout_ms` must be between 100 and 10000.
+- `request_timeout_ms` must be between 500 and 30000 and >= `connect_timeout_ms`.
 
 ## Built-In Provider Config
 Built-in providers accept optional `config` blocks:

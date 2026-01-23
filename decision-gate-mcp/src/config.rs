@@ -40,6 +40,14 @@ const MAX_CONFIG_FILE_SIZE: usize = 1024 * 1024;
 const MAX_PATH_COMPONENT_LENGTH: usize = 255;
 /// Maximum total path length.
 const MAX_TOTAL_PATH_LENGTH: usize = 4096;
+/// Minimum MCP provider connect timeout in milliseconds.
+const MIN_PROVIDER_CONNECT_TIMEOUT_MS: u64 = 100;
+/// Maximum MCP provider connect timeout in milliseconds.
+const MAX_PROVIDER_CONNECT_TIMEOUT_MS: u64 = 10_000;
+/// Minimum MCP provider request timeout in milliseconds.
+const MIN_PROVIDER_REQUEST_TIMEOUT_MS: u64 = 500;
+/// Maximum MCP provider request timeout in milliseconds.
+const MAX_PROVIDER_REQUEST_TIMEOUT_MS: u64 = 30_000;
 
 // ============================================================================
 // SECTION: Configuration Types
@@ -128,6 +136,11 @@ impl Default for ServerConfig {
 impl ServerConfig {
     /// Validates server transport configuration.
     fn validate(&self) -> Result<(), ConfigError> {
+        if self.max_body_bytes == 0 {
+            return Err(ConfigError::Invalid(
+                "max_body_bytes must be greater than zero".to_string(),
+            ));
+        }
         match self.transport {
             ServerTransport::Http | ServerTransport::Sse => {
                 let bind = self.bind.as_deref().unwrap_or_default().trim();
@@ -288,6 +301,50 @@ pub enum TrustPolicy {
     },
 }
 
+/// Timeout configuration for MCP provider HTTP requests.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ProviderTimeoutConfig {
+    /// Maximum time to establish the HTTP connection.
+    #[serde(default = "default_provider_connect_timeout_ms")]
+    pub connect_timeout_ms: u64,
+    /// Maximum end-to-end request time (connect + body).
+    #[serde(default = "default_provider_request_timeout_ms")]
+    pub request_timeout_ms: u64,
+}
+
+impl Default for ProviderTimeoutConfig {
+    fn default() -> Self {
+        Self {
+            connect_timeout_ms: default_provider_connect_timeout_ms(),
+            request_timeout_ms: default_provider_request_timeout_ms(),
+        }
+    }
+}
+
+impl ProviderTimeoutConfig {
+    /// Validates provider timeout configuration.
+    fn validate(&self) -> Result<(), ConfigError> {
+        validate_timeout_range(
+            "providers.timeouts.connect_timeout_ms",
+            self.connect_timeout_ms,
+            MIN_PROVIDER_CONNECT_TIMEOUT_MS,
+            MAX_PROVIDER_CONNECT_TIMEOUT_MS,
+        )?;
+        validate_timeout_range(
+            "providers.timeouts.request_timeout_ms",
+            self.request_timeout_ms,
+            MIN_PROVIDER_REQUEST_TIMEOUT_MS,
+            MAX_PROVIDER_REQUEST_TIMEOUT_MS,
+        )?;
+        if self.request_timeout_ms < self.connect_timeout_ms {
+            return Err(ConfigError::Invalid(
+                "providers.timeouts.request_timeout_ms must be >= connect_timeout_ms".to_string(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 /// Provider configuration entry.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ProviderConfig {
@@ -317,6 +374,9 @@ pub struct ProviderConfig {
     /// Provider opt-in for raw evidence disclosure.
     #[serde(default)]
     pub allow_raw: bool,
+    /// Provider timeout overrides (HTTP MCP providers).
+    #[serde(default)]
+    pub timeouts: ProviderTimeoutConfig,
     /// Provider-specific configuration blob for built-ins.
     #[serde(default)]
     pub config: Option<toml::Value>,
@@ -328,6 +388,7 @@ impl ProviderConfig {
         if self.name.trim().is_empty() {
             return Err(ConfigError::Invalid("provider name is empty".to_string()));
         }
+        self.timeouts.validate()?;
         match self.provider_type {
             ProviderType::Builtin => {
                 if self.capabilities_path.is_some() {
@@ -449,6 +510,31 @@ const fn default_store_busy_timeout_ms() -> u64 {
 /// Default trust policy for providers.
 const fn default_trust_policy() -> TrustPolicy {
     TrustPolicy::Audit
+}
+
+/// Default MCP provider connect timeout in milliseconds.
+const fn default_provider_connect_timeout_ms() -> u64 {
+    2_000
+}
+
+/// Default MCP provider request timeout in milliseconds.
+const fn default_provider_request_timeout_ms() -> u64 {
+    10_000
+}
+
+/// Validates a timeout value against bounds.
+fn validate_timeout_range(
+    field: &str,
+    value_ms: u64,
+    min_ms: u64,
+    max_ms: u64,
+) -> Result<(), ConfigError> {
+    if value_ms < min_ms || value_ms > max_ms {
+        return Err(ConfigError::Invalid(format!(
+            "{field} must be between {min_ms} and {max_ms} milliseconds",
+        )));
+    }
+    Ok(())
 }
 
 /// Validates run state store paths against security limits.
