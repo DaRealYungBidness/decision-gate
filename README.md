@@ -114,7 +114,8 @@ In practical terms, the predicate format is defined by:
 The canonical contract crate (`decision-gate-contract`) defines provider
 capabilities as Rust data structures so predicate schemas, docs, and tooltips
 are generated (not hand-maintained). Generated artifacts live under
-`Docs/generated/decision-gate`.
+`Docs/generated/decision-gate`. After any behavior or schema change, update the
+contract tooltips and regenerate the generated artifacts to keep them aligned.
 
 ## Scenario Authoring Walkthrough
 This is a full, end-to-end authoring flow using the core model.

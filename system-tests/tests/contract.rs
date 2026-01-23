@@ -243,7 +243,7 @@ async fn schema_conformance_all_tools() -> Result<(), Box<dyn Error>> {
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(5),
             source_id: "contract".to_string(),
-            payload_ref: None,
+            payload: None,
             correlation_id: None,
         },
     };

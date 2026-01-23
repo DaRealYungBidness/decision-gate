@@ -17,6 +17,7 @@
 // ============================================================================
 
 use decision_gate_core::ContentRef;
+use decision_gate_core::runtime::MAX_PAYLOAD_BYTES;
 use thiserror::Error;
 
 // ============================================================================
@@ -31,6 +32,9 @@ pub struct SourcePayload {
     /// Optional content type hint.
     pub content_type: Option<String>,
 }
+
+/// Maximum payload size accepted by broker sources.
+pub const MAX_SOURCE_BYTES: usize = MAX_PAYLOAD_BYTES;
 
 // ============================================================================
 // SECTION: Source Errors
@@ -57,6 +61,25 @@ pub enum SourceError {
     /// Inline source failed to decode payload.
     #[error("inline decode failure: {0}")]
     Decode(String),
+    /// Payload exceeded the configured byte limit.
+    #[error("payload exceeds size limit: {actual_bytes} bytes (max {max_bytes})")]
+    TooLarge {
+        /// Maximum allowed bytes.
+        max_bytes: usize,
+        /// Actual payload size in bytes.
+        actual_bytes: usize,
+    },
+}
+
+/// Returns an error when a payload exceeds the configured size cap.
+pub(crate) fn enforce_max_bytes(actual_bytes: usize) -> Result<(), SourceError> {
+    if actual_bytes > MAX_SOURCE_BYTES {
+        return Err(SourceError::TooLarge {
+            max_bytes: MAX_SOURCE_BYTES,
+            actual_bytes,
+        });
+    }
+    Ok(())
 }
 
 // ============================================================================

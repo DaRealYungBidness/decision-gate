@@ -37,6 +37,7 @@ pub use sink::SinkError;
 pub use source::FileSource;
 pub use source::HttpSource;
 pub use source::InlineSource;
+pub use source::MAX_SOURCE_BYTES;
 pub use source::Source;
 pub use source::SourceError;
 pub use source::SourcePayload;

@@ -85,7 +85,7 @@ async fn performance_smoke() -> Result<(), Box<dyn std::error::Error>> {
                 kind: TriggerKind::ExternalEvent,
                 time: Timestamp::Logical(idx as u64 + 2),
                 source_id: "perf".to_string(),
-                payload_ref: None,
+                payload: None,
                 correlation_id: None,
             },
         };

@@ -97,6 +97,18 @@ coverage_status = "strong"
 estimated_runtime_sec = 15
 
 [[tests]]
+name = "idempotent_submission"
+category = "reliability"
+priority = "P0"
+hyperscaler_mapping = ["correctness", "crash_safety"]
+description = "Duplicate submission IDs return the existing record; conflicts fail closed."
+files = ["system-tests/tests/reliability.rs"]
+run_command = "cargo test -p system-tests --test reliability -- --exact idempotent_submission"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runpack/"]
+coverage_status = "new"
+estimated_runtime_sec = 15
+
+[[tests]]
 name = "provider_time_after"
 category = "providers"
 priority = "P0"
@@ -159,6 +171,18 @@ run_command = "cargo test -p system-tests --test security -- --exact packet_disc
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 coverage_status = "strong"
 estimated_runtime_sec = 8
+
+[[tests]]
+name = "timeout_policies"
+category = "reliability"
+priority = "P1"
+hyperscaler_mapping = ["correctness", "crash_safety"]
+description = "Timeout policies fail, advance_with_flag, and alternate_branch behave as specified."
+files = ["system-tests/tests/reliability.rs"]
+run_command = "cargo test -p system-tests --test reliability -- --exact timeout_policies"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+coverage_status = "new"
+estimated_runtime_sec = 20
 
 [[tests]]
 name = "runpack_tamper_detection"

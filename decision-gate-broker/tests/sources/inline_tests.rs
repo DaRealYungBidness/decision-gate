@@ -20,6 +20,7 @@
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use decision_gate_broker::InlineSource;
+use decision_gate_broker::MAX_SOURCE_BYTES;
 use decision_gate_broker::Source;
 use decision_gate_broker::SourceError;
 use decision_gate_core::ContentRef;
@@ -229,6 +230,24 @@ fn inline_source_rejects_invalid_base64_in_bytes_scheme() {
     let err = source.fetch(&content_ref).unwrap_err();
 
     assert!(matches!(err, SourceError::Decode(_)));
+}
+
+/// Tests inline source rejects oversized payloads.
+#[test]
+fn inline_source_rejects_oversized_payload() {
+    let source = InlineSource::new();
+    let data = vec![0_u8; MAX_SOURCE_BYTES + 1];
+    let encoded = STANDARD.encode(&data);
+    let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"phantom");
+
+    let content_ref = ContentRef {
+        uri: format!("inline:{encoded}"),
+        content_hash,
+        encryption: None,
+    };
+
+    let err = source.fetch(&content_ref).unwrap_err();
+    assert!(matches!(err, SourceError::TooLarge { .. }));
 }
 
 /// Tests inline source rejects unsupported scheme.

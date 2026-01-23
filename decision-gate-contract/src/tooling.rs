@@ -460,7 +460,7 @@ fn tool_examples(tool_name: ToolName) -> Vec<ToolExample> {
                     "kind": "tick",
                     "time": example_timestamp(),
                     "source_id": "scheduler-01",
-                    "payload_ref": null,
+                    "payload": null,
                     "correlation_id": null
                 }
             }),
@@ -589,6 +589,7 @@ fn example_run_state() -> Value {
         "scenario_id": EXAMPLE_SCENARIO_ID,
         "spec_hash": example_hash_digest(),
         "current_stage_id": EXAMPLE_STAGE_ID,
+        "stage_entered_at": example_timestamp(),
         "status": "active",
         "dispatch_targets": [
             {

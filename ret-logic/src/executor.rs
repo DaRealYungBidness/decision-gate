@@ -65,6 +65,12 @@ impl CombineMode {
 }
 
 // ============================================================================
+// SECTION: Constants
+// ============================================================================
+
+const MAX_PLAN_STACK_DEPTH: usize = 64;
+
+// ============================================================================
 // SECTION: Plan Executor
 // ============================================================================
 
@@ -79,7 +85,7 @@ pub struct PlanExecutor<R: 'static> {
 
     /// Dispatch table mapping opcodes to evaluation functions
     /// Index by `OpCode` as u8, contains function pointers for row evaluation
-    pub eval_table: &'static EvalTable<R>,
+    pub eval_table: EvalTable<R>,
 }
 
 // ============================================================================
@@ -91,11 +97,11 @@ impl<R: 'static> PlanExecutor<R> {
     ///
     /// # Arguments
     /// * `plan` - The compiled plan to execute
-    /// * `eval_table` - Static dispatch table for opcode evaluation
+    /// * `eval_table` - Dispatch table for opcode evaluation
     ///
     /// # Returns
     /// A new plan executor ready for evaluation
-    pub fn new(plan: Plan, eval_table: &'static EvalTable<R>) -> Self {
+    pub fn new(plan: Plan, eval_table: EvalTable<R>) -> Self {
         Self {
             plan,
             eval_table,
@@ -124,8 +130,9 @@ impl<R: 'static> PredicateEval for PlanExecutor<R> {
 
     fn eval_row(&self, reader: &Self::Reader<'_>, row: Row) -> bool {
         // Use a small stack for boolean logic evaluation
-        let mut stack_values: [bool; 16] = [false; 16];
-        let mut stack_modes: [CombineMode; 16] = [CombineMode::And; 16];
+        let mut stack_values: [bool; MAX_PLAN_STACK_DEPTH] = [false; MAX_PLAN_STACK_DEPTH];
+        let mut stack_modes: [CombineMode; MAX_PLAN_STACK_DEPTH] =
+            [CombineMode::And; MAX_PLAN_STACK_DEPTH];
         let mut stack_pointer = 0usize;
 
         stack_modes[0] = CombineMode::And;
@@ -320,8 +327,7 @@ impl<R: 'static> ExecutorBuilder<R> {
     #[must_use]
     pub fn build(self, plan: Plan) -> PlanExecutor<R> {
         // Create a static dispatch table - in practice domains should define these as statics
-        let static_table = Box::leak(Box::new(self.eval_table));
-        PlanExecutor::new(plan, static_table)
+        PlanExecutor::new(plan, self.eval_table)
     }
 }
 

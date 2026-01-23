@@ -32,6 +32,7 @@ use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
 use decision_gate_core::hashing::HashAlgorithm;
 use decision_gate_core::hashing::canonical_json_bytes;
 use decision_gate_core::hashing::hash_bytes;
+use decision_gate_core::runtime::MAX_RUNPACK_ARTIFACT_BYTES;
 use rusqlite::Connection;
 use rusqlite::OpenFlags;
 use rusqlite::OptionalExtension;
@@ -51,6 +52,8 @@ const DEFAULT_BUSY_TIMEOUT_MS: u64 = 5_000;
 const MAX_PATH_COMPONENT_LENGTH: usize = 255;
 /// Maximum total path length.
 const MAX_TOTAL_PATH_LENGTH: usize = 4096;
+/// Maximum run state snapshot size accepted by the store.
+pub const MAX_STATE_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;
 
 // ============================================================================//
 // SECTION: Config
@@ -146,6 +149,14 @@ pub enum SqliteStoreError {
     /// Invalid store data.
     #[error("sqlite store invalid data: {0}")]
     Invalid(String),
+    /// Store payload exceeded configured size limits.
+    #[error("sqlite store payload too large: {actual_bytes} bytes (max {max_bytes})")]
+    TooLarge {
+        /// Maximum allowed bytes.
+        max_bytes: usize,
+        /// Actual payload size in bytes.
+        actual_bytes: usize,
+    },
 }
 
 impl From<SqliteStoreError> for StoreError {
@@ -156,6 +167,12 @@ impl From<SqliteStoreError> for StoreError {
             SqliteStoreError::Corrupt(message) => Self::Corrupt(message),
             SqliteStoreError::VersionMismatch(message) => Self::VersionMismatch(message),
             SqliteStoreError::Invalid(message) => Self::Invalid(message),
+            SqliteStoreError::TooLarge {
+                max_bytes,
+                actual_bytes,
+            } => Self::Invalid(format!(
+                "state_json exceeds size limit: {actual_bytes} bytes (max {max_bytes})"
+            )),
         }
     }
 }
@@ -232,29 +249,47 @@ impl SqliteRunStateStore {
                 }
             };
             let row = if let Some(latest_version) = latest_version {
-                let row = tx
+                let metadata = tx
                     .query_row(
-                        "SELECT state_json, state_hash, hash_algorithm FROM run_state_versions \
-                         WHERE run_id = ?1 AND version = ?2",
+                        "SELECT length(state_json), state_hash, hash_algorithm FROM \
+                         run_state_versions WHERE run_id = ?1 AND version = ?2",
                         params![run_id.as_str(), latest_version],
                         |row| {
-                            let bytes: Vec<u8> = row.get(0)?;
+                            let length: i64 = row.get(0)?;
                             let hash: String = row.get(1)?;
                             let algorithm: String = row.get(2)?;
-                            Ok((bytes, hash, algorithm))
+                            Ok((length, hash, algorithm))
                         },
                     )
                     .optional()
                     .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-                match row {
-                    Some(row) => Some(row),
-                    None => {
-                        return Err(SqliteStoreError::Corrupt(format!(
-                            "missing run state version {latest_version} for run {}",
-                            run_id.as_str()
-                        )));
-                    }
+                let Some((length, hash, algorithm)) = metadata else {
+                    return Err(SqliteStoreError::Corrupt(format!(
+                        "missing run state version {latest_version} for run {}",
+                        run_id.as_str()
+                    )));
+                };
+                let length_usize = usize::try_from(length).map_err(|_| {
+                    SqliteStoreError::Invalid(format!(
+                        "negative run state length for run {}",
+                        run_id.as_str()
+                    ))
+                })?;
+                if length_usize > MAX_STATE_BYTES {
+                    return Err(SqliteStoreError::TooLarge {
+                        max_bytes: MAX_STATE_BYTES,
+                        actual_bytes: length_usize,
+                    });
                 }
+                let bytes: Vec<u8> = tx
+                    .query_row(
+                        "SELECT state_json FROM run_state_versions WHERE run_id = ?1 AND version \
+                         = ?2",
+                        params![run_id.as_str(), latest_version],
+                        |row| row.get(0),
+                    )
+                    .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+                Some((bytes, hash, algorithm))
             } else {
                 None
             };

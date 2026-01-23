@@ -415,7 +415,12 @@ impl ToolRouter {
     fn submit(&self, request: &ScenarioSubmitRequest) -> Result<SubmitResult, ToolError> {
         let runtime = self.runtime_for(&request.scenario_id)?;
         let result =
-            runtime.control.scenario_submit(&request.request).map_err(ToolError::ControlPlane)?;
+            runtime.control.scenario_submit(&request.request).map_err(|err| match err {
+                ControlPlaneError::SubmissionConflict(submission_id) => {
+                    ToolError::Conflict(format!("submission_id conflict: {submission_id}"))
+                }
+                _ => ToolError::ControlPlane(err),
+            })?;
         Ok(result)
     }
 

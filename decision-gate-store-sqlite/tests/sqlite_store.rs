@@ -34,9 +34,11 @@ use decision_gate_core::StageSpec;
 use decision_gate_core::StoreError;
 use decision_gate_core::TenantId;
 use decision_gate_core::TimeoutPolicy;
+use decision_gate_core::Timestamp;
 use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
 use decision_gate_core::hashing::canonical_json_bytes;
 use decision_gate_core::hashing::hash_bytes;
+use decision_gate_store_sqlite::MAX_STATE_BYTES;
 use decision_gate_store_sqlite::SqliteRunStateStore;
 use decision_gate_store_sqlite::SqliteStoreConfig;
 use decision_gate_store_sqlite::SqliteStoreError;
@@ -66,6 +68,7 @@ fn sample_state(run_id: &str) -> RunState {
         scenario_id: ScenarioId::new("scenario"),
         spec_hash,
         current_stage_id: StageId::new("stage-1"),
+        stage_entered_at: Timestamp::Logical(0),
         status: RunStatus::Active,
         dispatch_targets: Vec::new(),
         triggers: Vec::new(),
@@ -140,6 +143,34 @@ fn sqlite_store_detects_corrupt_hash() {
     }
     let result = store.load(&RunId::new("run-1"));
     assert!(result.is_err());
+}
+
+#[test]
+fn sqlite_store_rejects_oversized_state_payload() {
+    let temp = TempDir::new().unwrap();
+    let path = temp.path().join("store.sqlite");
+    let store = store_for(&path);
+    let run_id = RunId::new("run-oversize");
+    let oversized = vec![0_u8; MAX_STATE_BYTES + 1];
+    let digest = hash_bytes(DEFAULT_HASH_ALGORITHM, &oversized);
+
+    let connection = rusqlite::Connection::open(&path).unwrap();
+    connection
+        .execute(
+            "INSERT INTO runs (run_id, latest_version) VALUES (?1, 1)",
+            rusqlite::params![run_id.as_str()],
+        )
+        .unwrap();
+    connection
+        .execute(
+            "INSERT INTO run_state_versions (run_id, version, state_json, state_hash, \
+             hash_algorithm, saved_at) VALUES (?1, 1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![run_id.as_str(), oversized, digest.value, "sha256", 0_i64],
+        )
+        .unwrap();
+
+    let result = store.load(&run_id);
+    assert!(matches!(result, Err(StoreError::Invalid(_))));
 }
 
 #[test]

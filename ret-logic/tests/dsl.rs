@@ -175,3 +175,34 @@ fn errors_on_empty_input() -> TestResult {
     ensure(matches!(err, DslError::EmptyInput), "Expected empty input diagnostic")?;
     Ok(())
 }
+
+/// Tests errors on oversized input.
+#[test]
+fn errors_on_oversized_input() -> TestResult {
+    let input = "a".repeat(1_048_577);
+    let Err(err) = parse_requirement::<u8, _>(&input, &resolver()) else {
+        return fail("Expected oversized input error");
+    };
+    ensure(matches!(err, DslError::InputTooLarge { .. }), "Expected input size diagnostic")?;
+    Ok(())
+}
+
+/// Tests errors on excessive nesting depth.
+#[test]
+fn errors_on_excessive_nesting() -> TestResult {
+    let depth = 40;
+    let mut input = String::new();
+    for _ in 0 .. depth {
+        input.push_str("not(");
+    }
+    input.push_str("is_alive");
+    for _ in 0 .. depth {
+        input.push(')');
+    }
+
+    let Err(err) = parse_requirement::<u8, _>(&input, &resolver()) else {
+        return fail("Expected nesting depth error");
+    };
+    ensure(matches!(err, DslError::NestingTooDeep { .. }), "Expected nesting depth diagnostic")?;
+    Ok(())
+}

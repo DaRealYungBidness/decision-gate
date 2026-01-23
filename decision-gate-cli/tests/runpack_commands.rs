@@ -43,6 +43,7 @@ use decision_gate_core::SpecVersion;
 use decision_gate_core::StageId;
 use decision_gate_core::StageSpec;
 use decision_gate_core::TenantId;
+use decision_gate_core::Timestamp;
 use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
 use decision_gate_core::runtime::VerificationReport;
 use decision_gate_core::runtime::VerificationStatus;
@@ -99,6 +100,7 @@ fn minimal_state(spec: &ScenarioSpec) -> RunState {
         scenario_id: ScenarioId::new("scenario"),
         spec_hash,
         current_stage_id: StageId::new("stage-1"),
+        stage_entered_at: Timestamp::Logical(0),
         status: RunStatus::Active,
         dispatch_targets: Vec::new(),
         triggers: Vec::new(),

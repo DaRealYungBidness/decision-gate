@@ -6,7 +6,7 @@ and then align the tooltips and docs after the changes are real.
 
 Update note:
 - This roadmap is now cross-referenced against the current codebase.
-- Tooltips/docs updates are intentionally deferred until remaining runtime features land.
+- Tooltips/docs updated to match runtime and regenerated contract artifacts.
 
 ## Goals
 
@@ -39,16 +39,16 @@ Update note:
 
 Legend: Implemented / Partial / Not Implemented
 
-1) Run lifecycle and status: Implemented (runtime + schema). Tooltips/docs pending.
-2) Idempotent submissions: Not implemented.
-3) scenario_status minimal contract: Implemented (runtime + schema). Tooltips/docs pending.
-4) Timeout handling: Not implemented (TimeoutSpec/Policy exist; runtime does not enforce).
+1) Run lifecycle and status: Implemented (runtime + schema + tooltips/docs).
+2) Idempotent submissions: Implemented (runtime + tooltips/docs).
+3) scenario_status minimal contract: Implemented (runtime + schema + tooltips/docs).
+4) Timeout handling: Implemented (runtime + tooltips/docs).
 5) Trigger time semantics: Implemented (unix_millis + logical accepted; no monotonic enforcement).
-6) EvidenceRef behavior: Implemented (opaque, not resolved by runtime). Tooltips/docs pending.
-7) Unify external payload references: Not implemented (TriggerEvent still uses payload_ref).
-8) EvidenceContext contents: Implemented (minimal; no policy_tags). Tooltips/docs pending.
-9) Tooltip and doc alignment: Deferred until runtime changes are done.
-10) AGENTS.md/README.md checklist: Not implemented.
+6) EvidenceRef behavior: Implemented (opaque, not resolved by runtime). Tooltips/docs updated.
+7) Unify external payload references: Implemented (TriggerEvent uses PacketPayload).
+8) EvidenceContext contents: Implemented (minimal; no policy_tags). Tooltips/docs updated.
+9) Tooltip and doc alignment: Implemented (tooltips updated; Docs/generated regenerated).
+10) AGENTS.md/README.md checklist: Implemented.
 
 ## Detailed Requirements and Implementation Checklist
 
@@ -63,17 +63,17 @@ Requirements:
 
 Status (codebase):
 - Implemented in runtime and schemas.
-- Tooltips/docs still mention pending/held and extra fields.
+- Tooltips/docs aligned with schema/runtime.
 
 Implementation tasks:
 - No schema changes required.
-- Update tooltips to remove "pending/held" and match the schema.
+- Tooltips updated to remove "pending/held" and match the schema.
 
 Tests:
 - Ensure scenario_status returns safe_summary when last_decision is Hold.
 
 Docs/tooltips:
-- Update decision-gate-contract tooltips to match the real contract.
+- Updated decision-gate-contract tooltips; regenerated Docs/generated artifacts.
 
 ### 2) Idempotent submissions
 
@@ -86,7 +86,8 @@ Requirements:
   return a deterministic error (conflict).
 
 Status (codebase):
-- Not implemented. scenario_submit always appends and never conflicts.
+- Implemented. scenario_submit returns existing records for exact matches and
+  fails deterministically on conflicts.
 
 Implementation tasks:
 - decision-gate-core: check existing submissions before append.
@@ -98,7 +99,7 @@ Tests:
 - New unit test: conflicting submission_id returns error.
 
 Docs/tooltips:
-- Update tooltips for scenario_submit and submission_id to call out idempotency.
+- Updated tooltips for scenario_submit and submission_id to call out idempotency.
 
 ### 3) scenario_status minimal contract
 
@@ -110,7 +111,7 @@ Requirements:
 
 Status (codebase):
 - Implemented in runtime and schemas.
-- Tooltips/docs still claim gate outcomes and timing metadata.
+- Tooltips/docs aligned with schema/runtime.
 
 Implementation tasks:
 - No schema changes required if behavior already matches.
@@ -120,7 +121,7 @@ Tests:
 - Validate safe_summary fields for a hold outcome.
 
 Docs/tooltips:
-- Update tooltips to remove claims of gate outcomes or evidence values.
+- Updated tooltips to remove claims of gate outcomes or evidence values.
 
 ### 4) Timeout handling
 
@@ -135,7 +136,7 @@ Requirements:
 - Timeouts are evaluated by a trigger event of kind "tick" with caller-supplied time.
 
 Status (codebase):
-- Not implemented. TriggerKind::Tick only marks timeout=true on Advance; no timeout evaluation.
+- Implemented. Tick triggers evaluate timeouts before gate evaluation and apply policy.
 
 Implementation tasks:
 - decision-gate-core: record stage entry time.
@@ -153,7 +154,7 @@ Tests:
 - No timeout if tick before deadline.
 
 Docs/tooltips:
-- Update TimeoutSpec, TimeoutPolicy, and on_timeout tooltips to match real behavior.
+- Updated TimeoutSpec, TimeoutPolicy, and on_timeout tooltips to match real behavior.
 
 ### 5) Trigger time semantics
 
@@ -165,13 +166,13 @@ Requirements:
 
 Status (codebase):
 - Implemented (Timestamp supports unix_millis + logical; no monotonic enforcement).
-- Tooltips/docs still claim unix_millis only and monotonic logical timestamps.
+- Tooltips/docs aligned with Timestamp semantics.
 
 Implementation tasks:
 - No runtime change unless we decide to enforce monotonic time later.
 
 Docs/tooltips:
-- Update trigger_time and logical tooltips to avoid monotonic guarantees.
+- Updated trigger_time and logical tooltips to avoid monotonic guarantees.
 
 ### 6) EvidenceRef behavior
 
@@ -183,13 +184,13 @@ Requirements:
 
 Status (codebase):
 - Implemented (EvidenceRef is stored; runtime does not resolve refs).
-- Tooltips/docs still claim runtime resolves refs.
+- Tooltips/docs aligned with opaque EvidenceRef behavior.
 
 Implementation tasks:
 - No runtime change required; align docs and tooltips.
 
 Docs/tooltips:
-- Update EvidenceRef tooltip to remove "runtime resolves refs" language.
+- Updated EvidenceRef tooltip to remove "runtime resolves refs" language.
 
 ### 7) Unify external payload references
 
@@ -201,21 +202,21 @@ Requirements:
 - If we keep payload_ref, document it as opaque and unverified (not preferred).
 
 Status (codebase):
-- Not implemented. TriggerEvent still uses payload_ref; PacketPayload/ContentRef exist.
+- Implemented. TriggerEvent now carries PacketPayload; payload_ref removed from runtime.
 
 Implementation tasks:
 - decision-gate-core: update TriggerEvent struct and handling.
 - decision-gate-contract: update trigger_event schema.
 - decision-gate-mcp: update tool contract and examples.
 - Update examples in Docs/generated and tests.
-- Provide a compatibility shim if any internal code assumes payload_ref.
+- No compatibility shim required; payload_ref removed from runtime.
 
 Tests:
 - TriggerEvent with external ContentRef payload works end-to-end.
 - TriggerEvent with json payload works end-to-end.
 
 Docs/tooltips:
-- Update payload/payload_ref tooltips to reflect the new unified model.
+- Updated payload tooltips to reflect the unified PacketPayload model.
 
 ### 8) EvidenceContext contents
 
@@ -227,11 +228,11 @@ Requirements:
 
 Status (codebase):
 - Implemented (EvidenceContext is minimal).
-- Tooltips/docs still mention policy_tags.
+- Tooltips/docs aligned with minimal EvidenceContext.
 
 Implementation tasks:
 - No schema changes required.
-- Update tooltips to remove policy_tags mention.
+- Tooltips updated to remove policy_tags mention.
 
 ### 9) Tooltip and doc alignment
 
@@ -242,10 +243,10 @@ Requirements:
 - Regenerate Docs/generated artifacts after updating tooltips.
 
 Status (codebase):
-- Deferred until remaining runtime features land.
+- Implemented: tooltips updated and Docs/generated regenerated.
 
 Implementation tasks:
-- Add a checklist in decision-gate AGENTS.md and README.md to confirm tooltip
+- Checklist added in decision-gate AGENTS.md and README.md to confirm tooltip
   alignment after any behavior or schema change.
 
 Tests:

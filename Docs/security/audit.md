@@ -20,17 +20,21 @@ record status, severity, impacted files, and recommended remediation steps.
 
 ### Open Findings
 
-1. Unbounded payload sizes in broker sources allow memory exhaustion.
-   - Status: Open.
+None.
+
+### Closed Findings
+
+1. Unbounded payload sizes in broker sources allowed memory exhaustion.
+   - Status: Closed.
    - Severity: High (resource exhaustion / DoS).
-   - Impact: `FileSource::fetch` reads entire files; `HttpSource::fetch` loads
-     full responses; `InlineSource::fetch` decodes base64 into an unbounded
+   - Impact: `FileSource::fetch` read entire files; `HttpSource::fetch` loaded
+     full responses; `InlineSource::fetch` decoded base64 into an unbounded
      `Vec<u8>`.
    - Affected files: `decision-gate-broker/src/source/file.rs`,
      `decision-gate-broker/src/source/http.rs`,
      `decision-gate-broker/src/source/inline.rs`.
-   - Recommendation: enforce explicit byte caps for each source, reject
-     oversized payloads early, and add tests that assert fail-closed behavior.
+   - Resolution: added hard byte caps aligned with payload limits, enforced
+     size checks before decoding/reading, and added fail-closed tests.
 
 ## decision-gate-cli
 
@@ -154,50 +158,25 @@ None.
 
 ### Open Findings
 
-1. Unbounded run state blob loads can exhaust memory.
-   - Status: Open.
+None.
+
+### Closed Findings
+
+1. Unbounded run state blob loads could exhaust memory.
+   - Status: Closed.
    - Severity: High (resource exhaustion / DoS).
-   - Impact: `SqliteRunStateStore::load_state` reads `state_json` blobs without
-     a byte limit; a tampered SQLite file can force large allocations.
+   - Impact: `SqliteRunStateStore::load_state` read `state_json` blobs without a
+     byte limit; a tampered SQLite file could force large allocations.
    - Affected files: `decision-gate-store-sqlite/src/store.rs`.
-   - Recommendation: enforce a hard upper bound aligned with runpack artifact
-     limits or stream blobs with explicit caps before deserialization; add
-     oversized-blob tests that assert fail-closed behavior.
+   - Resolution: added a hard byte cap aligned with runpack artifact limits,
+     rejected oversized blobs before loading, and added a fail-closed oversized
+     blob test.
 
 ## ret-logic
 
 ### Open Findings
 
-1. DSL parsing has no input size cap and uses recursive descent before depth
-   validation, enabling stack exhaustion or large allocations with adversarial
-   input.
-   - Status: Open.
-   - Severity: High (resource exhaustion / DoS).
-   - Impact: `Parser` recursion and full-token buffering occur before structural
-     depth checks.
-   - Affected files: `ret-logic/src/dsl.rs`.
-   - Recommendation: enforce maximum input length and nesting depth during
-     parse (fail closed), or replace recursion with an explicit stack.
-
-2. PlanExecutor stack depth (16) is lower than the default validation depth
-   (32), causing deep but otherwise valid requirements to evaluate as false
-   without diagnostics.
-   - Status: Open.
-   - Severity: Medium (availability / correctness).
-   - Impact: nested plans beyond the executor stack size early-return `false`,
-     which can be triggered by untrusted plans.
-   - Affected files: `ret-logic/src/executor.rs`, `ret-logic/src/dsl.rs`,
-     `ret-logic/src/serde_support.rs`.
-   - Recommendation: align depth limits across parser/validator/executor and
-     surface over-depth as a typed error.
-
-3. ExecutorBuilder leaks dispatch tables by using `Box::leak`.
-   - Status: Open.
-   - Severity: Low (resource leak).
-   - Impact: repeated `ExecutorBuilder::build` calls can leak memory over time.
-   - Affected files: `ret-logic/src/executor.rs`.
-   - Recommendation: require static dispatch tables or return an owned/Arc table
-     to avoid leaking allocations.
+None.
 
 ### Closed Findings
 
@@ -209,3 +188,31 @@ None.
    - Affected files: `ret-logic/src/serde_support.rs`.
    - Resolution: added `MAX_RON_FILE_BYTES` cap with bounded reads and
      fail-closed errors for oversized files.
+
+2. DSL parsing lacked input size caps and depth checks, enabling stack or memory
+   exhaustion with adversarial input.
+   - Status: Closed.
+   - Severity: High (resource exhaustion / DoS).
+   - Impact: recursive descent and token buffering occurred before depth
+     validation.
+   - Affected files: `ret-logic/src/dsl.rs`.
+   - Resolution: enforced maximum input size and nesting depth during parsing
+     with typed, fail-closed errors and added regression tests.
+
+3. Plan executor stack depth was lower than validation depth, causing valid
+   inputs to fail closed without diagnostics.
+   - Status: Closed.
+   - Severity: Medium (availability / correctness).
+   - Impact: nested plans beyond the executor stack size returned `false`.
+   - Affected files: `ret-logic/src/executor.rs`,
+     `ret-logic/src/serde_support.rs`.
+   - Resolution: increased executor stack depth beyond the default validation
+     limit so validated plans no longer underflow the executor stack.
+
+4. ExecutorBuilder leaked dispatch tables by using `Box::leak`.
+   - Status: Closed.
+   - Severity: Low (resource leak).
+   - Impact: repeated `ExecutorBuilder::build` calls could leak memory.
+   - Affected files: `ret-logic/src/executor.rs`.
+   - Resolution: removed the leak by passing owned dispatch tables into the
+     executor builder and tests now use owned tables.

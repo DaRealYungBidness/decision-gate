@@ -21,6 +21,7 @@ use std::thread;
 use std::time::Duration;
 
 use decision_gate_broker::HttpSource;
+use decision_gate_broker::MAX_SOURCE_BYTES;
 use decision_gate_broker::Source;
 use decision_gate_broker::SourceError;
 use decision_gate_core::ContentRef;
@@ -148,6 +149,36 @@ fn http_source_handles_missing_content_type() {
 
     assert_eq!(payload.bytes, b"no content type");
     assert!(payload.content_type.is_none());
+
+    handle.join().expect("server thread");
+}
+
+/// Tests http source rejects oversized payloads.
+#[test]
+fn http_source_rejects_oversized_payload() {
+    let server = Server::http("127.0.0.1:0").expect("http server");
+    let addr = server.server_addr();
+    let body = vec![0_u8; MAX_SOURCE_BYTES + 1];
+
+    let handle = thread::spawn(move || {
+        if let Ok(request) = server.recv() {
+            let response = Response::from_data(body);
+            request.respond(response).expect("respond");
+        }
+    });
+
+    let uri = format!("http://{addr}/large");
+    let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"oversized");
+    let content_ref = ContentRef {
+        uri,
+        content_hash,
+        encryption: None,
+    };
+
+    let source = HttpSource::new().expect("http source");
+    let err = source.fetch(&content_ref).unwrap_err();
+
+    assert!(matches!(err, SourceError::TooLarge { .. }));
 
     handle.join().expect("server thread");
 }

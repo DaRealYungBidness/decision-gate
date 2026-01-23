@@ -62,7 +62,7 @@ async fn runpack_export_verify_happy_path() -> Result<(), Box<dyn std::error::Er
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
             source_id: "runpack".to_string(),
-            payload_ref: None,
+            payload: None,
             correlation_id: None,
         },
     };
@@ -143,7 +143,7 @@ async fn runpack_tamper_detection() -> Result<(), Box<dyn std::error::Error>> {
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
             source_id: "runpack".to_string(),
-            payload_ref: None,
+            payload: None,
             correlation_id: None,
         },
     };

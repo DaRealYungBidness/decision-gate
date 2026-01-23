@@ -23,6 +23,7 @@ use decision_gate_core::ContentRef;
 use crate::source::Source;
 use crate::source::SourceError;
 use crate::source::SourcePayload;
+use crate::source::enforce_max_bytes;
 
 // ============================================================================
 // SECTION: Inline Source
@@ -41,7 +42,13 @@ impl InlineSource {
 
     /// Decodes a base64-encoded payload.
     fn decode_base64(encoded: &str) -> Result<Vec<u8>, SourceError> {
-        STANDARD.decode(encoded.as_bytes()).map_err(|err| SourceError::Decode(err.to_string()))
+        let estimated = ((encoded.len() + 3) / 4).saturating_mul(3);
+        enforce_max_bytes(estimated)?;
+        let bytes = STANDARD
+            .decode(encoded.as_bytes())
+            .map_err(|err| SourceError::Decode(err.to_string()))?;
+        enforce_max_bytes(bytes.len())?;
+        Ok(bytes)
     }
 }
 

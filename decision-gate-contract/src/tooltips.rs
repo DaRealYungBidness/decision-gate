@@ -54,36 +54,37 @@ pub fn tooltips_manifest() -> TooltipsManifest {
             "scenario_start",
             "Creates a new run state for a registered scenario. Initializes the run at the first \
              stage and optionally emits entry_packets as disclosures. Returns a run_id that \
-             scopes all subsequent operations. The run begins in a 'pending' state until the \
-             first trigger or next call advances it.",
+             scopes all subsequent operations. The run starts in the active state with \
+             stage_entered_at set from started_at.",
         ),
         entry(
             "scenario_status",
-            "Fetches a read-only snapshot of a run's current state without modifying it. Returns \
-             the current stage, gate outcomes, accumulated decisions, and timing metadata. Use \
-             this for dashboards, polling, and debugging. The response is safe to expose: it \
-             omits raw evidence values unless policy allows disclosure.",
+            "Fetches a read-only snapshot of a run without modifying it. Returns \
+             current_stage_id, status, last_decision, issued_packet_ids, and an optional \
+             safe_summary for UI displays. Use this for dashboards, polling, and debugging. The \
+             response omits raw evidence values.",
         ),
         entry(
             "scenario_next",
             "Evaluates gates for the current stage and advances or holds the run. This is the \
-             primary driver for agent-controlled workflows. If all gates pass (evaluate to true), \
-             the run advances per the advance_to policy. If any gate is false or unknown, the run \
-             holds. Returns the decision and new stage.",
+             primary driver for agent-controlled workflows. All gates must be true to advance; \
+             otherwise the run holds. Branch stages use gate outcomes to select the next_stage_id \
+             once gates pass. Timeout policies may synthesize outcomes for alternate_branch \
+             routing. Returns the decision and new stage.",
         ),
         entry(
             "scenario_submit",
-            "Submits external artifacts to a run's audit trail for later verification. Use this \
-             to attach documents, signatures, or receipts that predicates will check in future \
-             stages. Artifacts are hashed and anchored to the run's evidence chain. Submissions \
-             are idempotent by submission_id.",
+            "Submits external artifacts to a run's audit trail for later review. Use this to \
+             attach documents, signatures, or receipts for audit and runpack export. Payloads are \
+             hashed into content_hash and recorded in the submission log. Submissions are \
+             idempotent by submission_id; conflicting payloads return a conflict error.",
         ),
         entry(
             "scenario_trigger",
-            "Submits a trigger event with a deterministic timestamp and evaluates the run. Unlike \
-             scenario_next, triggers carry explicit timing and event metadata for time-based \
-             predicates. The trigger_id ensures idempotent processing: repeated calls with the \
-             same trigger_id return the cached decision.",
+            "Submits a trigger event with an explicit timestamp and evaluates the run. Unlike \
+             scenario_next, triggers carry kind, source_id, and optional payload metadata for \
+             time-based predicates and auditing. The trigger_id ensures idempotent processing: \
+             repeated calls with the same trigger_id return the cached decision.",
         ),
         entry(
             "evidence_query",
@@ -198,10 +199,9 @@ pub fn tooltips_manifest() -> TooltipsManifest {
         ),
         entry(
             "EvidenceContext",
-            "Runtime context passed to evidence providers during queries. Includes the run_id, \
-             scenario_id, stage_id, trigger_time, and policy tags. Providers can use context for \
-             logging, rate limiting, or conditional behavior. Context does not affect evidence \
-             computation but enables audit correlation.",
+            "Runtime context passed to evidence providers during queries. Includes tenant_id, \
+             run_id, scenario_id, stage_id, trigger_id, trigger_time, and optional correlation_id \
+             for audit correlation. Context is metadata only and does not change predicate logic.",
         ),
         entry(
             "EvidenceResult",
@@ -219,17 +219,17 @@ pub fn tooltips_manifest() -> TooltipsManifest {
         ),
         entry(
             "EvidenceAnchor",
-            "Metadata linking evidence to its source for offline verification. Contains the \
-             provider_id, predicate, params hash, and timestamp. Anchors enable audit trails: \
-             given an anchor, you can re-query the provider (if still available) or verify \
-             against archived snapshots. Anchors are included in runpacks.",
+            "Metadata linking evidence to its source for offline verification. Contains \
+             anchor_type and anchor_value set by the provider (e.g., 'receipt_id', 'log_offset'). \
+             Anchors enable audit trails: given an anchor, you can re-query the provider (if \
+             still available) or verify against archived snapshots. Anchors are included in \
+             runpacks.",
         ),
         entry(
             "EvidenceRef",
-            "An external URI reference pointing to evidence content stored outside the runtime. \
-             Used when evidence is too large to inline or must be fetched from external systems. \
-             The runtime resolves refs during evaluation and hashes the content for integrity \
-             verification.",
+            "An opaque URI reference pointing to evidence content stored outside the runtime. The \
+             runtime records the ref but does not fetch or resolve it; external auditors can use \
+             the URI to retrieve evidence as needed.",
         ),
         entry(
             "predicate",
@@ -242,8 +242,7 @@ pub fn tooltips_manifest() -> TooltipsManifest {
             "params",
             "Provider-specific parameters passed to a predicate. Structure varies by provider: \
              env.get needs {key}, time.after needs {timestamp}, http.status needs {url}. Invalid \
-             or missing required params cause the provider to fail, yielding an unknown outcome. \
-             Params are hashed into the evidence anchor.",
+             or missing required params cause the provider to fail, yielding an unknown outcome.",
         ),
         // =====================================================================
         // FLOW CONTROL - Stages and Advancement
@@ -320,17 +319,15 @@ pub fn tooltips_manifest() -> TooltipsManifest {
         ),
         entry(
             "trigger_time",
-            "Caller-supplied timestamp used by time predicates. Replaces wall-clock reads to \
-             ensure determinism: the same trigger_time always produces the same time predicate \
-             outcomes. Expressed as unix_millis. Auditors can replay runs with the recorded \
-             trigger_time to verify decisions.",
+            "Caller-supplied timestamp from the trigger event used by time predicates and \
+             EvidenceContext. Uses the Timestamp type (unix_millis or logical when allowed) to \
+             avoid wall-clock reads. Auditors can replay runs with the recorded trigger_time.",
         ),
         entry(
             "logical",
-            "A logical timestamp for deterministic ordering independent of wall-clock time. Used \
-             when multiple events must be ordered but real time is unavailable or irrelevant. \
-             Logical timestamps increment monotonically per run. Useful for testing and \
-             simulation.",
+            "A logical timestamp value used for deterministic ordering when wall-clock time is \
+             unavailable. Caller-supplied integers (>= 0) are accepted only when allow_logical is \
+             enabled. Useful for testing and simulation.",
         ),
         entry(
             "signature",
@@ -382,9 +379,9 @@ pub fn tooltips_manifest() -> TooltipsManifest {
         ),
         entry(
             "decision_id",
-            "Unique identifier for a recorded decision. Generated when a gate evaluation produces \
-             an outcome. Links to the gate_id, requirement evaluated, evidence used, and \
-             resulting outcome. Decision IDs enable audit trails and debugging.",
+            "Unique identifier for a recorded decision. Generated when a trigger evaluation \
+             produces an outcome and linked to the decision sequence, trigger_id, and stage_id. \
+             Decision IDs enable audit trails and debugging.",
         ),
         entry(
             "packet_id",
@@ -408,8 +405,8 @@ pub fn tooltips_manifest() -> TooltipsManifest {
         entry(
             "submission_id",
             "Identifier for an external artifact submitted via scenario_submit. Must be unique \
-             within the run. Enables idempotent submissions: repeated calls with the same \
-             submission_id return the existing record without re-processing.",
+             within the run. Enables idempotent submissions: repeated calls with the same payload \
+             return the existing record, while conflicting payloads return an error.",
         ),
         entry(
             "schema_id",
@@ -423,52 +420,56 @@ pub fn tooltips_manifest() -> TooltipsManifest {
         entry(
             "run_config",
             "Configuration provided when starting a run via scenario_start. Includes tenant_id, \
-             dispatch_targets, policy_tags, and optional overrides. Run config is immutable after \
-             start and recorded in runpacks for reproducibility.",
+             run_id, scenario_id, dispatch_targets, and policy_tags. Run config is immutable \
+             after start and recorded in runpacks for reproducibility.",
         ),
         entry(
             "run_state_store",
             "Backend configuration for persisting run state. Options include in-memory (for \
-             testing), SQLite, or external stores. The store holds run progress, decision \
-             history, and pending triggers. Configure durability and retention based on \
-             compliance needs.",
+             testing) or SQLite. The store holds run progress, decision history, and pending \
+             triggers. Configure durability and retention based on compliance needs.",
         ),
         entry(
             "started_at",
-            "Caller-supplied timestamp marking when the run began. Used for timing calculations \
-             and audit records. If not provided, defaults to the server's current time at \
-             scenario_start. Prefer explicit timestamps for deterministic replay.",
+            "Caller-supplied timestamp marking when the run began. Required at scenario_start and \
+             used for timing calculations, stage_entered_at, and audit records. Prefer explicit \
+             timestamps for deterministic replay.",
+        ),
+        entry(
+            "stage_entered_at",
+            "Timestamp recorded when the run entered the current stage. Used to evaluate stage \
+             timeouts and for audit replay. Set at scenario_start and updated on advances.",
         ),
         entry(
             "status",
-            "Current state indicator for a run or verification. Run statuses: 'pending', \
-             'active', 'completed', 'failed', 'held'. Verification statuses: 'valid', 'invalid', \
-             'incomplete'. Check status to determine next actions or surface issues.",
+            "Current state indicator for a run or verification. Run statuses: 'active', \
+             'completed', 'failed'. Verification statuses: 'pass', 'fail'. Check status to \
+             determine next actions or surface issues.",
         ),
         entry(
             "timeout",
-            "Maximum duration a stage can remain active before timeout policy applies. Specified \
-             as a duration string (e.g., '30s', '5m') or null for no timeout. Timeouts prevent \
-             runs from stalling indefinitely. Combine with on_timeout to control behavior.",
+            "Stage timeout configuration. Set to a TimeoutSpec containing timeout_ms and \
+             policy_tags, or null for no timeout. Timeouts prevent runs from stalling \
+             indefinitely and are handled by on_timeout.",
         ),
         entry(
             "TimeoutPolicy",
-            "Policy controlling what happens when a stage times out. Options: 'fail' immediately \
-             fails the run with a timeout error; 'hold' keeps the run paused awaiting manual \
-             intervention. Choose based on workflow criticality: fail for automated pipelines, \
-             hold for human-in-the-loop processes.",
+            "Policy controlling what happens when a stage times out. Options: 'fail' marks the \
+             run failed with a timeout reason; 'advance_with_flag' advances and sets the decision \
+             timeout flag; 'alternate_branch' routes using unknown outcomes in branch rules. \
+             Choose based on workflow criticality and routing needs.",
         ),
         entry(
             "on_timeout",
-            "Alias for TimeoutPolicy in stage configuration. Specifies 'fail' or 'hold' behavior \
-             when the stage timeout expires. Required if timeout is set. Omit both for stages \
-             that should never timeout.",
+            "Stage timeout policy (TimeoutPolicy). Always present in StageSpec and used only when \
+             timeout is set; ignored when timeout is null. Supports 'fail', 'advance_with_flag', \
+             or 'alternate_branch' behaviors.",
         ),
         entry(
             "trigger",
             "Event payload submitted via scenario_trigger to advance a run. Contains trigger_id, \
-             trigger_time, and optional metadata. Triggers are the primary input mechanism for \
-             time-aware and event-driven workflows. Each trigger is recorded for audit replay.",
+             run_id, kind, time, source_id, optional payload, and correlation_id. Triggers are \
+             recorded for audit replay.",
         ),
         // =====================================================================
         // DISCLOSURE & DISPATCH
@@ -477,46 +478,40 @@ pub fn tooltips_manifest() -> TooltipsManifest {
             "policy_tags",
             "Labels applied to runs, predicates, or disclosures for policy routing. Tags enable \
              conditional behavior: different disclosure rules per environment, tenant-specific \
-             rate limits, or audit categories. Define tags in the ScenarioSpec and reference them \
-             in provider configs.",
+             rate limits, or audit categories. Define tags in the ScenarioSpec and apply them to \
+             runs, predicates, packets, or timeouts as needed.",
         ),
         entry(
             "visibility_labels",
-            "Access control labels attached to emitted packets. Dispatch targets filter packets \
-             by visibility: a target configured for 'internal' won't receive 'public' packets. \
-             Use for graduated disclosure: some systems see summaries, others see full details.",
+            "Access control labels attached to emitted packets. Labels are available to policy \
+             deciders and downstream consumers to implement disclosure rules. Use for graduated \
+             disclosure: some systems see summaries, others see full details.",
         ),
         entry(
             "dispatch_targets",
             "Destinations where emitted packets are delivered. Configure targets in run_config: \
-             webhooks, message queues, or logging endpoints. Targets filter by packet schema_id \
-             and visibility_labels. Multiple targets enable fan-out to different systems.",
+             agent, session, external, or channel. Multiple targets enable fan-out to different \
+             systems.",
         ),
         entry(
             "payload",
-            "The content body of a packet, submission, or evidence. Can be JSON or raw bytes. \
-             Payloads are hashed for integrity and may be schema-validated before emission. Large \
-             payloads can use payload_ref to reference external storage.",
-        ),
-        entry(
-            "payload_ref",
-            "Optional URI reference to externally stored payload content. Use when payloads \
-             exceed inline size limits or must be fetched from artifact stores. The runtime \
-             resolves refs and hashes content for integrity. Refs appear in runpacks alongside \
-             their hashes.",
+            "The content body of a packet, submission, or trigger payload. Encoded as \
+             PacketPayload: json, bytes, or external content_ref (uri + content_hash, optional \
+             encryption). Payloads are hashed for integrity and may be schema-validated before \
+             emission.",
         ),
         entry(
             "decision",
-            "The recorded outcome of a gate evaluation. Contains gate_id, the evaluated outcome \
-             (true/false/unknown), evidence references, and timestamp. Decisions form the audit \
-             trail proving why a run advanced or held. Review decisions for debugging unexpected \
-             behavior.",
+            "The recorded outcome of a trigger evaluation. Contains decision_id, seq, trigger_id, \
+             stage_id, decided_at, and a DecisionOutcome (start/advance/hold/fail/complete). \
+             Advance outcomes include a timeout flag when triggered by timeouts. Decisions form \
+             the audit trail for run progression.",
         ),
         entry(
             "record",
-            "Wrapper for submission responses. Contains the submission_id, content_hash, storage \
-             location, and receipt timestamp. Records prove artifacts were submitted and stored. \
-             Reference records in subsequent predicate checks.",
+            "Wrapper for submission responses. Contains submission_id, run_id, payload, \
+             content_type, content_hash, submitted_at, and correlation_id. Records prove \
+             artifacts were submitted and hashed for audit.",
         ),
         entry(
             "request",
@@ -536,9 +531,9 @@ pub fn tooltips_manifest() -> TooltipsManifest {
         ),
         entry(
             "bind",
-            "Address the runtime binds to for HTTP or SSE transports. Format: 'host:port' (e.g., \
-             '127.0.0.1:8080', '0.0.0.0:9000'). Required for http/sse providers that need inbound \
-             connections. Omit for stdio providers.",
+            "Address the MCP server binds to for HTTP or SSE transports. Format: 'host:port' \
+             (e.g., '127.0.0.1:8080', '0.0.0.0:9000'). Required when the server transport is \
+             http/sse. Omit for stdio.",
         ),
         entry(
             "capabilities_path",
@@ -564,9 +559,9 @@ pub fn tooltips_manifest() -> TooltipsManifest {
         // =====================================================================
         entry(
             "default_policy",
-            "Default trust policy for evidence providers. Options: 'audit' (log all queries, \
-             return hashes), 'raw' (return raw values), 'strict' (require signatures). Individual \
-             providers can override. Start with 'audit' and relax per-provider as needed.",
+            "Default trust policy for evidence providers. Options: 'audit' or 'require_signature' \
+             (with key list). Individual providers can override. Start with 'audit' and tighten \
+             per-provider as needed.",
         ),
         entry(
             "allow_raw_values",
@@ -681,9 +676,8 @@ pub fn tooltips_manifest() -> TooltipsManifest {
         ),
         entry(
             "timeout_ms",
-            "Timeout in milliseconds for HTTP provider requests or state store operations. \
-             Requests exceeding this duration are aborted and return an error. Balance between \
-             allowing slow endpoints and failing fast on unresponsive services.",
+            "Timeout in milliseconds. Used for stage timeouts (TimeoutSpec) and for HTTP provider \
+             requests. Operations exceeding this duration fail per policy.",
         ),
         // =====================================================================
         // PROVIDER-SPECIFIC: TIME

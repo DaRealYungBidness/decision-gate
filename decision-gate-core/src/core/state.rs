@@ -104,8 +104,8 @@ pub struct TriggerEvent {
     pub time: Timestamp,
     /// Source identifier (agent, scheduler, or external system).
     pub source_id: String,
-    /// Optional payload reference.
-    pub payload_ref: Option<String>,
+    /// Optional trigger payload.
+    pub payload: Option<PacketPayload>,
     /// Optional correlation identifier.
     pub correlation_id: Option<CorrelationId>,
 }
@@ -315,6 +315,8 @@ pub struct RunState {
     pub spec_hash: HashDigest,
     /// Current stage identifier.
     pub current_stage_id: StageId,
+    /// Timestamp when the current stage was entered.
+    pub stage_entered_at: Timestamp,
     /// Run lifecycle status.
     pub status: RunStatus,
     /// Dispatch targets for disclosures.

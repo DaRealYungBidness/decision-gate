@@ -249,7 +249,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(5),
             source_id: "external-agent".to_string(),
-            payload_ref: None,
+            payload: None,
             correlation_id: None,
         },
     };

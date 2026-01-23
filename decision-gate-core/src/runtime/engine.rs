@@ -45,7 +45,9 @@ use crate::core::ScenarioId;
 use crate::core::ScenarioSpec;
 use crate::core::SpecError;
 use crate::core::StageId;
+use crate::core::StageSpec;
 use crate::core::SubmissionRecord;
+use crate::core::TimeoutPolicy;
 use crate::core::Timestamp;
 use crate::core::ToolCallError;
 use crate::core::ToolCallErrorDetails;
@@ -190,6 +192,7 @@ where
             scenario_id: config.scenario_id,
             spec_hash,
             current_stage_id: initial_stage.clone(),
+            stage_entered_at: started_at,
             status: RunStatus::Active,
             dispatch_targets: config.dispatch_targets,
             triggers: Vec::new(),
@@ -208,7 +211,7 @@ where
                 kind: TriggerKind::ExternalEvent,
                 time: started_at,
                 source_id: "system".to_string(),
-                payload_ref: None,
+                payload: None,
                 correlation_id: None,
             };
             let trigger_seq = next_seq(&state.triggers)?;
@@ -277,7 +280,7 @@ where
             kind: TriggerKind::AgentRequestNext,
             time: request.time,
             source_id: request.agent_id.clone(),
-            payload_ref: None,
+            payload: None,
             correlation_id: request.correlation_id.clone(),
         };
 
@@ -327,6 +330,54 @@ where
         request: &SubmitRequest,
     ) -> Result<SubmitResult, ControlPlaneError> {
         let mut state = self.load_run(&request.run_id)?;
+        if let Some(existing) = state
+            .submissions
+            .iter()
+            .find(|record| record.submission_id == request.submission_id)
+            .cloned()
+        {
+            if existing.content_type == request.content_type && existing.payload == request.payload
+            {
+                let submit_result = SubmitResult {
+                    record: existing,
+                };
+                let call_id = format!("call-{}", state.tool_calls.len() + 1);
+                let tool_record = build_tool_call_record(
+                    "scenario.submit",
+                    request,
+                    &submit_result,
+                    request.submitted_at,
+                    self.config.hash_algorithm,
+                    call_id,
+                    request.correlation_id.clone(),
+                )?;
+                state.tool_calls.push(tool_record);
+                self.store.save(&state)?;
+                return Ok(submit_result);
+            }
+
+            let tool_error = ToolCallError {
+                code: "submission_conflict".to_string(),
+                message: "submission_id conflicts with existing record".to_string(),
+                details: Some(ToolCallErrorDetails::Message {
+                    info: format!("submission_id={}", request.submission_id),
+                }),
+            };
+            let call_id = format!("call-{}", state.tool_calls.len() + 1);
+            let tool_record = build_tool_call_record_error(
+                "scenario.submit",
+                request,
+                &tool_error,
+                request.submitted_at,
+                self.config.hash_algorithm,
+                call_id,
+                request.correlation_id.clone(),
+            )?;
+            state.tool_calls.push(tool_record);
+            self.store.save(&state)?;
+            return Err(ControlPlaneError::SubmissionConflict(request.submission_id.clone()));
+        }
+
         let content_hash = payload_hash(&request.payload, self.config.hash_algorithm)?;
         let record = SubmissionRecord {
             submission_id: request.submission_id.clone(),
@@ -449,6 +500,9 @@ where
         });
 
         let stage_def = stage_spec(&self.spec, &state.current_stage_id)?;
+        if let Some(result) = self.handle_timeout(&mut state, trigger, stage_def)? {
+            return Ok((state, result));
+        }
         let evidence_context = EvidenceContext {
             tenant_id: state.tenant_id.clone(),
             run_id: state.run_id.clone(),
@@ -495,7 +549,7 @@ where
                     outcome: DecisionOutcome::Advance {
                         from_stage: state.current_stage_id.clone(),
                         to_stage: next_stage.clone(),
-                        timeout: matches!(trigger.kind, TriggerKind::Tick),
+                        timeout: false,
                     },
                     correlation_id: trigger.correlation_id.clone(),
                 };
@@ -503,6 +557,7 @@ where
                 match self.issue_stage_packets(&state, &decision, &next_stage) {
                     Ok(packets) => {
                         state.current_stage_id = next_stage.clone();
+                        state.stage_entered_at = trigger.time;
                         (decision, packets)
                     }
                     Err(err) => {
@@ -571,6 +626,141 @@ where
         };
 
         Ok((state, result))
+    }
+
+    /// Applies timeout policy for tick triggers when the stage timeout has elapsed.
+    fn handle_timeout(
+        &self,
+        state: &mut RunState,
+        trigger: &TriggerEvent,
+        stage_def: &StageSpec,
+    ) -> Result<Option<EvaluationResult>, ControlPlaneError> {
+        if trigger.kind != TriggerKind::Tick {
+            return Ok(None);
+        }
+
+        let Some(timeout_spec) = &stage_def.timeout else {
+            return Ok(None);
+        };
+
+        if !timeout_expired(state.stage_entered_at, trigger.time, timeout_spec.timeout_ms)? {
+            return Ok(None);
+        }
+
+        let decision_seq = next_seq(&state.decisions)?;
+        let decision_id = DecisionId::new(format!("decision-{decision_seq}"));
+
+        let (decision, packets) = match stage_def.on_timeout {
+            TimeoutPolicy::Fail => {
+                state.status = RunStatus::Failed;
+                (
+                    DecisionRecord {
+                        decision_id,
+                        seq: decision_seq,
+                        trigger_id: trigger.trigger_id.clone(),
+                        stage_id: state.current_stage_id.clone(),
+                        decided_at: trigger.time,
+                        outcome: DecisionOutcome::Fail {
+                            reason: "timeout".to_string(),
+                        },
+                        correlation_id: trigger.correlation_id.clone(),
+                    },
+                    Vec::new(),
+                )
+            }
+            TimeoutPolicy::AdvanceWithFlag => self.timeout_advance(
+                state,
+                trigger,
+                stage_def,
+                decision_id,
+                decision_seq,
+                TriState::True,
+            )?,
+            TimeoutPolicy::AlternateBranch => self.timeout_advance(
+                state,
+                trigger,
+                stage_def,
+                decision_id,
+                decision_seq,
+                TriState::Unknown,
+            )?,
+        };
+
+        state.decisions.push(decision.clone());
+        state.packets.extend(packets.clone());
+
+        Ok(Some(EvaluationResult {
+            decision,
+            packets,
+            status: state.status,
+        }))
+    }
+
+    fn timeout_advance(
+        &self,
+        state: &mut RunState,
+        trigger: &TriggerEvent,
+        stage_def: &StageSpec,
+        decision_id: DecisionId,
+        decision_seq: u64,
+        synthetic_outcome: TriState,
+    ) -> Result<(DecisionRecord, Vec<PacketRecord>), ControlPlaneError> {
+        let gate_outcomes = synthetic_gate_outcomes(stage_def, synthetic_outcome);
+        if let Some(next_stage) = resolve_next_stage(&self.spec, stage_def, &gate_outcomes, state)?
+        {
+            let decision = DecisionRecord {
+                decision_id: decision_id.clone(),
+                seq: decision_seq,
+                trigger_id: trigger.trigger_id.clone(),
+                stage_id: state.current_stage_id.clone(),
+                decided_at: trigger.time,
+                outcome: DecisionOutcome::Advance {
+                    from_stage: state.current_stage_id.clone(),
+                    to_stage: next_stage.clone(),
+                    timeout: true,
+                },
+                correlation_id: trigger.correlation_id.clone(),
+            };
+
+            match self.issue_stage_packets(state, &decision, &next_stage) {
+                Ok(packets) => {
+                    state.current_stage_id = next_stage.clone();
+                    state.stage_entered_at = trigger.time;
+                    Ok((decision, packets))
+                }
+                Err(err) => {
+                    state.status = RunStatus::Failed;
+                    let fail_decision = DecisionRecord {
+                        decision_id,
+                        seq: decision_seq,
+                        trigger_id: trigger.trigger_id.clone(),
+                        stage_id: state.current_stage_id.clone(),
+                        decided_at: trigger.time,
+                        outcome: DecisionOutcome::Fail {
+                            reason: err.to_string(),
+                        },
+                        correlation_id: trigger.correlation_id.clone(),
+                    };
+                    Ok((fail_decision, Vec::new()))
+                }
+            }
+        } else {
+            state.status = RunStatus::Completed;
+            Ok((
+                DecisionRecord {
+                    decision_id,
+                    seq: decision_seq,
+                    trigger_id: trigger.trigger_id.clone(),
+                    stage_id: state.current_stage_id.clone(),
+                    decided_at: trigger.time,
+                    outcome: DecisionOutcome::Complete {
+                        stage_id: state.current_stage_id.clone(),
+                    },
+                    correlation_id: trigger.correlation_id.clone(),
+                },
+                Vec::new(),
+            ))
+        }
     }
 
     /// Evaluates predicate specs against evidence providers.
@@ -854,6 +1044,9 @@ pub enum ControlPlaneError {
     /// Run is inactive.
     #[error("run is not active: {0:?}")]
     RunInactive(RunStatus),
+    /// Submission id conflicts with existing record.
+    #[error("submission_id conflict: {0}")]
+    SubmissionConflict(String),
     /// Run state sequence counters exceeded addressable range.
     #[error("run state sequence overflow")]
     SequenceOverflow,
@@ -879,6 +1072,12 @@ pub enum ControlPlaneError {
     /// Gate resolution failed.
     #[error("gate resolution failed: {0}")]
     GateResolutionFailed(String),
+    /// Trigger timestamp kind mismatch.
+    #[error("trigger time kind mismatch: {0}")]
+    TriggerTimeMismatch(String),
+    /// Timeout calculation error.
+    #[error("timeout calculation error: {0}")]
+    TimeoutCalculation(String),
     /// Policy denied disclosure.
     #[error("policy denied disclosure")]
     PolicyDenied,
@@ -961,6 +1160,42 @@ fn evidence_for_gate(records: &[EvidenceRecord], gate: &GateSpec) -> Vec<Evidenc
 /// Returns true if every gate evaluation passed.
 fn gates_passed(records: &[GateEvalRecord]) -> bool {
     records.iter().all(|record| record.evaluation.status == TriState::True)
+}
+
+/// Builds synthetic gate outcomes for timeout routing.
+fn synthetic_gate_outcomes(
+    stage: &StageSpec,
+    outcome: TriState,
+) -> Vec<(crate::core::GateId, TriState)> {
+    stage.gates.iter().map(|gate| (gate.gate_id.clone(), outcome)).collect()
+}
+
+/// Returns true if the timeout deadline has elapsed.
+fn timeout_expired(
+    entered_at: Timestamp,
+    now: Timestamp,
+    timeout_ms: u64,
+) -> Result<bool, ControlPlaneError> {
+    match (entered_at, now) {
+        (Timestamp::UnixMillis(start), Timestamp::UnixMillis(now)) => {
+            let timeout_i64 = i64::try_from(timeout_ms).map_err(|_| {
+                ControlPlaneError::TimeoutCalculation("timeout_ms exceeds i64 range".to_string())
+            })?;
+            let deadline = start.checked_add(timeout_i64).ok_or_else(|| {
+                ControlPlaneError::TimeoutCalculation("timeout deadline overflow".to_string())
+            })?;
+            Ok(now >= deadline)
+        }
+        (Timestamp::Logical(start), Timestamp::Logical(now)) => {
+            let deadline = start.checked_add(timeout_ms).ok_or_else(|| {
+                ControlPlaneError::TimeoutCalculation("timeout deadline overflow".to_string())
+            })?;
+            Ok(now >= deadline)
+        }
+        _ => Err(ControlPlaneError::TriggerTimeMismatch(
+            "timeout evaluation requires matching timestamp kinds".to_string(),
+        )),
+    }
 }
 
 /// Resolves the next stage based on gate outcomes.

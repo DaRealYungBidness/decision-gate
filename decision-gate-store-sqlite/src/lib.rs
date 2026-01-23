@@ -23,6 +23,7 @@ pub mod store;
 // SECTION: Re-Exports
 // ============================================================================//
 
+pub use store::MAX_STATE_BYTES;
 pub use store::SqliteRunStateStore;
 pub use store::SqliteStoreConfig;
 pub use store::SqliteStoreError;

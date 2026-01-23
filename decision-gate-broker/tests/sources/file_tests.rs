@@ -18,6 +18,7 @@
 )]
 
 use decision_gate_broker::FileSource;
+use decision_gate_broker::MAX_SOURCE_BYTES;
 use decision_gate_broker::Source;
 use decision_gate_broker::SourceError;
 use decision_gate_core::ContentRef;
@@ -114,6 +115,28 @@ fn file_source_reads_large_file() {
     let payload = source.fetch(&content_ref).expect("file fetch");
 
     assert_eq!(payload.bytes, content);
+}
+
+/// Tests file source rejects oversized files.
+#[test]
+fn file_source_rejects_oversized_file() {
+    let dir = tempdir().expect("temp dir");
+    let path = dir.path().join("oversized.bin");
+    let content = vec![0_u8; MAX_SOURCE_BYTES + 1];
+    std::fs::write(&path, &content).expect("write file");
+
+    let uri = Url::from_file_path(&path).expect("file url").to_string();
+    let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, &content);
+    let content_ref = ContentRef {
+        uri,
+        content_hash,
+        encryption: None,
+    };
+
+    let source = FileSource::new(dir.path());
+    let result = source.fetch(&content_ref);
+
+    assert!(matches!(result, Err(SourceError::TooLarge { .. })));
 }
 
 /// Tests file source unrestricted reads any path.

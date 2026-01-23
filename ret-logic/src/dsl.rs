@@ -54,6 +54,13 @@ use crate::requirement::Requirement;
 use crate::serde_support::RequirementValidator;
 
 // ============================================================================
+// SECTION: Limits
+// ============================================================================
+
+const MAX_DSL_INPUT_BYTES: usize = 1024 * 1024;
+const MAX_DSL_NESTING: usize = 32;
+
+// ============================================================================
 // SECTION: Public API
 // ============================================================================
 
@@ -62,6 +69,22 @@ use crate::serde_support::RequirementValidator;
 pub enum DslError {
     /// Input was empty or contained only whitespace.
     EmptyInput,
+    /// Input exceeded the configured size limit.
+    InputTooLarge {
+        /// Maximum allowed bytes.
+        max_bytes: usize,
+        /// Actual input length in bytes.
+        actual_bytes: usize,
+    },
+    /// Input exceeded the configured nesting depth.
+    NestingTooDeep {
+        /// Maximum allowed nesting depth.
+        max_depth: usize,
+        /// Actual nesting depth when the error occurred.
+        actual_depth: usize,
+        /// Byte offset in the original input.
+        position: usize,
+    },
     /// Unexpected token encountered during parsing.
     UnexpectedToken {
         /// Human-friendly expectation summary.
@@ -105,6 +128,18 @@ impl fmt::Display for DslError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyInput => write!(f, "input is empty"),
+            Self::InputTooLarge {
+                max_bytes,
+                actual_bytes,
+            } => write!(f, "input exceeds size limit: {actual_bytes} bytes (max {max_bytes})"),
+            Self::NestingTooDeep {
+                max_depth,
+                actual_depth,
+                position,
+            } => write!(
+                f,
+                "input nesting exceeds limit: depth {actual_depth} (max {max_depth}) at {position}"
+            ),
             Self::UnexpectedToken {
                 expected,
                 found,
@@ -184,6 +219,12 @@ where
     P: Clone,
     R: PredicateResolver<P>,
 {
+    if input.len() > MAX_DSL_INPUT_BYTES {
+        return Err(DslError::InputTooLarge {
+            max_bytes: MAX_DSL_INPUT_BYTES,
+            actual_bytes: input.len(),
+        });
+    }
     let mut lexer = Lexer::new(input);
     let tokens = lexer.lex()?;
 
@@ -393,6 +434,8 @@ struct Parser<'input, 'resolver, P, R> {
     index: usize,
     /// Predicate resolver for identifiers.
     resolver: &'resolver R,
+    /// Current nesting depth for bracketed or function expressions.
+    nesting: usize,
     /// Marker for the predicate type.
     _marker: std::marker::PhantomData<P>,
 }
@@ -413,6 +456,7 @@ where
             tokens,
             index: 0,
             resolver,
+            nesting: 0,
             _marker: std::marker::PhantomData,
         }
     }
@@ -469,10 +513,13 @@ where
                 }
             }
             Token::LParen => {
+                let pos = self.current().position;
                 self.advance();
-                let expr = self.parse_expression()?;
-                self.expect(Token::RParen, "`)`")?;
-                Ok(expr)
+                self.with_nesting(pos, |parser| {
+                    let expr = parser.parse_expression()?;
+                    parser.expect(Token::RParen, "`)`")?;
+                    Ok(expr)
+                })
             }
             Token::Number(raw) => Err(DslError::UnexpectedToken {
                 expected: "identifier or `(`",
@@ -495,18 +542,18 @@ where
         name: &'input str,
         name_pos: usize,
     ) -> Result<Requirement<P>, DslError> {
-        match name {
-            "at_least" | "require_group" => self.parse_group(name_pos),
+        self.with_nesting(name_pos, |parser| match name {
+            "at_least" | "require_group" => parser.parse_group(name_pos),
             "all" | "and" => {
-                let args = self.parse_argument_list()?;
+                let args = parser.parse_argument_list()?;
                 Ok(Requirement::and(args))
             }
             "any" | "or" => {
-                let args = self.parse_argument_list()?;
+                let args = parser.parse_argument_list()?;
                 Ok(Requirement::or(args))
             }
             "not" => {
-                let args = self.parse_argument_list()?;
+                let args = parser.parse_argument_list()?;
                 if args.len() != 1 {
                     return Err(DslError::UnexpectedToken {
                         expected: "exactly one argument to `not(...)`",
@@ -523,10 +570,10 @@ where
                 Ok(Requirement::not(requirement))
             }
             _ => {
-                let args = self.parse_argument_list()?;
+                let args = parser.parse_argument_list()?;
                 if args.is_empty() {
                     // Allow zero-arg predicate calls like `is_alive()`.
-                    return self.resolve_predicate(name, name_pos);
+                    return parser.resolve_predicate(name, name_pos);
                 }
 
                 Err(DslError::UnknownFunction {
@@ -534,7 +581,7 @@ where
                     position: name_pos,
                 })
             }
-        }
+        })
     }
 
     /// Parses a require-group expression with minimum count.
@@ -607,6 +654,25 @@ where
             break;
         }
         Ok(args)
+    }
+
+    fn with_nesting<T>(
+        &mut self,
+        position: usize,
+        f: impl FnOnce(&mut Self) -> Result<T, DslError>,
+    ) -> Result<T, DslError> {
+        let next_depth = self.nesting + 1;
+        if next_depth > MAX_DSL_NESTING {
+            return Err(DslError::NestingTooDeep {
+                max_depth: MAX_DSL_NESTING,
+                actual_depth: next_depth,
+                position,
+            });
+        }
+        self.nesting = next_depth;
+        let result = f(self);
+        self.nesting = self.nesting.saturating_sub(1);
+        result
     }
 
     /// Resolves a predicate identifier using the resolver.

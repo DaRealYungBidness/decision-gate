@@ -16,6 +16,7 @@ Dependencies:
 This document tracks remaining roadmap items now that the MCP foundation,
 provider federation, and CLI scaffolding are complete. The focus is on
 release-readiness gaps, invariance alignment, and system-level validation.
+Priority legend: P0 = release blocker, P1 = production readiness, P2 = docs/guidance.
 
 ## Decision Summary (Current Defaults)
 These defaults anchor the roadmap and should be treated as authoritative until
@@ -32,138 +33,110 @@ explicitly revised.
    - RON is allowed as an authoring input and converted to JSON.
    - YAML is not supported unless explicitly added later.
 
-## 1) Canonical Contract and Generated Docs Bundle
-**What**: Establish a canonical contract crate (`decision-gate-contract`) that
-drives all projections (tooling docs, schemas, tooltips, examples) and emits a
-versioned, hashed bundle in `Docs/generated/decision-gate/`.
-**Why**: This is the Doctrine of Invariance for Decision Gate. A single source
-of truth makes docs, SDKs, and website content deterministic and auditable.
-**Status**: Rough draft complete. Contract crate, schemas, tooling docs, tooltips,
-and examples are generated and validated in tests; artifacts are emitted under
-`Docs/generated/decision-gate/`.
-**How**: Finalize the Asset-Core-Web sync script (Decision Gate namespace) and
-ensure artifact regeneration is part of CI or release gating. Keep all canonical
-docs and tooltips derived from the contract bundle only.
+## Open Items (Current)
 
-## 2) System Tests Crate (End-to-End)
-**What**: Create `decision-gate-system-tests` to run end-to-end MCP workflows
-against a real local server (stdio or loopback HTTP).
-**Why**: Only real transport exercises the full tool surface, JSON-RPC framing,
-and runpack verification in a way auditors trust.
-**Status**: Implemented. System-tests crate, registry/gaps, scripts, and coverage
-docs are in place with P0/P1 battery coverage. See `Docs/testing/` for generated
-reports and `system-tests/` for tests and harnesses.
-**How**: Spin up the MCP server with built-in providers and a stub MCP provider
-over HTTP. Execute scenario define/start/next/submit/trigger paths, verify
-runpacks, and include tamper and failure-path cases. Keep fixtures deterministic.
-Implementation plan: `Docs/roadmap/system_tests_world_class_plan.md`.
-
-## 3) Authoring Formats (ScenarioSpec and Requirements)
-**What**: Define the canonical authoring format as JSON for ScenarioSpec and
-requirements. Optionally accept RON as a human-friendly authoring input.
-**Why**: JSON is the most tooling-friendly and stable for codegen, schemas, and
-audits. YAML adds ambiguity and non-determinism without strong value here.
-**Status**: Implemented. `decision-gate authoring validate|normalize` supports
-JSON and RON, emits canonical JSON (RFC 8785), and enforces schema + spec
-validation. Contract artifacts now include `authoring.md` and
-`examples/scenario.ron`.
-**How**: Provide a conversion path in the contract crate or CLI that takes RON
-and emits canonical JSON. Do not store YAML as a primary format.
-
-## 4) MCP Tool Surface: Docs, Schemas, and Enums
-**What**: Produce a complete MCP tool contract (schemas, examples, tooltips,
-and documentation) and keep it generated from the canonical contract.
-**Why**: MCP tools are the primary integration surface; drift-free tooling docs
-are essential for inspection and SDK generation.
-**Status**: Implemented. Tool names are modeled as `ToolName` enums with string
-wire compatibility; schemas, tooltips, and tooling docs remain generated from
-the contract bundle.
-**How**: Model tool names as a Rust enum internally (for correctness) while
-preserving string names on the wire. Generate tool schemas and tooltips from
-the contract crate so the website can render hoverable tooltips without manual
-maintenance.
-
-## 5) Provider Capability Metadata and Validation
-**What**: Define provider capabilities as Rust data structures (predicate name,
-params schema, response schema, determinism class, and anchor expectations).
-**Why**: Capability metadata enables strict validation, richer errors, and
-automatic documentation. It also supports future SDK generation.
-**Status**: Implemented. Capability contracts now include determinism and
-allowed comparator allow-lists; MCP config requires `capabilities_path` for
-external providers; `decision-gate-mcp` validates ScenarioSpec and evidence
-queries against the registry before execution. Tests cover comparator
-allow-lists, schema enforcement, and external provider contract loading.
-**How**: Maintain a `CapabilityRegistry` in `decision-gate-mcp` built from
-`decision-gate-contract` and external provider contract JSON files. Enforce:
-predicate existence, required params, JSON schema validation, and comparator
-allow-lists at scenario define time and evidence query time. Keep
-`providers.json` and `providers.md` generated from the same contract metadata.
-
-## 6) Inbound AuthN/AuthZ for MCP Tool Calls
+### 1) [P0] Inbound AuthN/AuthZ for MCP Tool Calls
 **What**: Add explicit auth interfaces for MCP tool calls (token/mTLS and
 per-tool authorization) with audit logging.
 **Why**: The current local-only posture is not production-safe, and tool calls
 are the highest-risk boundary.
+**Status**: Open.
 **How**: Introduce a `ToolAuthz` trait in `decision-gate-mcp`, enforce it in
 `server.rs`/`tools.rs`, and include a default local-only policy with warnings.
 
-## 7) Durable Run State Store
-**What**: Implement a persistent `RunStateStore` backend.
-**Why**: In-memory storage is not acceptable for production use or audit-grade
-system testing.
-**Status**: Implemented. SQLite WAL-backed store with canonical JSON snapshots,
-integrity checks, typed errors, and configurable retention is available and
-selectable via `decision-gate.toml`.
-**How**: Added `decision-gate-store-sqlite` with versioned snapshot history,
-hash verification, and strict path validation. `decision-gate-mcp` now supports
-`run_state_store` configuration to select `memory` or `sqlite` backends.
-
-## 8) Durable Runpack Storage
+### 2) [P1] Durable Runpack Storage
 **What**: Add production-grade `ArtifactSink` and `ArtifactReader` backends.
 **Why**: Runpacks are the audit trail; durable storage is required for real use.
+**Status**: Open.
 **How**: Implement object store or secured filesystem adapters with strict path
 validation and explicit error typing.
 
-## 9) Transport Hardening and Operational Telemetry
+### 3) [P0] Transport Hardening and Operational Telemetry
 **What**: Add rate limiting, structured error responses, TLS/mTLS, and audit logs.
 **Why**: This is required for hyperscaler/DoD-grade deployments.
+**Status**: Open.
 **How**: Harden JSON-RPC handlers and introduce structured audit logging with
 redaction policies for evidence output.
 
-## 10) Agent Progress vs Plan State
+### 4) [P1] Policy Engine Integration
+**What**: Replace `PermitAll` with real policy adapters.
+**Why**: Dispatch authorization is critical to disclosure control.
+**Status**: Open.
+**How**: Add policy backends and include their schemas in the contract bundle.
+
+### 5) [P2] Agent Progress vs Plan State
 **What**: Clarify that Decision Gate evaluates evidence and run state, while
 agent planning is external. Progress signals should be modeled as evidence or
 submissions.
 **Why**: This keeps Decision Gate deterministic and avoids embedding agent logic.
+**Status**: Open (guidance).
 **How**: Provide a default pattern: agents emit progress as `scenario_submit`
-payloads or evidence predicates. If “plan artifacts” are desired, store them
-as explicit packet payloads or submissions, not core run state.
+payloads or evidence predicates. If plan artifacts are desired, store them as
+explicit packet payloads or submissions, not core run state.
 
-## 11) Policy Engine Integration
-**What**: Replace `PermitAll` with real policy adapters.
-**Why**: Dispatch authorization is critical to disclosure control.
-**How**: Add policy backends and include their schemas in the contract bundle.
+### 6) [P2] Scenario Examples for Hold/Unknown/Branch Outcomes
+**What**: Add canonical scenarios that demonstrate unknown outcomes, hold
+decisions, and branch routing for true/false/unknown.
+**Why**: Scenario authors need precise, audited examples that show how tri-state
+outcomes affect routing and hold behavior.
+**Status**: Partial (only happy-path examples today).
+**How**: Extend `decision-gate-contract` examples to include a branch scenario
+and a hold/unknown scenario, emit them into
+`Docs/generated/decision-gate/examples/`, and reference them in guides.
 
-## 12) Timeout Policy Enforcement and Documentation
-**What**: Implement timeout policy handling (`advance_with_flag`, `alternate_branch`) and document the exact decision outcomes.
-**Why**: The schema exposes timeout policies, but runtime behavior is not yet enforced, which creates drift between contract and execution.
-**Status**: Not implemented. Timeout policy is modeled in schemas but not honored in the runtime evaluator.
-**How**: On `TriggerKind::Tick`, resolve `on_timeout` per stage. Emit a decision outcome that records timeout, apply policy tags, and optionally branch to the configured stage. Add a doc section that lists each policy and its decision semantics.
-
-## 13) Scenario Examples for Hold/Unknown/Branch Outcomes
-**What**: Add canonical scenarios that demonstrate `unknown` outcomes, hold decisions, and branch routing for true/false/unknown.
-**Why**: Scenario authors need precise, audited examples that show how tri-state outcomes affect routing and hold behavior.
-**Status**: Partial. Current examples cover only the happy path.
-**How**: Extend `decision-gate-contract` examples to include a branch scenario and a hold/unknown scenario, emit them into `Docs/generated/decision-gate/examples/`, and reference them in guides.
-
-## 14) Run Lifecycle Guide
-**What**: Create a single guide that maps tool calls to run state transitions and runpack artifacts.
-**Why**: Integrators need a mental model that ties `scenario_define` → `scenario_start` → `scenario_next`/`scenario_trigger` → `runpack_export` to state mutations and artifacts.
+### 7) [P2] Run Lifecycle Guide
+**What**: Create a single guide that maps tool calls to run state transitions
+and runpack artifacts.
+**Why**: Integrators need a mental model that ties `scenario_define` →
+`scenario_start` → `scenario_next`/`scenario_trigger` → `runpack_export` to state
+mutations and artifacts.
 **Status**: Missing.
-**How**: Add a `Docs/guides/run_lifecycle.md` with a step-by-step timeline, inputs/outputs, and references to the tooling examples and runpack artifacts.
+**How**: Add a `Docs/guides/run_lifecycle.md` with a step-by-step timeline,
+inputs/outputs, and references to tooling examples and runpack artifacts.
+
+### 8) [P0] Security Findings (Mirrored from Docs/security/audit.md)
+**What**: Address open security findings documented in the audit log.
+**Why**: These are release-readiness blockers and should be tracked with the
+same rigor as other open items.
+**Status**: Closed.
+**How**: Track each item to closure with tests that assert fail-closed behavior.
+Current open findings: None.
+
+## Completed Items (Reference)
+
+### A) Canonical Contract and Generated Docs Bundle
+**Status**: Implemented. Contract artifacts are generated under
+`Docs/generated/decision-gate/`. Web sync script is handled in an external repo.
+
+### B) System Tests Crate (End-to-End)
+**Status**: Implemented. System-tests crate, registry/gaps, scripts, and coverage
+docs are in place with P0/P1 coverage. See `system-tests/` and `Docs/testing/`.
+
+### C) Authoring Formats (ScenarioSpec and Requirements)
+**Status**: Implemented. JSON is canonical; RON is accepted as input and
+normalized to canonical JSON (RFC 8785). Examples are generated in
+`Docs/generated/decision-gate/examples/`.
+
+### D) MCP Tool Surface: Docs, Schemas, and Enums
+**Status**: Implemented. Tool schemas, examples, and tooltips are generated from
+the contract bundle and aligned with runtime behavior.
+
+### E) Provider Capability Metadata and Validation
+**Status**: Implemented. Capability registry validation is enforced for
+ScenarioSpec and evidence queries. Provider docs are generated from the same
+contract metadata.
+
+### F) Durable Run State Store
+**Status**: Implemented. SQLite WAL-backed store with snapshots, integrity
+checks, typed errors, and retention is available and configurable.
+
+### G) Timeout Policy Enforcement and Documentation
+**Status**: Implemented. Timeout policies are enforced by tick triggers and
+documented in tooltips and generated contract docs.
 
 ## Notes on Structural Readiness
 Evidence, storage, and dispatch interfaces already exist in
 `decision-gate-core/src/interfaces/mod.rs`, enabling durable backends and
-policy enforcement without core rewrites. The missing pieces are the canonical
-contract pipeline and inbound MCP tool-call auth.
+policy enforcement without core rewrites. Remaining gaps are inbound MCP
+auth, durable runpack storage, transport hardening/telemetry, policy engine
+integration, scenario examples, and run lifecycle guidance.

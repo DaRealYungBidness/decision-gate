@@ -299,7 +299,7 @@ fn sample_run_state() -> RunState {
         kind: TriggerKind::Tick,
         time: timestamp,
         source_id: "scheduler".to_string(),
-        payload_ref: None,
+        payload: None,
         correlation_id: None,
     };
 
@@ -421,6 +421,7 @@ fn sample_run_state() -> RunState {
         scenario_id,
         spec_hash: sample_hash_digest(),
         current_stage_id: stage_id,
+        stage_entered_at: timestamp,
         status: RunStatus::Active,
         dispatch_targets: vec![DispatchTarget::Agent {
             agent_id: "agent-1".to_string(),

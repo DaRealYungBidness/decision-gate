@@ -229,7 +229,7 @@ fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Error>> {
         kind: TriggerKind::ExternalEvent,
         time: Timestamp::Logical(2),
         source_id: "policy".to_string(),
-        payload_ref: None,
+        payload: None,
         correlation_id: None,
     };
 

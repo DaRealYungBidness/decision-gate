@@ -15,6 +15,8 @@
 - **Runpack-ready:** outputs must remain offline verifiable and deterministic.
 - **Requirements crate boundary:** gate algebra lives in `ret-logic/`;
   Decision Gate owns evidence anchoring, decision records, and disclosure policy.
+- **Docs/tooltips alignment:** after behavior or schema changes, update contract
+  tooltips and regenerate `Docs/generated/decision-gate`.
 - **Style:** follow **Docs/standards/codebase_formatting_standards.md**.
 - **Engineering standards:** follow **Docs/standards/codebase_engineering_standards.md**.
 - **Threat model:** consult **Docs/security/threat_model.md**; note

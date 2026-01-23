@@ -169,6 +169,7 @@ Create a new run state for a scenario and optionally emit entry packets.
 - `run_id` (required): Run identifier.
 - `scenario_id` (required): Scenario identifier.
 - `spec_hash` (required): Type: object.
+- `stage_entered_at` (required): One of: object, object.
 - `status` (required): Type: string.
 - `submissions` (required): Type: array.
 - `tenant_id` (required): Tenant identifier.
@@ -227,6 +228,10 @@ Output:
   "spec_hash": {
     "algorithm": "sha256",
     "value": "5c3a5b6bce0f4a2c9e22c4fa6a1e6d8d90b0f2dfed1b7f1e9b3d3b3d1f0c9b21"
+  },
+  "stage_entered_at": {
+    "kind": "unix_millis",
+    "value": 1710000000000
   },
   "status": "active",
   "submissions": [],
@@ -457,7 +462,7 @@ Input:
   "trigger": {
     "correlation_id": null,
     "kind": "tick",
-    "payload_ref": null,
+    "payload": null,
     "run_id": "run-0001",
     "source_id": "scheduler-01",
     "time": {

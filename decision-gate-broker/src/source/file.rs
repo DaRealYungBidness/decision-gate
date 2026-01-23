@@ -17,6 +17,7 @@
 // ============================================================================
 
 use std::io::ErrorKind;
+use std::io::Read;
 use std::path::PathBuf;
 
 use decision_gate_core::ContentRef;
@@ -25,6 +26,7 @@ use url::Url;
 use crate::source::Source;
 use crate::source::SourceError;
 use crate::source::SourcePayload;
+use crate::source::enforce_max_bytes;
 
 // ============================================================================
 // SECTION: File Source
@@ -83,12 +85,27 @@ impl FileSource {
 
         Ok(path)
     }
+
+    fn read_with_limit(&self, path: &PathBuf) -> Result<Vec<u8>, SourceError> {
+        let file = std::fs::File::open(path).map_err(|err| {
+            if err.kind() == ErrorKind::NotFound {
+                SourceError::NotFound(err.to_string())
+            } else {
+                SourceError::Io(err.to_string())
+            }
+        })?;
+        let mut limited = file.take((crate::source::MAX_SOURCE_BYTES + 1) as u64);
+        let mut bytes = Vec::new();
+        limited.read_to_end(&mut bytes).map_err(|err| SourceError::Io(err.to_string()))?;
+        enforce_max_bytes(bytes.len())?;
+        Ok(bytes)
+    }
 }
 
 impl Source for FileSource {
     fn fetch(&self, content_ref: &ContentRef) -> Result<SourcePayload, SourceError> {
         let path = self.resolve_path(&content_ref.uri)?;
-        let bytes = std::fs::read(&path).map_err(|err| SourceError::Io(err.to_string()))?;
+        let bytes = self.read_with_limit(&path)?;
         Ok(SourcePayload {
             bytes,
             content_type: None,

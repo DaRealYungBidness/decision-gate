@@ -353,7 +353,7 @@ fn scenario_trigger_processes_event() {
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
             source_id: "external-agent".to_string(),
-            payload_ref: None,
+            payload: None,
             correlation_id: None,
         },
     };
@@ -376,7 +376,7 @@ fn scenario_trigger_undefined_scenario_fails() {
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(1),
             source_id: "test".to_string(),
-            payload_ref: None,
+            payload: None,
             correlation_id: None,
         },
     };

@@ -383,10 +383,10 @@ pub fn trigger_event_schema() -> Value {
             "kind": trigger_kind_schema(),
             "time": timestamp_schema(),
             "source_id": schema_for_string("Trigger source identifier."),
-            "payload_ref": {
+            "payload": {
                 "oneOf": [
                     { "type": "null" },
-                    schema_for_string("Optional payload reference.")
+                    packet_payload_schema()
                 ]
             },
             "correlation_id": {
@@ -559,6 +559,7 @@ pub fn run_state_schema() -> Value {
             "scenario_id",
             "spec_hash",
             "current_stage_id",
+            "stage_entered_at",
             "status",
             "dispatch_targets",
             "triggers",
@@ -574,6 +575,7 @@ pub fn run_state_schema() -> Value {
             "scenario_id": schema_for_identifier("Scenario identifier."),
             "spec_hash": hash_digest_schema(),
             "current_stage_id": schema_for_identifier("Current stage identifier."),
+            "stage_entered_at": timestamp_schema(),
             "status": run_status_schema(),
             "dispatch_targets": {
                 "type": "array",

@@ -89,7 +89,7 @@ async fn provider_time_after() -> Result<(), Box<dyn std::error::Error>> {
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
             source_id: "provider-test".to_string(),
-            payload_ref: None,
+            payload: None,
             correlation_id: None,
         },
     };
@@ -193,7 +193,7 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
             source_id: "provider-test".to_string(),
-            payload_ref: None,
+            payload: None,
             correlation_id: None,
         },
     };

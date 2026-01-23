@@ -33,6 +33,7 @@ use decision_gate_core::RunStatus;
 use decision_gate_core::ScenarioId;
 use decision_gate_core::StageId;
 use decision_gate_core::TenantId;
+use decision_gate_core::Timestamp;
 use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
 
 fn sample_state(run_id: &str) -> RunState {
@@ -59,6 +60,7 @@ fn sample_state(run_id: &str) -> RunState {
         scenario_id: ScenarioId::new("scenario"),
         spec_hash,
         current_stage_id: StageId::new("stage-1"),
+        stage_entered_at: Timestamp::Logical(0),
         status: RunStatus::Active,
         dispatch_targets: Vec::new(),
         triggers: Vec::new(),

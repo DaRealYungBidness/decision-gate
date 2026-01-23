@@ -230,7 +230,7 @@ fn noop_handler(
 #[test]
 fn test_plan_executor_new() -> TestResult {
     let plan = Plan::new();
-    let executor = PlanExecutor::new(plan, &TEST_DISPATCH_TABLE);
+    let executor = PlanExecutor::new(plan, TEST_DISPATCH_TABLE);
     ensure(executor.plan().operations().is_empty(), "Expected empty plan operations")?;
     ensure(executor.required_columns().is_empty(), "Expected empty required columns")?;
     Ok(())
@@ -244,7 +244,7 @@ fn test_plan_executor_with_plan() -> TestResult {
 
     let plan = builder.require_column(ColumnKey::new(0)).add_op(OpCode::FloatGte, 0, 0, 0).build();
 
-    let executor = PlanExecutor::new(plan, &TEST_DISPATCH_TABLE);
+    let executor = PlanExecutor::new(plan, TEST_DISPATCH_TABLE);
     ensure(executor.required_columns().len() == 1, "Expected one required column")?;
     Ok(())
 }
@@ -257,7 +257,7 @@ fn test_plan_executor_with_plan() -> TestResult {
 #[test]
 fn test_executor_empty_plan() -> TestResult {
     let plan = Plan::new();
-    let executor = PlanExecutor::new(plan, &TEST_DISPATCH_TABLE);
+    let executor = PlanExecutor::new(plan, TEST_DISPATCH_TABLE);
     let reader = TestReader::new(vec![100.0], vec![0]);
 
     // Empty plan should return true (default stack value)
@@ -273,7 +273,7 @@ fn test_executor_single_operation() -> TestResult {
 
     let plan = builder.add_op(OpCode::FloatGte, 0, threshold_idx.0, 0).build();
 
-    let executor = PlanExecutor::new(plan, &TEST_DISPATCH_TABLE);
+    let executor = PlanExecutor::new(plan, TEST_DISPATCH_TABLE);
     let reader = TestReader::new(vec![25.0, 50.0, 75.0], vec![0, 0, 0]);
 
     ensure(!executor.eval_row(&reader, 0), "Expected 25 < 50 to fail")?;
@@ -300,7 +300,7 @@ fn test_executor_and_group_all_true() -> TestResult {
         .and_end()
         .build();
 
-    let executor = PlanExecutor::new(plan, &TEST_DISPATCH_TABLE);
+    let executor = PlanExecutor::new(plan, TEST_DISPATCH_TABLE);
     let reader = TestReader::new(vec![50.0], vec![0]);
 
     ensure(executor.eval_row(&reader, 0), "Expected AND group to pass")?;
@@ -321,7 +321,7 @@ fn test_executor_and_group_one_false() -> TestResult {
         .and_end()
         .build();
 
-    let executor = PlanExecutor::new(plan, &TEST_DISPATCH_TABLE);
+    let executor = PlanExecutor::new(plan, TEST_DISPATCH_TABLE);
     let reader = TestReader::new(vec![50.0], vec![0]);
 
     ensure(!executor.eval_row(&reader, 0), "Expected AND group to fail")?;
@@ -333,7 +333,7 @@ fn test_executor_and_group_one_false() -> TestResult {
 fn test_executor_empty_and() -> TestResult {
     let plan = PlanBuilder::new().and_start().and_end().build();
 
-    let executor = PlanExecutor::new(plan, &TEST_DISPATCH_TABLE);
+    let executor = PlanExecutor::new(plan, TEST_DISPATCH_TABLE);
     let reader = TestReader::new(vec![0.0], vec![0]);
 
     // Empty AND should be true
@@ -359,7 +359,7 @@ fn test_executor_or_group_one_true() -> TestResult {
         .or_end()
         .build();
 
-    let executor = PlanExecutor::new(plan, &TEST_DISPATCH_TABLE);
+    let executor = PlanExecutor::new(plan, TEST_DISPATCH_TABLE);
     let reader = TestReader::new(vec![50.0], vec![0]);
 
     ensure(executor.eval_row(&reader, 0), "Expected OR group to evaluate true")?;
@@ -371,7 +371,7 @@ fn test_executor_or_group_one_true() -> TestResult {
 fn test_executor_empty_or() -> TestResult {
     let plan = PlanBuilder::new().or_start().or_end().build();
 
-    let executor = PlanExecutor::new(plan, &TEST_DISPATCH_TABLE);
+    let executor = PlanExecutor::new(plan, TEST_DISPATCH_TABLE);
     let reader = TestReader::new(vec![0.0], vec![0]);
 
     // Empty OR should be false (identity for OR)
@@ -390,7 +390,7 @@ fn test_executor_not_true() -> TestResult {
         .add_op(OpCode::Not, 0, 0, 0) // Invert true -> false
         .build();
 
-    let executor = PlanExecutor::new(plan, &TEST_DISPATCH_TABLE);
+    let executor = PlanExecutor::new(plan, TEST_DISPATCH_TABLE);
     let reader = TestReader::new(vec![0.0], vec![0]);
 
     ensure(!executor.eval_row(&reader, 0), "Expected NOT true to evaluate false")?;
@@ -408,7 +408,7 @@ fn test_executor_not_with_operation() -> TestResult {
         .add_op(OpCode::Not, 0, 0, 0)
         .build();
 
-    let executor = PlanExecutor::new(plan, &TEST_DISPATCH_TABLE);
+    let executor = PlanExecutor::new(plan, TEST_DISPATCH_TABLE);
     let reader = TestReader::new(vec![25.0, 75.0], vec![0, 0]);
 
     ensure(executor.eval_row(&reader, 0), "Expected NOT false to evaluate true")?;
@@ -438,7 +438,7 @@ fn test_executor_nested_and_in_or() -> TestResult {
         .or_end()
         .build();
 
-    let executor = PlanExecutor::new(plan, &TEST_DISPATCH_TABLE);
+    let executor = PlanExecutor::new(plan, TEST_DISPATCH_TABLE);
     let reader = TestReader::new(vec![50.0], vec![0]);
 
     ensure(executor.eval_row(&reader, 0), "Expected nested AND in OR to evaluate true")?;
@@ -457,7 +457,7 @@ fn test_executor_has_all_flags() -> TestResult {
 
     let plan = builder.add_op(OpCode::HasAllFlags, 1, flags_idx.0, 0).build();
 
-    let executor = PlanExecutor::new(plan, &TEST_DISPATCH_TABLE);
+    let executor = PlanExecutor::new(plan, TEST_DISPATCH_TABLE);
 
     let reader1 = TestReader::new(vec![0.0], vec![0b00]);
     let reader2 = TestReader::new(vec![0.0], vec![0b01]);
@@ -479,7 +479,7 @@ fn test_executor_has_any_flags() -> TestResult {
 
     let plan = builder.add_op(OpCode::HasAnyFlags, 1, flags_idx.0, 0).build();
 
-    let executor = PlanExecutor::new(plan, &TEST_DISPATCH_TABLE);
+    let executor = PlanExecutor::new(plan, TEST_DISPATCH_TABLE);
 
     let reader1 = TestReader::new(vec![0.0], vec![0b00]);
     let reader2 = TestReader::new(vec![0.0], vec![0b01]);
@@ -503,7 +503,7 @@ fn test_executor_multiple_rows() -> TestResult {
 
     let plan = builder.add_op(OpCode::FloatGte, 0, threshold_idx.0, 0).build();
 
-    let executor = PlanExecutor::new(plan, &TEST_DISPATCH_TABLE);
+    let executor = PlanExecutor::new(plan, TEST_DISPATCH_TABLE);
     let reader = TestReader::new(vec![0.0, 25.0, 50.0, 75.0, 100.0], vec![0, 0, 0, 0, 0]);
 
     ensure(!executor.eval_row(&reader, 0), "Expected 0.0 to fail threshold")?;
@@ -559,16 +559,16 @@ fn test_executor_builder_register() -> TestResult {
 /// Tests executor stack overflow protection.
 #[test]
 fn test_executor_stack_overflow_protection() -> TestResult {
-    // Create a plan that would overflow the stack (16 levels)
+    // Create a plan that would overflow the stack depth.
     let mut builder = PlanBuilder::new();
 
-    // Push 20 AND starts without ends
-    for _ in 0 .. 20 {
+    // Push more AND starts than the executor stack supports.
+    for _ in 0 .. 70 {
         builder = builder.and_start();
     }
 
     let plan = builder.build();
-    let executor = PlanExecutor::new(plan, &TEST_DISPATCH_TABLE);
+    let executor = PlanExecutor::new(plan, TEST_DISPATCH_TABLE);
     let reader = TestReader::new(vec![0.0], vec![0]);
 
     // Should return false due to stack overflow protection
@@ -583,7 +583,7 @@ fn test_executor_malformed_plan_unmatched_end() -> TestResult {
         .and_end() // Unmatched end
         .build();
 
-    let executor = PlanExecutor::new(plan, &TEST_DISPATCH_TABLE);
+    let executor = PlanExecutor::new(plan, TEST_DISPATCH_TABLE);
     let reader = TestReader::new(vec![0.0], vec![0]);
 
     // Should return false due to malformed plan
