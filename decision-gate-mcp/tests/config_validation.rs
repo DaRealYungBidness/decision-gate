@@ -30,10 +30,12 @@ use std::path::PathBuf;
 
 use decision_gate_mcp::DecisionGateConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
+use decision_gate_mcp::config::PolicyConfig;
 use decision_gate_mcp::config::ProviderConfig;
 use decision_gate_mcp::config::ProviderTimeoutConfig;
 use decision_gate_mcp::config::ProviderType;
 use decision_gate_mcp::config::RunStateStoreConfig;
+use decision_gate_mcp::config::SchemaRegistryConfig;
 use decision_gate_mcp::config::ServerAuditConfig;
 use decision_gate_mcp::config::ServerAuthConfig;
 use decision_gate_mcp::config::ServerAuthMode;
@@ -52,7 +54,9 @@ fn validate_server_config(
         server,
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
     };
     config.validate()
@@ -66,7 +70,9 @@ fn validate_provider_config(
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
         providers: vec![provider],
     };
     config.validate()
@@ -91,7 +97,7 @@ fn server_stdio_no_bind_required() {
     assert!(validate_server_config(config).is_ok());
 }
 
-/// Verifies max_body_bytes must be non-zero.
+/// Verifies `max_body_bytes` must be non-zero.
 #[test]
 fn server_max_body_bytes_zero_rejected() {
     let config = ServerConfig {
@@ -347,7 +353,7 @@ fn server_auth_mtls_requires_subjects() {
     assert!(result.is_err());
 }
 
-/// Verifies max_inflight must be non-zero.
+/// Verifies `max_inflight` must be non-zero.
 #[test]
 fn server_limits_rejects_zero_inflight() {
     let config = ServerConfig {
@@ -366,7 +372,7 @@ fn server_limits_rejects_zero_inflight() {
     assert!(result.is_err());
 }
 
-/// Verifies rate limit requires max_requests.
+/// Verifies rate limit requires `max_requests`.
 #[test]
 fn server_rate_limit_rejects_zero_requests() {
     let config = ServerConfig {
@@ -626,16 +632,109 @@ fn provider_timeouts_reject_request_below_connect() {
 }
 
 // ============================================================================
+// SECTION: Schema Registry Validation Tests
+// ============================================================================
+
+/// Verifies memory `schema_registry` rejects a path.
+#[test]
+fn schema_registry_memory_rejects_path() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig {
+            registry_type: decision_gate_mcp::config::SchemaRegistryType::Memory,
+            path: Some(PathBuf::from("schema.db")),
+            busy_timeout_ms: 5_000,
+            journal_mode: decision_gate_store_sqlite::SqliteStoreMode::Wal,
+            sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
+            max_schema_bytes: SchemaRegistryConfig::default().max_schema_bytes,
+            max_entries: None,
+        },
+        providers: Vec::new(),
+    };
+    let result = config.validate();
+    assert!(result.is_err());
+}
+
+/// Verifies sqlite `schema_registry` requires a path.
+#[test]
+fn schema_registry_sqlite_requires_path() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig {
+            registry_type: decision_gate_mcp::config::SchemaRegistryType::Sqlite,
+            path: None,
+            busy_timeout_ms: 5_000,
+            journal_mode: decision_gate_store_sqlite::SqliteStoreMode::Wal,
+            sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
+            max_schema_bytes: SchemaRegistryConfig::default().max_schema_bytes,
+            max_entries: None,
+        },
+        providers: Vec::new(),
+    };
+    let result = config.validate();
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("schema_registry"));
+}
+
+/// Verifies `schema_registry` rejects zero `max_schema_bytes`.
+#[test]
+fn schema_registry_rejects_zero_max_schema_bytes() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig {
+            max_schema_bytes: 0,
+            ..SchemaRegistryConfig::default()
+        },
+        providers: Vec::new(),
+    };
+    let result = config.validate();
+    assert!(result.is_err());
+}
+
+/// Verifies `schema_registry` rejects zero `max_entries`.
+#[test]
+fn schema_registry_rejects_zero_max_entries() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig {
+            max_entries: Some(0),
+            ..SchemaRegistryConfig::default()
+        },
+        providers: Vec::new(),
+    };
+    let result = config.validate();
+    assert!(result.is_err());
+}
+
+// ============================================================================
 // SECTION: Run State Store Validation Tests
 // ============================================================================
 
-/// Verifies sqlite run_state_store requires a path.
+/// Verifies sqlite `run_state_store` requires a path.
 #[test]
 fn run_state_store_sqlite_requires_path() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig {
             store_type: decision_gate_mcp::config::RunStateStoreType::Sqlite,
             path: None,
@@ -644,6 +743,7 @@ fn run_state_store_sqlite_requires_path() {
             sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
             max_versions: None,
         },
+        schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
     };
     let result = config.validate();
@@ -652,13 +752,14 @@ fn run_state_store_sqlite_requires_path() {
     assert!(error.to_string().contains("run_state_store"));
 }
 
-/// Verifies memory run_state_store rejects a path.
+/// Verifies memory `run_state_store` rejects a path.
 #[test]
 fn run_state_store_memory_rejects_path() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig {
             store_type: decision_gate_mcp::config::RunStateStoreType::Memory,
             path: Some(PathBuf::from("store.db")),
@@ -667,19 +768,21 @@ fn run_state_store_memory_rejects_path() {
             sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
             max_versions: None,
         },
+        schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
     };
     let result = config.validate();
     assert!(result.is_err());
 }
 
-/// Verifies sqlite run_state_store accepts a valid path.
+/// Verifies sqlite `run_state_store` accepts a valid path.
 #[test]
 fn run_state_store_sqlite_accepts_path() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig {
             store_type: decision_gate_mcp::config::RunStateStoreType::Sqlite,
             path: Some(PathBuf::from("store.db")),
@@ -688,19 +791,21 @@ fn run_state_store_sqlite_accepts_path() {
             sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
             max_versions: Some(10),
         },
+        schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
     };
     let result = config.validate();
     assert!(result.is_ok());
 }
 
-/// Verifies sqlite run_state_store rejects max_versions of zero.
+/// Verifies sqlite `run_state_store` rejects `max_versions` of zero.
 #[test]
 fn run_state_store_sqlite_rejects_zero_retention() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig {
             store_type: decision_gate_mcp::config::RunStateStoreType::Sqlite,
             path: Some(PathBuf::from("store.db")),
@@ -709,6 +814,7 @@ fn run_state_store_sqlite_rejects_zero_retention() {
             sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
             max_versions: Some(0),
         },
+        schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
     };
     let result = config.validate();
@@ -719,7 +825,7 @@ fn run_state_store_sqlite_rejects_zero_retention() {
 // SECTION: Config Load Validation Tests
 // ============================================================================
 
-/// Verifies loading rejects MCP providers missing capabilities_path.
+/// Verifies loading rejects MCP providers missing `capabilities_path`.
 #[test]
 fn config_load_rejects_mcp_without_capabilities_path() {
     let temp = TempDir::new().unwrap();
@@ -740,7 +846,7 @@ command = ["echo-provider"]
     assert!(err.to_string().contains("capabilities_path"));
 }
 
-/// Verifies loading accepts MCP providers with capabilities_path.
+/// Verifies loading accepts MCP providers with `capabilities_path`.
 #[test]
 fn config_load_accepts_mcp_with_capabilities_path() {
     let temp = TempDir::new().unwrap();
@@ -757,9 +863,8 @@ transport = "stdio"
 name = "echo"
 type = "mcp"
 command = ["echo-provider"]
-capabilities_path = "{}"
+capabilities_path = "{contract_path}"
 "#,
-        contract_path
     );
     std::fs::write(&config_path, config.as_bytes()).unwrap();
 

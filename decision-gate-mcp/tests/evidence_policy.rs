@@ -32,6 +32,7 @@ mod common;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::HashAlgorithm;
 use decision_gate_core::ProviderId;
+use decision_gate_core::TrustRequirement;
 use decision_gate_mcp::FederatedEvidenceProvider;
 use decision_gate_mcp::ToolRouter;
 use decision_gate_mcp::auth::DefaultToolAuthz;
@@ -40,6 +41,7 @@ use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::tools::EvidenceQueryRequest;
 use decision_gate_mcp::tools::EvidenceQueryResponse;
+use decision_gate_mcp::tools::ToolRouterConfig;
 use serde_json::json;
 
 use crate::common::local_request_context;
@@ -57,16 +59,48 @@ fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
     let store = decision_gate_core::SharedRunStateStore::from_store(
         decision_gate_core::InMemoryRunStateStore::new(),
     );
+    let schema_registry = decision_gate_core::SharedDataShapeRegistry::from_registry(
+        decision_gate_core::InMemoryDataShapeRegistry::new(),
+    );
+    let provider_transports = config
+        .providers
+        .iter()
+        .map(|provider| {
+            let transport = match provider.provider_type {
+                decision_gate_mcp::config::ProviderType::Builtin => {
+                    decision_gate_mcp::tools::ProviderTransport::Builtin
+                }
+                decision_gate_mcp::config::ProviderType::Mcp => {
+                    decision_gate_mcp::tools::ProviderTransport::Mcp
+                }
+            };
+            (provider.name.clone(), transport)
+        })
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let schema_registry_limits = decision_gate_mcp::tools::SchemaRegistryLimits {
+        max_schema_bytes: config.schema_registry.max_schema_bytes,
+        max_entries: config
+            .schema_registry
+            .max_entries
+            .map(|value| usize::try_from(value).unwrap_or(usize::MAX)),
+    };
     let authz = std::sync::Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
     let audit = std::sync::Arc::new(NoopAuditSink);
-    ToolRouter::new(
+    ToolRouter::new(ToolRouterConfig {
         evidence,
-        config.evidence,
+        evidence_policy: config.evidence,
+        dispatch_policy: config.policy.dispatch,
         store,
-        std::sync::Arc::new(capabilities),
+        schema_registry,
+        provider_transports,
+        schema_registry_limits,
+        capabilities: std::sync::Arc::new(capabilities),
         authz,
         audit,
-    )
+        trust_requirement: TrustRequirement {
+            min_lane: config.trust.min_lane,
+        },
+    })
 }
 
 fn query_time_now(router: &ToolRouter) -> EvidenceQueryResponse {

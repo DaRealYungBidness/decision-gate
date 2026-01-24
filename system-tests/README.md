@@ -15,6 +15,19 @@ MCP server. Tests cover the tool surface, runpack verification, evidence policy,
 and provider federation. Every test emits auditable artifacts under a per-test
 run root.
 
+New in this phase:
+- Concurrency and burst-load stress tests for registry writes, paging stability,
+  and precheck request storms (`system-tests/tests/stress.rs`).
+- Explicit TODOs to add fuzz/property and long-running soak/perf tests.
+
+## Scenario Guardrails (No Hacks)
+System-tests must mirror production behavior end-to-end.
+- No fail-open logic; assert required behavior explicitly.
+- No sleeps for correctness; use readiness probes and explicit polling.
+- Use production types and schemas from `decision-gate-core` and `decision-gate-mcp`.
+- Reuse helpers in `system-tests/tests/helpers` instead of ad-hoc harness logic.
+- Keep tests deterministic; do not rely on wall-clock time.
+
 ## Quick Start
 ```bash
 # Run the full system-tests suite
@@ -29,6 +42,21 @@ cargo test -p system-tests --test smoke -- --exact smoke_define_start_next_statu
 python scripts/test_runner.py --priority P0
 python scripts/test_runner.py --category runpack
 ```
+
+## Adding or Updating Tests
+When you add, rename, or remove a test:
+- Register it in `system-tests/test_registry.toml`.
+- Add/update gaps in `system-tests/test_gaps.toml` if coverage is missing.
+- Regenerate coverage docs: `python scripts/coverage_report.py generate`.
+- Update `system-tests/README.md` and `system-tests/TEST_MATRIX.md` tables if referenced.
+- Ensure required artifacts are written (`summary.json`, `summary.md`, `tool_transcript.json`).
+- Update `Docs/security/threat_model.md` or note "Threat Model Delta: none".
+
+## Stress Tests
+Stress tests are in `system-tests/tests/stress.rs` and are intended to run under
+CI timeouts (not load-test infrastructure). They validate concurrency safety
+and fail-closed behavior, not throughput SLAs.
+Planned (not yet implemented): fuzz/property tests and long-running soak/perf.
 
 ## Environment Variables
 - `DECISION_GATE_SYSTEM_TEST_RUN_ROOT`: Per-test artifact root (set by runner).

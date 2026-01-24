@@ -58,6 +58,8 @@ async fn runpack_export_verify_happy_path() -> Result<(), Box<dyn std::error::Er
         scenario_id: define_output.scenario_id.clone(),
         trigger: decision_gate_core::TriggerEvent {
             run_id: fixture.run_id.clone(),
+            tenant_id: fixture.tenant_id.clone(),
+            namespace_id: fixture.namespace_id.clone(),
             trigger_id: TriggerId::new("trigger-1"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
@@ -73,6 +75,8 @@ async fn runpack_export_verify_happy_path() -> Result<(), Box<dyn std::error::Er
     let runpack_dir = reporter.artifacts().runpack_dir();
     let export_request = RunpackExportRequest {
         scenario_id: define_output.scenario_id.clone(),
+        tenant_id: fixture.tenant_id.clone(),
+        namespace_id: fixture.namespace_id.clone(),
         run_id: fixture.run_id.clone(),
         output_dir: runpack_dir.to_string_lossy().to_string(),
         manifest_name: Some("manifest.json".to_string()),
@@ -91,7 +95,9 @@ async fn runpack_export_verify_happy_path() -> Result<(), Box<dyn std::error::Er
     let verified: decision_gate_mcp::tools::RunpackVerifyResponse =
         client.call_tool_typed("runpack_verify", verify_input).await?;
 
-    assert_eq!(verified.status, decision_gate_core::runtime::VerificationStatus::Pass);
+    if verified.status != decision_gate_core::runtime::VerificationStatus::Pass {
+        return Err(format!("expected verification pass, got {:?}", verified.status).into());
+    }
 
     reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
     reporter.finish(
@@ -139,6 +145,8 @@ async fn runpack_tamper_detection() -> Result<(), Box<dyn std::error::Error>> {
         scenario_id: define_output.scenario_id.clone(),
         trigger: decision_gate_core::TriggerEvent {
             run_id: fixture.run_id.clone(),
+            tenant_id: fixture.tenant_id.clone(),
+            namespace_id: fixture.namespace_id.clone(),
             trigger_id: TriggerId::new("trigger-1"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
@@ -154,6 +162,8 @@ async fn runpack_tamper_detection() -> Result<(), Box<dyn std::error::Error>> {
     let runpack_dir = reporter.artifacts().runpack_dir();
     let export_request = RunpackExportRequest {
         scenario_id: define_output.scenario_id.clone(),
+        tenant_id: fixture.tenant_id.clone(),
+        namespace_id: fixture.namespace_id.clone(),
         run_id: fixture.run_id.clone(),
         output_dir: runpack_dir.to_string_lossy().to_string(),
         manifest_name: Some("manifest.json".to_string()),
@@ -177,8 +187,12 @@ async fn runpack_tamper_detection() -> Result<(), Box<dyn std::error::Error>> {
     let verified: decision_gate_mcp::tools::RunpackVerifyResponse =
         client.call_tool_typed("runpack_verify", verify_input).await?;
 
-    assert_eq!(verified.status, decision_gate_core::runtime::VerificationStatus::Fail);
-    assert!(!verified.report.errors.is_empty());
+    if verified.status != decision_gate_core::runtime::VerificationStatus::Fail {
+        return Err(format!("expected verification fail, got {:?}", verified.status).into());
+    }
+    if verified.report.errors.is_empty() {
+        return Err("expected verification errors after tampering".into());
+    }
 
     reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
     reporter.finish(

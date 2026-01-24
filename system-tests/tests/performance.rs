@@ -61,6 +61,7 @@ async fn performance_smoke() -> Result<(), Box<dyn std::error::Error>> {
         let run_id = decision_gate_core::RunId::new(format!("run-{idx}"));
         let run_config = decision_gate_core::RunConfig {
             tenant_id: fixture.tenant_id.clone(),
+            namespace_id: fixture.namespace_id.clone(),
             run_id: run_id.clone(),
             scenario_id: define_output.scenario_id.clone(),
             dispatch_targets: Vec::new(),
@@ -81,6 +82,8 @@ async fn performance_smoke() -> Result<(), Box<dyn std::error::Error>> {
             scenario_id: define_output.scenario_id.clone(),
             trigger: decision_gate_core::TriggerEvent {
                 run_id,
+                tenant_id: fixture.tenant_id.clone(),
+                namespace_id: fixture.namespace_id.clone(),
                 trigger_id: TriggerId::new(format!("trigger-{idx}")),
                 kind: TriggerKind::ExternalEvent,
                 time: Timestamp::Logical(idx as u64 + 2),
@@ -96,8 +99,16 @@ async fn performance_smoke() -> Result<(), Box<dyn std::error::Error>> {
 
     let elapsed = start.elapsed();
     let total_ms = elapsed.as_millis();
-    let avg_ms = total_ms as f64 / iterations as f64;
-    let throughput = iterations as f64 / elapsed.as_secs_f64().max(0.000_001);
+    let total_ms_u64 =
+        u64::try_from(total_ms).map_err(|_| "elapsed milliseconds overflow".to_string())?;
+    let total_ms_u32 =
+        u32::try_from(total_ms_u64).map_err(|_| "elapsed milliseconds too large".to_string())?;
+    let iterations_u64 =
+        u64::try_from(iterations).map_err(|_| "iterations overflow".to_string())?;
+    let iterations_u32 =
+        u32::try_from(iterations_u64).map_err(|_| "iterations too large".to_string())?;
+    let avg_ms = f64::from(total_ms_u32) / f64::from(iterations_u32);
+    let throughput = f64::from(iterations_u32) / elapsed.as_secs_f64().max(0.000_001);
 
     let metrics = PerformanceMetrics {
         iterations,

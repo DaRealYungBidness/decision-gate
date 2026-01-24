@@ -21,6 +21,7 @@ use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::GateSpec;
+use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketPayload;
 use decision_gate_core::PacketSpec;
 use decision_gate_core::PredicateSpec;
@@ -53,6 +54,7 @@ use serde_json::json;
 pub fn scenario_example() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::from("example-scenario"),
+        namespace_id: NamespaceId::from("default"),
         spec_version: SpecVersion::from("v1"),
         stages: vec![example_stage()],
         predicates: vec![env_predicate_example(), time_predicate_example()],
@@ -80,6 +82,7 @@ pub fn scenario_example_ron() -> Result<String, ron::Error> {
 pub fn run_config_example() -> RunConfig {
     RunConfig {
         tenant_id: TenantId::from("tenant-001"),
+        namespace_id: NamespaceId::from("default"),
         run_id: RunId::from("run-0001"),
         scenario_id: ScenarioId::from("example-scenario"),
         dispatch_targets: vec![DispatchTarget::Agent {
@@ -99,6 +102,7 @@ max_body_bytes = 1048576
 
 [trust]
 default_policy = "audit"
+min_lane = "verified"
 
 [evidence]
 allow_raw_values = false
@@ -156,6 +160,7 @@ fn env_gate_example() -> GateSpec {
     GateSpec {
         gate_id: GateId::from("env_gate"),
         requirement: Requirement::Predicate(PredicateKey::from("env_is_prod")),
+        trust: None,
     }
 }
 
@@ -165,6 +170,7 @@ fn time_gate_example() -> GateSpec {
     GateSpec {
         gate_id: GateId::from("time_gate"),
         requirement: Requirement::Predicate(PredicateKey::from("after_freeze")),
+        trust: None,
     }
 }
 
@@ -200,6 +206,7 @@ fn env_predicate_example() -> PredicateSpec {
         comparator: Comparator::Equals,
         expected: Some(Value::String(String::from("production"))),
         policy_tags: Vec::new(),
+        trust: None,
     }
 }
 
@@ -216,5 +223,6 @@ fn time_predicate_example() -> PredicateSpec {
         comparator: Comparator::Equals,
         expected: Some(Value::Bool(true)),
         policy_tags: Vec::new(),
+        trust: None,
     }
 }

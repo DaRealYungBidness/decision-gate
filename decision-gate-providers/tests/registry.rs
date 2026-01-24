@@ -37,9 +37,11 @@ use decision_gate_core::EvidenceProvider;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::EvidenceResult;
 use decision_gate_core::EvidenceValue;
+use decision_gate_core::NamespaceId;
 use decision_gate_core::ProviderId;
 use decision_gate_core::ProviderMissingError;
 use decision_gate_core::ScenarioSpec;
+use decision_gate_core::TrustLane;
 use decision_gate_providers::ProviderAccessPolicy;
 use decision_gate_providers::ProviderRegistry;
 use serde_json::json;
@@ -88,6 +90,7 @@ impl EvidenceProvider for ValueProvider {
     ) -> Result<EvidenceResult, EvidenceError> {
         Ok(EvidenceResult {
             value: Some(EvidenceValue::Json(json!({"provider": self.name}))),
+            lane: TrustLane::Verified,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -123,6 +126,7 @@ impl EvidenceProvider for CountingProvider {
         self.call_count.fetch_add(1, Ordering::SeqCst);
         Ok(EvidenceResult {
             value: Some(EvidenceValue::Json(json!({"called": true}))),
+            lane: TrustLane::Verified,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -149,6 +153,7 @@ fn build_spec_with_predicates(predicates: &[(&str, &str)]) -> ScenarioSpec {
         .map(|(i, (_, pred))| decision_gate_core::GateSpec {
             gate_id: decision_gate_core::GateId::new(format!("gate-{i}")),
             requirement: ret_logic::Requirement::predicate((*pred).into()),
+            trust: None,
         })
         .collect();
 
@@ -164,11 +169,13 @@ fn build_spec_with_predicates(predicates: &[(&str, &str)]) -> ScenarioSpec {
             comparator: decision_gate_core::Comparator::Equals,
             expected: Some(json!(true)),
             policy_tags: Vec::new(),
+            trust: None,
         })
         .collect();
 
     ScenarioSpec {
         scenario_id: decision_gate_core::ScenarioId::new("scenario"),
+        namespace_id: NamespaceId::new("default"),
         spec_version: decision_gate_core::SpecVersion::new("1"),
         stages: vec![decision_gate_core::StageSpec {
             stage_id: decision_gate_core::StageId::new("stage-1"),

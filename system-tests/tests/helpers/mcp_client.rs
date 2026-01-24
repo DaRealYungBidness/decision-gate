@@ -82,7 +82,7 @@ impl McpHttpClient {
             .timeout(timeout)
             .build()
             .map_err(|err| format!("failed to build http client: {err}"))?;
-        Self::new_with_client(base_url, client)
+        Ok(Self::new_with_client(base_url, client))
     }
 
     /// Creates a new MCP HTTP client with a custom TLS configuration.
@@ -104,18 +104,18 @@ impl McpHttpClient {
         }
         let client =
             builder.build().map_err(|err| format!("failed to build tls client: {err:?}"))?;
-        Self::new_with_client(base_url, client)
+        Ok(Self::new_with_client(base_url, client))
     }
 
     /// Creates a new MCP HTTP client from an existing reqwest client.
-    pub fn new_with_client(base_url: String, client: Client) -> Result<Self, String> {
-        Ok(Self {
+    pub fn new_with_client(base_url: String, client: Client) -> Self {
+        Self {
             base_url,
             client,
             transcript: Arc::new(Mutex::new(Vec::new())),
             bearer_token: None,
             client_subject: None,
-        })
+        }
     }
 
     /// Attaches a bearer token for Authorization headers.
@@ -177,11 +177,12 @@ impl McpHttpClient {
         let json = parsed
             .content
             .into_iter()
-            .find_map(|item| match item {
+            .map(|item| match item {
                 ToolContent::Json {
                     json,
-                } => Some(json),
+                } => json,
             })
+            .next()
             .ok_or_else(|| format!("tool {name} returned no json content"))?;
         Ok(json)
     }
@@ -217,7 +218,7 @@ impl McpHttpClient {
         self.record_transcript(
             request_value,
             serde_json::to_value(&payload).unwrap_or(Value::Null),
-            error_message.clone(),
+            error_message,
         );
 
         if let Some(error) = payload.error.as_ref() {
@@ -230,9 +231,8 @@ impl McpHttpClient {
     }
 
     fn record_transcript(&self, request: Value, response: Value, error: Option<String>) {
-        let mut guard = match self.transcript.lock() {
-            Ok(guard) => guard,
-            Err(_) => return,
+        let Ok(mut guard) = self.transcript.lock() else {
+            return;
         };
         let sequence = guard.len() as u64 + 1;
         guard.push(TranscriptEntry {

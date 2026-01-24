@@ -17,6 +17,7 @@
 // SECTION: Imports
 // ============================================================================
 
+use serde_json::Map;
 use serde_json::Value;
 use serde_json::json;
 
@@ -25,7 +26,6 @@ use serde_json::json;
 // ============================================================================
 
 /// Returns the JSON schema for `ScenarioSpec`.
-#[allow(clippy::too_many_lines, reason = "schema definition is intentionally data-heavy")]
 #[must_use]
 pub fn scenario_schema() -> Value {
     let timestamp = timestamp_schema();
@@ -33,6 +33,7 @@ pub fn scenario_schema() -> Value {
     let packet_payload = packet_payload_schema();
     let advance_to = advance_to_schema();
     let requirement = requirement_schema();
+    let defs = scenario_defs(&timestamp, &hash_digest, &packet_payload, &advance_to, &requirement);
     json!({
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": "decision-gate://contract/schemas/scenario.schema.json",
@@ -41,6 +42,7 @@ pub fn scenario_schema() -> Value {
         "type": "object",
         "required": [
             "scenario_id",
+            "namespace_id",
             "spec_version",
             "stages",
             "predicates",
@@ -49,6 +51,7 @@ pub fn scenario_schema() -> Value {
         ],
         "properties": {
             "scenario_id": schema_for_identifier("Scenario identifier."),
+            "namespace_id": schema_for_identifier("Namespace identifier."),
             "spec_version": schema_for_identifier("Specification version identifier."),
             "stages": {
                 "type": "array",
@@ -75,174 +78,257 @@ pub fn scenario_schema() -> Value {
             }
         },
         "additionalProperties": false,
-        "$defs": {
-            "StageSpec": {
-                "type": "object",
-                "required": [
-                    "stage_id",
-                    "entry_packets",
-                    "gates",
-                    "advance_to",
-                    "on_timeout"
-                ],
-                "properties": {
-                    "stage_id": schema_for_identifier("Stage identifier."),
-                    "entry_packets": {
-                        "type": "array",
-                        "items": { "$ref": "#/$defs/PacketSpec" }
-                    },
-                    "gates": {
-                        "type": "array",
-                        "items": { "$ref": "#/$defs/GateSpec" }
-                    },
-                    "advance_to": advance_to,
-                    "timeout": {
-                        "oneOf": [
-                            { "type": "null" },
-                            { "$ref": "#/$defs/TimeoutSpec" }
-                        ]
-                    },
-                    "on_timeout": { "$ref": "#/$defs/TimeoutPolicy" }
-                },
-                "additionalProperties": false
-            },
-            "AdvanceTo": advance_to_schema(),
-            "BranchRule": {
-                "type": "object",
-                "required": ["gate_id", "outcome", "next_stage_id"],
-                "properties": {
-                    "gate_id": schema_for_identifier("Gate identifier referenced by the branch rule."),
-                    "outcome": { "$ref": "#/$defs/GateOutcome" },
-                    "next_stage_id": schema_for_identifier("Stage identifier to advance to.")
-                },
-                "additionalProperties": false
-            },
-            "GateOutcome": {
-                "type": "string",
-                "enum": ["true", "false", "unknown"],
-                "description": "Gate outcome for branch routing."
-            },
-            "TimeoutSpec": {
-                "type": "object",
-                "required": ["timeout_ms", "policy_tags"],
-                "properties": {
-                    "timeout_ms": {
-                        "type": "integer",
-                        "minimum": 0
-                    },
-                    "policy_tags": schema_for_string_array("Policy tags applied to timeout handling.")
-                },
-                "additionalProperties": false
-            },
-            "TimeoutPolicy": {
-                "type": "string",
-                "enum": ["fail", "advance_with_flag", "alternate_branch"],
-                "description": "Timeout handling policy."
-            },
-            "GateSpec": {
-                "type": "object",
-                "required": ["gate_id", "requirement"],
-                "properties": {
-                    "gate_id": schema_for_identifier("Gate identifier."),
-                    "requirement": requirement
-                },
-                "additionalProperties": false
-            },
-            "Requirement": requirement,
-            "PredicateSpec": {
-                "type": "object",
-                "required": ["predicate", "query", "comparator", "policy_tags"],
-                "properties": {
-                    "predicate": schema_for_identifier("Predicate identifier."),
-                    "query": evidence_query_schema(),
-                    "comparator": comparator_schema(),
-                    "expected": schema_for_json_value("Expected comparison value."),
-                    "policy_tags": schema_for_string_array("Policy tags applied to predicate evaluation.")
-                },
-                "additionalProperties": false
-            },
-            "EvidenceQuery": evidence_query_schema(),
-            "Comparator": comparator_schema(),
-            "PacketSpec": {
-                "type": "object",
-                "required": [
-                    "packet_id",
-                    "schema_id",
-                    "content_type",
-                    "visibility_labels",
-                    "policy_tags",
-                    "payload"
-                ],
-                "properties": {
-                    "packet_id": schema_for_identifier("Packet identifier."),
-                    "schema_id": schema_for_identifier("Schema identifier."),
-                    "content_type": schema_for_string("Content type for payload."),
-                    "visibility_labels": schema_for_string_array("Visibility labels for packet disclosure."),
-                    "policy_tags": schema_for_string_array("Policy tags applied to packet dispatch."),
-                    "expiry": {
-                        "oneOf": [
-                            { "type": "null" },
-                            timestamp
-                        ]
-                    },
-                    "payload": packet_payload
-                },
-                "additionalProperties": false
-            },
-            "PacketPayload": packet_payload_schema(),
-            "ContentRef": {
-                "type": "object",
-                "required": ["uri", "content_hash", "encryption"],
-                "properties": {
-                    "uri": schema_for_string("External content reference URI."),
-                    "content_hash": hash_digest,
-                    "encryption": {
-                        "oneOf": [
-                            { "type": "null" },
-                            schema_for_string("Optional encryption metadata identifier.")
-                        ]
-                    }
-                },
-                "additionalProperties": false
-            },
-            "HashDigest": hash_digest,
-            "Timestamp": timestamp,
-            "PolicyRef": {
-                "type": "object",
-                "required": ["policy_id"],
-                "properties": {
-                    "policy_id": schema_for_identifier("Policy identifier."),
-                    "description": {
-                        "oneOf": [
-                            { "type": "null" },
-                            schema_for_string("Optional policy description.")
-                        ]
-                    }
-                },
-                "additionalProperties": false
-            },
-            "SchemaRef": {
-                "type": "object",
-                "required": ["schema_id"],
-                "properties": {
-                    "schema_id": schema_for_identifier("Schema identifier."),
-                    "version": {
-                        "oneOf": [
-                            { "type": "null" },
-                            schema_for_string("Schema version string.")
-                        ]
-                    },
-                    "uri": {
-                        "oneOf": [
-                            { "type": "null" },
-                            schema_for_string("Schema registry URI.")
-                        ]
-                    }
-                },
-                "additionalProperties": false
-            }
-        }
+        "$defs": defs
     })
+}
+
+/// Builds the shared schema definitions for `ScenarioSpec`.
+fn scenario_defs(
+    timestamp: &Value,
+    hash_digest: &Value,
+    packet_payload: &Value,
+    advance_to: &Value,
+    requirement: &Value,
+) -> Map<String, Value> {
+    let mut defs = Map::new();
+    insert_stage_defs(&mut defs, advance_to, requirement);
+    insert_predicate_defs(&mut defs);
+    insert_packet_defs(&mut defs, packet_payload, hash_digest, timestamp);
+    insert_reference_defs(&mut defs);
+    defs
+}
+
+/// Inserts stage-related schema definitions into the shared defs map.
+fn insert_stage_defs(defs: &mut Map<String, Value>, advance_to: &Value, requirement: &Value) {
+    defs.insert(
+        String::from("StageSpec"),
+        json!({
+            "type": "object",
+            "required": [
+                "stage_id",
+                "entry_packets",
+                "gates",
+                "advance_to",
+                "on_timeout"
+            ],
+            "properties": {
+                "stage_id": schema_for_identifier("Stage identifier."),
+                "entry_packets": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/PacketSpec" }
+                },
+                "gates": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/GateSpec" }
+                },
+                "advance_to": advance_to.clone(),
+                "timeout": {
+                    "oneOf": [
+                        { "type": "null" },
+                        { "$ref": "#/$defs/TimeoutSpec" }
+                    ]
+                },
+                "on_timeout": { "$ref": "#/$defs/TimeoutPolicy" }
+            },
+            "additionalProperties": false
+        }),
+    );
+    defs.insert(String::from("AdvanceTo"), advance_to_schema());
+    defs.insert(
+        String::from("BranchRule"),
+        json!({
+            "type": "object",
+            "required": ["gate_id", "outcome", "next_stage_id"],
+            "properties": {
+                "gate_id": schema_for_identifier("Gate identifier referenced by the branch rule."),
+                "outcome": { "$ref": "#/$defs/GateOutcome" },
+                "next_stage_id": schema_for_identifier("Stage identifier to advance to.")
+            },
+            "additionalProperties": false
+        }),
+    );
+    defs.insert(
+        String::from("GateOutcome"),
+        json!({
+            "type": "string",
+            "enum": ["true", "false", "unknown"],
+            "description": "Gate outcome for branch routing."
+        }),
+    );
+    defs.insert(
+        String::from("TimeoutSpec"),
+        json!({
+            "type": "object",
+            "required": ["timeout_ms", "policy_tags"],
+            "properties": {
+                "timeout_ms": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "policy_tags": schema_for_string_array("Policy tags applied to timeout handling.")
+            },
+            "additionalProperties": false
+        }),
+    );
+    defs.insert(
+        String::from("TimeoutPolicy"),
+        json!({
+            "type": "string",
+            "enum": ["fail", "advance_with_flag", "alternate_branch"],
+            "description": "Timeout handling policy."
+        }),
+    );
+    defs.insert(
+        String::from("GateSpec"),
+        json!({
+            "type": "object",
+            "required": ["gate_id", "requirement"],
+            "properties": {
+                "gate_id": schema_for_identifier("Gate identifier."),
+                "requirement": requirement.clone(),
+                "trust": {
+                    "oneOf": [
+                        { "type": "null" },
+                        { "$ref": "#/$defs/TrustRequirement" }
+                    ]
+                }
+            },
+            "additionalProperties": false
+        }),
+    );
+    defs.insert(String::from("Requirement"), requirement.clone());
+}
+
+/// Inserts predicate-related schema definitions into the shared defs map.
+fn insert_predicate_defs(defs: &mut Map<String, Value>) {
+    defs.insert(
+        String::from("PredicateSpec"),
+        json!({
+            "type": "object",
+            "required": ["predicate", "query", "comparator", "policy_tags"],
+            "properties": {
+                "predicate": schema_for_identifier("Predicate identifier."),
+                "query": evidence_query_schema(),
+                "comparator": comparator_schema(),
+                "expected": schema_for_json_value("Expected comparison value."),
+                "policy_tags": schema_for_string_array("Policy tags applied to predicate evaluation."),
+                "trust": {
+                    "oneOf": [
+                        { "type": "null" },
+                        { "$ref": "#/$defs/TrustRequirement" }
+                    ]
+                }
+            },
+            "additionalProperties": false
+        }),
+    );
+    defs.insert(String::from("EvidenceQuery"), evidence_query_schema());
+    defs.insert(String::from("Comparator"), comparator_schema());
+    defs.insert(String::from("TrustLane"), trust_lane_schema());
+    defs.insert(String::from("TrustRequirement"), trust_requirement_schema());
+}
+
+/// Inserts packet-related schema definitions into the shared defs map.
+fn insert_packet_defs(
+    defs: &mut Map<String, Value>,
+    packet_payload: &Value,
+    hash_digest: &Value,
+    timestamp: &Value,
+) {
+    defs.insert(
+        String::from("PacketSpec"),
+        json!({
+            "type": "object",
+            "required": [
+                "packet_id",
+                "schema_id",
+                "content_type",
+                "visibility_labels",
+                "policy_tags",
+                "payload"
+            ],
+            "properties": {
+                "packet_id": schema_for_identifier("Packet identifier."),
+                "schema_id": schema_for_identifier("Schema identifier."),
+                "content_type": schema_for_string("Content type for payload."),
+                "visibility_labels": schema_for_string_array("Visibility labels for packet disclosure."),
+                "policy_tags": schema_for_string_array("Policy tags applied to packet dispatch."),
+                "expiry": {
+                    "oneOf": [
+                        { "type": "null" },
+                        timestamp.clone()
+                    ]
+                },
+                "payload": packet_payload.clone()
+            },
+            "additionalProperties": false
+        }),
+    );
+    defs.insert(String::from("PacketPayload"), packet_payload_schema());
+    defs.insert(
+        String::from("ContentRef"),
+        json!({
+            "type": "object",
+            "required": ["uri", "content_hash", "encryption"],
+            "properties": {
+                "uri": schema_for_string("External content reference URI."),
+                "content_hash": hash_digest.clone(),
+                "encryption": {
+                    "oneOf": [
+                        { "type": "null" },
+                        schema_for_string("Optional encryption metadata identifier.")
+                    ]
+                }
+            },
+            "additionalProperties": false
+        }),
+    );
+    defs.insert(String::from("HashDigest"), hash_digest.clone());
+    defs.insert(String::from("Timestamp"), timestamp.clone());
+}
+
+/// Inserts reference schema definitions into the shared defs map.
+fn insert_reference_defs(defs: &mut Map<String, Value>) {
+    defs.insert(
+        String::from("PolicyRef"),
+        json!({
+            "type": "object",
+            "required": ["policy_id"],
+            "properties": {
+                "policy_id": schema_for_identifier("Policy identifier."),
+                "description": {
+                    "oneOf": [
+                        { "type": "null" },
+                        schema_for_string("Optional policy description.")
+                    ]
+                }
+            },
+            "additionalProperties": false
+        }),
+    );
+    defs.insert(
+        String::from("SchemaRef"),
+        json!({
+            "type": "object",
+            "required": ["schema_id"],
+            "properties": {
+                "schema_id": schema_for_identifier("Schema identifier."),
+                "version": {
+                    "oneOf": [
+                        { "type": "null" },
+                        schema_for_string("Schema version string.")
+                    ]
+                },
+                "uri": {
+                    "oneOf": [
+                        { "type": "null" },
+                        schema_for_string("Schema registry URI.")
+                    ]
+                }
+            },
+            "additionalProperties": false
+        }),
+    );
 }
 
 /// Returns the JSON schema for `decision-gate.toml`.
@@ -258,6 +344,7 @@ pub fn config_schema() -> Value {
             "server": server_config_schema(),
             "trust": trust_config_schema(),
             "evidence": evidence_policy_schema(),
+            "policy": policy_config_schema(),
             "run_state_store": run_state_store_schema(),
             "providers": {
                 "type": "array",
@@ -291,6 +378,7 @@ pub fn evidence_result_schema() -> Value {
         "type": "object",
         "required": [
             "value",
+            "lane",
             "evidence_hash",
             "evidence_ref",
             "evidence_anchor",
@@ -304,6 +392,7 @@ pub fn evidence_result_schema() -> Value {
                     evidence_value_schema()
                 ]
             },
+            "lane": trust_lane_schema(),
             "evidence_hash": {
                 "oneOf": [
                     { "type": "null" },
@@ -353,6 +442,7 @@ pub fn run_config_schema() -> Value {
         ],
         "properties": {
             "tenant_id": schema_for_identifier("Tenant identifier."),
+            "namespace_id": schema_for_identifier("Namespace identifier."),
             "run_id": schema_for_identifier("Run identifier."),
             "scenario_id": schema_for_identifier("Scenario identifier."),
             "dispatch_targets": {
@@ -365,6 +455,74 @@ pub fn run_config_schema() -> Value {
     })
 }
 
+/// Returns the JSON schema for `DataShapeRef`.
+#[must_use]
+pub fn data_shape_ref_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": ["schema_id", "version"],
+        "properties": {
+            "schema_id": schema_for_identifier("Data shape identifier."),
+            "version": schema_for_identifier("Data shape version identifier.")
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for `DataShapeRecord`.
+#[must_use]
+pub fn data_shape_record_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": [
+            "tenant_id",
+            "namespace_id",
+            "schema_id",
+            "version",
+            "schema",
+            "description",
+            "created_at"
+        ],
+        "properties": {
+            "tenant_id": schema_for_identifier("Tenant identifier."),
+            "namespace_id": schema_for_identifier("Namespace identifier."),
+            "schema_id": schema_for_identifier("Data shape identifier."),
+            "version": schema_for_identifier("Data shape version identifier."),
+            "schema": schema_for_json_value("JSON Schema payload."),
+            "description": {
+                "oneOf": [
+                    { "type": "null" },
+                    schema_for_string("Optional schema description.")
+                ]
+            },
+            "created_at": timestamp_schema()
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for `DataShapePage`.
+#[must_use]
+pub fn data_shape_page_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": ["items", "next_token"],
+        "properties": {
+            "items": {
+                "type": "array",
+                "items": data_shape_record_schema()
+            },
+            "next_token": {
+                "oneOf": [
+                    { "type": "null" },
+                    schema_for_string("Pagination token for the next page.")
+                ]
+            }
+        },
+        "additionalProperties": false
+    })
+}
+
 /// Returns the JSON schema for `TriggerEvent`.
 #[must_use]
 pub fn trigger_event_schema() -> Value {
@@ -372,6 +530,8 @@ pub fn trigger_event_schema() -> Value {
         "type": "object",
         "required": [
             "trigger_id",
+            "tenant_id",
+            "namespace_id",
             "run_id",
             "kind",
             "time",
@@ -379,6 +539,8 @@ pub fn trigger_event_schema() -> Value {
         ],
         "properties": {
             "trigger_id": schema_for_identifier("Trigger identifier."),
+            "tenant_id": schema_for_identifier("Tenant identifier."),
+            "namespace_id": schema_for_identifier("Namespace identifier."),
             "run_id": schema_for_identifier("Run identifier."),
             "kind": trigger_kind_schema(),
             "time": timestamp_schema(),
@@ -405,8 +567,10 @@ pub fn trigger_event_schema() -> Value {
 pub fn status_request_schema() -> Value {
     json!({
         "type": "object",
-        "required": ["run_id", "requested_at"],
+        "required": ["tenant_id", "namespace_id", "run_id", "requested_at"],
         "properties": {
+            "tenant_id": schema_for_identifier("Tenant identifier."),
+            "namespace_id": schema_for_identifier("Namespace identifier."),
             "run_id": schema_for_identifier("Run identifier."),
             "requested_at": timestamp_schema(),
             "correlation_id": {
@@ -425,8 +589,10 @@ pub fn status_request_schema() -> Value {
 pub fn next_request_schema() -> Value {
     json!({
         "type": "object",
-        "required": ["run_id", "trigger_id", "agent_id", "time"],
+        "required": ["tenant_id", "namespace_id", "run_id", "trigger_id", "agent_id", "time"],
         "properties": {
+            "tenant_id": schema_for_identifier("Tenant identifier."),
+            "namespace_id": schema_for_identifier("Namespace identifier."),
             "run_id": schema_for_identifier("Run identifier."),
             "trigger_id": schema_for_identifier("Trigger identifier."),
             "agent_id": schema_for_string("Agent identifier."),
@@ -448,6 +614,8 @@ pub fn submit_request_schema() -> Value {
     json!({
         "type": "object",
         "required": [
+            "tenant_id",
+            "namespace_id",
             "run_id",
             "submission_id",
             "payload",
@@ -455,6 +623,8 @@ pub fn submit_request_schema() -> Value {
             "submitted_at"
         ],
         "properties": {
+            "tenant_id": schema_for_identifier("Tenant identifier."),
+            "namespace_id": schema_for_identifier("Namespace identifier."),
             "run_id": schema_for_identifier("Run identifier."),
             "submission_id": schema_for_string("Submission identifier."),
             "payload": packet_payload_schema(),
@@ -486,6 +656,7 @@ pub fn scenario_status_schema() -> Value {
             "safe_summary"
         ],
         "properties": {
+            "namespace_id": schema_for_identifier("Namespace identifier."),
             "run_id": schema_for_identifier("Run identifier."),
             "scenario_id": schema_for_identifier("Scenario identifier."),
             "current_stage_id": schema_for_identifier("Current stage identifier."),
@@ -555,6 +726,7 @@ pub fn run_state_schema() -> Value {
         "type": "object",
         "required": [
             "tenant_id",
+            "namespace_id",
             "run_id",
             "scenario_id",
             "spec_hash",
@@ -571,6 +743,7 @@ pub fn run_state_schema() -> Value {
         ],
         "properties": {
             "tenant_id": schema_for_identifier("Tenant identifier."),
+            "namespace_id": schema_for_identifier("Namespace identifier."),
             "run_id": schema_for_identifier("Run identifier."),
             "scenario_id": schema_for_identifier("Scenario identifier."),
             "spec_hash": hash_digest_schema(),
@@ -618,6 +791,8 @@ pub fn runpack_manifest_schema() -> Value {
         "required": [
             "manifest_version",
             "generated_at",
+            "tenant_id",
+            "namespace_id",
             "scenario_id",
             "run_id",
             "spec_hash",
@@ -629,6 +804,8 @@ pub fn runpack_manifest_schema() -> Value {
         "properties": {
             "manifest_version": schema_for_string("Runpack manifest version."),
             "generated_at": timestamp_schema(),
+            "tenant_id": schema_for_identifier("Tenant identifier."),
+            "namespace_id": schema_for_identifier("Namespace identifier."),
             "scenario_id": schema_for_identifier("Scenario identifier."),
             "run_id": schema_for_identifier("Run identifier."),
             "spec_hash": hash_digest_schema(),
@@ -845,7 +1022,7 @@ fn schema_for_json_value(description: &str) -> Value {
 
 /// Returns the JSON schema for `Comparator`.
 #[must_use]
-fn comparator_schema() -> Value {
+pub fn comparator_schema() -> Value {
     json!({
         "type": "string",
         "enum": [
@@ -861,6 +1038,29 @@ fn comparator_schema() -> Value {
             "not_exists"
         ],
         "description": "Comparator applied to evidence values."
+    })
+}
+
+/// Returns the JSON schema for `TrustLane`.
+#[must_use]
+pub fn trust_lane_schema() -> Value {
+    json!({
+        "type": "string",
+        "enum": ["verified", "asserted"],
+        "description": "Trust lane classification for evidence."
+    })
+}
+
+/// Returns the JSON schema for `TrustRequirement`.
+#[must_use]
+fn trust_requirement_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": ["min_lane"],
+        "properties": {
+            "min_lane": trust_lane_schema()
+        },
+        "additionalProperties": false
     })
 }
 
@@ -1192,9 +1392,32 @@ fn trust_config_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "default_policy": trust_policy_schema()
+            "default_policy": trust_policy_schema(),
+            "min_lane": trust_lane_schema()
         },
         "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for dispatch policy configuration.
+#[must_use]
+fn policy_config_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "dispatch": dispatch_policy_schema()
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for dispatch policy selection.
+#[must_use]
+fn dispatch_policy_schema() -> Value {
+    json!({
+        "type": "string",
+        "enum": ["permit_all", "deny_all"],
+        "default": "permit_all"
     })
 }
 
@@ -1290,7 +1513,7 @@ fn run_status_schema() -> Value {
 
 /// Returns the JSON schema for decision outcomes.
 #[must_use]
-fn decision_outcome_schema() -> Value {
+pub fn decision_outcome_schema() -> Value {
     json!({
         "oneOf": [
             {
@@ -1582,7 +1805,7 @@ fn gate_trace_entry_schema() -> Value {
 
 /// Returns the JSON schema for gate evaluation results.
 #[must_use]
-fn gate_evaluation_schema() -> Value {
+pub fn gate_evaluation_schema() -> Value {
     json!({
         "type": "object",
         "required": ["gate_id", "status", "trace"],

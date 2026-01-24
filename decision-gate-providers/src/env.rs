@@ -28,6 +28,7 @@ use decision_gate_core::EvidenceResult;
 use decision_gate_core::EvidenceValue;
 use decision_gate_core::ProviderMissingError;
 use decision_gate_core::ScenarioSpec;
+use decision_gate_core::TrustLane;
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -159,6 +160,7 @@ fn build_value_result(
     }
     Ok(EvidenceResult {
         value: Some(EvidenceValue::Json(Value::String(value))),
+        lane: TrustLane::Verified,
         evidence_hash: None,
         evidence_ref: None,
         evidence_anchor: Some(EvidenceAnchor {
@@ -174,6 +176,7 @@ fn build_value_result(
 fn empty_result(key: &str) -> EvidenceResult {
     EvidenceResult {
         value: None,
+        lane: TrustLane::Verified,
         evidence_hash: None,
         evidence_ref: None,
         evidence_anchor: Some(EvidenceAnchor {

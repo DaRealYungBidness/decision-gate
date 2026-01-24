@@ -242,6 +242,10 @@ The content body of a packet, submission, or trigger payload. Encoded as PacketP
 
 Labels applied to runs, predicates, or disclosures for policy routing. Tags enable conditional behavior: different disclosure rules per environment, tenant-specific rate limits, or audit categories. Define tags in the ScenarioSpec and apply them to runs, predicates, packets, or timeouts as needed.
 
+## `precheck`
+
+Evaluates a scenario against asserted data without mutating run state. Validates asserted data against a registered shape and returns the decision result for simulation.
+
 ## `predicate`
 
 The predicate name to evaluate within a provider. Each provider exposes named predicates (e.g., 'get' for env, 'after' for time, 'status' for http). The predicate determines what the provider checks and what params it accepts. See providers.json for the complete predicate catalog per provider.
@@ -249,6 +253,10 @@ The predicate name to evaluate within a provider. Each provider exposes named pr
 ## `provider_id`
 
 Identifier for an evidence provider registered in decision-gate.toml. Providers supply predicates: 'time' for timestamps, 'env' for environment variables, 'http' for health checks, 'json' for file queries. Custom providers can be registered via MCP configuration.
+
+## `providers_list`
+
+Lists registered evidence providers and their capabilities summary. Returns provider identifiers, transport metadata, and policy-scoped visibility. Use this to discover available providers and supported predicates.
 
 ## `record`
 
@@ -322,9 +330,25 @@ Submits external artifacts to a run's audit trail for later review. Use this to 
 
 Submits a trigger event with an explicit timestamp and evaluates the run. Unlike scenario_next, triggers carry kind, source_id, and optional payload metadata for time-based predicates and auditing. The trigger_id ensures idempotent processing: repeated calls with the same trigger_id return the cached decision.
 
+## `scenarios_list`
+
+Lists registered scenarios for a tenant and namespace. Returns scenario identifiers and spec hashes to support inventory and audit.
+
 ## `schema_id`
 
 Identifier for a schema attached to packets. Schemas validate payload structure before emission. Register schemas in the ScenarioSpec's schemas array. Packets reference schemas by schema_id for type safety and documentation.
+
+## `schemas_get`
+
+Fetches a specific data shape by schema_id and version for a tenant and namespace. Fails closed when the schema is missing.
+
+## `schemas_list`
+
+Lists registered data shapes for a tenant and namespace. Supports pagination via cursor and limit. Use this to discover available schema versions.
+
+## `schemas_register`
+
+Registers a data shape schema for a tenant and namespace. Schemas are immutable; re-registering the same version fails. Include created_at to capture when the schema was authored.
 
 ## `signature`
 

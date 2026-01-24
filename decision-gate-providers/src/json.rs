@@ -31,6 +31,7 @@ use decision_gate_core::EvidenceResult;
 use decision_gate_core::EvidenceValue;
 use decision_gate_core::ProviderMissingError;
 use decision_gate_core::ScenarioSpec;
+use decision_gate_core::TrustLane;
 use jsonpath_lib::select;
 use serde::Deserialize;
 use serde_json::Value;
@@ -101,6 +102,7 @@ impl EvidenceProvider for JsonProvider {
 
         Ok(EvidenceResult {
             value: value.map(EvidenceValue::Json),
+            lane: TrustLane::Verified,
             evidence_hash: None,
             evidence_ref: Some(EvidenceRef {
                 uri: resolved.display().to_string(),

@@ -34,6 +34,7 @@ use decision_gate_core::EvidenceValue;
 use decision_gate_core::GateId;
 use decision_gate_core::GateOutcome;
 use decision_gate_core::GateSpec;
+use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketPayload;
 use decision_gate_core::PacketSpec;
 use decision_gate_core::PolicyDecider;
@@ -56,6 +57,7 @@ use decision_gate_core::Timestamp;
 use decision_gate_core::TriggerEvent;
 use decision_gate_core::TriggerId;
 use decision_gate_core::TriggerKind;
+use decision_gate_core::TrustLane;
 use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
 use decision_gate_core::hashing::hash_bytes;
 use decision_gate_core::runtime::ControlPlane;
@@ -73,6 +75,7 @@ impl EvidenceProvider for TestEvidenceProvider {
     ) -> Result<EvidenceResult, decision_gate_core::EvidenceError> {
         Ok(EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
+            lane: TrustLane::Verified,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -132,6 +135,7 @@ fn base_predicate() -> PredicateSpec {
         comparator: Comparator::Equals,
         expected: Some(json!(true)),
         policy_tags: Vec::new(),
+        trust: None,
     }
 }
 
@@ -139,6 +143,7 @@ fn base_gate() -> GateSpec {
     GateSpec {
         gate_id: GateId::new("gate-1"),
         requirement: ret_logic::Requirement::predicate("ready".into()),
+        trust: None,
     }
 }
 
@@ -152,6 +157,7 @@ fn start_run(
 ) {
     let run_config = RunConfig {
         tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: ScenarioId::new("scenario"),
         dispatch_targets: vec![DispatchTarget::Agent {
@@ -167,6 +173,7 @@ fn timeout_fail_triggers_fail_decision() {
     let store = InMemoryRunStateStore::new();
     let spec = ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
+        namespace_id: NamespaceId::new("default"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -199,6 +206,8 @@ fn timeout_fail_triggers_fail_decision() {
 
     let trigger = TriggerEvent {
         run_id: decision_gate_core::RunId::new("run-1"),
+        tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         trigger_id: TriggerId::new("tick-1"),
         kind: TriggerKind::Tick,
         time: Timestamp::Logical(10),
@@ -222,6 +231,7 @@ fn timeout_advance_with_flag_advances_stage() {
     let store = InMemoryRunStateStore::new();
     let spec = ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
+        namespace_id: NamespaceId::new("default"),
         spec_version: SpecVersion::new("1"),
         stages: vec![
             StageSpec {
@@ -274,6 +284,8 @@ fn timeout_advance_with_flag_advances_stage() {
 
     let trigger = TriggerEvent {
         run_id: decision_gate_core::RunId::new("run-1"),
+        tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         trigger_id: TriggerId::new("tick-1"),
         kind: TriggerKind::Tick,
         time: Timestamp::Logical(10),
@@ -296,7 +308,14 @@ fn timeout_advance_with_flag_advances_stage() {
         other => panic!("unexpected decision outcome: {other:?}"),
     }
 
-    let state = store.load(&decision_gate_core::RunId::new("run-1")).unwrap().expect("run state");
+    let state = store
+        .load(
+            &TenantId::new("tenant"),
+            &NamespaceId::new("default"),
+            &decision_gate_core::RunId::new("run-1"),
+        )
+        .unwrap()
+        .expect("run state");
     assert_eq!(state.current_stage_id, StageId::new("stage-2"));
     assert_eq!(state.stage_entered_at, Timestamp::Logical(10));
 }
@@ -306,6 +325,7 @@ fn timeout_alternate_branch_routes_unknown() {
     let store = InMemoryRunStateStore::new();
     let spec = ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
+        namespace_id: NamespaceId::new("default"),
         spec_version: SpecVersion::new("1"),
         stages: vec![
             StageSpec {
@@ -363,6 +383,8 @@ fn timeout_alternate_branch_routes_unknown() {
 
     let trigger = TriggerEvent {
         run_id: decision_gate_core::RunId::new("run-1"),
+        tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         trigger_id: TriggerId::new("tick-1"),
         kind: TriggerKind::Tick,
         time: Timestamp::Logical(10),
@@ -384,7 +406,14 @@ fn timeout_alternate_branch_routes_unknown() {
         other => panic!("unexpected decision outcome: {other:?}"),
     }
 
-    let state = store.load(&decision_gate_core::RunId::new("run-1")).unwrap().expect("run state");
+    let state = store
+        .load(
+            &TenantId::new("tenant"),
+            &NamespaceId::new("default"),
+            &decision_gate_core::RunId::new("run-1"),
+        )
+        .unwrap()
+        .expect("run state");
     assert_eq!(state.current_stage_id, StageId::new("stage-timeout"));
 }
 
@@ -393,6 +422,7 @@ fn tick_before_timeout_evaluates_normally() {
     let store = InMemoryRunStateStore::new();
     let spec = ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
+        namespace_id: NamespaceId::new("default"),
         spec_version: SpecVersion::new("1"),
         stages: vec![
             StageSpec {
@@ -435,6 +465,8 @@ fn tick_before_timeout_evaluates_normally() {
 
     let trigger = TriggerEvent {
         run_id: decision_gate_core::RunId::new("run-1"),
+        tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         trigger_id: TriggerId::new("tick-1"),
         kind: TriggerKind::Tick,
         time: Timestamp::Logical(5),

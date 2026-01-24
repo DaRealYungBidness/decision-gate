@@ -3,7 +3,7 @@
 # ============================================================================
 # Module: System-Test Runner
 # Description: Registry-driven runner for Decision Gate system-tests.
-# Purpose: Execute tests by category/priority/hyperscaler and collect artifacts.
+# Purpose: Execute tests by category/priority and collect artifacts.
 # Dependencies: stdlib, tomllib (or toml)
 # ============================================================================
 
@@ -49,7 +49,6 @@ class TestDefinition:
     name: str
     category: str
     priority: str
-    hyperscaler_mapping: List[str]
     run_command: str
     description: Optional[str] = None
     artifacts: Optional[List[str]] = None
@@ -63,7 +62,6 @@ class TestResult:
     command: str
     category: Optional[str]
     priority: Optional[str]
-    hyperscaler_mapping: List[str]
     status: str
     start_time: str
     end_time: str
@@ -100,7 +98,6 @@ def parse_tests(registry: RegistryData) -> List[TestDefinition]:
                 name=entry["name"],
                 category=entry.get("category", "unknown"),
                 priority=entry.get("priority", "P2"),
-                hyperscaler_mapping=list(entry.get("hyperscaler_mapping", [])),
                 run_command=entry["run_command"],
                 description=entry.get("description"),
                 artifacts=list(entry.get("artifacts", [])),
@@ -115,7 +112,6 @@ def select_tests(
     tests: List[TestDefinition],
     category: Optional[str],
     priority: Optional[str],
-    hyperscaler: Optional[str],
     name: Optional[str],
     quick_only: bool,
     registry: RegistryData,
@@ -125,8 +121,6 @@ def select_tests(
         output = [t for t in output if t.category == category]
     if priority:
         output = [t for t in output if t.priority == priority]
-    if hyperscaler:
-        output = [t for t in output if hyperscaler in t.hyperscaler_mapping]
     if name:
         output = [t for t in output if t.name == name]
     if quick_only:
@@ -158,7 +152,6 @@ def run_test(
         command=test.run_command,
         category=test.category,
         priority=test.priority,
-        hyperscaler_mapping=test.hyperscaler_mapping,
         status="skipped" if dry_run else "unknown",
         start_time=datetime.now(timezone.utc).isoformat(),
         end_time=datetime.now(timezone.utc).isoformat(),
@@ -261,7 +254,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Decision Gate system-test runner")
     parser.add_argument("--category", help="Filter by category")
     parser.add_argument("--priority", help="Filter by priority (P0/P1/P2)")
-    parser.add_argument("--hyperscaler", help="Filter by hyperscaler mapping")
     parser.add_argument("--name", help="Run a single test by name")
     parser.add_argument("--quick", action="store_true", help="Run quick categories only")
     parser.add_argument("--parallel", type=int, default=1, help="Parallel workers")
@@ -279,7 +271,6 @@ def main() -> None:
         tests,
         args.category,
         args.priority,
-        args.hyperscaler,
         args.name,
         args.quick,
         registry,

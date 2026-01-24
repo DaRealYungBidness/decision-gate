@@ -22,6 +22,21 @@ pub mod json;
 pub mod registry;
 pub mod time;
 
+// ============================================================================
+// SECTION: Re-Exports
+// ============================================================================
+
+pub use env::EnvProvider;
+pub use env::EnvProviderConfig;
+pub use http::HttpProvider;
+pub use http::HttpProviderConfig;
+pub use json::JsonProvider;
+pub use json::JsonProviderConfig;
+pub use registry::ProviderAccessPolicy;
+pub use registry::ProviderRegistry;
+pub use time::TimeProvider;
+pub use time::TimeProviderConfig;
+
 #[cfg(test)]
 mod tests {
     //! Test-only lint relaxations for panic-based assertions and debug output.
@@ -38,18 +53,3 @@ mod tests {
         reason = "Test-only output and panic-based assertions are permitted."
     )]
 }
-
-// ============================================================================
-// SECTION: Re-Exports
-// ============================================================================
-
-pub use env::EnvProvider;
-pub use env::EnvProviderConfig;
-pub use http::HttpProvider;
-pub use http::HttpProviderConfig;
-pub use json::JsonProvider;
-pub use json::JsonProviderConfig;
-pub use registry::ProviderAccessPolicy;
-pub use registry::ProviderRegistry;
-pub use time::TimeProvider;
-pub use time::TimeProviderConfig;

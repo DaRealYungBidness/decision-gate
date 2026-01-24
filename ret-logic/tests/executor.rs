@@ -82,20 +82,16 @@ fn require_constant(op: Operation, constants: &[Constant]) -> RequirementResult<
 fn handle_float_gte(
     reader: &TestReader,
     row: Row,
-    op: &Operation,
+    op: Operation,
     constants: &[Constant],
 ) -> RequirementResult<bool> {
-    operations::float_gte(reader, row, op, constants, |r, row, _col| r.get_value(row))
+    operations::float_gte(reader, row, &op, constants, |r, row, _col| r.get_value(row))
 }
 
-#[allow(
-    clippy::trivially_copy_pass_by_ref,
-    reason = "dispatch table signature requires &Operation"
-)]
 fn handle_float_lte(
     reader: &TestReader,
     row: Row,
-    op: &Operation,
+    op: Operation,
     constants: &[Constant],
 ) -> RequirementResult<bool> {
     let value =
@@ -107,27 +103,19 @@ fn handle_float_lte(
     Ok(value <= threshold)
 }
 
-#[allow(
-    clippy::trivially_copy_pass_by_ref,
-    reason = "dispatch table signature requires &Operation"
-)]
 fn handle_has_all_flags(
     reader: &TestReader,
     row: Row,
-    op: &Operation,
+    op: Operation,
     constants: &[Constant],
 ) -> RequirementResult<bool> {
-    operations::has_all_flags(reader, row, op, constants, |r, row, _col| r.get_flags(row))
+    operations::has_all_flags(reader, row, &op, constants, |r, row, _col| r.get_flags(row))
 }
 
-#[allow(
-    clippy::trivially_copy_pass_by_ref,
-    reason = "dispatch table signature requires &Operation"
-)]
 fn handle_has_any_flags(
     reader: &TestReader,
     row: Row,
-    op: &Operation,
+    op: Operation,
     constants: &[Constant],
 ) -> RequirementResult<bool> {
     let flags =
@@ -139,31 +127,23 @@ fn handle_has_any_flags(
     Ok((flags & test) != 0)
 }
 
-#[allow(
-    clippy::trivially_copy_pass_by_ref,
-    reason = "dispatch table signature requires &Operation"
-)]
 fn handle_always_true(
     _reader: &TestReader,
     _row: Row,
-    op: &Operation,
+    op: Operation,
     constants: &[Constant],
 ) -> RequirementResult<bool> {
-    require_constant(*op, constants)?;
+    require_constant(op, constants)?;
     Ok(true)
 }
 
-#[allow(
-    clippy::trivially_copy_pass_by_ref,
-    reason = "dispatch table signature requires &Operation"
-)]
 fn handle_always_false(
     _reader: &TestReader,
     _row: Row,
-    op: &Operation,
+    op: Operation,
     constants: &[Constant],
 ) -> RequirementResult<bool> {
-    require_constant(*op, constants)?;
+    require_constant(op, constants)?;
     Ok(false)
 }
 
@@ -172,7 +152,7 @@ fn handle_always_false(
 // ============================================================================
 
 /// Function pointer signature for executor dispatch handlers.
-type DispatchHandler = fn(&TestReader, Row, &Operation, &[Constant]) -> RequirementResult<bool>;
+type DispatchHandler = fn(&TestReader, Row, Operation, &[Constant]) -> RequirementResult<bool>;
 
 /// Returns the opcode table index for a known opcode variant.
 const fn opcode_index(opcode: OpCode) -> usize {
@@ -197,30 +177,17 @@ const fn opcode_index(opcode: OpCode) -> usize {
     }
 }
 
-static TEST_DISPATCH_TABLE: [DispatchHandler; 256] = {
-    let mut table: [DispatchHandler; 256] = [noop_handler; 256];
-    table[opcode_index(OpCode::FloatGte)] = handle_float_gte;
-    table[opcode_index(OpCode::FloatLte)] = handle_float_lte;
-    table[opcode_index(OpCode::HasAllFlags)] = handle_has_all_flags;
-    table[opcode_index(OpCode::HasAnyFlags)] = handle_has_any_flags;
+static TEST_DISPATCH_TABLE: [Option<DispatchHandler>; 256] = {
+    let mut table: [Option<DispatchHandler>; 256] = [None; 256];
+    table[opcode_index(OpCode::FloatGte)] = Some(handle_float_gte);
+    table[opcode_index(OpCode::FloatLte)] = Some(handle_float_lte);
+    table[opcode_index(OpCode::HasAllFlags)] = Some(handle_has_all_flags);
+    table[opcode_index(OpCode::HasAnyFlags)] = Some(handle_has_any_flags);
     // Custom opcodes for testing
-    table[100] = handle_always_true;
-    table[101] = handle_always_false;
+    table[100] = Some(handle_always_true);
+    table[101] = Some(handle_always_false);
     table
 };
-
-#[allow(
-    clippy::trivially_copy_pass_by_ref,
-    reason = "dispatch table signature requires &Operation"
-)]
-fn noop_handler(
-    _reader: &TestReader,
-    _row: Row,
-    _op: &Operation,
-    _constants: &[Constant],
-) -> RequirementResult<bool> {
-    Err(RequirementError::predicate_error("Unsupported opcode"))
-}
 
 // ============================================================================
 // SECTION: PlanExecutor Creation Tests

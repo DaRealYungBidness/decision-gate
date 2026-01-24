@@ -77,7 +77,7 @@ fn parses_nested_boolean_expression() -> TestResult {
         Requirement::predicate(1),
         Requirement::or(vec![
             Requirement::predicate(2),
-            Requirement::not(Requirement::predicate(3)),
+            Requirement::negate(Requirement::predicate(3)),
         ]),
     ]);
 
@@ -94,7 +94,7 @@ fn respects_operator_precedence() -> TestResult {
 
     let expected = Requirement::or(vec![
         Requirement::and(vec![Requirement::predicate(1), Requirement::predicate(2)]),
-        Requirement::not(Requirement::predicate(3)),
+        Requirement::negate(Requirement::predicate(3)),
     ]);
 
     ensure(req == expected, "Expected operator precedence to match infix rules")?;

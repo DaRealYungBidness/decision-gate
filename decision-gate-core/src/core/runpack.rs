@@ -20,8 +20,10 @@ use serde::Serialize;
 
 use crate::core::hashing::HashAlgorithm;
 use crate::core::hashing::HashDigest;
+use crate::core::identifiers::NamespaceId;
 use crate::core::identifiers::RunId;
 use crate::core::identifiers::ScenarioId;
+use crate::core::identifiers::TenantId;
 use crate::core::time::Timestamp;
 
 // ============================================================================
@@ -52,6 +54,10 @@ pub struct RunpackManifest {
     pub generated_at: Timestamp,
     /// Scenario identifier.
     pub scenario_id: ScenarioId,
+    /// Tenant identifier.
+    pub tenant_id: TenantId,
+    /// Namespace identifier.
+    pub namespace_id: NamespaceId,
     /// Run identifier.
     pub run_id: RunId,
     /// Hash of the scenario specification.

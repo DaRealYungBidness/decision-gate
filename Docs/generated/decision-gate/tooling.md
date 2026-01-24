@@ -30,6 +30,12 @@ This document summarizes the MCP tool surface and expected usage. Full schemas a
 | evidence_query | Query an evidence provider with full run context and disclosure policy. |
 | runpack_export | Export deterministic runpack artifacts for offline verification. |
 | runpack_verify | Verify a runpack manifest and artifacts offline. |
+| providers_list | List registered evidence providers and capabilities summary. |
+| schemas_register | Register a data shape schema for a tenant and namespace. |
+| schemas_list | List registered data shapes for a tenant and namespace. |
+| schemas_get | Fetch a specific data shape by identifier and version. |
+| scenarios_list | List registered scenarios for a tenant and namespace. |
+| precheck | Evaluate a scenario against asserted data without mutating state. |
 
 ## scenario_define
 
@@ -60,6 +66,7 @@ Input:
 {
   "spec": {
     "default_tenant_id": null,
+    "namespace_id": "default",
     "policies": [],
     "predicates": [
       {
@@ -165,6 +172,7 @@ Create a new run state for a scenario and optionally emit entry packets.
 - `decisions` (required): Type: array.
 - `dispatch_targets` (required): Type: array.
 - `gate_evals` (required): Type: array.
+- `namespace_id` (required): Namespace identifier.
 - `packets` (required): Type: array.
 - `run_id` (required): Run identifier.
 - `scenario_id` (required): Scenario identifier.
@@ -198,6 +206,7 @@ Input:
         "kind": "agent"
       }
     ],
+    "namespace_id": "default",
     "policy_tags": [],
     "run_id": "run-0001",
     "scenario_id": "example-scenario",
@@ -222,6 +231,7 @@ Output:
     }
   ],
   "gate_evals": [],
+  "namespace_id": "namespace-001",
   "packets": [],
   "run_id": "run-0001",
   "scenario_id": "example-scenario",
@@ -254,6 +264,7 @@ Fetch a read-only run snapshot and safe summary without changing state.
 - `current_stage_id` (required): Current stage identifier.
 - `issued_packet_ids` (required): Type: array.
 - `last_decision` (required, nullable): One of: null, object.
+- `namespace_id` (optional): Namespace identifier.
 - `run_id` (required): Run identifier.
 - `safe_summary` (required, nullable): One of: null, object.
 - `scenario_id` (required): Scenario identifier.
@@ -274,11 +285,13 @@ Input:
 {
   "request": {
     "correlation_id": null,
+    "namespace_id": "namespace-001",
     "requested_at": {
       "kind": "unix_millis",
       "value": 1710000000000
     },
-    "run_id": "run-0001"
+    "run_id": "run-0001",
+    "tenant_id": "tenant-001"
   },
   "scenario_id": "example-scenario"
 }
@@ -326,7 +339,9 @@ Input:
   "request": {
     "agent_id": "agent-alpha",
     "correlation_id": null,
+    "namespace_id": "namespace-001",
     "run_id": "run-0001",
+    "tenant_id": "tenant-001",
     "time": {
       "kind": "unix_millis",
       "value": 1710000000000
@@ -387,6 +402,7 @@ Input:
   "request": {
     "content_type": "application/json",
     "correlation_id": null,
+    "namespace_id": "namespace-001",
     "payload": {
       "kind": "json",
       "value": {
@@ -399,7 +415,8 @@ Input:
     "submitted_at": {
       "kind": "unix_millis",
       "value": 1710000000000
-    }
+    },
+    "tenant_id": "tenant-001"
   },
   "scenario_id": "example-scenario"
 }
@@ -462,9 +479,11 @@ Input:
   "trigger": {
     "correlation_id": null,
     "kind": "tick",
+    "namespace_id": "namespace-001",
     "payload": null,
     "run_id": "run-0001",
     "source_id": "scheduler-01",
+    "tenant_id": "tenant-001",
     "time": {
       "kind": "unix_millis",
       "value": 1710000000000
@@ -523,6 +542,7 @@ Input:
 {
   "context": {
     "correlation_id": null,
+    "namespace_id": "namespace-001",
     "run_id": "run-0001",
     "scenario_id": "example-scenario",
     "stage_id": "main",
@@ -556,6 +576,7 @@ Output:
       "value": "5c3a5b6bce0f4a2c9e22c4fa6a1e6d8d90b0f2dfed1b7f1e9b3d3b3d1f0c9b21"
     },
     "evidence_ref": null,
+    "lane": "verified",
     "signature": null,
     "value": {
       "kind": "json",
@@ -573,9 +594,11 @@ Export deterministic runpack artifacts for offline verification.
 - `generated_at` (required): Timestamp recorded in the manifest.
 - `include_verification` (required): Generate a verification report artifact.
 - `manifest_name` (optional, nullable): Optional override for the manifest file name.
+- `namespace_id` (required): Namespace identifier.
 - `output_dir` (required): Output directory path.
 - `run_id` (required): Run identifier.
 - `scenario_id` (required): Scenario identifier.
+- `tenant_id` (required): Tenant identifier.
 
 ### Outputs
 
@@ -601,9 +624,11 @@ Input:
   },
   "include_verification": false,
   "manifest_name": "manifest.json",
+  "namespace_id": "namespace-001",
   "output_dir": "/var/lib/decision-gate/runpacks/run-0001",
   "run_id": "run-0001",
-  "scenario_id": "example-scenario"
+  "scenario_id": "example-scenario",
+  "tenant_id": "tenant-001"
 }
 ```
 Output:
@@ -644,12 +669,14 @@ Output:
       }
     },
     "manifest_version": "v1",
+    "namespace_id": "namespace-001",
     "run_id": "run-0001",
     "scenario_id": "example-scenario",
     "spec_hash": {
       "algorithm": "sha256",
       "value": "5c3a5b6bce0f4a2c9e22c4fa6a1e6d8d90b0f2dfed1b7f1e9b3d3b3d1f0c9b21"
     },
+    "tenant_id": "tenant-001",
     "verifier_mode": "offline_strict"
   },
   "report": null
@@ -695,5 +722,358 @@ Output:
     "status": "pass"
   },
   "status": "pass"
+}
+```
+## providers_list
+
+List registered evidence providers and capabilities summary.
+
+### Inputs
+
+
+### Outputs
+
+- `providers` (required): Type: array.
+
+### Notes
+
+- Returns provider identifiers and transport metadata.
+- Results are scoped by auth policy.
+
+### Example
+
+List registered evidence providers.
+
+Input:
+```json
+{}
+```
+Output:
+```json
+{
+  "providers": [
+    {
+      "predicates": [
+        "get"
+      ],
+      "provider_id": "env",
+      "transport": "builtin"
+    }
+  ]
+}
+```
+## schemas_register
+
+Register a data shape schema for a tenant and namespace.
+
+### Inputs
+
+- `record` (required): Type: object.
+
+### Outputs
+
+- `record` (required): Type: object.
+
+### Notes
+
+- Schemas are immutable; registering the same version twice fails.
+- Provide created_at to record when the schema was authored.
+
+### Example
+
+Register a data shape schema.
+
+Input:
+```json
+{
+  "record": {
+    "created_at": {
+      "kind": "unix_millis",
+      "value": 1710000000000
+    },
+    "description": "Asserted payload schema.",
+    "namespace_id": "namespace-001",
+    "schema": {
+      "additionalProperties": false,
+      "properties": {
+        "deploy_env": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "deploy_env"
+      ],
+      "type": "object"
+    },
+    "schema_id": "asserted_payload",
+    "tenant_id": "tenant-001",
+    "version": "v1"
+  }
+}
+```
+Output:
+```json
+{
+  "record": {
+    "created_at": {
+      "kind": "unix_millis",
+      "value": 1710000000000
+    },
+    "description": "Asserted payload schema.",
+    "namespace_id": "namespace-001",
+    "schema": {
+      "additionalProperties": false,
+      "properties": {
+        "deploy_env": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "deploy_env"
+      ],
+      "type": "object"
+    },
+    "schema_id": "asserted_payload",
+    "tenant_id": "tenant-001",
+    "version": "v1"
+  }
+}
+```
+## schemas_list
+
+List registered data shapes for a tenant and namespace.
+
+### Inputs
+
+- `cursor` (optional, nullable): One of: null, string.
+- `limit` (optional): Maximum number of records to return.
+- `namespace_id` (required): Namespace identifier.
+- `tenant_id` (required): Tenant identifier.
+
+### Outputs
+
+- `items` (required): Type: array.
+- `next_token` (required, nullable): One of: null, string.
+
+### Notes
+
+- Requires tenant_id and namespace_id.
+- Supports pagination via cursor + limit.
+
+### Example
+
+List data shapes for a namespace.
+
+Input:
+```json
+{
+  "cursor": null,
+  "limit": 50,
+  "namespace_id": "namespace-001",
+  "tenant_id": "tenant-001"
+}
+```
+Output:
+```json
+{
+  "items": [
+    {
+      "created_at": {
+        "kind": "unix_millis",
+        "value": 1710000000000
+      },
+      "description": "Asserted payload schema.",
+      "namespace_id": "namespace-001",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "deploy_env": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "deploy_env"
+        ],
+        "type": "object"
+      },
+      "schema_id": "asserted_payload",
+      "tenant_id": "tenant-001",
+      "version": "v1"
+    }
+  ],
+  "next_token": null
+}
+```
+## schemas_get
+
+Fetch a specific data shape by identifier and version.
+
+### Inputs
+
+- `namespace_id` (required): Namespace identifier.
+- `schema_id` (required): Data shape identifier.
+- `tenant_id` (required): Tenant identifier.
+- `version` (required): Data shape version identifier.
+
+### Outputs
+
+- `record` (required): Type: object.
+
+### Notes
+
+- Requires tenant_id, namespace_id, schema_id, and version.
+- Fails closed when schema is missing.
+
+### Example
+
+Fetch a data shape by identifier and version.
+
+Input:
+```json
+{
+  "namespace_id": "namespace-001",
+  "schema_id": "asserted_payload",
+  "tenant_id": "tenant-001",
+  "version": "v1"
+}
+```
+Output:
+```json
+{
+  "record": {
+    "created_at": {
+      "kind": "unix_millis",
+      "value": 1710000000000
+    },
+    "description": "Asserted payload schema.",
+    "namespace_id": "namespace-001",
+    "schema": {
+      "additionalProperties": false,
+      "properties": {
+        "deploy_env": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "deploy_env"
+      ],
+      "type": "object"
+    },
+    "schema_id": "asserted_payload",
+    "tenant_id": "tenant-001",
+    "version": "v1"
+  }
+}
+```
+## scenarios_list
+
+List registered scenarios for a tenant and namespace.
+
+### Inputs
+
+- `cursor` (optional, nullable): One of: null, string.
+- `limit` (optional): Maximum number of records to return.
+- `namespace_id` (required): Namespace identifier.
+- `tenant_id` (required): Tenant identifier.
+
+### Outputs
+
+- `items` (required): Type: array.
+- `next_token` (required, nullable): One of: null, string.
+
+### Notes
+
+- Requires tenant_id and namespace_id.
+- Returns scenario identifiers and hashes.
+
+### Example
+
+List scenarios for a namespace.
+
+Input:
+```json
+{
+  "cursor": null,
+  "limit": 50,
+  "namespace_id": "namespace-001",
+  "tenant_id": "tenant-001"
+}
+```
+Output:
+```json
+{
+  "items": [
+    {
+      "namespace_id": "namespace-001",
+      "scenario_id": "example-scenario",
+      "spec_hash": {
+        "algorithm": "sha256",
+        "value": "5c3a5b6bce0f4a2c9e22c4fa6a1e6d8d90b0f2dfed1b7f1e9b3d3b3d1f0c9b21"
+      }
+    }
+  ],
+  "next_token": null
+}
+```
+## precheck
+
+Evaluate a scenario against asserted data without mutating state.
+
+### Inputs
+
+- `data_shape` (required): Type: object.
+- `namespace_id` (required): Namespace identifier.
+- `payload` (required): Asserted data payload.
+- `scenario_id` (optional, nullable): One of: null, string.
+- `spec` (optional, nullable): One of: null, ref decision-gate://contract/schemas/scenario.schema.json.
+- `stage_id` (optional, nullable): One of: null, string.
+- `tenant_id` (required): Tenant identifier.
+
+### Outputs
+
+- `decision` (required): One of: object, object, object, object, object.
+- `gate_evaluations` (required): Type: array.
+
+### Notes
+
+- Validates asserted data against a registered shape.
+- Does not mutate run state; intended for simulation.
+
+### Example
+
+Precheck a scenario with asserted data.
+
+Input:
+```json
+{
+  "data_shape": {
+    "schema_id": "asserted_payload",
+    "version": "v1"
+  },
+  "namespace_id": "namespace-001",
+  "payload": {
+    "deploy_env": "production"
+  },
+  "scenario_id": "example-scenario",
+  "spec": null,
+  "stage_id": null,
+  "tenant_id": "tenant-001"
+}
+```
+Output:
+```json
+{
+  "decision": {
+    "kind": "hold",
+    "summary": {
+      "policy_tags": [],
+      "retry_hint": "await_evidence",
+      "status": "hold",
+      "unmet_gates": [
+        "ready"
+      ]
+    }
+  },
+  "gate_evaluations": []
 }
 ```

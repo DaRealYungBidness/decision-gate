@@ -15,6 +15,8 @@ Dependencies:
 This folder contains templates for building MCP evidence providers that
 implement the `evidence_query` tool used by Decision Gate. Each template
 handles JSON-RPC 2.0 framing, tool dispatch, and EvidenceResult responses.
+Providers should also publish a capabilities contract (JSON) that Decision Gate
+loads via `capabilities_path` in the MCP config.
 
 ## Layout
 - `spec/` - Protocol reference for the `evidence_query` tool contract.
@@ -25,7 +27,7 @@ handles JSON-RPC 2.0 framing, tool dispatch, and EvidenceResult responses.
 ## Getting Started
 1. Choose the language template.
 2. Replace the `handleEvidenceQuery` implementation with real provider logic.
-3. Run the provider over stdio or wrap it behind an HTTP handler.
+3. Emit a provider capabilities file describing predicates and params.
+4. Run the provider over stdio or wrap it behind an HTTP handler.
 
 For protocol details, see `decision-gate-provider-sdk/spec/evidence_provider_protocol.md`.
-

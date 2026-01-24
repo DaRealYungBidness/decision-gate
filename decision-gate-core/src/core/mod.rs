@@ -15,6 +15,7 @@
 // SECTION: Submodules
 // ============================================================================
 
+pub mod data_shape;
 pub mod disclosure;
 pub mod evidence;
 pub mod hashing;
@@ -29,6 +30,9 @@ pub mod time;
 // SECTION: Re-Exports
 // ============================================================================
 
+pub use data_shape::DataShapePage;
+pub use data_shape::DataShapeRecord;
+pub use data_shape::DataShapeRef;
 pub use disclosure::ContentRef;
 pub use disclosure::DispatchReceipt;
 pub use disclosure::DispatchTarget;
@@ -45,12 +49,17 @@ pub use evidence::EvidenceResult;
 pub use evidence::EvidenceSignature;
 pub use evidence::EvidenceValue;
 pub use evidence::ProviderMissingError;
+pub use evidence::TrustLane;
+pub use evidence::TrustRequirement;
 pub use hashing::DEFAULT_HASH_ALGORITHM;
 pub use hashing::HashAlgorithm;
 pub use hashing::HashDigest;
 pub use identifiers::CorrelationId;
+pub use identifiers::DataShapeId;
+pub use identifiers::DataShapeVersion;
 pub use identifiers::DecisionId;
 pub use identifiers::GateId;
+pub use identifiers::NamespaceId;
 pub use identifiers::PacketId;
 pub use identifiers::PolicyId;
 pub use identifiers::PredicateKey;

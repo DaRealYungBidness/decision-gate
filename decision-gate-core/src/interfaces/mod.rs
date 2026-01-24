@@ -20,6 +20,10 @@ use serde::Serialize;
 use thiserror::Error;
 
 use crate::core::ArtifactKind;
+use crate::core::DataShapeId;
+use crate::core::DataShapePage;
+use crate::core::DataShapeRecord;
+use crate::core::DataShapeVersion;
 use crate::core::RunState;
 use crate::core::ScenarioSpec;
 use crate::core::TriggerEvent;
@@ -31,6 +35,7 @@ use crate::core::evidence::EvidenceQuery;
 use crate::core::evidence::EvidenceResult;
 use crate::core::evidence::ProviderMissingError;
 use crate::core::identifiers::CorrelationId;
+use crate::core::identifiers::NamespaceId;
 use crate::core::identifiers::RunId;
 use crate::core::identifiers::ScenarioId;
 use crate::core::identifiers::StageId;
@@ -48,6 +53,8 @@ use crate::core::time::Timestamp;
 pub struct EvidenceContext {
     /// Tenant identifier.
     pub tenant_id: TenantId,
+    /// Namespace identifier.
+    pub namespace_id: NamespaceId,
     /// Run identifier.
     pub run_id: RunId,
     /// Scenario identifier.
@@ -224,12 +231,17 @@ pub enum StoreError {
 
 /// Run state store for persistence.
 pub trait RunStateStore {
-    /// Loads run state by run identifier.
+    /// Loads run state by tenant, namespace, and run identifier.
     ///
     /// # Errors
     ///
     /// Returns [`StoreError`] when loading fails.
-    fn load(&self, run_id: &RunId) -> Result<Option<RunState>, StoreError>;
+    fn load(
+        &self,
+        tenant_id: &TenantId,
+        namespace_id: &NamespaceId,
+        run_id: &RunId,
+    ) -> Result<Option<RunState>, StoreError>;
 
     /// Saves run state.
     ///
@@ -237,6 +249,63 @@ pub trait RunStateStore {
     ///
     /// Returns [`StoreError`] when saving fails.
     fn save(&self, state: &RunState) -> Result<(), StoreError>;
+}
+
+// ============================================================================
+// SECTION: Data Shape Registry
+// ============================================================================
+
+/// Registry errors for data shape operations.
+#[derive(Debug, Error)]
+pub enum DataShapeRegistryError {
+    /// Registry I/O error.
+    #[error("data shape registry io error: {0}")]
+    Io(String),
+    /// Registry invalid data error.
+    #[error("data shape registry invalid data: {0}")]
+    Invalid(String),
+    /// Registry conflict (duplicate schema).
+    #[error("data shape registry conflict: {0}")]
+    Conflict(String),
+    /// Registry access error.
+    #[error("data shape registry access error: {0}")]
+    Access(String),
+}
+
+/// Registry interface for data shapes.
+pub trait DataShapeRegistry {
+    /// Registers a new data shape record.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DataShapeRegistryError`] when registration fails.
+    fn register(&self, record: DataShapeRecord) -> Result<(), DataShapeRegistryError>;
+
+    /// Loads a data shape by identifier and version.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DataShapeRegistryError`] when lookup fails.
+    fn get(
+        &self,
+        tenant_id: &TenantId,
+        namespace_id: &NamespaceId,
+        schema_id: &DataShapeId,
+        version: &DataShapeVersion,
+    ) -> Result<Option<DataShapeRecord>, DataShapeRegistryError>;
+
+    /// Lists data shapes with pagination.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DataShapeRegistryError`] when listing fails.
+    fn list(
+        &self,
+        tenant_id: &TenantId,
+        namespace_id: &NamespaceId,
+        cursor: Option<String>,
+        limit: usize,
+    ) -> Result<DataShapePage, DataShapeRegistryError>;
 }
 
 // ============================================================================

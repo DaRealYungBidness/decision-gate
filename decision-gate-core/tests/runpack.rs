@@ -26,6 +26,7 @@ use decision_gate_core::Artifact;
 use decision_gate_core::ArtifactError;
 use decision_gate_core::ArtifactReader;
 use decision_gate_core::ArtifactSink;
+use decision_gate_core::NamespaceId;
 use decision_gate_core::RunId;
 use decision_gate_core::RunState;
 use decision_gate_core::RunStatus;
@@ -85,14 +86,16 @@ impl ArtifactSink for InMemoryArtifactStore {
 
 impl ArtifactReader for InMemoryArtifactStore {
     fn read_with_limit(&self, path: &str, max_bytes: usize) -> Result<Vec<u8>, ArtifactError> {
-        let guard = self
-            .files
-            .lock()
-            .map_err(|_| ArtifactError::Sink("artifact store mutex poisoned".to_string()))?;
-        let bytes = guard
-            .get(path)
-            .cloned()
-            .ok_or_else(|| ArtifactError::Sink("missing artifact".to_string()))?;
+        let bytes = {
+            let guard = self
+                .files
+                .lock()
+                .map_err(|_| ArtifactError::Sink("artifact store mutex poisoned".to_string()))?;
+            guard
+                .get(path)
+                .cloned()
+                .ok_or_else(|| ArtifactError::Sink("missing artifact".to_string()))?
+        };
         if bytes.len() > max_bytes {
             return Err(ArtifactError::TooLarge {
                 path: path.to_string(),
@@ -118,6 +121,7 @@ impl InMemoryArtifactStore {
 fn minimal_spec() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
+        namespace_id: NamespaceId::new("default"),
         spec_version: decision_gate_core::SpecVersion::new("1"),
         stages: vec![decision_gate_core::StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -146,6 +150,7 @@ fn test_runpack_build_and_verify() {
 
     let state = RunState {
         tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         run_id: RunId::new("run-1"),
         scenario_id: ScenarioId::new("scenario"),
         spec_hash,
@@ -180,6 +185,7 @@ fn runpack_verifier_rejects_oversized_artifact() {
 
     let state = RunState {
         tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         run_id: RunId::new("run-1"),
         scenario_id: ScenarioId::new("scenario"),
         spec_hash,

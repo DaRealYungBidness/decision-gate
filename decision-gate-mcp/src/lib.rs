@@ -25,23 +25,6 @@ pub mod server;
 pub mod telemetry;
 pub mod tools;
 
-#[cfg(test)]
-mod tests {
-    //! Test-only lint relaxations for panic-based assertions and debug output.
-    #![allow(
-        clippy::panic,
-        clippy::print_stdout,
-        clippy::print_stderr,
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::use_debug,
-        clippy::dbg_macro,
-        clippy::panic_in_result_fn,
-        clippy::unwrap_in_result,
-        reason = "Test-only output and panic-based assertions are permitted."
-    )]
-}
-
 // ============================================================================
 // SECTION: Re-Exports
 // ============================================================================
@@ -58,6 +41,7 @@ pub use auth::NoopAuditSink;
 pub use auth::RequestContext;
 pub use auth::ToolAuthz;
 pub use config::DecisionGateConfig;
+pub use config::SchemaRegistryConfig;
 pub use evidence::FederatedEvidenceProvider;
 pub use evidence::ProviderClientConfig;
 pub use runpack::FileArtifactReader;
@@ -70,3 +54,20 @@ pub use telemetry::McpMetrics;
 pub use telemetry::McpOutcome;
 pub use telemetry::NoopMetrics;
 pub use tools::ToolRouter;
+
+#[cfg(test)]
+mod tests {
+    //! Test-only lint relaxations for panic-based assertions and debug output.
+    #![allow(
+        clippy::panic,
+        clippy::print_stdout,
+        clippy::print_stderr,
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::use_debug,
+        clippy::dbg_macro,
+        clippy::panic_in_result_fn,
+        clippy::unwrap_in_result,
+        reason = "Test-only output and panic-based assertions are permitted."
+    )]
+}

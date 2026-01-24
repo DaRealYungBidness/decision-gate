@@ -4,6 +4,7 @@ max_body_bytes = 1048576
 
 [trust]
 default_policy = "audit"
+min_lane = "verified"
 
 [evidence]
 allow_raw_values = false

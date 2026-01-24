@@ -6,12 +6,14 @@
 // Dependencies: system-tests, serde, serde_jcs
 // ============================================================================
 
+use std::fmt::Write;
 use std::fs;
 use std::io;
 use std::path::Path;
 use std::path::PathBuf;
-use std::time::SystemTime;
-use std::time::UNIX_EPOCH;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
+use std::time::Instant;
 
 use serde::Serialize;
 use serde_jcs;
@@ -28,13 +30,10 @@ struct TestSummary {
     artifacts: Vec<String>,
 }
 
-fn now_millis() -> u128 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis()
-}
-
 fn default_run_root(test_name: &str) -> PathBuf {
-    let stamp = now_millis();
-    PathBuf::from("target/system-tests").join(format!("run_{stamp}")).join(test_name)
+    static RUN_COUNTER: AtomicU64 = AtomicU64::new(1);
+    let run_id = RUN_COUNTER.fetch_add(1, Ordering::Relaxed);
+    PathBuf::from("target/system-tests").join(format!("run_{run_id}")).join(test_name)
 }
 
 /// Artifact manager for a single system-test.
@@ -46,8 +45,7 @@ pub struct TestArtifacts {
 impl TestArtifacts {
     /// Creates the artifact root for a test.
     pub fn new(test_name: &str) -> io::Result<Self> {
-        let config =
-            SystemTestConfig::load().map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+        let config = SystemTestConfig::load().map_err(io::Error::other)?;
         let root = config.run_root.unwrap_or_else(|| default_run_root(test_name));
         fs::create_dir_all(&root)?;
         Ok(Self {
@@ -68,8 +66,7 @@ impl TestArtifacts {
     /// Writes a JSON artifact using canonical JCS serialization.
     pub fn write_json<T: Serialize>(&self, name: &str, value: &T) -> io::Result<PathBuf> {
         let path = self.root.join(name);
-        let bytes = serde_jcs::to_vec(value)
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))?;
+        let bytes = serde_jcs::to_vec(value).map_err(|err| io::Error::other(err.to_string()))?;
         fs::write(&path, bytes)?;
         Ok(path)
     }
@@ -86,7 +83,7 @@ impl TestArtifacts {
 pub struct TestReporter {
     artifacts: TestArtifacts,
     test_name: String,
-    started_at_ms: u128,
+    started_at: Instant,
     finalized: bool,
 }
 
@@ -96,13 +93,13 @@ impl TestReporter {
         Ok(Self {
             artifacts: TestArtifacts::new(test_name)?,
             test_name: test_name.to_string(),
-            started_at_ms: now_millis(),
+            started_at: Instant::now(),
             finalized: false,
         })
     }
 
     /// Returns the artifact manager.
-    pub fn artifacts(&self) -> &TestArtifacts {
+    pub const fn artifacts(&self) -> &TestArtifacts {
         &self.artifacts
     }
 
@@ -113,13 +110,13 @@ impl TestReporter {
         notes: Vec<String>,
         artifacts: Vec<String>,
     ) -> io::Result<()> {
-        let ended_at_ms = now_millis();
+        let ended_at_ms = self.started_at.elapsed().as_millis();
         let summary = TestSummary {
             test_name: self.test_name.clone(),
             status: status.to_string(),
-            started_at_ms: self.started_at_ms,
+            started_at_ms: 0,
             ended_at_ms,
-            duration_ms: ended_at_ms.saturating_sub(self.started_at_ms),
+            duration_ms: ended_at_ms,
             notes,
             artifacts,
         };
@@ -148,15 +145,15 @@ fn summary_markdown(summary: &TestSummary) -> String {
     let mut out = String::new();
     out.push_str("# System-Test Summary\n\n");
     out.push_str("## Status\n\n");
-    out.push_str(&format!("- Test: {}\n", summary.test_name));
-    out.push_str(&format!("- Status: {}\n", summary.status));
-    out.push_str(&format!("- Duration (ms): {}\n", summary.duration_ms));
+    let _ = writeln!(out, "- Test: {}", summary.test_name);
+    let _ = writeln!(out, "- Status: {}", summary.status);
+    let _ = writeln!(out, "- Duration (ms): {}", summary.duration_ms);
     out.push_str("\n## Notes\n\n");
     if summary.notes.is_empty() {
         out.push_str("- None\n");
     } else {
         for note in &summary.notes {
-            out.push_str(&format!("- {}\n", note));
+            let _ = writeln!(out, "- {note}");
         }
     }
     out.push_str("\n## Artifacts\n\n");
@@ -164,7 +161,7 @@ fn summary_markdown(summary: &TestSummary) -> String {
         out.push_str("- None\n");
     } else {
         for artifact in &summary.artifacts {
-            out.push_str(&format!("- {}\n", artifact));
+            let _ = writeln!(out, "- {artifact}");
         }
     }
     out

@@ -113,6 +113,18 @@ pub enum ToolName {
     RunpackExport,
     /// Verify runpack artifacts offline.
     RunpackVerify,
+    /// List registered evidence providers.
+    ProvidersList,
+    /// List registered data shapes.
+    SchemasList,
+    /// Register a data shape schema.
+    SchemasRegister,
+    /// Fetch a data shape schema.
+    SchemasGet,
+    /// List registered scenarios.
+    ScenariosList,
+    /// Precheck a scenario with asserted data.
+    Precheck,
 }
 
 impl ToolName {
@@ -129,6 +141,12 @@ impl ToolName {
             Self::EvidenceQuery => "evidence_query",
             Self::RunpackExport => "runpack_export",
             Self::RunpackVerify => "runpack_verify",
+            Self::ProvidersList => "providers_list",
+            Self::SchemasList => "schemas_list",
+            Self::SchemasRegister => "schemas_register",
+            Self::SchemasGet => "schemas_get",
+            Self::ScenariosList => "scenarios_list",
+            Self::Precheck => "precheck",
         }
     }
 
@@ -145,6 +163,12 @@ impl ToolName {
             Self::EvidenceQuery,
             Self::RunpackExport,
             Self::RunpackVerify,
+            Self::ProvidersList,
+            Self::SchemasList,
+            Self::SchemasRegister,
+            Self::SchemasGet,
+            Self::ScenariosList,
+            Self::Precheck,
         ]
     }
 
@@ -161,6 +185,12 @@ impl ToolName {
             "evidence_query" => Some(Self::EvidenceQuery),
             "runpack_export" => Some(Self::RunpackExport),
             "runpack_verify" => Some(Self::RunpackVerify),
+            "providers_list" => Some(Self::ProvidersList),
+            "schemas_list" => Some(Self::SchemasList),
+            "schemas_register" => Some(Self::SchemasRegister),
+            "schemas_get" => Some(Self::SchemasGet),
+            "scenarios_list" => Some(Self::ScenariosList),
+            "precheck" => Some(Self::Precheck),
             _ => None,
         }
     }

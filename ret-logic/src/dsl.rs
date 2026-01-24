@@ -496,7 +496,7 @@ where
     fn parse_unary(&mut self) -> Result<Requirement<P>, DslError> {
         if self.matches(Token::Not) {
             let requirement = self.parse_unary()?;
-            return Ok(Requirement::not(requirement));
+            return Ok(Requirement::negate(requirement));
         }
         self.parse_primary()
     }
@@ -569,7 +569,7 @@ where
                         found: "0 arguments".to_string(),
                         position: name_pos,
                     })?;
-                Ok(Requirement::not(requirement))
+                Ok(Requirement::negate(requirement))
             }
             _ => {
                 let args = parser.parse_argument_list()?;

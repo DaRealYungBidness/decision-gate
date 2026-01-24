@@ -70,6 +70,60 @@ pub enum Comparator {
 }
 
 // ============================================================================
+// SECTION: Trust Lanes
+// ============================================================================
+
+/// Evidence trust lane classification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TrustLane {
+    /// Evidence was pulled from a provider (verified lane).
+    #[default]
+    Verified,
+    /// Evidence was asserted by a client (unverified lane).
+    Asserted,
+}
+
+impl TrustLane {
+    /// Returns true when this lane is at least as strict as the requirement.
+    #[must_use]
+    pub const fn satisfies(self, requirement: TrustRequirement) -> bool {
+        self.rank() >= requirement.min_lane.rank()
+    }
+
+    /// Returns the lane ordering (higher is stricter).
+    const fn rank(self) -> u8 {
+        match self {
+            Self::Asserted => 0,
+            Self::Verified => 1,
+        }
+    }
+}
+
+/// Trust requirement for evidence usage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TrustRequirement {
+    /// Minimum acceptable lane for evidence.
+    pub min_lane: TrustLane,
+}
+
+impl Default for TrustRequirement {
+    fn default() -> Self {
+        Self {
+            min_lane: TrustLane::Verified,
+        }
+    }
+}
+
+impl TrustRequirement {
+    /// Returns the stricter of two trust requirements.
+    #[must_use]
+    pub const fn stricter(self, other: Self) -> Self {
+        if self.min_lane.rank() >= other.min_lane.rank() { self } else { other }
+    }
+}
+
+// ============================================================================
 // SECTION: Evidence Values
 // ============================================================================
 
@@ -132,6 +186,9 @@ pub struct EvidenceProviderError {
 pub struct EvidenceResult {
     /// Evidence payload value, if available.
     pub value: Option<EvidenceValue>,
+    /// Trust lane classification for the evidence.
+    #[serde(default)]
+    pub lane: TrustLane,
     /// Canonical hash of the evidence payload.
     pub evidence_hash: Option<HashDigest>,
     /// Reference to the evidence artifact.

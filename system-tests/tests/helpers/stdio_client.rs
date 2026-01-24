@@ -123,11 +123,12 @@ impl StdioMcpClient {
         let json = parsed
             .content
             .into_iter()
-            .find_map(|item| match item {
+            .map(|item| match item {
                 ToolContent::Json {
                     json,
-                } => Some(json),
+                } => json,
             })
+            .next()
             .ok_or_else(|| format!("tool {name} returned no json content"))?;
         Ok(json)
     }
@@ -195,9 +196,8 @@ fn record_transcript(
     request: &JsonRpcRequest,
     response: &JsonRpcResponse,
 ) {
-    let mut guard = match transcript.lock() {
-        Ok(guard) => guard,
-        Err(_) => return,
+    let Ok(mut guard) = transcript.lock() else {
+        return;
     };
     let sequence = guard.len() as u64 + 1;
     guard.push(TranscriptEntry {

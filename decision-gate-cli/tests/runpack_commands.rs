@@ -34,6 +34,7 @@ use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
 use decision_gate_core::AdvanceTo;
+use decision_gate_core::NamespaceId;
 use decision_gate_core::RunId;
 use decision_gate_core::RunState;
 use decision_gate_core::RunStatus;
@@ -76,6 +77,7 @@ fn write_json(path: &Path, value: &impl serde::Serialize) {
 fn minimal_spec() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
+        namespace_id: NamespaceId::new("default"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -96,6 +98,7 @@ fn minimal_state(spec: &ScenarioSpec) -> RunState {
     let spec_hash = spec.canonical_hash_with(DEFAULT_HASH_ALGORITHM).expect("spec hash");
     RunState {
         tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         run_id: RunId::new("run-1"),
         scenario_id: ScenarioId::new("scenario"),
         spec_hash,

@@ -23,6 +23,7 @@ use decision_gate_core::DecisionOutcome;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::GateId;
 use decision_gate_core::GateSpec;
+use decision_gate_core::NamespaceId;
 use decision_gate_core::PredicateKey;
 use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
@@ -85,6 +86,8 @@ async fn provider_time_after() -> Result<(), Box<dyn std::error::Error>> {
         scenario_id: define_output.scenario_id.clone(),
         trigger: decision_gate_core::TriggerEvent {
             run_id: fixture.run_id.clone(),
+            tenant_id: fixture.tenant_id.clone(),
+            namespace_id: fixture.namespace_id.clone(),
             trigger_id: TriggerId::new("trigger-1"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
@@ -97,11 +100,9 @@ async fn provider_time_after() -> Result<(), Box<dyn std::error::Error>> {
     let trigger_result: TriggerResult =
         client.call_tool_typed("scenario_trigger", trigger_input).await?;
 
-    match trigger_result.decision.outcome {
-        DecisionOutcome::Complete {
-            ..
-        } => {}
-        other => panic!("unexpected decision outcome: {other:?}"),
+    let outcome = &trigger_result.decision.outcome;
+    if !matches!(outcome, DecisionOutcome::Complete { .. }) {
+        return Err(format!("unexpected decision outcome: {outcome:?}").into());
     }
 
     reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
@@ -134,6 +135,7 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
     let predicate_key = PredicateKey::new("echo");
     let spec = ScenarioSpec {
         scenario_id: scenario_id.clone(),
+        namespace_id: NamespaceId::new("default"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: stage_id.clone(),
@@ -141,6 +143,7 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-echo"),
                 requirement: ret_logic::Requirement::predicate(predicate_key.clone()),
+                trust: None,
             }],
             advance_to: AdvanceTo::Terminal,
             timeout: None,
@@ -156,6 +159,7 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
             comparator: Comparator::Equals,
             expected: Some(json!(true)),
             policy_tags: Vec::new(),
+            trust: None,
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
@@ -173,6 +177,7 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
         scenario_id: define_output.scenario_id.clone(),
         run_config: decision_gate_core::RunConfig {
             tenant_id: decision_gate_core::TenantId::new("tenant-1"),
+            namespace_id: NamespaceId::new("default"),
             run_id: decision_gate_core::RunId::new("run-1"),
             scenario_id: define_output.scenario_id.clone(),
             dispatch_targets: Vec::new(),
@@ -189,6 +194,8 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
         scenario_id: define_output.scenario_id,
         trigger: decision_gate_core::TriggerEvent {
             run_id: decision_gate_core::RunId::new("run-1"),
+            tenant_id: decision_gate_core::TenantId::new("tenant-1"),
+            namespace_id: NamespaceId::new("default"),
             trigger_id: TriggerId::new("trigger-1"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
@@ -201,11 +208,9 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
     let trigger_result: TriggerResult =
         client.call_tool_typed("scenario_trigger", trigger_input).await?;
 
-    match trigger_result.decision.outcome {
-        DecisionOutcome::Complete {
-            ..
-        } => {}
-        other => panic!("unexpected decision outcome: {other:?}"),
+    let outcome = &trigger_result.decision.outcome;
+    if !matches!(outcome, DecisionOutcome::Complete { .. }) {
+        return Err(format!("unexpected decision outcome: {outcome:?}").into());
     }
 
     reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
@@ -255,10 +260,12 @@ async fn federated_provider_timeout_enforced() -> Result<(), Box<dyn std::error:
         context: fixture.evidence_context("timeout-trigger", Timestamp::Logical(1)),
     };
     let input = serde_json::to_value(&request)?;
-    let result = client.call_tool("evidence_query", input).await;
-    assert!(result.is_err());
-    let error = result.unwrap_err();
-    assert!(error.contains("timed out"));
+    let Err(error) = client.call_tool("evidence_query", input).await else {
+        return Err("expected evidence_query to time out".into());
+    };
+    if !error.contains("timed out") {
+        return Err(format!("expected timeout error, got: {error}").into());
+    }
 
     reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
     reporter.finish(

@@ -29,6 +29,7 @@ use decision_gate_core::Comparator;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::GateId;
 use decision_gate_core::GateSpec;
+use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketId;
 use decision_gate_core::PacketSpec;
 use decision_gate_core::PredicateKey;
@@ -50,6 +51,7 @@ use serde_json::json;
 fn base_spec() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
+        namespace_id: NamespaceId::new("default"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -67,6 +69,7 @@ fn base_spec() -> ScenarioSpec {
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-1"),
                 requirement: ret_logic::Requirement::predicate(PredicateKey::from("ready")),
+                trust: None,
             }],
             advance_to: AdvanceTo::Terminal,
             timeout: None,
@@ -82,6 +85,7 @@ fn base_spec() -> ScenarioSpec {
             comparator: Comparator::Equals,
             expected: Some(json!(true)),
             policy_tags: Vec::new(),
+            trust: None,
         }],
         policies: Vec::new(),
         schemas: Vec::new(),

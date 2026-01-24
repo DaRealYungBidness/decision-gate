@@ -16,6 +16,7 @@
 // SECTION: Imports
 // ============================================================================
 
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::fs::File;
@@ -41,8 +42,11 @@ use axum::response::Sse;
 use axum::response::sse::Event;
 use axum::routing::post;
 use decision_gate_contract::ToolName;
+use decision_gate_core::InMemoryDataShapeRegistry;
 use decision_gate_core::InMemoryRunStateStore;
+use decision_gate_core::SharedDataShapeRegistry;
 use decision_gate_core::SharedRunStateStore;
+use decision_gate_core::TrustRequirement;
 use decision_gate_core::hashing::HashAlgorithm;
 use decision_gate_core::hashing::hash_bytes;
 use decision_gate_store_sqlite::SqliteRunStateStore;
@@ -71,8 +75,10 @@ use crate::auth::RequestContext;
 use crate::auth::StderrAuditSink;
 use crate::capabilities::CapabilityRegistry;
 use crate::config::DecisionGateConfig;
+use crate::config::ProviderType;
 use crate::config::RateLimitConfig;
 use crate::config::RunStateStoreType;
+use crate::config::SchemaRegistryType;
 use crate::config::ServerAuditConfig;
 use crate::config::ServerAuthMode;
 use crate::config::ServerTlsConfig;
@@ -83,9 +89,12 @@ use crate::telemetry::McpMetricEvent;
 use crate::telemetry::McpMetrics;
 use crate::telemetry::McpOutcome;
 use crate::telemetry::NoopMetrics;
+use crate::tools::ProviderTransport;
+use crate::tools::SchemaRegistryLimits;
 use crate::tools::ToolDefinition;
 use crate::tools::ToolError;
 use crate::tools::ToolRouter;
+use crate::tools::ToolRouterConfig;
 
 // ============================================================================
 // SECTION: MCP Server
@@ -142,16 +151,26 @@ impl McpServer {
         let capabilities = CapabilityRegistry::from_config(&config)
             .map_err(|err| McpServerError::Init(err.to_string()))?;
         let store = build_run_state_store(&config)?;
+        let schema_registry = build_schema_registry(&config)?;
+        let provider_transports = build_provider_transports(&config);
+        let schema_registry_limits = build_schema_registry_limits(&config)?;
         let authz = Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
         let auth_audit = Arc::new(StderrAuditSink);
-        let router = ToolRouter::new(
+        let router = ToolRouter::new(ToolRouterConfig {
             evidence,
-            config.evidence.clone(),
+            evidence_policy: config.evidence.clone(),
+            dispatch_policy: config.policy.dispatch.clone(),
             store,
-            Arc::new(capabilities),
+            schema_registry,
+            provider_transports,
+            schema_registry_limits,
+            capabilities: Arc::new(capabilities),
             authz,
-            auth_audit,
-        );
+            audit: auth_audit,
+            trust_requirement: TrustRequirement {
+                min_lane: config.trust.min_lane,
+            },
+        });
         emit_local_only_warning(&config.server);
         Ok(Self {
             config,
@@ -208,6 +227,81 @@ fn build_run_state_store(
         }
     };
     Ok(store)
+}
+
+/// Builds the schema registry from MCP configuration.
+fn build_schema_registry(
+    config: &DecisionGateConfig,
+) -> Result<SharedDataShapeRegistry, McpServerError> {
+    let registry = match config.schema_registry.registry_type {
+        SchemaRegistryType::Memory => {
+            let max_entries = config
+                .schema_registry
+                .max_entries
+                .map(|value| {
+                    usize::try_from(value).map_err(|_| {
+                        McpServerError::Config(
+                            "schema_registry max_entries exceeds platform limits".to_string(),
+                        )
+                    })
+                })
+                .transpose()?;
+            SharedDataShapeRegistry::from_registry(InMemoryDataShapeRegistry::with_limits(
+                config.schema_registry.max_schema_bytes,
+                max_entries,
+            ))
+        }
+        SchemaRegistryType::Sqlite => {
+            let path = config.schema_registry.path.clone().ok_or_else(|| {
+                McpServerError::Config("sqlite schema_registry requires path".to_string())
+            })?;
+            let sqlite_config = SqliteStoreConfig {
+                path,
+                busy_timeout_ms: config.schema_registry.busy_timeout_ms,
+                journal_mode: config.schema_registry.journal_mode,
+                sync_mode: config.schema_registry.sync_mode,
+                max_versions: None,
+            };
+            let store = SqliteRunStateStore::new(sqlite_config)
+                .map_err(|err| McpServerError::Init(err.to_string()))?;
+            SharedDataShapeRegistry::from_registry(store)
+        }
+    };
+    Ok(registry)
+}
+
+/// Builds the provider transport map from configuration.
+fn build_provider_transports(config: &DecisionGateConfig) -> BTreeMap<String, ProviderTransport> {
+    let mut transports = BTreeMap::new();
+    for provider in &config.providers {
+        let transport = match provider.provider_type {
+            ProviderType::Builtin => ProviderTransport::Builtin,
+            ProviderType::Mcp => ProviderTransport::Mcp,
+        };
+        transports.insert(provider.name.clone(), transport);
+    }
+    transports
+}
+
+/// Builds schema registry limits from configuration.
+fn build_schema_registry_limits(
+    config: &DecisionGateConfig,
+) -> Result<SchemaRegistryLimits, McpServerError> {
+    let max_entries = config
+        .schema_registry
+        .max_entries
+        .map(|value| {
+            usize::try_from(value).map_err(|_| {
+                McpServerError::Config(
+                    "schema_registry max_entries exceeds platform limits".to_string(),
+                )
+            })
+        })
+        .transpose()?;
+    Ok(SchemaRegistryLimits {
+        max_schema_bytes: config.schema_registry.max_schema_bytes,
+        max_entries,
+    })
 }
 
 /// Builds an audit sink from server configuration.
@@ -653,7 +747,6 @@ struct McpRequestInfo {
 
 
 /// Dispatches a JSON-RPC request to the tool router.
-#[allow(clippy::too_many_lines, reason = "centralized JSON-RPC handling with validation")]
 fn handle_request(
     router: &ToolRouter,
     base_context: &RequestContext,
@@ -661,129 +754,152 @@ fn handle_request(
 ) -> (StatusCode, JsonRpcResponse, McpRequestInfo) {
     let context = base_context.clone();
     if request.jsonrpc != "2.0" {
-        let request_id = Some(request.id.to_string());
-        return (
-            StatusCode::BAD_REQUEST,
-            jsonrpc_error_response(
-                request.id,
-                -32600,
-                "invalid json-rpc version".to_string(),
-                request_id,
-                None,
-            ),
-            McpRequestInfo {
-                method: McpMethod::Invalid,
-                tool: None,
-            },
-        );
+        return invalid_version_response(&request);
     }
     match request.method.as_str() {
-        "tools/list" => {
+        "tools/list" => handle_tools_list(router, &context, request.id),
+        "tools/call" => handle_tools_call(router, &context, request.id, request.params),
+        _ => method_not_found_response(&request),
+    }
+}
+
+/// Builds the response for an invalid JSON-RPC version.
+fn invalid_version_response(
+    request: &JsonRpcRequest,
+) -> (StatusCode, JsonRpcResponse, McpRequestInfo) {
+    let request_id = Some(request.id.to_string());
+    (
+        StatusCode::BAD_REQUEST,
+        jsonrpc_error_response(
+            request.id.clone(),
+            -32600,
+            "invalid json-rpc version".to_string(),
+            request_id,
+            None,
+        ),
+        McpRequestInfo {
+            method: McpMethod::Invalid,
+            tool: None,
+        },
+    )
+}
+
+/// Builds the response for unknown JSON-RPC methods.
+fn method_not_found_response(
+    request: &JsonRpcRequest,
+) -> (StatusCode, JsonRpcResponse, McpRequestInfo) {
+    let request_id = Some(request.id.to_string());
+    (
+        StatusCode::BAD_REQUEST,
+        jsonrpc_error_response(
+            request.id.clone(),
+            -32601,
+            "method not found".to_string(),
+            request_id,
+            None,
+        ),
+        McpRequestInfo {
+            method: McpMethod::Other,
+            tool: None,
+        },
+    )
+}
+
+/// Handles `tools/list` requests and serializes the response.
+fn handle_tools_list(
+    router: &ToolRouter,
+    context: &RequestContext,
+    id: Value,
+) -> (StatusCode, JsonRpcResponse, McpRequestInfo) {
+    let info = McpRequestInfo {
+        method: McpMethod::ToolsList,
+        tool: None,
+    };
+    match router.list_tools(context) {
+        Ok(tools) => {
+            if let Ok(value) = serde_json::to_value(ToolListResult {
+                tools,
+            }) {
+                (
+                    StatusCode::OK,
+                    JsonRpcResponse {
+                        jsonrpc: "2.0",
+                        id,
+                        result: Some(value),
+                        error: None,
+                    },
+                    info,
+                )
+            } else {
+                let response = jsonrpc_error(id, ToolError::Serialization);
+                (response.0, response.1, info)
+            }
+        }
+        Err(err) => {
+            let response = jsonrpc_error(id, err);
+            (response.0, response.1, info)
+        }
+    }
+}
+
+/// Handles `tools/call` requests and serializes the response.
+fn handle_tools_call(
+    router: &ToolRouter,
+    context: &RequestContext,
+    id: Value,
+    params: Option<Value>,
+) -> (StatusCode, JsonRpcResponse, McpRequestInfo) {
+    let params = params.unwrap_or(Value::Null);
+    let call = serde_json::from_value::<ToolCallParams>(params);
+    match call {
+        Ok(call) => {
             let info = McpRequestInfo {
-                method: McpMethod::ToolsList,
-                tool: None,
+                method: McpMethod::ToolsCall,
+                tool: ToolName::parse(&call.name),
             };
-            match router.list_tools(&context) {
-                Ok(tools) => {
-                    if let Ok(value) = serde_json::to_value(ToolListResult {
-                        tools,
+            match call_tool_with_blocking(router, context, &call.name, call.arguments) {
+                Ok(result) => {
+                    if let Ok(value) = serde_json::to_value(ToolCallResult {
+                        content: vec![ToolContent::Json {
+                            json: result,
+                        }],
                     }) {
                         (
                             StatusCode::OK,
                             JsonRpcResponse {
                                 jsonrpc: "2.0",
-                                id: request.id,
+                                id,
                                 result: Some(value),
                                 error: None,
                             },
                             info,
                         )
                     } else {
-                        let response = jsonrpc_error(request.id, ToolError::Serialization);
+                        let response = jsonrpc_error(id, ToolError::Serialization);
                         (response.0, response.1, info)
                     }
                 }
                 Err(err) => {
-                    let response = jsonrpc_error(request.id, err);
+                    let response = jsonrpc_error(id, err);
                     (response.0, response.1, info)
                 }
             }
         }
-        "tools/call" => {
-            let id = request.id;
-            let params = request.params.unwrap_or(Value::Null);
-            let call = serde_json::from_value::<ToolCallParams>(params);
-            match call {
-                Ok(call) => {
-                    let info = McpRequestInfo {
-                        method: McpMethod::ToolsCall,
-                        tool: ToolName::parse(&call.name),
-                    };
-                    match call_tool_with_blocking(router, &context, &call.name, call.arguments) {
-                        Ok(result) => {
-                            if let Ok(value) = serde_json::to_value(ToolCallResult {
-                                content: vec![ToolContent::Json {
-                                    json: result,
-                                }],
-                            }) {
-                                (
-                                    StatusCode::OK,
-                                    JsonRpcResponse {
-                                        jsonrpc: "2.0",
-                                        id,
-                                        result: Some(value),
-                                        error: None,
-                                    },
-                                    info,
-                                )
-                            } else {
-                                let response = jsonrpc_error(id, ToolError::Serialization);
-                                (response.0, response.1, info)
-                            }
-                        }
-                        Err(err) => {
-                            let response = jsonrpc_error(id, err);
-                            (response.0, response.1, info)
-                        }
-                    }
-                }
-                Err(_) => (
-                    StatusCode::BAD_REQUEST,
-                    {
-                        let request_id = Some(id.to_string());
-                        jsonrpc_error_response(
-                            id,
-                            -32602,
-                            "invalid tool params".to_string(),
-                            request_id,
-                            None,
-                        )
-                    },
-                    McpRequestInfo {
-                        method: McpMethod::ToolsCall,
-                        tool: None,
-                    },
-                ),
-            }
-        }
-        _ => (
-            StatusCode::BAD_REQUEST,
-            {
-                let request_id = Some(request.id.to_string());
-                jsonrpc_error_response(
-                    request.id,
-                    -32601,
-                    "method not found".to_string(),
-                    request_id,
-                    None,
-                )
-            },
-            McpRequestInfo {
-                method: McpMethod::Other,
-                tool: None,
-            },
-        ),
+        Err(_) => invalid_tool_params_response(id),
     }
+}
+
+/// Builds the response for invalid tool call parameters.
+fn invalid_tool_params_response(id: Value) -> (StatusCode, JsonRpcResponse, McpRequestInfo) {
+    let request_id = Some(id.to_string());
+    (
+        StatusCode::BAD_REQUEST,
+        jsonrpc_error_response(id, -32602, "invalid tool params".to_string(), request_id, None),
+        McpRequestInfo {
+            method: McpMethod::ToolsCall,
+            tool: None,
+        },
+    )
 }
 
 /// Executes a tool call, shifting to a blocking context when available.
@@ -801,8 +917,48 @@ fn call_tool_with_blocking(
     }
 }
 
+/// Request size and timing metadata used for metrics.
+struct RequestTiming {
+    /// Request size in bytes.
+    request_bytes: usize,
+    /// Request start time.
+    started_at: Instant,
+}
+
+/// Records metrics/audit and returns a JSON-RPC error response.
+fn reject_request(
+    state: &ServerState,
+    context: &RequestContext,
+    status: StatusCode,
+    code: i64,
+    message: &str,
+    timing: &RequestTiming,
+    retry_after_ms: Option<u64>,
+) -> (StatusCode, JsonRpcResponse) {
+    let response = jsonrpc_error_response(
+        Value::Null,
+        code,
+        message.to_string(),
+        context.request_id.clone(),
+        retry_after_ms,
+    );
+    let info = McpRequestInfo {
+        method: McpMethod::Invalid,
+        tool: None,
+    };
+    record_metrics(
+        state,
+        context,
+        info,
+        &response,
+        timing.request_bytes,
+        timing.started_at.elapsed(),
+    );
+    record_audit(state, context, info, &response, timing.request_bytes);
+    (status, response)
+}
+
 /// Parses and validates a JSON-RPC request payload.
-#[allow(clippy::too_many_lines, reason = "centralized JSON-RPC validation path")]
 fn parse_request(
     state: &ServerState,
     context: &RequestContext,
@@ -810,24 +966,22 @@ fn parse_request(
 ) -> (StatusCode, JsonRpcResponse) {
     let started_at = Instant::now();
     let request_bytes = bytes.len();
-    let _permit = if let Ok(permit) = state.inflight.try_acquire() {
-        Some(permit)
-    } else {
-        let response = jsonrpc_error_response(
-            Value::Null,
+    let timing = RequestTiming {
+        request_bytes,
+        started_at,
+    };
+    let permit = state.inflight.try_acquire().ok();
+    if permit.is_none() {
+        return reject_request(
+            state,
+            context,
+            StatusCode::SERVICE_UNAVAILABLE,
             -32072,
-            "server overloaded".to_string(),
-            context.request_id.clone(),
+            "server overloaded",
+            &timing,
             None,
         );
-        let info = McpRequestInfo {
-            method: McpMethod::Invalid,
-            tool: None,
-        };
-        record_metrics(state, context, info, &response, request_bytes, started_at.elapsed());
-        record_audit(state, context, info, &response, request_bytes);
-        return (StatusCode::SERVICE_UNAVAILABLE, response);
-    };
+    }
 
     if let Some(rate_limiter) = &state.rate_limiter {
         match rate_limiter.check(&rate_limit_key(context)) {
@@ -835,99 +989,69 @@ fn parse_request(
             RateLimitDecision::Limited {
                 retry_after_ms,
             } => {
-                let response = jsonrpc_error_response(
-                    Value::Null,
+                return reject_request(
+                    state,
+                    context,
+                    StatusCode::TOO_MANY_REQUESTS,
                     -32071,
-                    "rate limit exceeded".to_string(),
-                    context.request_id.clone(),
+                    "rate limit exceeded",
+                    &timing,
                     Some(retry_after_ms),
                 );
-                let info = McpRequestInfo {
-                    method: McpMethod::Invalid,
-                    tool: None,
-                };
-                record_metrics(
-                    state,
-                    context,
-                    info,
-                    &response,
-                    request_bytes,
-                    started_at.elapsed(),
-                );
-                record_audit(state, context, info, &response, request_bytes);
-                return (StatusCode::TOO_MANY_REQUESTS, response);
             }
             RateLimitDecision::OverCapacity => {
-                let response = jsonrpc_error_response(
-                    Value::Null,
-                    -32072,
-                    "rate limiter overloaded".to_string(),
-                    context.request_id.clone(),
-                    None,
-                );
-                let info = McpRequestInfo {
-                    method: McpMethod::Invalid,
-                    tool: None,
-                };
-                record_metrics(
+                return reject_request(
                     state,
                     context,
-                    info,
-                    &response,
-                    request_bytes,
-                    started_at.elapsed(),
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    -32072,
+                    "rate limiter overloaded",
+                    &timing,
+                    None,
                 );
-                record_audit(state, context, info, &response, request_bytes);
-                return (StatusCode::SERVICE_UNAVAILABLE, response);
             }
         }
     }
 
     if bytes.len() > state.max_body_bytes {
-        let response = jsonrpc_error_response(
-            Value::Null,
+        return reject_request(
+            state,
+            context,
+            StatusCode::PAYLOAD_TOO_LARGE,
             -32070,
-            "request body too large".to_string(),
-            context.request_id.clone(),
+            "request body too large",
+            &timing,
             None,
         );
-        let info = McpRequestInfo {
-            method: McpMethod::Invalid,
-            tool: None,
-        };
-        record_metrics(state, context, info, &response, request_bytes, started_at.elapsed());
-        record_audit(state, context, info, &response, request_bytes);
-        return (StatusCode::PAYLOAD_TOO_LARGE, response);
     }
 
-    let request: Result<JsonRpcRequest, _> = serde_json::from_slice(bytes.as_ref());
-    let (status, response, info, audit_context) = request.map_or_else(
-        |_| {
-            let response = jsonrpc_error_response(
-                Value::Null,
+    let request: JsonRpcRequest = match serde_json::from_slice(bytes.as_ref()) {
+        Ok(request) => request,
+        Err(_) => {
+            return reject_request(
+                state,
+                context,
+                StatusCode::BAD_REQUEST,
                 -32600,
-                "invalid json-rpc request".to_string(),
-                context.request_id.clone(),
+                "invalid json-rpc request",
+                &timing,
                 None,
             );
-            (
-                StatusCode::BAD_REQUEST,
-                response,
-                McpRequestInfo {
-                    method: McpMethod::Invalid,
-                    tool: None,
-                },
-                context.clone(),
-            )
-        },
-        |request| {
-            let context = context.clone().with_request_id(request.id.to_string());
-            let (status, response, info) = handle_request(&state.router, &context, request);
-            (status, response, info, context)
-        },
+        }
+    };
+
+    let context = context.clone().with_request_id(request.id.to_string());
+    let (status, response, info) = handle_request(&state.router, &context, request);
+    record_metrics(
+        state,
+        &context,
+        info,
+        &response,
+        timing.request_bytes,
+        timing.started_at.elapsed(),
     );
-    record_metrics(state, &audit_context, info, &response, request_bytes, started_at.elapsed());
-    record_audit(state, &audit_context, info, &response, request_bytes);
+    record_audit(state, &context, info, &response, timing.request_bytes);
+    drop(permit);
     (status, response)
 }
 
@@ -1020,20 +1144,20 @@ fn record_audit(
         Some(ToolName::EvidenceQuery) => "evidence",
         _ => "full",
     };
-    let event = McpAuditEvent::new(
-        context.request_id.clone(),
-        context.transport,
-        context.peer_ip.map(|ip| ip.to_string()),
-        info.method,
-        info.tool,
+    let event = McpAuditEvent::new(crate::audit::McpAuditEventParams {
+        request_id: context.request_id.clone(),
+        transport: context.transport,
+        peer_ip: context.peer_ip.map(|ip| ip.to_string()),
+        method: info.method,
+        tool: info.tool,
         outcome,
         error_code,
         error_kind,
         request_bytes,
         response_bytes,
-        context.client_subject.clone(),
+        client_subject: context.client_subject.clone(),
         redaction,
-    );
+    });
     state.audit.record(&event);
 }
 
@@ -1219,10 +1343,15 @@ mod tests {
 
     use axum::body::Bytes;
     use axum::http::StatusCode;
+    use decision_gate_core::InMemoryDataShapeRegistry;
     use decision_gate_core::InMemoryRunStateStore;
+    use decision_gate_core::SharedDataShapeRegistry;
     use decision_gate_core::SharedRunStateStore;
+    use decision_gate_core::TrustRequirement;
     use serde_json::json;
 
+    use super::build_provider_transports;
+    use super::build_schema_registry_limits;
     use super::build_server_state;
     use super::parse_request;
     use super::read_framed;
@@ -1234,11 +1363,13 @@ mod tests {
     use crate::capabilities::CapabilityRegistry;
     use crate::config::DecisionGateConfig;
     use crate::config::EvidencePolicyConfig;
+    use crate::config::PolicyConfig;
     use crate::config::ProviderConfig;
     use crate::config::ProviderTimeoutConfig;
     use crate::config::ProviderType;
     use crate::config::RateLimitConfig;
     use crate::config::RunStateStoreConfig;
+    use crate::config::SchemaRegistryConfig;
     use crate::config::ServerAuthConfig;
     use crate::config::ServerAuthMode;
     use crate::config::ServerConfig;
@@ -1250,6 +1381,7 @@ mod tests {
     use crate::telemetry::McpMetrics;
     use crate::telemetry::McpOutcome;
     use crate::tools::ToolRouter;
+    use crate::tools::ToolRouterConfig;
 
     #[derive(Default)]
     struct TestMetrics {
@@ -1283,7 +1415,9 @@ mod tests {
             server: ServerConfig::default(),
             trust: TrustConfig::default(),
             evidence: EvidencePolicyConfig::default(),
+            policy: PolicyConfig::default(),
             run_state_store: RunStateStoreConfig::default(),
+            schema_registry: SchemaRegistryConfig::default(),
             providers: builtin_providers(),
         }
     }
@@ -1292,16 +1426,28 @@ mod tests {
         let evidence = FederatedEvidenceProvider::from_config(config).expect("evidence provider");
         let capabilities = CapabilityRegistry::from_config(config).expect("capabilities");
         let store = SharedRunStateStore::from_store(InMemoryRunStateStore::new());
+        let schema_registry =
+            SharedDataShapeRegistry::from_registry(InMemoryDataShapeRegistry::new());
+        let provider_transports = build_provider_transports(config);
+        let schema_registry_limits =
+            build_schema_registry_limits(config).expect("schema registry limits");
         let authz = Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
         let audit = Arc::new(NoopAuditSink);
-        ToolRouter::new(
+        ToolRouter::new(ToolRouterConfig {
             evidence,
-            config.evidence.clone(),
+            evidence_policy: config.evidence.clone(),
+            dispatch_policy: config.policy.dispatch.clone(),
             store,
-            Arc::new(capabilities),
+            schema_registry,
+            provider_transports,
+            schema_registry_limits,
+            capabilities: Arc::new(capabilities),
             authz,
             audit,
-        )
+            trust_requirement: TrustRequirement {
+                min_lane: config.trust.min_lane,
+            },
+        })
     }
 
     fn builtin_providers() -> Vec<ProviderConfig> {
@@ -1382,10 +1528,12 @@ mod tests {
         assert_eq!(event.outcome, McpOutcome::Ok);
         assert_eq!(event.error_code, None);
         assert!(event.response_bytes > 0);
+        drop(events);
 
         let latencies = metrics.latencies.lock().expect("latencies lock");
         assert_eq!(latencies.len(), 1);
         assert_eq!(latencies[0].0.method, McpMethod::ToolsList);
+        drop(latencies);
     }
 
     #[test]
@@ -1423,6 +1571,7 @@ mod tests {
         assert_eq!(event.outcome, McpOutcome::Error);
         assert_eq!(event.error_code, Some(-32001));
         assert_eq!(event.error_kind, Some("unauthenticated"));
+        drop(events);
     }
 
     #[test]
@@ -1514,5 +1663,6 @@ mod tests {
         assert_eq!(events.len(), 1);
         let event = &events[0];
         assert_eq!(event.redaction, "evidence");
+        drop(events);
     }
 }

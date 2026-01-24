@@ -30,6 +30,7 @@ use decision_gate_core::EvidenceResult;
 use decision_gate_core::EvidenceValue;
 use decision_gate_core::GateId;
 use decision_gate_core::GateSpec;
+use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketPayload;
 use decision_gate_core::PacketSpec;
 use decision_gate_core::PolicyDecider;
@@ -47,6 +48,7 @@ use decision_gate_core::StageSpec;
 use decision_gate_core::TenantId;
 use decision_gate_core::Timestamp;
 use decision_gate_core::TriggerId;
+use decision_gate_core::TrustLane;
 use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
 use decision_gate_core::hashing::hash_bytes;
 use decision_gate_core::runtime::ControlPlane;
@@ -69,6 +71,7 @@ impl EvidenceProvider for TestEvidenceProvider {
     ) -> Result<EvidenceResult, decision_gate_core::EvidenceError> {
         Ok(EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
+            lane: TrustLane::Verified,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -120,6 +123,7 @@ impl PolicyDecider for PermitAllPolicy {
 fn sample_spec() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
+        namespace_id: NamespaceId::new("default"),
         spec_version: SpecVersion::new("1"),
         stages: vec![
             StageSpec {
@@ -128,6 +132,7 @@ fn sample_spec() -> ScenarioSpec {
                 gates: vec![GateSpec {
                     gate_id: GateId::new("gate-ready"),
                     requirement: ret_logic::Requirement::predicate("ready".into()),
+                    trust: None,
                 }],
                 advance_to: AdvanceTo::Linear,
                 timeout: None,
@@ -162,6 +167,7 @@ fn sample_spec() -> ScenarioSpec {
             comparator: Comparator::Equals,
             expected: Some(json!(true)),
             policy_tags: Vec::new(),
+            trust: None,
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
@@ -189,6 +195,7 @@ fn test_trigger_idempotency() {
 
     let run_config = RunConfig {
         tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: ScenarioId::new("scenario"),
         dispatch_targets: vec![DispatchTarget::Agent {
@@ -201,6 +208,8 @@ fn test_trigger_idempotency() {
 
     let request = NextRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
+        tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         trigger_id: TriggerId::new("trigger-1"),
         agent_id: "agent-1".to_string(),
         time: Timestamp::Logical(1),
@@ -216,6 +225,8 @@ fn test_trigger_idempotency() {
 
     let status_request = decision_gate_core::runtime::StatusRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
+        tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         requested_at: Timestamp::Logical(2),
         correlation_id: None,
     };
@@ -239,6 +250,7 @@ fn scenario_next_completes_after_terminal_stage_evaluation() {
 
     let run_config = RunConfig {
         tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         run_id: decision_gate_core::RunId::new("run-2"),
         scenario_id: ScenarioId::new("scenario"),
         dispatch_targets: vec![DispatchTarget::Agent {
@@ -251,6 +263,8 @@ fn scenario_next_completes_after_terminal_stage_evaluation() {
 
     let first = NextRequest {
         run_id: decision_gate_core::RunId::new("run-2"),
+        tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         trigger_id: TriggerId::new("trigger-1"),
         agent_id: "agent-1".to_string(),
         time: Timestamp::Logical(1),
@@ -261,6 +275,8 @@ fn scenario_next_completes_after_terminal_stage_evaluation() {
 
     let second = NextRequest {
         run_id: decision_gate_core::RunId::new("run-2"),
+        tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         trigger_id: TriggerId::new("trigger-2"),
         agent_id: "agent-1".to_string(),
         time: Timestamp::Logical(2),

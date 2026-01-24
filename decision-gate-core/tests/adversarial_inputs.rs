@@ -22,6 +22,7 @@
 use decision_gate_core::Comparator;
 use decision_gate_core::EvidenceResult;
 use decision_gate_core::EvidenceValue;
+use decision_gate_core::TrustLane;
 use decision_gate_core::runtime::comparator::evaluate_comparator;
 use ret_logic::TriState;
 use serde_json::json;
@@ -30,6 +31,7 @@ use serde_json::json;
 const fn empty_result_with_value(value: EvidenceValue) -> EvidenceResult {
     EvidenceResult {
         value: Some(value),
+        lane: TrustLane::Verified,
         evidence_hash: None,
         evidence_ref: None,
         evidence_anchor: None,
@@ -79,6 +81,7 @@ fn comparator_returns_unknown_when_missing_value() {
         Some(&json!(true)),
         &EvidenceResult {
             value: None,
+            lane: TrustLane::Verified,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,

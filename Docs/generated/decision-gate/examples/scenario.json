@@ -1,5 +1,6 @@
 {
   "scenario_id": "example-scenario",
+  "namespace_id": "default",
   "spec_version": "v1",
   "stages": [
     {

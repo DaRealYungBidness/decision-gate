@@ -15,9 +15,20 @@ A universal predicate evaluation engine that separates propositional logic from 
 
 Hence this crate.
 
-That said, this crate exists because of my frustration with recreating the same mathematical form — if you're just doing `if (x && y)`, you probably don't need this crate (as much as you might want it...)
+That said, this crate exists because of my frustration with recreating the same mathematical form — if you're just doing `if (x && y)`, you probably don't need this crate (as much as you might want it...).
 
-Most of the subsequent text in this README is AI-generated.
+## Status and Scope
+RET Logic is the universal predicate algebra used by Decision Gate. It provides
+deterministic boolean and tri-state evaluation over domain-defined predicates.
+
+In scope:
+- Algebraic requirement trees (AND/OR/NOT/RequireGroup).
+- Deterministic evaluation and traceability hooks.
+- Lightweight DSL and validation helpers.
+
+Out of scope:
+- Domain semantics (providers, evidence, runpacks).
+- Policy or trust-lane enforcement (lives in Decision Gate core).
 
 ## Table of Contents
 

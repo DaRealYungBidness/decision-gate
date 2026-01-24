@@ -151,10 +151,10 @@ fn assert_valid(schema: &JSONSchema, instance: &Value, label: &str) -> Result<()
     }
 }
 
-fn tool_schema<'a>(
-    map: &'a BTreeMap<ToolName, ToolSchemas>,
+fn tool_schema(
+    map: &BTreeMap<ToolName, ToolSchemas>,
     name: ToolName,
-) -> Result<&'a ToolSchemas, Box<dyn Error>> {
+) -> Result<&ToolSchemas, Box<dyn Error>> {
     map.get(&name).ok_or_else(|| format!("missing tool schema: {name}").into())
 }
 
@@ -200,6 +200,8 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
         scenario_id: define_response.scenario_id.clone(),
         request: StatusRequest {
             run_id: run_config.run_id.clone(),
+            tenant_id: run_config.tenant_id.clone(),
+            namespace_id: run_config.namespace_id.clone(),
             requested_at: Timestamp::Logical(2),
             correlation_id: None,
         },
@@ -215,6 +217,8 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
         scenario_id: define_response.scenario_id.clone(),
         request: NextRequest {
             run_id: run_config.run_id.clone(),
+            tenant_id: run_config.tenant_id.clone(),
+            namespace_id: run_config.namespace_id.clone(),
             trigger_id: TriggerId::new("trigger-1"),
             agent_id: "agent-1".to_string(),
             time: Timestamp::Logical(3),
@@ -232,6 +236,8 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
         scenario_id: define_response.scenario_id.clone(),
         request: SubmitRequest {
             run_id: run_config.run_id.clone(),
+            tenant_id: run_config.tenant_id.clone(),
+            namespace_id: run_config.namespace_id.clone(),
             submission_id: "submission-1".to_string(),
             payload: PacketPayload::Json {
                 value: json!({"artifact": "alpha"}),
@@ -252,6 +258,8 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
         scenario_id: define_response.scenario_id.clone(),
         trigger: TriggerEvent {
             run_id: run_config.run_id.clone(),
+            tenant_id: run_config.tenant_id.clone(),
+            namespace_id: run_config.namespace_id.clone(),
             trigger_id: TriggerId::new("trigger-2"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(5),
@@ -269,6 +277,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
 
     let context = EvidenceContext {
         tenant_id: run_config.tenant_id.clone(),
+        namespace_id: run_config.namespace_id.clone(),
         run_id: run_config.run_id.clone(),
         scenario_id: define_response.scenario_id.clone(),
         stage_id: StageId::new("stage-1"),
@@ -296,6 +305,8 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
     let manifest_name = "manifest.json".to_string();
     let export_request = RunpackExportRequest {
         scenario_id: define_response.scenario_id,
+        tenant_id: run_config.tenant_id,
+        namespace_id: run_config.namespace_id,
         run_id: run_config.run_id,
         output_dir: output_dir.clone(),
         manifest_name: Some(manifest_name.clone()),

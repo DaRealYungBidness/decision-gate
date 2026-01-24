@@ -31,6 +31,7 @@ use decision_gate_core::EvidenceValue;
 use decision_gate_core::HashAlgorithm;
 use decision_gate_core::ProviderMissingError;
 use decision_gate_core::ScenarioSpec;
+use decision_gate_core::TrustLane;
 use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
 use decision_gate_core::hashing::hash_bytes;
 use reqwest::Url;
@@ -125,6 +126,7 @@ impl EvidenceProvider for HttpProvider {
                 let status = response.status().as_u16();
                 Ok(EvidenceResult {
                     value: Some(EvidenceValue::Json(Value::Number(Number::from(status)))),
+                    lane: TrustLane::Verified,
                     evidence_hash: None,
                     evidence_ref: Some(EvidenceRef {
                         uri: url.to_string(),
@@ -150,6 +152,7 @@ impl EvidenceProvider for HttpProvider {
                 })?;
                 Ok(EvidenceResult {
                     value: Some(EvidenceValue::Json(hash_value)),
+                    lane: TrustLane::Verified,
                     evidence_hash: None,
                     evidence_ref: Some(EvidenceRef {
                         uri: url.to_string(),

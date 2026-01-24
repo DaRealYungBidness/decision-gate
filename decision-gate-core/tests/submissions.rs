@@ -27,6 +27,7 @@ use decision_gate_core::EvidenceContext;
 use decision_gate_core::EvidenceProvider;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::EvidenceResult;
+use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketPayload;
 use decision_gate_core::PacketSpec;
 use decision_gate_core::PolicyDecider;
@@ -103,6 +104,7 @@ impl PolicyDecider for PermitAllPolicy {
 fn submission_spec() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
+        namespace_id: NamespaceId::new("default"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -144,6 +146,7 @@ fn submission_idempotent_returns_existing_record() {
 
     let run_config = RunConfig {
         tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: ScenarioId::new("scenario"),
         dispatch_targets: vec![DispatchTarget::Agent {
@@ -156,6 +159,8 @@ fn submission_idempotent_returns_existing_record() {
 
     let request = SubmitRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
+        tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         submission_id: "submission-1".to_string(),
         payload: PacketPayload::Json {
             value: json!({"artifact": "attestation"}),
@@ -170,7 +175,14 @@ fn submission_idempotent_returns_existing_record() {
 
     assert_eq!(first.record, second.record);
 
-    let state = store.load(&decision_gate_core::RunId::new("run-1")).unwrap().expect("run state");
+    let state = store
+        .load(
+            &TenantId::new("tenant"),
+            &NamespaceId::new("default"),
+            &decision_gate_core::RunId::new("run-1"),
+        )
+        .unwrap()
+        .expect("run state");
     assert_eq!(state.submissions.len(), 1);
     assert_eq!(state.tool_calls.len(), 2);
 }
@@ -190,6 +202,7 @@ fn submission_idempotent_conflict_returns_error() {
 
     let run_config = RunConfig {
         tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: ScenarioId::new("scenario"),
         dispatch_targets: vec![DispatchTarget::Agent {
@@ -202,6 +215,8 @@ fn submission_idempotent_conflict_returns_error() {
 
     let first = SubmitRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
+        tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         submission_id: "submission-1".to_string(),
         payload: PacketPayload::Json {
             value: json!({"artifact": "attestation"}),
@@ -214,6 +229,8 @@ fn submission_idempotent_conflict_returns_error() {
 
     let conflicting = SubmitRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
+        tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         submission_id: "submission-1".to_string(),
         payload: PacketPayload::Json {
             value: json!({"artifact": "different"}),
@@ -231,7 +248,14 @@ fn submission_idempotent_conflict_returns_error() {
         other => panic!("unexpected error: {other:?}"),
     }
 
-    let state = store.load(&decision_gate_core::RunId::new("run-1")).unwrap().expect("run state");
+    let state = store
+        .load(
+            &TenantId::new("tenant"),
+            &NamespaceId::new("default"),
+            &decision_gate_core::RunId::new("run-1"),
+        )
+        .unwrap()
+        .expect("run state");
     assert_eq!(state.submissions.len(), 1);
     assert_eq!(state.tool_calls.len(), 2);
 }

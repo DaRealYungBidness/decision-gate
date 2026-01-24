@@ -8,6 +8,13 @@
 
 //! MCP capability validation tests for scenario and evidence inputs.
 
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "Test-only assertions use unwrap/expect for clarity."
+)]
+
 mod common;
 
 use decision_gate_core::Comparator;

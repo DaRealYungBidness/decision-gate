@@ -181,6 +181,8 @@ impl RunpackBuilder {
             manifest_version: self.manifest_version.clone(),
             generated_at,
             scenario_id: spec.scenario_id.clone(),
+            tenant_id: state.tenant_id.clone(),
+            namespace_id: state.namespace_id.clone(),
             run_id: state.run_id.clone(),
             spec_hash,
             hash_algorithm: self.hash_algorithm,

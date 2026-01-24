@@ -14,6 +14,7 @@ use decision_gate_core::EvidenceQuery;
 use decision_gate_core::GateId;
 use decision_gate_core::GateOutcome;
 use decision_gate_core::GateSpec;
+use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketId;
 use decision_gate_core::PacketPayload;
 use decision_gate_core::PacketSpec;
@@ -43,6 +44,7 @@ pub struct ScenarioFixture {
     pub scenario_id: ScenarioId,
     pub run_id: RunId,
     pub tenant_id: TenantId,
+    pub namespace_id: NamespaceId,
     pub stage_id: StageId,
     pub spec: ScenarioSpec,
 }
@@ -51,10 +53,12 @@ impl ScenarioFixture {
     /// Creates a simple time-based scenario with a single gate.
     pub fn time_after(scenario_id: &str, run_id: &str, threshold: u64) -> Self {
         let scenario_id = ScenarioId::new(scenario_id);
+        let namespace_id = NamespaceId::new("default");
         let stage_id = StageId::new("stage-1");
         let predicate_key = PredicateKey::new("after");
         let spec = ScenarioSpec {
             scenario_id: scenario_id.clone(),
+            namespace_id: namespace_id.clone(),
             spec_version: SpecVersion::new("1"),
             stages: vec![StageSpec {
                 stage_id: stage_id.clone(),
@@ -62,6 +66,7 @@ impl ScenarioFixture {
                 gates: vec![GateSpec {
                     gate_id: GateId::new("gate-time"),
                     requirement: ret_logic::Requirement::predicate(predicate_key.clone()),
+                    trust: None,
                 }],
                 advance_to: AdvanceTo::Terminal,
                 timeout: None,
@@ -77,6 +82,7 @@ impl ScenarioFixture {
                 comparator: Comparator::Equals,
                 expected: Some(json!(true)),
                 policy_tags: Vec::new(),
+                trust: None,
             }],
             policies: Vec::new(),
             schemas: Vec::new(),
@@ -86,6 +92,7 @@ impl ScenarioFixture {
             scenario_id,
             run_id: RunId::new(run_id),
             tenant_id: TenantId::new("tenant-1"),
+            namespace_id,
             stage_id,
             spec,
         }
@@ -99,6 +106,7 @@ impl ScenarioFixture {
         policy_tags: Vec<String>,
     ) -> Self {
         let scenario_id = ScenarioId::new(scenario_id);
+        let namespace_id = NamespaceId::new("default");
         let stage_id = StageId::new("stage-1");
         let predicate_key = PredicateKey::new("after");
         let packet = PacketSpec {
@@ -114,6 +122,7 @@ impl ScenarioFixture {
         };
         let spec = ScenarioSpec {
             scenario_id: scenario_id.clone(),
+            namespace_id: namespace_id.clone(),
             spec_version: SpecVersion::new("1"),
             stages: vec![StageSpec {
                 stage_id: stage_id.clone(),
@@ -121,6 +130,7 @@ impl ScenarioFixture {
                 gates: vec![GateSpec {
                     gate_id: GateId::new("gate-time"),
                     requirement: ret_logic::Requirement::predicate(predicate_key.clone()),
+                    trust: None,
                 }],
                 advance_to: AdvanceTo::Terminal,
                 timeout: None,
@@ -136,6 +146,7 @@ impl ScenarioFixture {
                 comparator: Comparator::Equals,
                 expected: Some(json!(true)),
                 policy_tags: Vec::new(),
+                trust: None,
             }],
             policies: Vec::new(),
             schemas: Vec::new(),
@@ -145,6 +156,7 @@ impl ScenarioFixture {
             scenario_id,
             run_id: RunId::new(run_id),
             tenant_id: TenantId::new("tenant-1"),
+            namespace_id,
             stage_id,
             spec,
         }
@@ -153,10 +165,12 @@ impl ScenarioFixture {
     /// Creates a single-stage scenario that fails on timeout.
     pub fn timeout_fail(scenario_id: &str, run_id: &str, timeout_ms: u64) -> Self {
         let scenario_id = ScenarioId::new(scenario_id);
+        let namespace_id = NamespaceId::new("default");
         let stage_id = StageId::new("stage-1");
         let predicate_key = PredicateKey::new("after");
         let spec = ScenarioSpec {
             scenario_id: scenario_id.clone(),
+            namespace_id: namespace_id.clone(),
             spec_version: SpecVersion::new("1"),
             stages: vec![StageSpec {
                 stage_id: stage_id.clone(),
@@ -164,6 +178,7 @@ impl ScenarioFixture {
                 gates: vec![GateSpec {
                     gate_id: GateId::new("gate-time"),
                     requirement: ret_logic::Requirement::predicate(predicate_key.clone()),
+                    trust: None,
                 }],
                 advance_to: AdvanceTo::Terminal,
                 timeout: Some(TimeoutSpec {
@@ -182,6 +197,7 @@ impl ScenarioFixture {
                 comparator: Comparator::Equals,
                 expected: Some(json!(true)),
                 policy_tags: Vec::new(),
+                trust: None,
             }],
             policies: Vec::new(),
             schemas: Vec::new(),
@@ -191,6 +207,7 @@ impl ScenarioFixture {
             scenario_id,
             run_id: RunId::new(run_id),
             tenant_id: TenantId::new("tenant-1"),
+            namespace_id,
             stage_id,
             spec,
         }
@@ -199,11 +216,13 @@ impl ScenarioFixture {
     /// Creates a two-stage scenario that advances on timeout with a timeout flag.
     pub fn timeout_advance(scenario_id: &str, run_id: &str, timeout_ms: u64) -> Self {
         let scenario_id = ScenarioId::new(scenario_id);
+        let namespace_id = NamespaceId::new("default");
         let stage1_id = StageId::new("stage-1");
         let stage2_id = StageId::new("stage-2");
         let predicate_key = PredicateKey::new("after");
         let spec = ScenarioSpec {
             scenario_id: scenario_id.clone(),
+            namespace_id: namespace_id.clone(),
             spec_version: SpecVersion::new("1"),
             stages: vec![
                 StageSpec {
@@ -212,6 +231,7 @@ impl ScenarioFixture {
                     gates: vec![GateSpec {
                         gate_id: GateId::new("gate-time"),
                         requirement: ret_logic::Requirement::predicate(predicate_key.clone()),
+                        trust: None,
                     }],
                     advance_to: AdvanceTo::Linear,
                     timeout: Some(TimeoutSpec {
@@ -221,7 +241,7 @@ impl ScenarioFixture {
                     on_timeout: TimeoutPolicy::AdvanceWithFlag,
                 },
                 StageSpec {
-                    stage_id: stage2_id.clone(),
+                    stage_id: stage2_id,
                     entry_packets: Vec::new(),
                     gates: Vec::new(),
                     advance_to: AdvanceTo::Terminal,
@@ -239,6 +259,7 @@ impl ScenarioFixture {
                 comparator: Comparator::Equals,
                 expected: Some(json!(true)),
                 policy_tags: Vec::new(),
+                trust: None,
             }],
             policies: Vec::new(),
             schemas: Vec::new(),
@@ -248,6 +269,7 @@ impl ScenarioFixture {
             scenario_id,
             run_id: RunId::new(run_id),
             tenant_id: TenantId::new("tenant-1"),
+            namespace_id,
             stage_id: stage1_id,
             spec,
         }
@@ -256,11 +278,13 @@ impl ScenarioFixture {
     /// Creates a scenario that routes to an alternate branch on timeout.
     pub fn timeout_alternate_branch(scenario_id: &str, run_id: &str, timeout_ms: u64) -> Self {
         let scenario_id = ScenarioId::new(scenario_id);
+        let namespace_id = NamespaceId::new("default");
         let stage1_id = StageId::new("stage-1");
         let stage2_id = StageId::new("stage-alt");
         let predicate_key = PredicateKey::new("after");
         let spec = ScenarioSpec {
             scenario_id: scenario_id.clone(),
+            namespace_id: namespace_id.clone(),
             spec_version: SpecVersion::new("1"),
             stages: vec![
                 StageSpec {
@@ -269,6 +293,7 @@ impl ScenarioFixture {
                     gates: vec![GateSpec {
                         gate_id: GateId::new("gate-time"),
                         requirement: ret_logic::Requirement::predicate(predicate_key.clone()),
+                        trust: None,
                     }],
                     advance_to: AdvanceTo::Branch {
                         branches: vec![BranchRule {
@@ -285,7 +310,7 @@ impl ScenarioFixture {
                     on_timeout: TimeoutPolicy::AlternateBranch,
                 },
                 StageSpec {
-                    stage_id: stage2_id.clone(),
+                    stage_id: stage2_id,
                     entry_packets: Vec::new(),
                     gates: Vec::new(),
                     advance_to: AdvanceTo::Terminal,
@@ -303,6 +328,7 @@ impl ScenarioFixture {
                 comparator: Comparator::Equals,
                 expected: Some(json!(true)),
                 policy_tags: Vec::new(),
+                trust: None,
             }],
             policies: Vec::new(),
             schemas: Vec::new(),
@@ -312,6 +338,7 @@ impl ScenarioFixture {
             scenario_id,
             run_id: RunId::new(run_id),
             tenant_id: TenantId::new("tenant-1"),
+            namespace_id,
             stage_id: stage1_id,
             spec,
         }
@@ -321,6 +348,7 @@ impl ScenarioFixture {
     pub fn run_config(&self) -> RunConfig {
         RunConfig {
             tenant_id: self.tenant_id.clone(),
+            namespace_id: self.namespace_id.clone(),
             run_id: self.run_id.clone(),
             scenario_id: self.scenario_id.clone(),
             dispatch_targets: Vec::new(),
@@ -332,6 +360,7 @@ impl ScenarioFixture {
     pub fn evidence_context(&self, trigger_id: &str, time: Timestamp) -> EvidenceContext {
         EvidenceContext {
             tenant_id: self.tenant_id.clone(),
+            namespace_id: self.namespace_id.clone(),
             run_id: self.run_id.clone(),
             scenario_id: self.scenario_id.clone(),
             stage_id: self.stage_id.clone(),
@@ -345,6 +374,8 @@ impl ScenarioFixture {
     pub fn trigger_event(&self, trigger_id: &str, time: Timestamp) -> TriggerEvent {
         TriggerEvent {
             trigger_id: TriggerId::new(trigger_id),
+            tenant_id: self.tenant_id.clone(),
+            namespace_id: self.namespace_id.clone(),
             run_id: self.run_id.clone(),
             kind: TriggerKind::ExternalEvent,
             time,

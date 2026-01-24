@@ -6,7 +6,7 @@
 // Dependencies: decision-gate-store-sqlite, decision-gate-core, rusqlite, serde_json, tempfile
 // ============================================================================
 
-//! SQLite store conformance tests.
+//! `SQLite` store conformance tests.
 
 #![allow(
     clippy::panic,
@@ -22,6 +22,7 @@
 )]
 
 use decision_gate_core::AdvanceTo;
+use decision_gate_core::NamespaceId;
 use decision_gate_core::RunId;
 use decision_gate_core::RunState;
 use decision_gate_core::RunStateStore;
@@ -47,6 +48,7 @@ use tempfile::TempDir;
 fn sample_state(run_id: &str) -> RunState {
     let spec = ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
+        namespace_id: NamespaceId::new("default"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -64,6 +66,7 @@ fn sample_state(run_id: &str) -> RunState {
     let spec_hash = spec.canonical_hash_with(DEFAULT_HASH_ALGORITHM).expect("spec hash");
     RunState {
         tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         run_id: RunId::new(run_id),
         scenario_id: ScenarioId::new("scenario"),
         spec_hash,
@@ -98,7 +101,9 @@ fn sqlite_store_roundtrip() {
     let store = store_for(&path);
     let state = sample_state("run-1");
     store.save(&state).unwrap();
-    let loaded = store.load(&RunId::new("run-1")).unwrap();
+    let loaded = store
+        .load(&TenantId::new("tenant"), &NamespaceId::new("default"), &RunId::new("run-1"))
+        .unwrap();
     assert_eq!(loaded, Some(state));
 }
 
@@ -107,7 +112,9 @@ fn sqlite_store_returns_none_for_missing_run() {
     let temp = TempDir::new().unwrap();
     let path = temp.path().join("store.sqlite");
     let store = store_for(&path);
-    let loaded = store.load(&RunId::new("missing")).unwrap();
+    let loaded = store
+        .load(&TenantId::new("tenant"), &NamespaceId::new("default"), &RunId::new("missing"))
+        .unwrap();
     assert!(loaded.is_none());
 }
 
@@ -121,7 +128,9 @@ fn sqlite_store_persists_across_instances() {
         store.save(&state).unwrap();
     }
     let store = store_for(&path);
-    let loaded = store.load(&RunId::new("run-1")).unwrap();
+    let loaded = store
+        .load(&TenantId::new("tenant"), &NamespaceId::new("default"), &RunId::new("run-1"))
+        .unwrap();
     assert_eq!(loaded, Some(state));
 }
 
@@ -141,7 +150,8 @@ fn sqlite_store_detects_corrupt_hash() {
             )
             .unwrap();
     }
-    let result = store.load(&RunId::new("run-1"));
+    let result =
+        store.load(&TenantId::new("tenant"), &NamespaceId::new("default"), &RunId::new("run-1"));
     assert!(result.is_err());
 }
 
@@ -157,19 +167,29 @@ fn sqlite_store_rejects_oversized_state_payload() {
     let connection = rusqlite::Connection::open(&path).unwrap();
     connection
         .execute(
-            "INSERT INTO runs (run_id, latest_version) VALUES (?1, 1)",
-            rusqlite::params![run_id.as_str()],
+            "INSERT INTO runs (tenant_id, namespace_id, run_id, latest_version) VALUES (?1, ?2, \
+             ?3, 1)",
+            rusqlite::params!["tenant", "default", run_id.as_str()],
         )
         .unwrap();
     connection
         .execute(
-            "INSERT INTO run_state_versions (run_id, version, state_json, state_hash, \
-             hash_algorithm, saved_at) VALUES (?1, 1, ?2, ?3, ?4, ?5)",
-            rusqlite::params![run_id.as_str(), oversized, digest.value, "sha256", 0_i64],
+            "INSERT INTO run_state_versions (tenant_id, namespace_id, run_id, version, \
+             state_json, state_hash, hash_algorithm, saved_at) VALUES (?1, ?2, ?3, 1, ?4, ?5, ?6, \
+             ?7)",
+            rusqlite::params![
+                "tenant",
+                "default",
+                run_id.as_str(),
+                oversized,
+                digest.value,
+                "sha256",
+                0_i64
+            ],
         )
         .unwrap();
 
-    let result = store.load(&run_id);
+    let result = store.load(&TenantId::new("tenant"), &NamespaceId::new("default"), &run_id);
     assert!(matches!(result, Err(StoreError::Invalid(_))));
 }
 
@@ -178,7 +198,7 @@ fn sqlite_store_enforces_max_versions() {
     let temp = TempDir::new().unwrap();
     let path = temp.path().join("store.sqlite");
     let config = SqliteStoreConfig {
-        path: path.to_path_buf(),
+        path: path.clone(),
         busy_timeout_ms: 1_000,
         journal_mode: decision_gate_store_sqlite::SqliteStoreMode::Wal,
         sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
@@ -213,7 +233,7 @@ fn sqlite_store_rejects_version_mismatch() {
     connection.execute("UPDATE store_meta SET version = 999", rusqlite::params![]).unwrap();
 
     let config = SqliteStoreConfig {
-        path: path.to_path_buf(),
+        path,
         busy_timeout_ms: 1_000,
         journal_mode: decision_gate_store_sqlite::SqliteStoreMode::Wal,
         sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
@@ -239,7 +259,8 @@ fn sqlite_store_rejects_invalid_hash_algorithm() {
         )
         .unwrap();
 
-    let result = store.load(&RunId::new("run-1"));
+    let result =
+        store.load(&TenantId::new("tenant"), &NamespaceId::new("default"), &RunId::new("run-1"));
     assert!(matches!(result, Err(StoreError::Invalid(_))));
 }
 
@@ -270,7 +291,8 @@ fn sqlite_store_rejects_run_id_mismatch() {
         )
         .unwrap();
 
-    let result = store.load(&RunId::new("run-1"));
+    let result =
+        store.load(&TenantId::new("tenant"), &NamespaceId::new("default"), &RunId::new("run-1"));
     assert!(matches!(result, Err(StoreError::Invalid(_))));
 }
 
@@ -290,7 +312,8 @@ fn sqlite_store_rejects_invalid_latest_version_on_load() {
         )
         .unwrap();
 
-    let result = store.load(&RunId::new("run-1"));
+    let result =
+        store.load(&TenantId::new("tenant"), &NamespaceId::new("default"), &RunId::new("run-1"));
     assert!(matches!(result, Err(StoreError::Corrupt(_))));
 }
 

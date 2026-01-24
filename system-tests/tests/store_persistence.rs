@@ -6,7 +6,7 @@
 // Dependencies: system-tests helpers
 // ============================================================================
 
-//! SQLite run state persistence tests.
+//! `SQLite` run state persistence tests.
 
 mod helpers;
 
@@ -91,6 +91,8 @@ async fn sqlite_run_state_persists_across_restart() -> Result<(), Box<dyn std::e
         scenario_id: fixture.spec.scenario_id.clone(),
         request: StatusRequest {
             run_id: fixture.run_id.clone(),
+            tenant_id: fixture.tenant_id.clone(),
+            namespace_id: fixture.namespace_id.clone(),
             requested_at: Timestamp::Logical(2),
             correlation_id: None,
         },
@@ -98,12 +100,26 @@ async fn sqlite_run_state_persists_across_restart() -> Result<(), Box<dyn std::e
     let status_input = serde_json::to_value(&status_request)?;
     let status: decision_gate_core::runtime::ScenarioStatus =
         client2.call_tool_typed("scenario_status", status_input).await?;
-    assert_eq!(status.run_id, fixture.run_id);
+    if status.run_id != fixture.run_id {
+        return Err(format!(
+            "expected run_id {}, got {}",
+            fixture.run_id.as_str(),
+            status.run_id.as_str()
+        )
+        .into());
+    }
 
+    let mut transcript = client.transcript();
+    transcript.extend(client2.transcript());
+    reporter.artifacts().write_json("tool_transcript.json", &transcript)?;
     reporter.finish(
         "pass",
         vec!["sqlite run state persists across restarts".to_string()],
-        vec!["summary.json".to_string(), "summary.md".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+        ],
     )?;
     server2.shutdown().await;
     Ok(())
@@ -163,12 +179,16 @@ async fn sqlite_requires_redefine_after_restart() -> Result<(), Box<dyn std::err
         scenario_id: fixture.spec.scenario_id.clone(),
         request: StatusRequest {
             run_id: fixture.run_id.clone(),
+            tenant_id: fixture.tenant_id.clone(),
+            namespace_id: fixture.namespace_id.clone(),
             requested_at: Timestamp::Logical(2),
             correlation_id: None,
         },
     };
     let status_input = serde_json::to_value(&status_request)?;
-    assert!(client2.call_tool("scenario_status", status_input).await.is_err());
+    let Err(_) = client2.call_tool("scenario_status", status_input).await else {
+        return Err("expected scenario_status to fail before redefine".into());
+    };
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -185,6 +205,8 @@ async fn sqlite_requires_redefine_after_restart() -> Result<(), Box<dyn std::err
         scenario_id: fixture.spec.scenario_id.clone(),
         request: StatusRequest {
             run_id: fixture.run_id.clone(),
+            tenant_id: fixture.tenant_id.clone(),
+            namespace_id: fixture.namespace_id.clone(),
             requested_at: Timestamp::Logical(3),
             correlation_id: None,
         },
@@ -192,12 +214,26 @@ async fn sqlite_requires_redefine_after_restart() -> Result<(), Box<dyn std::err
     let status_input = serde_json::to_value(&status_request)?;
     let status: decision_gate_core::runtime::ScenarioStatus =
         client2.call_tool_typed("scenario_status", status_input).await?;
-    assert_eq!(status.run_id, fixture.run_id);
+    if status.run_id != fixture.run_id {
+        return Err(format!(
+            "expected run_id {}, got {}",
+            fixture.run_id.as_str(),
+            status.run_id.as_str()
+        )
+        .into());
+    }
 
+    let mut transcript = client.transcript();
+    transcript.extend(client2.transcript());
+    reporter.artifacts().write_json("tool_transcript.json", &transcript)?;
     reporter.finish(
         "pass",
         vec!["restart requires re-define before status".to_string()],
-        vec!["summary.json".to_string(), "summary.md".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+        ],
     )?;
     server2.shutdown().await;
     Ok(())

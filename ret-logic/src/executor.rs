@@ -32,11 +32,11 @@ use super::traits::Row;
 
 /// Type alias for evaluation function pointers used in the dispatch table.
 /// Maps an opcode to a function that evaluates a row against an operation with constants.
-type EvalFn<R> = fn(&R, Row, &Operation, &[Constant]) -> RequirementResult<bool>;
+type EvalFn<R> = fn(&R, Row, Operation, &[Constant]) -> RequirementResult<bool>;
 
 /// Type alias for the complete evaluation dispatch table.
-/// Contains 256 function pointers, one for each possible opcode value.
-type EvalTable<R> = [EvalFn<R>; 256];
+/// Contains an optional function pointer per opcode value.
+type EvalTable<R> = [Option<EvalFn<R>>; 256];
 
 // ============================================================================
 // SECTION: Internal Combine Mode
@@ -107,6 +107,7 @@ impl<R: 'static> PlanExecutor<R> {
     ///
     /// # Returns
     /// A new plan executor ready for evaluation
+    #[must_use]
     pub fn new(plan: Plan, eval_table: EvalTable<R>) -> Self {
         Self {
             plan,
@@ -200,18 +201,22 @@ impl<R: 'static> PredicateEval for PlanExecutor<R> {
 
                 _ => {
                     // Domain-specific operation - delegate to dispatch table
-                    let eval_fn = self.eval_table[operation.opcode as u8 as usize];
-
-                    match eval_fn(reader, row, operation, &self.plan.constants) {
-                        Ok(result) => {
-                            stack_values[stack_pointer] = stack_modes[stack_pointer]
-                                .combine(stack_values[stack_pointer], result);
+                    if let Some(eval_fn) = self.eval_table[operation.opcode as u8 as usize] {
+                        match eval_fn(reader, row, *operation, &self.plan.constants) {
+                            Ok(result) => {
+                                stack_values[stack_pointer] = stack_modes[stack_pointer]
+                                    .combine(stack_values[stack_pointer], result);
+                            }
+                            Err(_) => {
+                                // Evaluation error - treat as false and keep fail-closed semantics
+                                stack_values[stack_pointer] = stack_modes[stack_pointer]
+                                    .combine(stack_values[stack_pointer], false);
+                            }
                         }
-                        Err(_) => {
-                            // Evaluation error - treat as false and keep fail-closed semantics
-                            stack_values[stack_pointer] = stack_modes[stack_pointer]
-                                .combine(stack_values[stack_pointer], false);
-                        }
+                    } else {
+                        // Missing handler - treat as false and keep fail-closed semantics
+                        stack_values[stack_pointer] =
+                            stack_modes[stack_pointer].combine(stack_values[stack_pointer], false);
                     }
                 }
             }
@@ -239,21 +244,7 @@ pub trait DispatchTableBuilder<R> {
     /// Creates a dispatch table initialized with no-op functions
     #[must_use]
     fn build_dispatch_table() -> EvalTable<R> {
-        [Self::noop; 256]
-    }
-
-    /// No-op evaluation function that always returns false
-    ///
-    /// # Errors
-    /// Returns `Ok(false)` and never errors.
-    #[allow(clippy::trivially_copy_pass_by_ref, reason = "signature matches dispatch table slot")]
-    fn noop(
-        _reader: &R,
-        _row: Row,
-        _op: &Operation,
-        _constants: &[Constant],
-    ) -> RequirementResult<bool> {
-        Ok(false)
+        [None; 256]
     }
 }
 
@@ -264,16 +255,11 @@ pub trait DispatchTableBuilder<R> {
 #[macro_export]
 macro_rules! build_dispatch_table {
     ($reader_type:ty, $($opcode:path => $handler:path),* $(,)?) => {{
-        let mut table: [fn(&$reader_type, $crate::Row, &$crate::Operation, &[$crate::Constant]) -> $crate::RequirementResult<bool>; 256] =
-            [dispatch_noop; 256];
-
-        // Helper function for unhandled opcodes
-        fn dispatch_noop(_reader: &$reader_type, _row: $crate::Row, _op: &$crate::Operation, _constants: &[$crate::Constant]) -> $crate::RequirementResult<bool> {
-            Ok(false)
-        }
+        let mut table: [Option<fn(&$reader_type, $crate::Row, $crate::Operation, &[$crate::Constant]) -> $crate::RequirementResult<bool>>; 256] =
+            [None; 256];
 
         $(
-            table[$opcode as u8 as usize] = $handler;
+            table[$opcode as u8 as usize] = Some($handler);
         )*
 
         table
@@ -299,23 +285,8 @@ impl<R: 'static> ExecutorBuilder<R> {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            eval_table: [Self::noop; 256],
+            eval_table: [None; 256],
         }
-    }
-
-    /// No-op evaluation function
-    ///
-    /// # Errors
-    /// Returns `Ok(false)` and never errors.
-    #[allow(clippy::trivially_copy_pass_by_ref, reason = "signature matches dispatch table slot")]
-    #[allow(clippy::unnecessary_wraps, reason = "uniform Result signature for dispatch table")]
-    const fn noop(
-        _reader: &R,
-        _row: Row,
-        _op: &Operation,
-        _constants: &[Constant],
-    ) -> RequirementResult<bool> {
-        Ok(false)
     }
 
     /// Registers a handler for a specific opcode
@@ -323,9 +294,9 @@ impl<R: 'static> ExecutorBuilder<R> {
     pub fn register(
         mut self,
         opcode: OpCode,
-        handler: fn(&R, Row, &Operation, &[Constant]) -> RequirementResult<bool>,
+        handler: fn(&R, Row, Operation, &[Constant]) -> RequirementResult<bool>,
     ) -> Self {
-        self.eval_table[opcode as u8 as usize] = handler;
+        self.eval_table[opcode as u8 as usize] = Some(handler);
         self
     }
 

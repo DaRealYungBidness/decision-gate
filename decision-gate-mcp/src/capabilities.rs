@@ -333,6 +333,17 @@ impl CapabilityRegistry {
         )
     }
 
+    /// Lists providers and their predicate identifiers.
+    #[must_use]
+    pub fn list_providers(&self) -> Vec<(String, Vec<String>)> {
+        let mut providers = Vec::with_capacity(self.providers.len());
+        for (provider_id, capabilities) in &self.providers {
+            let predicates = capabilities.predicates.keys().cloned().collect();
+            providers.push((provider_id.clone(), predicates));
+        }
+        providers
+    }
+
     /// Locates a predicate capability by provider and predicate name.
     fn lookup_predicate(
         &self,

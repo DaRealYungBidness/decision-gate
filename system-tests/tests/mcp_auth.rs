@@ -12,12 +12,19 @@ mod helpers;
 
 use std::time::Duration;
 
+use decision_gate_core::DataShapeId;
+use decision_gate_core::DataShapeRecord;
+use decision_gate_core::DataShapeRef;
+use decision_gate_core::DataShapeVersion;
 use decision_gate_core::Timestamp;
+use decision_gate_core::TrustLane;
 use decision_gate_core::runtime::StatusRequest;
+use decision_gate_mcp::tools::PrecheckToolRequest;
 use decision_gate_mcp::tools::ScenarioDefineRequest;
 use decision_gate_mcp::tools::ScenarioDefineResponse;
 use decision_gate_mcp::tools::ScenarioStartRequest;
 use decision_gate_mcp::tools::ScenarioStatusRequest;
+use decision_gate_mcp::tools::SchemasRegisterRequest;
 use helpers::artifacts::TestReporter;
 use helpers::harness::allocate_bind_addr;
 use helpers::harness::base_http_config_with_bearer;
@@ -25,11 +32,12 @@ use helpers::harness::base_http_config_with_mtls;
 use helpers::harness::base_sse_config_with_bearer;
 use helpers::harness::spawn_mcp_server;
 use helpers::mcp_client::TranscriptEntry;
+use helpers::readiness::wait_for_ready;
 use helpers::readiness::wait_for_server_ready;
 use helpers::scenarios::ScenarioFixture;
 use serde::Deserialize;
 use serde_json::Value;
-use tokio::time::sleep;
+use serde_json::json;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn http_bearer_token_required() -> Result<(), Box<dyn std::error::Error>> {
@@ -43,11 +51,17 @@ async fn http_bearer_token_required() -> Result<(), Box<dyn std::error::Error>> 
     wait_for_server_ready(&authorized, Duration::from_secs(5)).await?;
 
     let unauthorized = server.client(Duration::from_secs(5))?;
-    let err = unauthorized.list_tools().await.expect_err("expected auth failure");
-    assert!(err.contains("unauthenticated"));
+    let Err(err) = unauthorized.list_tools().await else {
+        return Err("expected auth failure".into());
+    };
+    if !err.contains("unauthenticated") {
+        return Err(format!("expected unauthenticated error, got: {err}").into());
+    }
 
     let tools = authorized.list_tools().await?;
-    assert!(!tools.is_empty());
+    if tools.is_empty() {
+        return Err("expected non-empty tools list".into());
+    }
 
     let mut transcript = unauthorized.transcript();
     transcript.extend(authorized.transcript());
@@ -99,21 +113,101 @@ async fn http_tool_allowlist_enforced() -> Result<(), Box<dyn std::error::Error>
         scenario_id: define_output.scenario_id,
         request: StatusRequest {
             run_id: fixture.run_id,
+            tenant_id: fixture.tenant_id,
+            namespace_id: fixture.namespace_id,
             requested_at: Timestamp::Logical(2),
             correlation_id: None,
         },
     };
     let status_input = serde_json::to_value(&status_request)?;
-    let err = client
-        .call_tool("scenario_status", status_input)
-        .await
-        .expect_err("expected allowlist denial");
-    assert!(err.contains("unauthorized"));
+    let Err(err) = client.call_tool("scenario_status", status_input).await else {
+        return Err("expected allowlist denial".into());
+    };
+    if !err.contains("unauthorized") {
+        return Err(format!("expected unauthorized error, got: {err}").into());
+    }
 
     reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
     reporter.finish(
         "pass",
         vec!["tool allowlist enforced for MCP calls".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+        ],
+    )?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn http_tool_allowlist_blocks_precheck() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("http_tool_allowlist_blocks_precheck")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let mut config = base_http_config_with_bearer(&bind, "allowlist-token");
+    config.trust.min_lane = TrustLane::Asserted;
+    if let Some(auth) = config.server.auth.as_mut() {
+        auth.allowed_tools = vec!["scenario_define".to_string(), "schemas_register".to_string()];
+    }
+    let server = spawn_mcp_server(config).await?;
+    let client =
+        server.client(Duration::from_secs(5))?.with_bearer_token("allowlist-token".to_string());
+    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+
+    let fixture = ScenarioFixture::time_after("allowlist-precheck", "run-1", 0);
+    let define_request = ScenarioDefineRequest {
+        spec: fixture.spec.clone(),
+    };
+    let define_input = serde_json::to_value(&define_request)?;
+    let define_output: ScenarioDefineResponse =
+        client.call_tool_typed("scenario_define", define_input).await?;
+
+    let record = DataShapeRecord {
+        tenant_id: fixture.tenant_id.clone(),
+        namespace_id: fixture.namespace_id.clone(),
+        schema_id: DataShapeId::new("asserted"),
+        version: DataShapeVersion::new("v1"),
+        schema: json!({
+            "type": "object",
+            "properties": {
+                "after": { "type": "boolean" }
+            },
+            "required": ["after"]
+        }),
+        description: Some("precheck schema".to_string()),
+        created_at: Timestamp::Logical(1),
+    };
+    let register_request = SchemasRegisterRequest {
+        record: record.clone(),
+    };
+    let register_input = serde_json::to_value(&register_request)?;
+    let _register_output: serde_json::Value =
+        client.call_tool_typed("schemas_register", register_input).await?;
+
+    let precheck_request = PrecheckToolRequest {
+        tenant_id: fixture.tenant_id.clone(),
+        namespace_id: fixture.namespace_id.clone(),
+        scenario_id: Some(define_output.scenario_id.clone()),
+        spec: None,
+        stage_id: None,
+        data_shape: DataShapeRef {
+            schema_id: record.schema_id.clone(),
+            version: record.version.clone(),
+        },
+        payload: json!({"after": true}),
+    };
+    let precheck_input = serde_json::to_value(&precheck_request)?;
+    let Err(err) = client.call_tool("precheck", precheck_input).await else {
+        return Err("expected allowlist denial".into());
+    };
+    if !err.contains("unauthorized") {
+        return Err(format!("expected unauthorized error, got: {err}").into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["tool allowlist blocks precheck".to_string()],
         vec![
             "summary.json".to_string(),
             "summary.md".to_string(),
@@ -131,15 +225,21 @@ async fn http_mtls_subject_required() -> Result<(), Box<dyn std::error::Error>> 
     let server = spawn_mcp_server(config).await?;
 
     let unauthorized = server.client(Duration::from_secs(5))?;
-    let err = unauthorized.list_tools().await.expect_err("expected auth failure");
-    assert!(err.contains("unauthenticated"));
+    let Err(err) = unauthorized.list_tools().await else {
+        return Err("expected auth failure".into());
+    };
+    if !err.contains("unauthenticated") {
+        return Err(format!("expected unauthenticated error, got: {err}").into());
+    }
 
     let authorized = server
         .client(Duration::from_secs(5))?
         .with_client_subject("CN=decision-gate-client,O=Example".to_string());
     wait_for_server_ready(&authorized, Duration::from_secs(5)).await?;
     let tools = authorized.list_tools().await?;
-    assert!(!tools.is_empty());
+    if tools.is_empty() {
+        return Err("expected non-empty tools list".into());
+    }
 
     let mut transcript = unauthorized.transcript();
     transcript.extend(authorized.transcript());
@@ -181,35 +281,47 @@ async fn sse_bearer_token_required() -> Result<(), Box<dyn std::error::Error>> {
         "method": "tools/list"
     });
 
-    wait_for_sse_ready(&base_url, &request, Duration::from_secs(5)).await?;
+    wait_for_ready(
+        || async { send_sse_request(&base_url, &request, None).await.map(|_| ()) },
+        Duration::from_secs(5),
+        "sse server",
+    )
+    .await?;
 
     let unauthorized = send_sse_request(&base_url, &request, None).await?;
     let unauthorized_error = unauthorized
         .error
         .as_ref()
         .ok_or_else(|| "missing error for unauthorized request".to_string())?;
-    assert!(unauthorized_error.message.contains("unauthenticated"));
+    if !unauthorized_error.message.contains("unauthenticated") {
+        return Err(
+            format!("expected unauthenticated error, got: {}", unauthorized_error.message).into()
+        );
+    }
 
     let authorized = send_sse_request(&base_url, &request, Some("sse-token".to_string())).await?;
     let tools =
         authorized.result.as_ref().ok_or_else(|| "missing result for tools/list".to_string())?;
-    assert!(tools.get("tools").is_some());
+    if tools.get("tools").is_none() {
+        return Err("expected tools/list response to include tools".into());
+    }
 
-    let mut transcript = Vec::new();
-    transcript.push(TranscriptEntry {
-        sequence: 1,
-        method: "tools/list".to_string(),
-        request: request.clone(),
-        response: serde_json::to_value(&unauthorized).unwrap_or(Value::Null),
-        error: Some(unauthorized_error.message.clone()),
-    });
-    transcript.push(TranscriptEntry {
-        sequence: 2,
-        method: "tools/list".to_string(),
-        request: request.clone(),
-        response: serde_json::to_value(&authorized).unwrap_or(Value::Null),
-        error: None,
-    });
+    let transcript = vec![
+        TranscriptEntry {
+            sequence: 1,
+            method: "tools/list".to_string(),
+            request: request.clone(),
+            response: serde_json::to_value(&unauthorized).unwrap_or(Value::Null),
+            error: Some(unauthorized_error.message.clone()),
+        },
+        TranscriptEntry {
+            sequence: 2,
+            method: "tools/list".to_string(),
+            request: request.clone(),
+            response: serde_json::to_value(&authorized).unwrap_or(Value::Null),
+            error: None,
+        },
+    ];
     reporter.artifacts().write_json("tool_transcript.json", &transcript)?;
     reporter.finish(
         "pass",
@@ -247,23 +359,4 @@ async fn send_sse_request(
     let payload: JsonRpcResponse =
         serde_json::from_str(json).map_err(|err| format!("invalid json-rpc: {err}"))?;
     Ok(payload)
-}
-
-async fn wait_for_sse_ready(
-    base_url: &str,
-    request: &serde_json::Value,
-    timeout: Duration,
-) -> Result<(), String> {
-    let deadline = std::time::Instant::now() + timeout;
-    loop {
-        match send_sse_request(base_url, request, None).await {
-            Ok(_) => return Ok(()),
-            Err(err) => {
-                if std::time::Instant::now() >= deadline {
-                    return Err(format!("sse server not ready: {err}"));
-                }
-                sleep(Duration::from_millis(100)).await;
-            }
-        }
-    }
 }

@@ -12,8 +12,8 @@ mod helpers;
 
 use std::path::PathBuf;
 use std::time::Duration;
-use std::time::Instant;
 
+use decision_gate_contract::ToolName;
 use decision_gate_mcp::tools::ScenarioDefineRequest;
 use decision_gate_mcp::tools::ScenarioDefineResponse;
 use decision_gate_mcp::tools::ScenarioStartRequest;
@@ -22,6 +22,7 @@ use helpers::harness::allocate_bind_addr;
 use helpers::harness::base_http_config;
 use helpers::harness::spawn_mcp_server;
 use helpers::readiness::wait_for_server_ready;
+use helpers::readiness::wait_for_stdio_ready;
 use helpers::scenarios::ScenarioFixture;
 use helpers::stdio_client::StdioMcpClient;
 use tempfile::TempDir;
@@ -36,8 +37,9 @@ async fn http_transport_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let tools = client.list_tools().await?;
-    let names: Vec<String> = tools.into_iter().map(|tool| tool.name.as_str().to_string()).collect();
-    assert!(names.contains(&"scenario_define".to_string()));
+    if !tools.iter().any(|tool| tool.name == ToolName::ScenarioDefine) {
+        return Err("tools/list missing scenario_define".into());
+    }
 
     let fixture = ScenarioFixture::time_after("transport-scenario", "run-1", 0);
     let define_request = ScenarioDefineRequest {
@@ -77,20 +79,7 @@ type = "builtin"
     let stderr_path = reporter.artifacts().root().join("mcp.stderr.log");
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_decision_gate_stdio_server"));
     let client = StdioMcpClient::spawn(&binary, &config_path, &stderr_path)?;
-
-    let start = Instant::now();
-    let timeout = Duration::from_secs(5);
-    loop {
-        match client.list_tools().await {
-            Ok(_) => break,
-            Err(err) => {
-                if start.elapsed() > timeout {
-                    return Err(format!("stdio readiness timeout: {err}").into());
-                }
-                tokio::time::sleep(Duration::from_millis(50)).await;
-            }
-        }
-    }
+    wait_for_stdio_ready(&client, Duration::from_secs(5)).await?;
 
     let fixture = ScenarioFixture::time_after("stdio-scenario", "run-1", 0);
     let define_request = ScenarioDefineRequest {

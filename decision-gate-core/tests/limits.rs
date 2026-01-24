@@ -32,6 +32,7 @@ use decision_gate_core::EvidenceResult;
 use decision_gate_core::EvidenceValue;
 use decision_gate_core::GateId;
 use decision_gate_core::GateSpec;
+use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketPayload;
 use decision_gate_core::PolicyDecider;
 use decision_gate_core::PolicyDecision;
@@ -46,6 +47,7 @@ use decision_gate_core::StageSpec;
 use decision_gate_core::TenantId;
 use decision_gate_core::Timestamp;
 use decision_gate_core::TriggerId;
+use decision_gate_core::TrustLane;
 use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
 use decision_gate_core::hashing::hash_bytes;
 use decision_gate_core::runtime::ControlPlane;
@@ -104,6 +106,7 @@ impl EvidenceProvider for LargeEvidenceProvider {
     ) -> Result<EvidenceResult, EvidenceError> {
         Ok(EvidenceResult {
             value: Some(EvidenceValue::Bytes(vec![0u8; self.size])),
+            lane: TrustLane::Verified,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -123,6 +126,7 @@ impl EvidenceProvider for LargeEvidenceProvider {
 fn minimal_spec() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
+        namespace_id: NamespaceId::new("default"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -130,6 +134,7 @@ fn minimal_spec() -> ScenarioSpec {
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-1"),
                 requirement: ret_logic::Requirement::predicate("ready".into()),
+                trust: None,
             }],
             advance_to: AdvanceTo::Terminal,
             timeout: None,
@@ -145,6 +150,7 @@ fn minimal_spec() -> ScenarioSpec {
             comparator: Comparator::Equals,
             expected: Some(json!(true)),
             policy_tags: Vec::new(),
+            trust: None,
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
@@ -174,6 +180,7 @@ fn evidence_payload_size_limit_is_enforced() {
 
     let run_config = RunConfig {
         tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: ScenarioId::new("scenario"),
         dispatch_targets: vec![],
@@ -184,6 +191,8 @@ fn evidence_payload_size_limit_is_enforced() {
 
     let request = decision_gate_core::runtime::NextRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
+        tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         trigger_id: TriggerId::new("trigger-1"),
         agent_id: "agent-1".to_string(),
         time: Timestamp::Logical(1),
@@ -212,6 +221,7 @@ fn payload_size_limit_is_enforced() {
 
     let run_config = RunConfig {
         tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         run_id: decision_gate_core::RunId::new("run-2"),
         scenario_id: ScenarioId::new("scenario"),
         dispatch_targets: vec![],
@@ -222,6 +232,8 @@ fn payload_size_limit_is_enforced() {
 
     let request = decision_gate_core::runtime::SubmitRequest {
         run_id: decision_gate_core::RunId::new("run-2"),
+        tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         submission_id: "submission-1".to_string(),
         payload: PacketPayload::Bytes {
             bytes: vec![0u8; MAX_PAYLOAD_BYTES + 1],

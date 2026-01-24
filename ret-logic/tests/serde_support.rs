@@ -278,7 +278,7 @@ fn test_validator_rejects_empty_or_when_configured() -> TestResult {
 #[test]
 fn test_validator_validates_not() -> TestResult {
     let validator = RequirementValidator::with_defaults();
-    let req = Requirement::not(Requirement::predicate(MockPredicate::AlwaysTrue));
+    let req = Requirement::negate(Requirement::predicate(MockPredicate::AlwaysTrue));
     ensure(validator.validate(&req).is_ok(), "Expected validator to accept NOT")?;
     Ok(())
 }
@@ -343,7 +343,7 @@ fn test_validator_validates_nested() -> TestResult {
     let req = Requirement::and(vec![
         Requirement::or(vec![
             Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::not(Requirement::predicate(MockPredicate::AlwaysFalse)),
+            Requirement::negate(Requirement::predicate(MockPredicate::AlwaysFalse)),
         ]),
         Requirement::require_group(
             1,
@@ -437,7 +437,7 @@ fn test_ron_roundtrip_or() -> TestResult {
 /// Tests ron roundtrip not.
 #[test]
 fn test_ron_roundtrip_not() -> TestResult {
-    let req = Requirement::not(Requirement::predicate(MockPredicate::HasAllFlags(0xFF)));
+    let req = Requirement::negate(Requirement::predicate(MockPredicate::HasAllFlags(0xFF)));
     let parsed = ron_roundtrip(&req)?;
     ensure(req == parsed, "Expected RON roundtrip to preserve NOT")?;
     Ok(())
@@ -467,7 +467,7 @@ fn test_ron_roundtrip_complex_nested() -> TestResult {
             Requirement::predicate(MockPredicate::ValueGte(10)),
             Requirement::predicate(MockPredicate::ValueLte(0)),
         ]),
-        Requirement::not(Requirement::predicate(MockPredicate::HasNoneFlags(0b11))),
+        Requirement::negate(Requirement::predicate(MockPredicate::HasNoneFlags(0b11))),
         Requirement::require_group(
             1,
             vec![
@@ -519,7 +519,7 @@ fn test_json_roundtrip_and() -> TestResult {
 fn test_json_roundtrip_nested() -> TestResult {
     let req = Requirement::and(vec![Requirement::or(vec![
         Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::not(Requirement::predicate(MockPredicate::AlwaysFalse)),
+        Requirement::negate(Requirement::predicate(MockPredicate::AlwaysFalse)),
     ])]);
     let parsed = json_roundtrip(&req)?;
     ensure(req == parsed, "Expected JSON roundtrip to preserve nested requirement")?;

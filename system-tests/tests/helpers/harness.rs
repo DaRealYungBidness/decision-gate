@@ -15,10 +15,12 @@ use std::time::Duration;
 use decision_gate_mcp::McpServer;
 use decision_gate_mcp::config::DecisionGateConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
+use decision_gate_mcp::config::PolicyConfig;
 use decision_gate_mcp::config::ProviderConfig;
 use decision_gate_mcp::config::ProviderTimeoutConfig;
 use decision_gate_mcp::config::ProviderType;
 use decision_gate_mcp::config::RunStateStoreConfig;
+use decision_gate_mcp::config::SchemaRegistryConfig;
 use decision_gate_mcp::config::ServerAuditConfig;
 use decision_gate_mcp::config::ServerAuthConfig;
 use decision_gate_mcp::config::ServerAuthMode;
@@ -82,7 +84,9 @@ pub fn base_http_config(bind: &str) -> DecisionGateConfig {
         },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
         providers: builtin_providers(),
     }
 }
@@ -159,7 +163,9 @@ pub fn base_sse_config(bind: &str) -> DecisionGateConfig {
         },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
         providers: builtin_providers(),
     }
 }

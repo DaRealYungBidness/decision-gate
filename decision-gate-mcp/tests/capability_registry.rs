@@ -8,6 +8,13 @@
 
 //! Capability registry coverage for contract validation edge cases.
 
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::err_expect,
+    reason = "Test-only fixtures use unwraps for clarity."
+)]
+
 mod common;
 
 use std::path::Path;
@@ -24,10 +31,12 @@ use decision_gate_mcp::capabilities::CapabilityError;
 use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::DecisionGateConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
+use decision_gate_mcp::config::PolicyConfig;
 use decision_gate_mcp::config::ProviderConfig;
 use decision_gate_mcp::config::ProviderTimeoutConfig;
 use decision_gate_mcp::config::ProviderType;
 use decision_gate_mcp::config::RunStateStoreConfig;
+use decision_gate_mcp::config::SchemaRegistryConfig;
 use decision_gate_mcp::config::ServerConfig;
 use decision_gate_mcp::config::TrustConfig;
 use serde_json::json;
@@ -38,7 +47,9 @@ fn base_config() -> DecisionGateConfig {
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
     }
 }

@@ -181,3 +181,47 @@ C) We have no idea if the LLM lied
 In all cases, Decision Gate still fails closed for missing/invalid evidence and
 records hashes and logs for audit. The choice of provider trust policy, contract
 quality, and data source determines which assurance level you get.
+
+## 8) Follow-up clarifications (out-of-band, agent-supplied data, precheck)
+
+Out-of-band means "not discoverable via DG MCP tools":
+- There is no MCP tool to list provider schemas/capabilities; you must obtain
+  provider contracts via docs or files (for built-ins, the generated docs; for
+  external providers, the contract JSON on disk).
+  `decision-gate-mcp/src/tools.rs:126`
+  `decision-gate-contract/src/tooling.rs:35`
+
+Agent-supplied artifacts vs evidence:
+- `scenario_submit` records submissions (payload + hash) into run state for
+  audit, but submissions are not used for gate evaluation.
+  `decision-gate-core/src/runtime/engine.rs:323`
+  `decision-gate-core/src/core/state.rs:239`
+- Gate evaluation only uses EvidenceProviders queried via EvidenceQuery. There
+  is no built-in "submit evidence to evaluate" tool today.
+  `decision-gate-core/src/runtime/engine.rs:506`
+
+Precheck vs "submit data to see if it would pass":
+- The supported precheck tool is `evidence_query`, which calls a provider with
+  full EvidenceContext and returns an EvidenceResult (subject to redaction).
+  This still relies on provider logic, not arbitrary client-supplied evidence.
+  `decision-gate-mcp/src/tools.rs:454`
+- If you want "agent sends data directly and asks if it would pass," that would
+  need a provider that accepts the data as params and returns it as evidence, or
+  a new tool to submit evidence for evaluation. That pattern is not built-in.
+
+Why allow agent-supplied data at all?
+- It enables adoption when no MCP connector exists, but the trust model changes:
+  the provider (or submission flow) is now asserting data rather than verifying
+  it. DG can still hash and log what was submitted, but it cannot guarantee
+  truth without an external verifier.
+
+B vs C (clarified):
+- B = "we can prove what was submitted": DG stores SubmissionRecords (payload +
+  hash) and EvidenceResults in run state/runpacks, so you can show the exact
+  submitted content or its hash later.
+  `decision-gate-core/src/core/state.rs:239`
+  `decision-gate-core/src/runtime/runpack.rs:47`
+- C = "we have no idea": this happens when you do not retain run state/runpacks,
+  or when evidence has no verifiable anchors/signatures and you also discard the
+  submitted payload/hashes. DG can only show what it observed if those logs are
+  retained.

@@ -24,20 +24,31 @@ use std::sync::Mutex;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
+use decision_gate_core::DataShapeId;
+use decision_gate_core::DataShapePage;
+use decision_gate_core::DataShapeRecord;
+use decision_gate_core::DataShapeRegistry;
+use decision_gate_core::DataShapeRegistryError;
+use decision_gate_core::DataShapeVersion;
+use decision_gate_core::NamespaceId;
 use decision_gate_core::RunId;
 use decision_gate_core::RunState;
 use decision_gate_core::RunStateStore;
 use decision_gate_core::StoreError;
+use decision_gate_core::TenantId;
+use decision_gate_core::Timestamp;
 use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
 use decision_gate_core::hashing::HashAlgorithm;
 use decision_gate_core::hashing::canonical_json_bytes;
 use decision_gate_core::hashing::hash_bytes;
 use decision_gate_core::runtime::MAX_RUNPACK_ARTIFACT_BYTES;
 use rusqlite::Connection;
+use rusqlite::ErrorCode;
 use rusqlite::OpenFlags;
 use rusqlite::OptionalExtension;
 use rusqlite::params;
 use serde::Deserialize;
+use serde::Serialize;
 use thiserror::Error;
 
 // ============================================================================//
@@ -45,7 +56,7 @@ use thiserror::Error;
 // ============================================================================//
 
 /// `SQLite` schema version for the store.
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 3;
 /// Default busy timeout (ms).
 const DEFAULT_BUSY_TIMEOUT_MS: u64 = 5_000;
 /// Maximum length of a single path component.
@@ -54,6 +65,17 @@ const MAX_PATH_COMPONENT_LENGTH: usize = 255;
 const MAX_TOTAL_PATH_LENGTH: usize = 4096;
 /// Maximum run state snapshot size accepted by the store.
 pub const MAX_STATE_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;
+/// Maximum schema payload size accepted by the registry.
+pub const MAX_SCHEMA_BYTES: usize = 1024 * 1024;
+
+/// Cursor payload for schema pagination.
+#[derive(Debug, Serialize, Deserialize)]
+struct RegistryCursor {
+    /// Schema identifier for pagination.
+    schema_id: String,
+    /// Schema version for pagination.
+    version: String,
+}
 
 // ============================================================================//
 // SECTION: Config
@@ -210,8 +232,13 @@ impl SqliteRunStateStore {
 }
 
 impl RunStateStore for SqliteRunStateStore {
-    fn load(&self, run_id: &RunId) -> Result<Option<RunState>, StoreError> {
-        self.load_state(run_id).map_err(StoreError::from)
+    fn load(
+        &self,
+        tenant_id: &TenantId,
+        namespace_id: &NamespaceId,
+        run_id: &RunId,
+    ) -> Result<Option<RunState>, StoreError> {
+        self.load_state(tenant_id, namespace_id, run_id).map_err(StoreError::from)
     }
 
     fn save(&self, state: &RunState) -> Result<(), StoreError> {
@@ -219,100 +246,198 @@ impl RunStateStore for SqliteRunStateStore {
     }
 }
 
-impl SqliteRunStateStore {
-    /// Loads run state for the provided run identifier.
-    fn load_state(&self, run_id: &RunId) -> Result<Option<RunState>, SqliteStoreError> {
+impl DataShapeRegistry for SqliteRunStateStore {
+    fn register(&self, record: DataShapeRecord) -> Result<(), DataShapeRegistryError> {
+        let schema_bytes = canonical_json_bytes(&record.schema)
+            .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
+        if schema_bytes.len() > MAX_SCHEMA_BYTES {
+            return Err(DataShapeRegistryError::Invalid(format!(
+                "schema exceeds size limit: {} bytes (max {})",
+                schema_bytes.len(),
+                MAX_SCHEMA_BYTES
+            )));
+        }
+        let schema_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, &schema_bytes);
+        let created_at_json = serde_json::to_string(&record.created_at)
+            .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
+        let mut guard = self.connection.lock().map_err(|_| {
+            DataShapeRegistryError::Io("schema registry mutex poisoned".to_string())
+        })?;
+        let result = {
+            let tx =
+                guard.transaction().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+            let result = tx.execute(
+                "INSERT INTO data_shapes (
+                    tenant_id, namespace_id, schema_id, version,
+                    schema_json, schema_hash, hash_algorithm, description, created_at_json
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![
+                    record.tenant_id.as_str(),
+                    record.namespace_id.as_str(),
+                    record.schema_id.as_str(),
+                    record.version.as_str(),
+                    schema_bytes,
+                    schema_hash.value,
+                    hash_algorithm_label(schema_hash.algorithm),
+                    record.description.as_deref(),
+                    created_at_json,
+                ],
+            );
+            match result {
+                Ok(_) => tx.commit().map_err(|err| DataShapeRegistryError::Io(err.to_string())),
+                Err(rusqlite::Error::SqliteFailure(err, _))
+                    if err.code == ErrorCode::ConstraintViolation =>
+                {
+                    Err(DataShapeRegistryError::Conflict("schema already registered".to_string()))
+                }
+                Err(err) => Err(DataShapeRegistryError::Io(err.to_string())),
+            }
+        };
+        drop(guard);
+        result
+    }
+
+    fn get(
+        &self,
+        tenant_id: &TenantId,
+        namespace_id: &NamespaceId,
+        schema_id: &DataShapeId,
+        version: &DataShapeVersion,
+    ) -> Result<Option<DataShapeRecord>, DataShapeRegistryError> {
+        let mut guard = self.connection.lock().map_err(|_| {
+            DataShapeRegistryError::Io("schema registry mutex poisoned".to_string())
+        })?;
         let row = {
-            let mut guard = self
-                .connection
-                .lock()
-                .map_err(|_| SqliteStoreError::Db("mutex poisoned".to_string()))?;
-            let tx = guard.transaction().map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-            let latest_version: Option<i64> = tx
+            let tx =
+                guard.transaction().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+            let row = tx
                 .query_row(
-                    "SELECT latest_version FROM runs WHERE run_id = ?1",
-                    params![run_id.as_str()],
-                    |row| row.get(0),
+                    "SELECT schema_json, schema_hash, hash_algorithm, description, \
+                     created_at_json FROM data_shapes WHERE tenant_id = ?1 AND namespace_id = ?2 \
+                     AND schema_id = ?3 AND version = ?4",
+                    params![
+                        tenant_id.as_str(),
+                        namespace_id.as_str(),
+                        schema_id.as_str(),
+                        version.as_str()
+                    ],
+                    |row| {
+                        let schema_json: Vec<u8> = row.get(0)?;
+                        let schema_hash: String = row.get(1)?;
+                        let hash_algorithm: String = row.get(2)?;
+                        let description: Option<String> = row.get(3)?;
+                        let created_at_json: String = row.get(4)?;
+                        Ok((schema_json, schema_hash, hash_algorithm, description, created_at_json))
+                    },
                 )
                 .optional()
-                .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-            let latest_version = match latest_version {
-                None => None,
-                Some(value) => {
-                    if value < 1 {
-                        return Err(SqliteStoreError::Corrupt(format!(
-                            "invalid latest_version for run {}",
-                            run_id.as_str()
-                        )));
-                    }
-                    Some(value)
-                }
-            };
-            let row = if let Some(latest_version) = latest_version {
-                let metadata = tx
-                    .query_row(
-                        "SELECT length(state_json), state_hash, hash_algorithm FROM \
-                         run_state_versions WHERE run_id = ?1 AND version = ?2",
-                        params![run_id.as_str(), latest_version],
-                        |row| {
-                            let length: i64 = row.get(0)?;
-                            let hash: String = row.get(1)?;
-                            let algorithm: String = row.get(2)?;
-                            Ok((length, hash, algorithm))
-                        },
-                    )
-                    .optional()
-                    .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-                let Some((length, hash, algorithm)) = metadata else {
-                    return Err(SqliteStoreError::Corrupt(format!(
-                        "missing run state version {latest_version} for run {}",
-                        run_id.as_str()
-                    )));
-                };
-                let length_usize = usize::try_from(length).map_err(|_| {
-                    SqliteStoreError::Invalid(format!(
-                        "negative run state length for run {}",
-                        run_id.as_str()
-                    ))
-                })?;
-                if length_usize > MAX_STATE_BYTES {
-                    return Err(SqliteStoreError::TooLarge {
-                        max_bytes: MAX_STATE_BYTES,
-                        actual_bytes: length_usize,
-                    });
-                }
-                let bytes: Vec<u8> = tx
-                    .query_row(
-                        "SELECT state_json FROM run_state_versions WHERE run_id = ?1 AND version \
-                         = ?2",
-                        params![run_id.as_str(), latest_version],
-                        |row| row.get(0),
-                    )
-                    .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-                Some((bytes, hash, algorithm))
-            } else {
-                None
-            };
-            tx.commit().map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-            drop(guard);
+                .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+            tx.commit().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
             row
         };
-        let Some((bytes, hash_value, hash_algorithm)) = row else {
+        drop(guard);
+        let Some((schema_json, schema_hash, hash_algorithm, description, created_at_json)) = row
+        else {
             return Ok(None);
         };
-        let algorithm = parse_hash_algorithm(&hash_algorithm)?;
-        let expected = hash_bytes(algorithm, &bytes);
-        if expected.value != hash_value {
+        let algorithm = parse_hash_algorithm(&hash_algorithm)
+            .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
+        let expected = hash_bytes(algorithm, &schema_json);
+        if expected.value != schema_hash {
+            return Err(DataShapeRegistryError::Invalid("schema hash mismatch".to_string()));
+        }
+        let schema: serde_json::Value = serde_json::from_slice(&schema_json)
+            .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
+        let created_at: Timestamp = serde_json::from_str(&created_at_json)
+            .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
+        Ok(Some(DataShapeRecord {
+            tenant_id: tenant_id.clone(),
+            namespace_id: namespace_id.clone(),
+            schema_id: schema_id.clone(),
+            version: version.clone(),
+            schema,
+            description,
+            created_at,
+        }))
+    }
+
+    fn list(
+        &self,
+        tenant_id: &TenantId,
+        namespace_id: &NamespaceId,
+        cursor: Option<String>,
+        limit: usize,
+    ) -> Result<DataShapePage, DataShapeRegistryError> {
+        if limit == 0 {
+            return Err(DataShapeRegistryError::Invalid(
+                "schema list limit must be greater than zero".to_string(),
+            ));
+        }
+        let limit = i64::try_from(limit)
+            .map_err(|_| DataShapeRegistryError::Invalid("limit too large".to_string()))?;
+        let cursor = cursor.map(|value| parse_registry_cursor(&value)).transpose()?;
+        let mut guard = self.connection.lock().map_err(|_| {
+            DataShapeRegistryError::Io("schema registry mutex poisoned".to_string())
+        })?;
+        let records = {
+            let tx =
+                guard.transaction().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+            let rows = query_schema_rows(&tx, tenant_id, namespace_id, cursor.as_ref(), limit)?;
+            let records = rows
+                .into_iter()
+                .map(|row| build_schema_record(tenant_id, namespace_id, row))
+                .collect::<Result<Vec<_>, _>>()?;
+            tx.commit().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+            records
+        };
+        drop(guard);
+        let next_token = records.last().map(|record| {
+            serde_json::to_string(&RegistryCursor {
+                schema_id: record.schema_id.to_string(),
+                version: record.version.to_string(),
+            })
+            .unwrap_or_default()
+        });
+        Ok(DataShapePage {
+            items: records,
+            next_token,
+        })
+    }
+}
+
+impl SqliteRunStateStore {
+    /// Loads run state for the provided run identifier.
+    fn load_state(
+        &self,
+        tenant_id: &TenantId,
+        namespace_id: &NamespaceId,
+        run_id: &RunId,
+    ) -> Result<Option<RunState>, SqliteStoreError> {
+        let payload =
+            fetch_run_state_payload(self.connection.as_ref(), tenant_id, namespace_id, run_id)?;
+        let Some(payload) = payload else {
+            return Ok(None);
+        };
+        let algorithm = parse_hash_algorithm(&payload.hash_algorithm)?;
+        let expected = hash_bytes(algorithm, &payload.bytes);
+        if expected.value != payload.hash_value {
             return Err(SqliteStoreError::Corrupt(format!(
                 "hash mismatch for run {}",
                 run_id.as_str()
             )));
         }
-        let state: RunState = serde_json::from_slice(&bytes)
+        let state: RunState = serde_json::from_slice(&payload.bytes)
             .map_err(|err| SqliteStoreError::Invalid(err.to_string()))?;
         if state.run_id.as_str() != run_id.as_str() {
             return Err(SqliteStoreError::Invalid(
                 "run_id mismatch between key and payload".to_string(),
+            ));
+        }
+        if state.tenant_id.as_str() != tenant_id.as_str()
+            || state.namespace_id.as_str() != namespace_id.as_str()
+        {
+            return Err(SqliteStoreError::Invalid(
+                "tenant/namespace mismatch between key and payload".to_string(),
             ));
         }
         Ok(Some(state))
@@ -332,8 +457,13 @@ impl SqliteRunStateStore {
             let tx = guard.transaction().map_err(|err| SqliteStoreError::Db(err.to_string()))?;
             let latest_version: Option<i64> = tx
                 .query_row(
-                    "SELECT latest_version FROM runs WHERE run_id = ?1",
-                    params![state.run_id.as_str()],
+                    "SELECT latest_version FROM runs WHERE tenant_id = ?1 AND namespace_id = ?2 \
+                     AND run_id = ?3",
+                    params![
+                        state.tenant_id.as_str(),
+                        state.namespace_id.as_str(),
+                        state.run_id.as_str()
+                    ],
                     |row| row.get(0),
                 )
                 .optional()
@@ -356,15 +486,24 @@ impl SqliteRunStateStore {
                 }
             };
             tx.execute(
-                "INSERT INTO runs (run_id, latest_version) VALUES (?1, ?2) ON CONFLICT(run_id) DO \
-                 UPDATE SET latest_version = excluded.latest_version",
-                params![state.run_id.as_str(), next_version],
+                "INSERT INTO runs (tenant_id, namespace_id, run_id, latest_version) VALUES (?1, \
+                 ?2, ?3, ?4) ON CONFLICT(tenant_id, namespace_id, run_id) DO UPDATE SET \
+                 latest_version = excluded.latest_version",
+                params![
+                    state.tenant_id.as_str(),
+                    state.namespace_id.as_str(),
+                    state.run_id.as_str(),
+                    next_version
+                ],
             )
             .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
             tx.execute(
-                "INSERT INTO run_state_versions (run_id, version, state_json, state_hash, \
-                 hash_algorithm, saved_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                "INSERT INTO run_state_versions (tenant_id, namespace_id, run_id, version, \
+                 state_json, state_hash, hash_algorithm, saved_at) VALUES (?1, ?2, ?3, ?4, ?5, \
+                 ?6, ?7, ?8)",
                 params![
+                    state.tenant_id.as_str(),
+                    state.namespace_id.as_str(),
                     state.run_id.as_str(),
                     next_version,
                     canonical_json,
@@ -374,7 +513,14 @@ impl SqliteRunStateStore {
                 ],
             )
             .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-            enforce_retention(&tx, state.run_id.as_str(), next_version, self.config.max_versions)?;
+            enforce_retention(
+                &tx,
+                state.tenant_id.as_str(),
+                state.namespace_id.as_str(),
+                state.run_id.as_str(),
+                next_version,
+                self.config.max_versions,
+            )?;
             tx.commit().map_err(|err| SqliteStoreError::Db(err.to_string()))?;
             drop(guard);
         }
@@ -462,21 +608,41 @@ fn initialize_schema(connection: &mut Connection) -> Result<(), SqliteStoreError
                 .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
             tx.execute_batch(
                 "CREATE TABLE IF NOT EXISTS runs (
-                    run_id TEXT PRIMARY KEY,
-                    latest_version INTEGER NOT NULL
+                    tenant_id TEXT NOT NULL,
+                    namespace_id TEXT NOT NULL,
+                    run_id TEXT NOT NULL,
+                    latest_version INTEGER NOT NULL,
+                    PRIMARY KEY (tenant_id, namespace_id, run_id)
                 );
                 CREATE TABLE IF NOT EXISTS run_state_versions (
+                    tenant_id TEXT NOT NULL,
+                    namespace_id TEXT NOT NULL,
                     run_id TEXT NOT NULL,
                     version INTEGER NOT NULL,
                     state_json BLOB NOT NULL,
                     state_hash TEXT NOT NULL,
                     hash_algorithm TEXT NOT NULL,
                     saved_at INTEGER NOT NULL,
-                    PRIMARY KEY (run_id, version),
-                    FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
+                    PRIMARY KEY (tenant_id, namespace_id, run_id, version),
+                    FOREIGN KEY (tenant_id, namespace_id, run_id)
+                        REFERENCES runs(tenant_id, namespace_id, run_id) ON DELETE CASCADE
                 );
                 CREATE INDEX IF NOT EXISTS idx_run_state_versions_run_id
-                    ON run_state_versions (run_id);",
+                    ON run_state_versions (tenant_id, namespace_id, run_id);
+                CREATE TABLE IF NOT EXISTS data_shapes (
+                    tenant_id TEXT NOT NULL,
+                    namespace_id TEXT NOT NULL,
+                    schema_id TEXT NOT NULL,
+                    version TEXT NOT NULL,
+                    schema_json BLOB NOT NULL,
+                    schema_hash TEXT NOT NULL,
+                    hash_algorithm TEXT NOT NULL,
+                    description TEXT,
+                    created_at_json TEXT NOT NULL,
+                    PRIMARY KEY (tenant_id, namespace_id, schema_id, version)
+                );
+                CREATE INDEX IF NOT EXISTS idx_data_shapes_namespace
+                    ON data_shapes (tenant_id, namespace_id, schema_id, version);",
             )
             .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
         }
@@ -494,6 +660,8 @@ fn initialize_schema(connection: &mut Connection) -> Result<(), SqliteStoreError
 /// Enforces version retention if configured.
 fn enforce_retention(
     tx: &rusqlite::Transaction<'_>,
+    tenant_id: &str,
+    namespace_id: &str,
     run_id: &str,
     latest_version: i64,
     max_versions: Option<u64>,
@@ -511,8 +679,9 @@ fn enforce_retention(
     if latest_version > max_versions {
         let min_version = latest_version - max_versions + 1;
         tx.execute(
-            "DELETE FROM run_state_versions WHERE run_id = ?1 AND version < ?2",
-            params![run_id, min_version],
+            "DELETE FROM run_state_versions WHERE tenant_id = ?1 AND namespace_id = ?2 AND run_id \
+             = ?3 AND version < ?4",
+            params![tenant_id, namespace_id, run_id, min_version],
         )
         .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
     }
@@ -538,4 +707,238 @@ fn parse_hash_algorithm(label: &str) -> Result<HashAlgorithm, SqliteStoreError> 
         "sha256" => Ok(HashAlgorithm::Sha256),
         other => Err(SqliteStoreError::Invalid(format!("unsupported hash algorithm: {other}"))),
     }
+}
+
+/// Raw payload for a stored run state.
+#[derive(Debug)]
+struct RunStatePayload {
+    /// Stored JSON bytes for the run state.
+    bytes: Vec<u8>,
+    /// Stored hash value for the payload.
+    hash_value: String,
+    /// Stored hash algorithm label.
+    hash_algorithm: String,
+}
+
+/// Fetches the latest run state payload for the provided run identifiers.
+fn fetch_run_state_payload(
+    connection: &Mutex<Connection>,
+    tenant_id: &TenantId,
+    namespace_id: &NamespaceId,
+    run_id: &RunId,
+) -> Result<Option<RunStatePayload>, SqliteStoreError> {
+    let mut guard =
+        connection.lock().map_err(|_| SqliteStoreError::Db("mutex poisoned".to_string()))?;
+    let payload = {
+        let tx = guard.transaction().map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+        let latest_version: Option<i64> = tx
+            .query_row(
+                "SELECT latest_version FROM runs WHERE tenant_id = ?1 AND namespace_id = ?2 AND \
+                 run_id = ?3",
+                params![tenant_id.as_str(), namespace_id.as_str(), run_id.as_str()],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+        let latest_version = match latest_version {
+            None => None,
+            Some(value) => {
+                if value < 1 {
+                    return Err(SqliteStoreError::Corrupt(format!(
+                        "invalid latest_version for run {}",
+                        run_id.as_str()
+                    )));
+                }
+                Some(value)
+            }
+        };
+        let payload = if let Some(latest_version) = latest_version {
+            let metadata = tx
+                .query_row(
+                    "SELECT length(state_json), state_hash, hash_algorithm FROM \
+                     run_state_versions WHERE tenant_id = ?1 AND namespace_id = ?2 AND run_id = \
+                     ?3 AND version = ?4",
+                    params![
+                        tenant_id.as_str(),
+                        namespace_id.as_str(),
+                        run_id.as_str(),
+                        latest_version
+                    ],
+                    |row| {
+                        let length: i64 = row.get(0)?;
+                        let hash: String = row.get(1)?;
+                        let algorithm: String = row.get(2)?;
+                        Ok((length, hash, algorithm))
+                    },
+                )
+                .optional()
+                .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+            let (length, hash, algorithm) = metadata.ok_or_else(|| {
+                SqliteStoreError::Corrupt(format!(
+                    "missing run state version {latest_version} for run {}",
+                    run_id.as_str()
+                ))
+            })?;
+            let length_usize = usize::try_from(length).map_err(|_| {
+                SqliteStoreError::Invalid(format!(
+                    "negative run state length for run {}",
+                    run_id.as_str()
+                ))
+            })?;
+            if length_usize > MAX_STATE_BYTES {
+                return Err(SqliteStoreError::TooLarge {
+                    max_bytes: MAX_STATE_BYTES,
+                    actual_bytes: length_usize,
+                });
+            }
+            let bytes: Vec<u8> = tx
+                .query_row(
+                    "SELECT state_json FROM run_state_versions WHERE tenant_id = ?1 AND \
+                     namespace_id = ?2 AND run_id = ?3 AND version = ?4",
+                    params![
+                        tenant_id.as_str(),
+                        namespace_id.as_str(),
+                        run_id.as_str(),
+                        latest_version
+                    ],
+                    |row| row.get(0),
+                )
+                .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+            Some(RunStatePayload {
+                bytes,
+                hash_value: hash,
+                hash_algorithm: algorithm,
+            })
+        } else {
+            None
+        };
+        tx.commit().map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+        payload
+    };
+    drop(guard);
+    Ok(payload)
+}
+
+/// Parses a pagination cursor payload.
+fn parse_registry_cursor(cursor: &str) -> Result<RegistryCursor, DataShapeRegistryError> {
+    serde_json::from_str(cursor)
+        .map_err(|_| DataShapeRegistryError::Invalid("invalid cursor".to_string()))
+}
+
+/// Schema row data loaded from the registry.
+#[derive(Debug)]
+struct SchemaRow {
+    /// Schema identifier string.
+    schema_id: String,
+    /// Schema version string.
+    version: String,
+    /// Canonical schema bytes.
+    schema_json: Vec<u8>,
+    /// Stored schema hash value.
+    schema_hash: String,
+    /// Stored hash algorithm label.
+    hash_algorithm: String,
+    /// Optional schema description.
+    description: Option<String>,
+    /// JSON-encoded creation timestamp.
+    created_at_json: String,
+}
+
+/// Maps a `SQLite` row into a schema row payload.
+fn map_schema_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SchemaRow> {
+    Ok(SchemaRow {
+        schema_id: row.get(0)?,
+        version: row.get(1)?,
+        schema_json: row.get(2)?,
+        schema_hash: row.get(3)?,
+        hash_algorithm: row.get(4)?,
+        description: row.get(5)?,
+        created_at_json: row.get(6)?,
+    })
+}
+
+/// Maps `SQLite` errors to registry errors.
+fn map_registry_error(err: &rusqlite::Error) -> DataShapeRegistryError {
+    DataShapeRegistryError::Io(err.to_string())
+}
+
+/// Queries schema rows for the provided tenant and namespace.
+fn query_schema_rows(
+    tx: &rusqlite::Transaction<'_>,
+    tenant_id: &TenantId,
+    namespace_id: &NamespaceId,
+    cursor: Option<&RegistryCursor>,
+    limit: i64,
+) -> Result<Vec<SchemaRow>, DataShapeRegistryError> {
+    if let Some(cursor) = cursor {
+        let mut stmt = tx
+            .prepare(
+                "SELECT schema_id, version, schema_json, schema_hash, hash_algorithm, \
+                 description, created_at_json FROM data_shapes WHERE tenant_id = ?1 AND \
+                 namespace_id = ?2 AND (schema_id > ?3 OR (schema_id = ?3 AND version > ?4)) \
+                 ORDER BY schema_id, version LIMIT ?5",
+            )
+            .map_err(|err| map_registry_error(&err))?;
+        let rows = stmt
+            .query_map(
+                params![
+                    tenant_id.as_str(),
+                    namespace_id.as_str(),
+                    cursor.schema_id.as_str(),
+                    cursor.version.as_str(),
+                    limit
+                ],
+                map_schema_row,
+            )
+            .map_err(|err| map_registry_error(&err))?;
+        rows.map(|row| row.map_err(|err| map_registry_error(&err))).collect()
+    } else {
+        let mut stmt = tx
+            .prepare(
+                "SELECT schema_id, version, schema_json, schema_hash, hash_algorithm, \
+                 description, created_at_json FROM data_shapes WHERE tenant_id = ?1 AND \
+                 namespace_id = ?2 ORDER BY schema_id, version LIMIT ?3",
+            )
+            .map_err(|err| map_registry_error(&err))?;
+        let rows = stmt
+            .query_map(params![tenant_id.as_str(), namespace_id.as_str(), limit], map_schema_row)
+            .map_err(|err| map_registry_error(&err))?;
+        rows.map(|row| row.map_err(|err| map_registry_error(&err))).collect()
+    }
+}
+
+/// Builds a validated schema record from stored row data.
+fn build_schema_record(
+    tenant_id: &TenantId,
+    namespace_id: &NamespaceId,
+    row: SchemaRow,
+) -> Result<DataShapeRecord, DataShapeRegistryError> {
+    let SchemaRow {
+        schema_id,
+        version,
+        schema_json,
+        schema_hash,
+        hash_algorithm,
+        description,
+        created_at_json,
+    } = row;
+    let algorithm = parse_hash_algorithm(&hash_algorithm)
+        .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
+    let expected = hash_bytes(algorithm, &schema_json);
+    if expected.value != schema_hash {
+        return Err(DataShapeRegistryError::Invalid("schema hash mismatch".to_string()));
+    }
+    let schema: serde_json::Value = serde_json::from_slice(&schema_json)
+        .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
+    let created_at: Timestamp = serde_json::from_str(&created_at_json)
+        .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
+    Ok(DataShapeRecord {
+        tenant_id: tenant_id.clone(),
+        namespace_id: namespace_id.clone(),
+        schema_id: DataShapeId::from(schema_id),
+        version: DataShapeVersion::from(version),
+        schema,
+        description,
+        created_at,
+    })
 }

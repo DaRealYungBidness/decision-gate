@@ -23,6 +23,7 @@ predicate algebra used by the engine.
 ## Table of Contents
 
 - [Overview](#overview)
+- [Current Status (Accuracy Notes)](#current-status-accuracy-notes)
 - [Architecture at a Glance](#architecture-at-a-glance)
 - [Repository Layout](#repository-layout)
 - [Core Concepts](#core-concepts)
@@ -43,8 +44,20 @@ predicate algebra used by the engine.
 ## Overview
 Decision Gate is a control plane. It does not run conversations or agents.
 It ingests triggers, evaluates evidence-backed predicates, and emits auditable
-decisions and disclosures. Evidence is always tied to a provider and recorded
-in run state to enable offline verification.
+decisions and disclosures. Evidence can be provider-pulled (verified) or
+asserted for precheck; asserted data never mutates run state.
+
+## Current Status (Accuracy Notes)
+Implemented:
+- Trust lanes (verified vs asserted) with gate/predicate enforcement.
+- Schema registry (versioned data shapes) and discovery tools.
+- Precheck tool (read-only evaluation of asserted payloads).
+
+Not yet implemented:
+- Dev-permissive/untrusted mode toggle with explicit warnings.
+- Registry RBAC/ACL beyond tool allowlists.
+- Precheck audit hash-only enforcement.
+- Default namespace policy for non-Asset-Core deployments.
 
 ## Architecture at a Glance
 Decision Gate is both an MCP server (tool surface) and an MCP client (evidence
@@ -59,6 +72,7 @@ decision-gate-mcp (tools/list, tools/call)
   |
   | scenario_* -> ControlPlane (decision-gate-core)
   | evidence_query -> EvidenceProvider registry
+  | schemas_* / precheck -> Schema registry + validation
   v
 Evidence sources
   - built-in providers (time, env, json, http)
@@ -151,6 +165,14 @@ evidence query and comparator.
 
 **EvidenceResult**: The provider response containing a value, hash, anchor,
 and optional signature metadata.
+
+**TrustLane**: Evidence trust classification (`verified` or `asserted`), enforced
+at gate/predicate level. Unmet trust yields Unknown and holds the run.
+
+**Namespace**: Logical partition within a tenant for isolation of scenarios,
+schemas, and run state.
+
+**Data Shape**: Versioned JSON Schema used to validate asserted payloads for precheck.
 
 **Runpack**: A deterministic bundle of run artifacts and a manifest for
 offline verification.
@@ -323,6 +345,12 @@ Decision Gate exposes MCP tools that map directly to the control plane:
 - `scenario_submit`
 - `scenario_trigger`
 - `evidence_query`
+- `providers_list`
+- `schemas_register`
+- `schemas_list`
+- `schemas_get`
+- `scenarios_list`
+- `precheck`
 - `runpack_export`
 - `runpack_verify`
 

@@ -28,6 +28,7 @@ use serde_json::json;
 fn minimal_spec_value() -> Value {
     json!({
         "scenario_id": "edge-scenario",
+        "namespace_id": "edge-namespace",
         "spec_version": "v1",
         "stages": [
             {
@@ -79,33 +80,30 @@ fn ron_null_optional_fields_accepted() -> Result<(), Box<dyn std::error::Error>>
 
 /// Confirms empty required arrays are rejected.
 #[test]
-fn ron_empty_stages_rejected() -> Result<(), Box<dyn std::error::Error>> {
+fn ron_empty_stages_rejected() {
     let mut value = minimal_spec_value();
     value["stages"] = json!([]);
     let ron_input = ron_from_value(&value);
     let err = normalize_scenario(&ron_input, AuthoringFormat::Ron).unwrap_err();
     assert!(matches!(err, AuthoringError::Schema { .. }));
-    Ok(())
 }
 
 /// Confirms invalid enum values are rejected by schema validation.
 #[test]
-fn ron_invalid_enum_rejected() -> Result<(), Box<dyn std::error::Error>> {
+fn ron_invalid_enum_rejected() {
     let mut value = minimal_spec_value();
     value["predicates"][0]["comparator"] = json!("bogus");
     let ron_input = ron_from_value(&value);
     let err = normalize_scenario(&ron_input, AuthoringFormat::Ron).unwrap_err();
     assert!(matches!(err, AuthoringError::Schema { .. }));
-    Ok(())
 }
 
 /// Confirms invalid requirement tags are rejected by schema validation.
 #[test]
-fn ron_invalid_requirement_tag_rejected() -> Result<(), Box<dyn std::error::Error>> {
+fn ron_invalid_requirement_tag_rejected() {
     let mut value = minimal_spec_value();
     value["stages"][0]["gates"][0]["requirement"] = json!({ "Unknown": "pred-1" });
     let ron_input = ron_from_value(&value);
     let err = normalize_scenario(&ron_input, AuthoringFormat::Ron).unwrap_err();
     assert!(matches!(err, AuthoringError::Schema { .. }));
-    Ok(())
 }

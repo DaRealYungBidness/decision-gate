@@ -15,6 +15,8 @@
 - **Runpack-ready:** outputs must remain offline verifiable and deterministic.
 - **Requirements crate boundary:** gate algebra lives in `ret-logic/`;
   Decision Gate owns evidence anchoring, decision records, and disclosure policy.
+- **Trust lanes:** asserted vs verified evidence is enforced at gate/predicate level.
+- **Precheck:** read-only evaluation path must not mutate run state.
 - **Docs/tooltips alignment:** after behavior or schema changes, update contract
   tooltips and regenerate `Docs/generated/decision-gate`.
 - **Style:** follow **Docs/standards/codebase_formatting_standards.md**.
@@ -30,6 +32,7 @@
 
 - Gate evaluation logic and decision logging.
 - Evidence anchoring and safe-summary behavior.
+- Trust-lane enforcement and precheck evaluation behavior.
 - Artifact/manifest interfaces and deterministic hashing.
 - Unit tests for all behavior (in dedicated files under `tests/`).
 
@@ -47,6 +50,7 @@
 - Strict Zero Trust posture (assume nation-state adversaries).
 - No hidden mutable globals.
 - No inline tests inside library modules.
+ - Precheck must never write run state or issue disclosures.
 
 ---
 

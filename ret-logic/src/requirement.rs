@@ -507,11 +507,7 @@ impl<P> Requirement<P> {
     }
 
     /// Creates a logical NOT of the given requirement
-    #[allow(
-        clippy::should_implement_trait,
-        reason = "explicit constructor keeps Requirement API consistent"
-    )]
-    pub fn not(requirement: Self) -> Self {
+    pub fn negate(requirement: Self) -> Self {
         Self::Not(Box::new(requirement))
     }
 

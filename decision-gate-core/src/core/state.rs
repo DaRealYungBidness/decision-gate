@@ -29,6 +29,7 @@ use crate::core::hashing::HashDigest;
 use crate::core::identifiers::CorrelationId;
 use crate::core::identifiers::DecisionId;
 use crate::core::identifiers::GateId;
+use crate::core::identifiers::NamespaceId;
 use crate::core::identifiers::PredicateKey;
 use crate::core::identifiers::RunId;
 use crate::core::identifiers::ScenarioId;
@@ -47,6 +48,8 @@ use crate::core::time::Timestamp;
 pub struct RunConfig {
     /// Tenant identifier for the run.
     pub tenant_id: TenantId,
+    /// Namespace identifier for the run.
+    pub namespace_id: NamespaceId,
     /// Run identifier.
     pub run_id: RunId,
     /// Scenario identifier.
@@ -96,6 +99,10 @@ pub enum TriggerKind {
 pub struct TriggerEvent {
     /// Trigger identifier for idempotency.
     pub trigger_id: TriggerId,
+    /// Tenant identifier for the run.
+    pub tenant_id: TenantId,
+    /// Namespace identifier for the run.
+    pub namespace_id: NamespaceId,
     /// Run identifier.
     pub run_id: RunId,
     /// Trigger kind.
@@ -307,6 +314,8 @@ pub enum ToolCallErrorDetails {
 pub struct RunState {
     /// Tenant identifier.
     pub tenant_id: TenantId,
+    /// Namespace identifier.
+    pub namespace_id: NamespaceId,
     /// Run identifier.
     pub run_id: RunId,
     /// Scenario identifier.

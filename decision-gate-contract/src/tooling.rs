@@ -33,129 +33,265 @@ use crate::types::ToolName;
 // ============================================================================
 
 /// Returns the canonical MCP tool contracts.
-#[allow(clippy::too_many_lines, reason = "long static list of tool contracts with detailed notes")]
 #[must_use]
 pub fn tool_contracts() -> Vec<ToolContract> {
     vec![
-        build_tool_contract(
-            ToolName::ScenarioDefine,
-            "Register a ScenarioSpec, validate it, and return the canonical hash used for \
-             integrity checks.",
-            scenario_define_input_schema(),
-            scenario_define_output_schema(),
-            tool_examples(ToolName::ScenarioDefine),
-            vec![
-                "Use before starting runs; scenario_id becomes the stable handle for later calls."
-                    .to_string(),
-                "Validates stage/gate/predicate IDs, RET trees, and predicate references."
-                    .to_string(),
-                "Spec hash is deterministic; store it for audit and runpack integrity.".to_string(),
-                "Fails closed on invalid specs or duplicate scenario IDs.".to_string(),
-            ],
-        ),
-        build_tool_contract(
-            ToolName::ScenarioStart,
-            "Create a new run state for a scenario and optionally emit entry packets.",
-            scenario_start_input_schema(),
-            schemas::run_state_schema(),
-            tool_examples(ToolName::ScenarioStart),
-            vec![
-                "Requires RunConfig (tenant_id, run_id, scenario_id, dispatch_targets)."
-                    .to_string(),
-                "Use started_at to record the caller-supplied start timestamp.".to_string(),
-                "If issue_entry_packets is true, entry packets are disclosed immediately."
-                    .to_string(),
-                "Fails closed if run_id already exists or scenario_id is unknown.".to_string(),
-            ],
-        ),
-        build_tool_contract(
-            ToolName::ScenarioStatus,
-            "Fetch a read-only run snapshot and safe summary without changing state.",
-            scenario_status_input_schema(),
-            schemas::scenario_status_schema(),
-            tool_examples(ToolName::ScenarioStatus),
-            vec![
-                "Use for polling or UI state; does not evaluate gates.".to_string(),
-                "Safe summaries omit evidence values and may include retry hints.".to_string(),
-                "Returns issued packet IDs to help track disclosures.".to_string(),
-            ],
-        ),
-        build_tool_contract(
-            ToolName::ScenarioNext,
-            "Evaluate gates in response to an agent-driven next request.",
-            scenario_next_input_schema(),
-            schemas::next_result_schema(),
-            tool_examples(ToolName::ScenarioNext),
-            vec![
-                "Idempotent by trigger_id; repeated calls return the same decision.".to_string(),
-                "Records decision, evidence, and packet disclosures in run state.".to_string(),
-                "Requires an active run; completed or failed runs do not advance.".to_string(),
-            ],
-        ),
-        build_tool_contract(
-            ToolName::ScenarioSubmit,
-            "Submit external artifacts into run state for audit and later evaluation.",
-            scenario_submit_input_schema(),
-            schemas::submit_result_schema(),
-            tool_examples(ToolName::ScenarioSubmit),
-            vec![
-                "Payload is hashed and stored as a submission record.".to_string(),
-                "Does not advance the run by itself.".to_string(),
-                "Use for artifacts the model or operator supplies.".to_string(),
-            ],
-        ),
-        build_tool_contract(
-            ToolName::ScenarioTrigger,
-            "Submit a trigger event (scheduler/external) and evaluate the run.",
-            scenario_trigger_input_schema(),
-            schemas::trigger_result_schema(),
-            tool_examples(ToolName::ScenarioTrigger),
-            vec![
-                "Trigger time is supplied by the caller; no wall-clock reads.".to_string(),
-                "Records the trigger event and resulting decision.".to_string(),
-                "Use for time-based or external system triggers.".to_string(),
-            ],
-        ),
-        build_tool_contract(
-            ToolName::EvidenceQuery,
-            "Query an evidence provider with full run context and disclosure policy.",
-            evidence_query_input_schema(),
-            evidence_query_output_schema(),
-            tool_examples(ToolName::EvidenceQuery),
-            vec![
-                "Disclosure policy may redact raw values; hashes/anchors still returned."
-                    .to_string(),
-                "Use for diagnostics or preflight checks; runtime uses the same provider logic."
-                    .to_string(),
-                "Requires provider_id, predicate, and full EvidenceContext.".to_string(),
-            ],
-        ),
-        build_tool_contract(
-            ToolName::RunpackExport,
-            "Export deterministic runpack artifacts for offline verification.",
-            runpack_export_input_schema(),
-            runpack_export_output_schema(),
-            tool_examples(ToolName::RunpackExport),
-            vec![
-                "Writes manifest and logs to output_dir; generated_at is recorded in the manifest."
-                    .to_string(),
-                "include_verification adds a verification report artifact.".to_string(),
-                "Use after runs complete or for audit snapshots.".to_string(),
-            ],
-        ),
-        build_tool_contract(
-            ToolName::RunpackVerify,
-            "Verify a runpack manifest and artifacts offline.",
-            runpack_verify_input_schema(),
-            runpack_verify_output_schema(),
-            tool_examples(ToolName::RunpackVerify),
-            vec![
-                "Validates hashes, integrity root, and decision log structure.".to_string(),
-                "Fails closed on missing or tampered files.".to_string(),
-                "Use in CI or offline audit pipelines.".to_string(),
-            ],
-        ),
+        scenario_define_contract(),
+        scenario_start_contract(),
+        scenario_status_contract(),
+        scenario_next_contract(),
+        scenario_submit_contract(),
+        scenario_trigger_contract(),
+        evidence_query_contract(),
+        runpack_export_contract(),
+        runpack_verify_contract(),
+        providers_list_contract(),
+        schemas_register_contract(),
+        schemas_list_contract(),
+        schemas_get_contract(),
+        scenarios_list_contract(),
+        precheck_contract(),
     ]
+}
+
+/// Builds the tool contract for `scenario_define`.
+fn scenario_define_contract() -> ToolContract {
+    build_tool_contract(
+        ToolName::ScenarioDefine,
+        "Register a ScenarioSpec, validate it, and return the canonical hash used for integrity \
+         checks.",
+        scenario_define_input_schema(),
+        scenario_define_output_schema(),
+        tool_examples(ToolName::ScenarioDefine),
+        vec![
+            "Use before starting runs; scenario_id becomes the stable handle for later calls."
+                .to_string(),
+            "Validates stage/gate/predicate IDs, RET trees, and predicate references.".to_string(),
+            "Spec hash is deterministic; store it for audit and runpack integrity.".to_string(),
+            "Fails closed on invalid specs or duplicate scenario IDs.".to_string(),
+        ],
+    )
+}
+
+/// Builds the tool contract for `scenario_start`.
+fn scenario_start_contract() -> ToolContract {
+    build_tool_contract(
+        ToolName::ScenarioStart,
+        "Create a new run state for a scenario and optionally emit entry packets.",
+        scenario_start_input_schema(),
+        schemas::run_state_schema(),
+        tool_examples(ToolName::ScenarioStart),
+        vec![
+            "Requires RunConfig (tenant_id, run_id, scenario_id, dispatch_targets).".to_string(),
+            "Use started_at to record the caller-supplied start timestamp.".to_string(),
+            "If issue_entry_packets is true, entry packets are disclosed immediately.".to_string(),
+            "Fails closed if run_id already exists or scenario_id is unknown.".to_string(),
+        ],
+    )
+}
+
+/// Builds the tool contract for `scenario_status`.
+fn scenario_status_contract() -> ToolContract {
+    build_tool_contract(
+        ToolName::ScenarioStatus,
+        "Fetch a read-only run snapshot and safe summary without changing state.",
+        scenario_status_input_schema(),
+        schemas::scenario_status_schema(),
+        tool_examples(ToolName::ScenarioStatus),
+        vec![
+            "Use for polling or UI state; does not evaluate gates.".to_string(),
+            "Safe summaries omit evidence values and may include retry hints.".to_string(),
+            "Returns issued packet IDs to help track disclosures.".to_string(),
+        ],
+    )
+}
+
+/// Builds the tool contract for `scenario_next`.
+fn scenario_next_contract() -> ToolContract {
+    build_tool_contract(
+        ToolName::ScenarioNext,
+        "Evaluate gates in response to an agent-driven next request.",
+        scenario_next_input_schema(),
+        schemas::next_result_schema(),
+        tool_examples(ToolName::ScenarioNext),
+        vec![
+            "Idempotent by trigger_id; repeated calls return the same decision.".to_string(),
+            "Records decision, evidence, and packet disclosures in run state.".to_string(),
+            "Requires an active run; completed or failed runs do not advance.".to_string(),
+        ],
+    )
+}
+
+/// Builds the tool contract for `scenario_submit`.
+fn scenario_submit_contract() -> ToolContract {
+    build_tool_contract(
+        ToolName::ScenarioSubmit,
+        "Submit external artifacts into run state for audit and later evaluation.",
+        scenario_submit_input_schema(),
+        schemas::submit_result_schema(),
+        tool_examples(ToolName::ScenarioSubmit),
+        vec![
+            "Payload is hashed and stored as a submission record.".to_string(),
+            "Does not advance the run by itself.".to_string(),
+            "Use for artifacts the model or operator supplies.".to_string(),
+        ],
+    )
+}
+
+/// Builds the tool contract for `scenario_trigger`.
+fn scenario_trigger_contract() -> ToolContract {
+    build_tool_contract(
+        ToolName::ScenarioTrigger,
+        "Submit a trigger event (scheduler/external) and evaluate the run.",
+        scenario_trigger_input_schema(),
+        schemas::trigger_result_schema(),
+        tool_examples(ToolName::ScenarioTrigger),
+        vec![
+            "Trigger time is supplied by the caller; no wall-clock reads.".to_string(),
+            "Records the trigger event and resulting decision.".to_string(),
+            "Use for time-based or external system triggers.".to_string(),
+        ],
+    )
+}
+
+/// Builds the tool contract for `evidence_query`.
+fn evidence_query_contract() -> ToolContract {
+    build_tool_contract(
+        ToolName::EvidenceQuery,
+        "Query an evidence provider with full run context and disclosure policy.",
+        evidence_query_input_schema(),
+        evidence_query_output_schema(),
+        tool_examples(ToolName::EvidenceQuery),
+        vec![
+            "Disclosure policy may redact raw values; hashes/anchors still returned.".to_string(),
+            "Use for diagnostics or preflight checks; runtime uses the same provider logic."
+                .to_string(),
+            "Requires provider_id, predicate, and full EvidenceContext.".to_string(),
+        ],
+    )
+}
+
+/// Builds the tool contract for `runpack_export`.
+fn runpack_export_contract() -> ToolContract {
+    build_tool_contract(
+        ToolName::RunpackExport,
+        "Export deterministic runpack artifacts for offline verification.",
+        runpack_export_input_schema(),
+        runpack_export_output_schema(),
+        tool_examples(ToolName::RunpackExport),
+        vec![
+            "Writes manifest and logs to output_dir; generated_at is recorded in the manifest."
+                .to_string(),
+            "include_verification adds a verification report artifact.".to_string(),
+            "Use after runs complete or for audit snapshots.".to_string(),
+        ],
+    )
+}
+
+/// Builds the tool contract for `runpack_verify`.
+fn runpack_verify_contract() -> ToolContract {
+    build_tool_contract(
+        ToolName::RunpackVerify,
+        "Verify a runpack manifest and artifacts offline.",
+        runpack_verify_input_schema(),
+        runpack_verify_output_schema(),
+        tool_examples(ToolName::RunpackVerify),
+        vec![
+            "Validates hashes, integrity root, and decision log structure.".to_string(),
+            "Fails closed on missing or tampered files.".to_string(),
+            "Use in CI or offline audit pipelines.".to_string(),
+        ],
+    )
+}
+
+/// Builds the tool contract for `providers_list`.
+fn providers_list_contract() -> ToolContract {
+    build_tool_contract(
+        ToolName::ProvidersList,
+        "List registered evidence providers and capabilities summary.",
+        providers_list_input_schema(),
+        providers_list_output_schema(),
+        tool_examples(ToolName::ProvidersList),
+        vec![
+            "Returns provider identifiers and transport metadata.".to_string(),
+            "Results are scoped by auth policy.".to_string(),
+        ],
+    )
+}
+
+/// Builds the tool contract for `schemas_register`.
+fn schemas_register_contract() -> ToolContract {
+    build_tool_contract(
+        ToolName::SchemasRegister,
+        "Register a data shape schema for a tenant and namespace.",
+        schemas_register_input_schema(),
+        schemas_register_output_schema(),
+        tool_examples(ToolName::SchemasRegister),
+        vec![
+            "Schemas are immutable; registering the same version twice fails.".to_string(),
+            "Provide created_at to record when the schema was authored.".to_string(),
+        ],
+    )
+}
+
+/// Builds the tool contract for `schemas_list`.
+fn schemas_list_contract() -> ToolContract {
+    build_tool_contract(
+        ToolName::SchemasList,
+        "List registered data shapes for a tenant and namespace.",
+        schemas_list_input_schema(),
+        schemas_list_output_schema(),
+        tool_examples(ToolName::SchemasList),
+        vec![
+            "Requires tenant_id and namespace_id.".to_string(),
+            "Supports pagination via cursor + limit.".to_string(),
+        ],
+    )
+}
+
+/// Builds the tool contract for `schemas_get`.
+fn schemas_get_contract() -> ToolContract {
+    build_tool_contract(
+        ToolName::SchemasGet,
+        "Fetch a specific data shape by identifier and version.",
+        schemas_get_input_schema(),
+        schemas_get_output_schema(),
+        tool_examples(ToolName::SchemasGet),
+        vec![
+            "Requires tenant_id, namespace_id, schema_id, and version.".to_string(),
+            "Fails closed when schema is missing.".to_string(),
+        ],
+    )
+}
+
+/// Builds the tool contract for `scenarios_list`.
+fn scenarios_list_contract() -> ToolContract {
+    build_tool_contract(
+        ToolName::ScenariosList,
+        "List registered scenarios for a tenant and namespace.",
+        scenarios_list_input_schema(),
+        scenarios_list_output_schema(),
+        tool_examples(ToolName::ScenariosList),
+        vec![
+            "Requires tenant_id and namespace_id.".to_string(),
+            "Returns scenario identifiers and hashes.".to_string(),
+        ],
+    )
+}
+
+/// Builds the tool contract for `precheck`.
+fn precheck_contract() -> ToolContract {
+    build_tool_contract(
+        ToolName::Precheck,
+        "Evaluate a scenario against asserted data without mutating state.",
+        precheck_input_schema(),
+        precheck_output_schema(),
+        tool_examples(ToolName::Precheck),
+        vec![
+            "Validates asserted data against a registered shape.".to_string(),
+            "Does not mutate run state; intended for simulation.".to_string(),
+        ],
+    )
 }
 
 /// Returns the MCP tool definitions for tool listing.
@@ -362,184 +498,363 @@ fn render_json_block(out: &mut String, value: &Value) {
 }
 
 /// Return example payloads for a tool, if any are defined.
-#[allow(clippy::too_many_lines, reason = "long static list of tool examples for documentation")]
 fn tool_examples(tool_name: ToolName) -> Vec<ToolExample> {
     match tool_name {
-        ToolName::ScenarioDefine => vec![ToolExample {
-            description: String::from("Register the example scenario spec."),
-            input: json!({
-                "spec": example_scenario_spec()
-            }),
-            output: json!({
-                "scenario_id": EXAMPLE_SCENARIO_ID,
-                "spec_hash": example_hash_digest()
-            }),
-        }],
-        ToolName::ScenarioStart => vec![ToolExample {
-            description: String::from(
-                "Start a run for the example scenario and issue entry packets.",
-            ),
-            input: json!({
-                "scenario_id": EXAMPLE_SCENARIO_ID,
-                "run_config": example_run_config(),
-                "started_at": example_timestamp(),
-                "issue_entry_packets": true
-            }),
-            output: example_run_state(),
-        }],
-        ToolName::ScenarioStatus => vec![ToolExample {
-            description: String::from("Poll run status without advancing the run."),
-            input: json!({
-                "scenario_id": EXAMPLE_SCENARIO_ID,
-                "request": {
-                    "run_id": EXAMPLE_RUN_ID,
-                    "requested_at": example_timestamp(),
-                    "correlation_id": null
-                }
-            }),
-            output: json!({
-                "run_id": EXAMPLE_RUN_ID,
-                "scenario_id": EXAMPLE_SCENARIO_ID,
-                "current_stage_id": EXAMPLE_STAGE_ID,
-                "status": "active",
-                "last_decision": null,
-                "issued_packet_ids": [],
-                "safe_summary": null
-            }),
-        }],
-        ToolName::ScenarioNext => vec![ToolExample {
-            description: String::from("Evaluate the next agent-driven step for a run."),
-            input: json!({
-                "scenario_id": EXAMPLE_SCENARIO_ID,
-                "request": {
-                    "run_id": EXAMPLE_RUN_ID,
-                    "trigger_id": EXAMPLE_TRIGGER_ID,
-                    "agent_id": EXAMPLE_AGENT_ID,
-                    "time": example_timestamp(),
-                    "correlation_id": null
-                }
-            }),
-            output: json!({
-                "decision": example_decision_record(),
-                "packets": [],
-                "status": "completed"
-            }),
-        }],
-        ToolName::ScenarioSubmit => vec![ToolExample {
-            description: String::from(
-                "Submit an external artifact for audit and later evaluation.",
-            ),
-            input: json!({
-                "scenario_id": EXAMPLE_SCENARIO_ID,
-                "request": {
-                    "run_id": EXAMPLE_RUN_ID,
-                    "submission_id": EXAMPLE_SUBMISSION_ID,
-                    "payload": {
-                        "kind": "json",
-                        "value": {
-                            "artifact": "attestation",
-                            "status": "approved"
-                        }
-                    },
-                    "content_type": "application/json",
-                    "submitted_at": example_timestamp(),
-                    "correlation_id": null
-                }
-            }),
-            output: json!({
-                "record": example_submission_record()
-            }),
-        }],
-        ToolName::ScenarioTrigger => vec![ToolExample {
-            description: String::from("Advance a run from a scheduler or external trigger."),
-            input: json!({
-                "scenario_id": EXAMPLE_SCENARIO_ID,
-                "trigger": {
-                    "trigger_id": EXAMPLE_TRIGGER_ID,
-                    "run_id": EXAMPLE_RUN_ID,
-                    "kind": "tick",
-                    "time": example_timestamp(),
-                    "source_id": "scheduler-01",
-                    "payload": null,
-                    "correlation_id": null
-                }
-            }),
-            output: json!({
-                "decision": example_decision_record(),
-                "packets": [],
-                "status": "completed"
-            }),
-        }],
-        ToolName::EvidenceQuery => vec![ToolExample {
-            description: String::from("Query an evidence provider using the run context."),
-            input: json!({
-                "query": {
-                    "provider_id": "env",
-                    "predicate": "get",
-                    "params": { "key": "DEPLOY_ENV" }
-                },
-                "context": {
-                    "tenant_id": EXAMPLE_TENANT_ID,
-                    "run_id": EXAMPLE_RUN_ID,
-                    "scenario_id": EXAMPLE_SCENARIO_ID,
-                    "stage_id": EXAMPLE_STAGE_ID,
-                    "trigger_id": EXAMPLE_TRIGGER_ID,
-                    "trigger_time": example_timestamp(),
-                    "correlation_id": null
-                }
-            }),
-            output: json!({
-                "result": {
-                    "value": {
-                        "kind": "json",
-                        "value": "production"
-                    },
-                    "evidence_hash": example_hash_digest(),
-                    "evidence_ref": null,
-                    "evidence_anchor": {
-                        "anchor_type": "env",
-                        "anchor_value": "DEPLOY_ENV"
-                    },
-                    "signature": null,
-                    "content_type": "text/plain"
-                }
-            }),
-        }],
-        ToolName::RunpackExport => vec![ToolExample {
-            description: String::from("Export a runpack with manifest metadata."),
-            input: json!({
-                "scenario_id": EXAMPLE_SCENARIO_ID,
-                "run_id": EXAMPLE_RUN_ID,
-                "output_dir": "/var/lib/decision-gate/runpacks/run-0001",
-                "manifest_name": "manifest.json",
-                "generated_at": example_timestamp(),
-                "include_verification": false
-            }),
-            output: json!({
-                "manifest": example_runpack_manifest(),
-                "report": null
-            }),
-        }],
-        ToolName::RunpackVerify => vec![ToolExample {
-            description: String::from("Verify a runpack manifest and artifacts offline."),
-            input: json!({
-                "runpack_dir": "/var/lib/decision-gate/runpacks/run-0001",
-                "manifest_path": "manifest.json"
-            }),
-            output: json!({
-                "report": {
-                    "status": "pass",
-                    "checked_files": 12,
-                    "errors": []
-                },
-                "status": "pass"
-            }),
-        }],
+        ToolName::ScenarioDefine => scenario_define_examples(),
+        ToolName::ScenarioStart => scenario_start_examples(),
+        ToolName::ScenarioStatus => scenario_status_examples(),
+        ToolName::ScenarioNext => scenario_next_examples(),
+        ToolName::ScenarioSubmit => scenario_submit_examples(),
+        ToolName::ScenarioTrigger => scenario_trigger_examples(),
+        ToolName::EvidenceQuery => evidence_query_examples(),
+        ToolName::RunpackExport => runpack_export_examples(),
+        ToolName::RunpackVerify => runpack_verify_examples(),
+        ToolName::ProvidersList => providers_list_examples(),
+        ToolName::SchemasRegister => schemas_register_examples(),
+        ToolName::SchemasList => schemas_list_examples(),
+        ToolName::SchemasGet => schemas_get_examples(),
+        ToolName::ScenariosList => scenarios_list_examples(),
+        ToolName::Precheck => precheck_examples(),
     }
+}
+
+/// Returns example payloads for `scenario_define`.
+fn scenario_define_examples() -> Vec<ToolExample> {
+    vec![ToolExample {
+        description: String::from("Register the example scenario spec."),
+        input: json!({
+            "spec": example_scenario_spec()
+        }),
+        output: json!({
+            "scenario_id": EXAMPLE_SCENARIO_ID,
+            "spec_hash": example_hash_digest()
+        }),
+    }]
+}
+
+/// Returns example payloads for `scenario_start`.
+fn scenario_start_examples() -> Vec<ToolExample> {
+    vec![ToolExample {
+        description: String::from("Start a run for the example scenario and issue entry packets."),
+        input: json!({
+            "scenario_id": EXAMPLE_SCENARIO_ID,
+            "run_config": example_run_config(),
+            "started_at": example_timestamp(),
+            "issue_entry_packets": true
+        }),
+        output: example_run_state(),
+    }]
+}
+
+/// Returns example payloads for `scenario_status`.
+fn scenario_status_examples() -> Vec<ToolExample> {
+    vec![ToolExample {
+        description: String::from("Poll run status without advancing the run."),
+        input: json!({
+            "scenario_id": EXAMPLE_SCENARIO_ID,
+            "request": {
+                "tenant_id": EXAMPLE_TENANT_ID,
+                "namespace_id": EXAMPLE_NAMESPACE_ID,
+                "run_id": EXAMPLE_RUN_ID,
+                "requested_at": example_timestamp(),
+                "correlation_id": null
+            }
+        }),
+        output: json!({
+            "run_id": EXAMPLE_RUN_ID,
+            "scenario_id": EXAMPLE_SCENARIO_ID,
+            "current_stage_id": EXAMPLE_STAGE_ID,
+            "status": "active",
+            "last_decision": null,
+            "issued_packet_ids": [],
+            "safe_summary": null
+        }),
+    }]
+}
+
+/// Returns example payloads for `scenario_next`.
+fn scenario_next_examples() -> Vec<ToolExample> {
+    vec![ToolExample {
+        description: String::from("Evaluate the next agent-driven step for a run."),
+        input: json!({
+            "scenario_id": EXAMPLE_SCENARIO_ID,
+            "request": {
+                "tenant_id": EXAMPLE_TENANT_ID,
+                "namespace_id": EXAMPLE_NAMESPACE_ID,
+                "run_id": EXAMPLE_RUN_ID,
+                "trigger_id": EXAMPLE_TRIGGER_ID,
+                "agent_id": EXAMPLE_AGENT_ID,
+                "time": example_timestamp(),
+                "correlation_id": null
+            }
+        }),
+        output: json!({
+            "decision": example_decision_record(),
+            "packets": [],
+            "status": "completed"
+        }),
+    }]
+}
+
+/// Returns example payloads for `scenario_submit`.
+fn scenario_submit_examples() -> Vec<ToolExample> {
+    vec![ToolExample {
+        description: String::from("Submit an external artifact for audit and later evaluation."),
+        input: json!({
+            "scenario_id": EXAMPLE_SCENARIO_ID,
+            "request": {
+                "tenant_id": EXAMPLE_TENANT_ID,
+                "namespace_id": EXAMPLE_NAMESPACE_ID,
+                "run_id": EXAMPLE_RUN_ID,
+                "submission_id": EXAMPLE_SUBMISSION_ID,
+                "payload": {
+                    "kind": "json",
+                    "value": {
+                        "artifact": "attestation",
+                        "status": "approved"
+                    }
+                },
+                "content_type": "application/json",
+                "submitted_at": example_timestamp(),
+                "correlation_id": null
+            }
+        }),
+        output: json!({
+            "record": example_submission_record()
+        }),
+    }]
+}
+
+/// Returns example payloads for `scenario_trigger`.
+fn scenario_trigger_examples() -> Vec<ToolExample> {
+    vec![ToolExample {
+        description: String::from("Advance a run from a scheduler or external trigger."),
+        input: json!({
+            "scenario_id": EXAMPLE_SCENARIO_ID,
+            "trigger": {
+                "trigger_id": EXAMPLE_TRIGGER_ID,
+                "tenant_id": EXAMPLE_TENANT_ID,
+                "namespace_id": EXAMPLE_NAMESPACE_ID,
+                "run_id": EXAMPLE_RUN_ID,
+                "kind": "tick",
+                "time": example_timestamp(),
+                "source_id": "scheduler-01",
+                "payload": null,
+                "correlation_id": null
+            }
+        }),
+        output: json!({
+            "decision": example_decision_record(),
+            "packets": [],
+            "status": "completed"
+        }),
+    }]
+}
+
+/// Returns example payloads for `evidence_query`.
+fn evidence_query_examples() -> Vec<ToolExample> {
+    vec![ToolExample {
+        description: String::from("Query an evidence provider using the run context."),
+        input: json!({
+            "query": {
+                "provider_id": "env",
+                "predicate": "get",
+                "params": { "key": "DEPLOY_ENV" }
+            },
+            "context": {
+                "tenant_id": EXAMPLE_TENANT_ID,
+                "namespace_id": EXAMPLE_NAMESPACE_ID,
+                "run_id": EXAMPLE_RUN_ID,
+                "scenario_id": EXAMPLE_SCENARIO_ID,
+                "stage_id": EXAMPLE_STAGE_ID,
+                "trigger_id": EXAMPLE_TRIGGER_ID,
+                "trigger_time": example_timestamp(),
+                "correlation_id": null
+            }
+        }),
+        output: json!({
+            "result": {
+                "value": {
+                    "kind": "json",
+                    "value": "production"
+                },
+                "lane": "verified",
+                "evidence_hash": example_hash_digest(),
+                "evidence_ref": null,
+                "evidence_anchor": {
+                    "anchor_type": "env",
+                    "anchor_value": "DEPLOY_ENV"
+                },
+                "signature": null,
+                "content_type": "text/plain"
+            }
+        }),
+    }]
+}
+
+/// Returns example payloads for `runpack_export`.
+fn runpack_export_examples() -> Vec<ToolExample> {
+    vec![ToolExample {
+        description: String::from("Export a runpack with manifest metadata."),
+        input: json!({
+            "scenario_id": EXAMPLE_SCENARIO_ID,
+            "tenant_id": EXAMPLE_TENANT_ID,
+            "namespace_id": EXAMPLE_NAMESPACE_ID,
+            "run_id": EXAMPLE_RUN_ID,
+            "output_dir": "/var/lib/decision-gate/runpacks/run-0001",
+            "manifest_name": "manifest.json",
+            "generated_at": example_timestamp(),
+            "include_verification": false
+        }),
+        output: json!({
+            "manifest": example_runpack_manifest(),
+            "report": null
+        }),
+    }]
+}
+
+/// Returns example payloads for `runpack_verify`.
+fn runpack_verify_examples() -> Vec<ToolExample> {
+    vec![ToolExample {
+        description: String::from("Verify a runpack manifest and artifacts offline."),
+        input: json!({
+            "runpack_dir": "/var/lib/decision-gate/runpacks/run-0001",
+            "manifest_path": "manifest.json"
+        }),
+        output: json!({
+            "report": {
+                "status": "pass",
+                "checked_files": 12,
+                "errors": []
+            },
+            "status": "pass"
+        }),
+    }]
+}
+
+/// Returns example payloads for `providers_list`.
+fn providers_list_examples() -> Vec<ToolExample> {
+    vec![ToolExample {
+        description: String::from("List registered evidence providers."),
+        input: json!({}),
+        output: json!({
+            "providers": [
+                {
+                    "provider_id": "env",
+                    "transport": "builtin",
+                    "predicates": ["get"]
+                }
+            ]
+        }),
+    }]
+}
+
+/// Returns example payloads for `schemas_register`.
+fn schemas_register_examples() -> Vec<ToolExample> {
+    vec![ToolExample {
+        description: String::from("Register a data shape schema."),
+        input: json!({
+            "record": example_data_shape_record()
+        }),
+        output: json!({
+            "record": example_data_shape_record()
+        }),
+    }]
+}
+
+/// Returns example payloads for `schemas_list`.
+fn schemas_list_examples() -> Vec<ToolExample> {
+    vec![ToolExample {
+        description: String::from("List data shapes for a namespace."),
+        input: json!({
+            "tenant_id": EXAMPLE_TENANT_ID,
+            "namespace_id": EXAMPLE_NAMESPACE_ID,
+            "cursor": null,
+            "limit": 50
+        }),
+        output: json!({
+            "items": [example_data_shape_record()],
+            "next_token": null
+        }),
+    }]
+}
+
+/// Returns example payloads for `schemas_get`.
+fn schemas_get_examples() -> Vec<ToolExample> {
+    vec![ToolExample {
+        description: String::from("Fetch a data shape by identifier and version."),
+        input: json!({
+            "tenant_id": EXAMPLE_TENANT_ID,
+            "namespace_id": EXAMPLE_NAMESPACE_ID,
+            "schema_id": "asserted_payload",
+            "version": "v1"
+        }),
+        output: json!({
+            "record": example_data_shape_record()
+        }),
+    }]
+}
+
+/// Returns example payloads for `scenarios_list`.
+fn scenarios_list_examples() -> Vec<ToolExample> {
+    vec![ToolExample {
+        description: String::from("List scenarios for a namespace."),
+        input: json!({
+            "tenant_id": EXAMPLE_TENANT_ID,
+            "namespace_id": EXAMPLE_NAMESPACE_ID,
+            "cursor": null,
+            "limit": 50
+        }),
+        output: json!({
+            "items": [
+                {
+                    "scenario_id": EXAMPLE_SCENARIO_ID,
+                    "namespace_id": EXAMPLE_NAMESPACE_ID,
+                    "spec_hash": example_hash_digest()
+                }
+            ],
+            "next_token": null
+        }),
+    }]
+}
+
+/// Returns example payloads for `precheck`.
+fn precheck_examples() -> Vec<ToolExample> {
+    vec![ToolExample {
+        description: String::from("Precheck a scenario with asserted data."),
+        input: json!({
+            "tenant_id": EXAMPLE_TENANT_ID,
+            "namespace_id": EXAMPLE_NAMESPACE_ID,
+            "scenario_id": EXAMPLE_SCENARIO_ID,
+            "spec": null,
+            "stage_id": null,
+            "data_shape": {
+                "schema_id": "asserted_payload",
+                "version": "v1"
+            },
+            "payload": {
+                "deploy_env": "production"
+            }
+        }),
+        output: json!({
+            "decision": {
+                "kind": "hold",
+                "summary": {
+                    "status": "hold",
+                    "unmet_gates": ["ready"],
+                    "retry_hint": "await_evidence",
+                    "policy_tags": []
+                }
+            },
+            "gate_evaluations": []
+        }),
+    }]
 }
 
 /// Example tenant identifier used in tooling samples.
 const EXAMPLE_TENANT_ID: &str = "tenant-001";
+/// Example namespace identifier used in tooling samples.
+const EXAMPLE_NAMESPACE_ID: &str = "namespace-001";
 /// Example run identifier used in tooling samples.
 const EXAMPLE_RUN_ID: &str = "run-0001";
 /// Example scenario identifier used in tooling samples.
@@ -585,6 +900,7 @@ fn example_run_config() -> Value {
 fn example_run_state() -> Value {
     json!({
         "tenant_id": EXAMPLE_TENANT_ID,
+        "namespace_id": EXAMPLE_NAMESPACE_ID,
         "run_id": EXAMPLE_RUN_ID,
         "scenario_id": EXAMPLE_SCENARIO_ID,
         "spec_hash": example_hash_digest(),
@@ -641,12 +957,34 @@ fn example_submission_record() -> Value {
     })
 }
 
+/// Example data shape record payload used in tooling docs.
+fn example_data_shape_record() -> Value {
+    json!({
+        "tenant_id": EXAMPLE_TENANT_ID,
+        "namespace_id": EXAMPLE_NAMESPACE_ID,
+        "schema_id": "asserted_payload",
+        "version": "v1",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "deploy_env": { "type": "string" }
+            },
+            "required": ["deploy_env"],
+            "additionalProperties": false
+        },
+        "description": "Asserted payload schema.",
+        "created_at": example_timestamp()
+    })
+}
+
 /// Example runpack manifest payload used in tooling docs.
 fn example_runpack_manifest() -> Value {
     json!({
         "manifest_version": "v1",
         "generated_at": example_timestamp(),
         "scenario_id": EXAMPLE_SCENARIO_ID,
+        "tenant_id": EXAMPLE_TENANT_ID,
+        "namespace_id": EXAMPLE_NAMESPACE_ID,
         "run_id": EXAMPLE_RUN_ID,
         "spec_hash": example_hash_digest(),
         "hash_algorithm": "sha256",
@@ -794,6 +1132,8 @@ fn runpack_export_input_schema() -> Value {
     tool_input_schema(
         &json!({
             "scenario_id": schema_identifier("Scenario identifier."),
+            "tenant_id": schema_identifier("Tenant identifier."),
+            "namespace_id": schema_identifier("Namespace identifier."),
             "run_id": schema_identifier("Run identifier."),
             "output_dir": schema_path("Output directory path."),
             "manifest_name": describe_schema(json!({
@@ -805,7 +1145,15 @@ fn runpack_export_input_schema() -> Value {
             "generated_at": describe_schema(schemas::timestamp_schema(), "Timestamp recorded in the manifest."),
             "include_verification": describe_schema(json!({ "type": "boolean" }), "Generate a verification report artifact.")
         }),
-        &["scenario_id", "run_id", "output_dir", "generated_at", "include_verification"],
+        &[
+            "scenario_id",
+            "tenant_id",
+            "namespace_id",
+            "run_id",
+            "output_dir",
+            "generated_at",
+            "include_verification",
+        ],
     )
 }
 
@@ -850,6 +1198,248 @@ fn runpack_verify_output_schema() -> Value {
     )
 }
 
+/// Builds the input schema for `providers_list`.
+#[must_use]
+fn providers_list_input_schema() -> Value {
+    tool_input_schema(&json!({}), &[])
+}
+
+/// Builds the output schema for `providers_list`.
+#[must_use]
+fn providers_list_output_schema() -> Value {
+    tool_output_schema(
+        &json!({
+            "providers": {
+                "type": "array",
+                "items": provider_summary_schema()
+            }
+        }),
+        &["providers"],
+    )
+}
+
+/// Builds the input schema for `schemas_register`.
+#[must_use]
+fn schemas_register_input_schema() -> Value {
+    tool_input_schema(
+        &json!({
+            "record": schemas::data_shape_record_schema()
+        }),
+        &["record"],
+    )
+}
+
+/// Builds the output schema for `schemas_register`.
+#[must_use]
+fn schemas_register_output_schema() -> Value {
+    tool_output_schema(
+        &json!({
+            "record": schemas::data_shape_record_schema()
+        }),
+        &["record"],
+    )
+}
+
+/// Builds the input schema for `schemas_list`.
+#[must_use]
+fn schemas_list_input_schema() -> Value {
+    tool_input_schema(
+        &json!({
+            "tenant_id": schema_identifier("Tenant identifier."),
+            "namespace_id": schema_identifier("Namespace identifier."),
+            "cursor": {
+                "oneOf": [
+                    { "type": "null" },
+                    schema_identifier("Pagination cursor.")
+                ]
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000,
+                "description": "Maximum number of records to return."
+            }
+        }),
+        &["tenant_id", "namespace_id"],
+    )
+}
+
+/// Builds the output schema for `schemas_list`.
+#[must_use]
+fn schemas_list_output_schema() -> Value {
+    tool_output_schema(
+        &json!({
+            "items": {
+                "type": "array",
+                "items": schemas::data_shape_record_schema()
+            },
+            "next_token": {
+                "oneOf": [
+                    { "type": "null" },
+                    schema_identifier("Pagination token for the next page.")
+                ]
+            }
+        }),
+        &["items", "next_token"],
+    )
+}
+
+/// Builds the input schema for `schemas_get`.
+#[must_use]
+fn schemas_get_input_schema() -> Value {
+    tool_input_schema(
+        &json!({
+            "tenant_id": schema_identifier("Tenant identifier."),
+            "namespace_id": schema_identifier("Namespace identifier."),
+            "schema_id": schema_identifier("Data shape identifier."),
+            "version": schema_identifier("Data shape version identifier.")
+        }),
+        &["tenant_id", "namespace_id", "schema_id", "version"],
+    )
+}
+
+/// Builds the output schema for `schemas_get`.
+#[must_use]
+fn schemas_get_output_schema() -> Value {
+    tool_output_schema(
+        &json!({
+            "record": schemas::data_shape_record_schema()
+        }),
+        &["record"],
+    )
+}
+
+/// Builds the input schema for `scenarios_list`.
+#[must_use]
+fn scenarios_list_input_schema() -> Value {
+    tool_input_schema(
+        &json!({
+            "tenant_id": schema_identifier("Tenant identifier."),
+            "namespace_id": schema_identifier("Namespace identifier."),
+            "cursor": {
+                "oneOf": [
+                    { "type": "null" },
+                    schema_identifier("Pagination cursor.")
+                ]
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000,
+                "description": "Maximum number of records to return."
+            }
+        }),
+        &["tenant_id", "namespace_id"],
+    )
+}
+
+/// Builds the output schema for `scenarios_list`.
+#[must_use]
+fn scenarios_list_output_schema() -> Value {
+    tool_output_schema(
+        &json!({
+            "items": {
+                "type": "array",
+                "items": scenario_summary_schema()
+            },
+            "next_token": {
+                "oneOf": [
+                    { "type": "null" },
+                    schema_identifier("Pagination token for the next page.")
+                ]
+            }
+        }),
+        &["items", "next_token"],
+    )
+}
+
+/// Builds the input schema for `precheck`.
+#[must_use]
+fn precheck_input_schema() -> Value {
+    tool_input_schema(
+        &json!({
+            "tenant_id": schema_identifier("Tenant identifier."),
+            "namespace_id": schema_identifier("Namespace identifier."),
+            "scenario_id": {
+                "oneOf": [
+                    { "type": "null" },
+                    schema_identifier("Scenario identifier.")
+                ]
+            },
+            "spec": {
+                "oneOf": [
+                    { "type": "null" },
+                    { "$ref": "decision-gate://contract/schemas/scenario.schema.json" }
+                ]
+            },
+            "stage_id": {
+                "oneOf": [
+                    { "type": "null" },
+                    schema_identifier("Stage identifier override.")
+                ]
+            },
+            "data_shape": schemas::data_shape_ref_schema(),
+            "payload": {
+                "type": ["null", "boolean", "number", "string", "array", "object"],
+                "description": "Asserted data payload."
+            }
+        }),
+        &["tenant_id", "namespace_id", "data_shape", "payload"],
+    )
+}
+
+/// Builds the output schema for `precheck`.
+#[must_use]
+fn precheck_output_schema() -> Value {
+    tool_output_schema(
+        &json!({
+            "decision": schemas::decision_outcome_schema(),
+            "gate_evaluations": {
+                "type": "array",
+                "items": schemas::gate_evaluation_schema()
+            }
+        }),
+        &["decision", "gate_evaluations"],
+    )
+}
+
+/// Returns the JSON schema for provider summaries.
+#[must_use]
+fn provider_summary_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": ["provider_id", "transport", "predicates"],
+        "properties": {
+            "provider_id": schema_identifier("Provider identifier."),
+            "transport": {
+                "type": "string",
+                "enum": ["builtin", "mcp"],
+                "description": "Provider transport type."
+            },
+            "predicates": {
+                "type": "array",
+                "items": schema_identifier("Predicate identifier.")
+            }
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for scenario summaries.
+#[must_use]
+fn scenario_summary_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": ["scenario_id", "namespace_id", "spec_hash"],
+        "properties": {
+            "scenario_id": schema_identifier("Scenario identifier."),
+            "namespace_id": schema_identifier("Namespace identifier."),
+            "spec_hash": schemas::hash_digest_schema()
+        },
+        "additionalProperties": false
+    })
+}
+
 // ============================================================================
 // SECTION: Tool Schema Helpers
 // ============================================================================
@@ -891,6 +1481,7 @@ fn tool_output_schema(properties: &Value, required: &[&str]) -> Value {
 fn evidence_context_schema() -> Value {
     let properties = json!({
         "tenant_id": schema_identifier("Tenant identifier."),
+        "namespace_id": schema_identifier("Namespace identifier."),
         "run_id": schema_identifier("Run identifier."),
         "scenario_id": schema_identifier("Scenario identifier."),
         "stage_id": schema_identifier("Stage identifier."),

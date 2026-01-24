@@ -14,6 +14,10 @@ System-tests are the highest-rigor, end-to-end validation layer for Decision Gat
 They must be deterministic, fail-closed, and auditable. Every test must emit
 artifacts so results can be inspected by humans and machines.
 
+Scope note:
+- Stress tests validate concurrency and fail-closed behavior, not throughput SLAs.
+- Fuzz/property tests and long-running soak/perf tests are planned but not yet added.
+
 ## Test Contract Standards
 - No fail-open logic. If a check is required, assert it explicitly.
 - No sleeps for correctness. Use readiness probes and explicit polling.
@@ -22,6 +26,39 @@ artifacts so results can be inspected by humans and machines.
   `tool_transcript.json` at minimum.
 - Each test must be listed in `system-tests/test_registry.toml`.
 - If a test is incomplete or blocked, register a gap in `system-tests/test_gaps.toml`.
+
+## No Hacks Policy (Real Tests Only)
+System-tests must mirror production behavior end-to-end. Tests validate contracts,
+not workarounds.
+
+Core rules:
+- Never fail-open (no fallbacks, no optional checks for required behavior).
+- Never use sleep for correctness (always use readiness/health probes).
+- Never accept multiple response shapes to avoid updating producers.
+- Always use exact production schemas and types.
+
+Disallowed:
+- Sleep-based synchronization that hides missing readiness signals.
+- Swallowing errors to keep tests green (e.g., `filter_map(Result::ok)`).
+- "Helper-only" flows that bypass real MCP tools or transports.
+
+Allowed:
+- Best-effort diagnostics that do not affect pass/fail.
+- Explicit readiness/handshake primitives in the harness.
+- Versioned schemas with explicit deprecation windows.
+
+## Adding or Updating System Tests
+When you add, rename, or remove a test:
+- Register it in `system-tests/test_registry.toml`.
+- Add/update gaps in `system-tests/test_gaps.toml` if coverage is missing.
+- Regenerate coverage docs: `python scripts/coverage_report.py generate`.
+- Update `system-tests/README.md` and `system-tests/TEST_MATRIX.md` tables if referenced.
+- Keep tests deterministic (no wall-clock time) and emit required artifacts.
+- Reuse helpers in `system-tests/tests/helpers` rather than building ad-hoc harnesses.
+
+## Threat Model Delta
+If a test changes inputs, trust boundaries, or outputs, update
+`Docs/security/threat_model.md` or note "Threat Model Delta: none" in your change summary.
 
 ## Artifact Expectations
 System-tests write artifacts beneath the run root:

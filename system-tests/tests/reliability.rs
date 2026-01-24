@@ -66,6 +66,8 @@ async fn idempotent_trigger() -> Result<(), Box<dyn std::error::Error>> {
 
     let trigger_event = decision_gate_core::TriggerEvent {
         run_id: fixture.run_id.clone(),
+        tenant_id: fixture.tenant_id.clone(),
+        namespace_id: fixture.namespace_id.clone(),
         trigger_id: TriggerId::new("trigger-1"),
         kind: TriggerKind::ExternalEvent,
         time: Timestamp::Logical(2),
@@ -87,11 +89,17 @@ async fn idempotent_trigger() -> Result<(), Box<dyn std::error::Error>> {
     let second_input = serde_json::to_value(&second_request)?;
     let second: TriggerResult = client.call_tool_typed("scenario_trigger", second_input).await?;
 
-    assert_eq!(first.decision.decision_id, second.decision.decision_id);
+    require_eq(
+        &first.decision.decision_id,
+        &second.decision.decision_id,
+        "decision ids differ on replay",
+    )?;
 
     let runpack_dir = reporter.artifacts().runpack_dir();
     let export_request = RunpackExportRequest {
         scenario_id: define_output.scenario_id,
+        tenant_id: fixture.tenant_id.clone(),
+        namespace_id: fixture.namespace_id.clone(),
         run_id: fixture.run_id.clone(),
         output_dir: runpack_dir.to_string_lossy().to_string(),
         manifest_name: Some("manifest.json".to_string()),
@@ -110,9 +118,10 @@ async fn idempotent_trigger() -> Result<(), Box<dyn std::error::Error>> {
     let decisions: Vec<decision_gate_core::DecisionRecord> =
         serde_json::from_slice(&decisions_bytes)?;
 
-    assert_eq!(triggers.len(), 1);
-    assert_eq!(decisions.len(), 1);
-    assert_eq!(decisions[0].trigger_id.as_str(), "trigger-1");
+    require(triggers.len() == 1, format!("expected 1 trigger, got {}", triggers.len()))?;
+    require(decisions.len() == 1, format!("expected 1 decision, got {}", decisions.len()))?;
+    let decision = decisions.first().ok_or_else(|| "missing decision record".to_string())?;
+    require_eq(&decision.trigger_id.as_str(), &"trigger-1", "decision trigger id mismatch")?;
 
     reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
     reporter.finish(
@@ -129,6 +138,7 @@ async fn idempotent_trigger() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[allow(clippy::too_many_lines, reason = "Test exercises multi-step submission flow.")]
 async fn idempotent_submission() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("idempotent_submission")?;
     let bind = allocate_bind_addr()?.to_string();
@@ -158,6 +168,8 @@ async fn idempotent_submission() -> Result<(), Box<dyn std::error::Error>> {
 
     let submit = SubmitRequest {
         run_id: fixture.run_id.clone(),
+        tenant_id: fixture.tenant_id.clone(),
+        namespace_id: fixture.namespace_id.clone(),
         submission_id: "submission-1".to_string(),
         payload: PacketPayload::Json {
             value: serde_json::json!({"artifact": "alpha"}),
@@ -180,12 +192,14 @@ async fn idempotent_submission() -> Result<(), Box<dyn std::error::Error>> {
     let second_input = serde_json::to_value(&second_request)?;
     let second: SubmitResult = client.call_tool_typed("scenario_submit", second_input).await?;
 
-    assert_eq!(first.record, second.record);
+    require_eq(&first.record, &second.record, "submission record mismatch on replay")?;
 
     let conflict_request = ScenarioSubmitRequest {
         scenario_id: define_output.scenario_id.clone(),
         request: SubmitRequest {
             run_id: fixture.run_id.clone(),
+            tenant_id: fixture.tenant_id.clone(),
+            namespace_id: fixture.namespace_id.clone(),
             submission_id: "submission-1".to_string(),
             payload: PacketPayload::Json {
                 value: serde_json::json!({"artifact": "beta"}),
@@ -196,16 +210,19 @@ async fn idempotent_submission() -> Result<(), Box<dyn std::error::Error>> {
         },
     };
     let conflict_input = serde_json::to_value(&conflict_request)?;
-    let conflict_error =
-        client.call_tool("scenario_submit", conflict_input).await.err().unwrap_or_default();
-    assert!(
+    let Err(conflict_error) = client.call_tool("scenario_submit", conflict_input).await else {
+        return Err("expected submission conflict".into());
+    };
+    require(
         conflict_error.contains("submission_id conflict"),
-        "unexpected conflict error: {conflict_error}"
-    );
+        format!("unexpected conflict error: {conflict_error}"),
+    )?;
 
     let runpack_dir = reporter.artifacts().runpack_dir();
     let export_request = RunpackExportRequest {
         scenario_id: define_output.scenario_id,
+        tenant_id: fixture.tenant_id.clone(),
+        namespace_id: fixture.namespace_id.clone(),
         run_id: fixture.run_id.clone(),
         output_dir: runpack_dir.to_string_lossy().to_string(),
         manifest_name: Some("manifest.json".to_string()),
@@ -219,9 +236,14 @@ async fn idempotent_submission() -> Result<(), Box<dyn std::error::Error>> {
     let submissions_path = runpack_dir.join("artifacts/submissions.json");
     let submissions_bytes = std::fs::read(&submissions_path)?;
     let submissions: Vec<SubmissionRecord> = serde_json::from_slice(&submissions_bytes)?;
-    assert_eq!(submissions.len(), 1);
-    assert_eq!(submissions[0].submission_id, "submission-1");
-    assert_eq!(submissions[0].content_hash, first.record.content_hash);
+    require(submissions.len() == 1, format!("expected 1 submission, got {}", submissions.len()))?;
+    let submission = submissions.first().ok_or_else(|| "missing submission record".to_string())?;
+    require_eq(&submission.submission_id.as_str(), &"submission-1", "submission id mismatch")?;
+    require_eq(
+        &submission.content_hash,
+        &first.record.content_hash,
+        "submission content hash mismatch",
+    )?;
 
     reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
     reporter.finish(
@@ -241,6 +263,7 @@ async fn idempotent_submission() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[allow(clippy::too_many_lines, reason = "Test covers multiple timeout policies in one flow.")]
 async fn timeout_policies() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("timeout_policies")?;
     let bind = allocate_bind_addr()?.to_string();
@@ -271,6 +294,8 @@ async fn timeout_policies() -> Result<(), Box<dyn std::error::Error>> {
         scenario_id: fail_defined.scenario_id.clone(),
         trigger: decision_gate_core::TriggerEvent {
             run_id: fail_fixture.run_id.clone(),
+            tenant_id: fail_fixture.tenant_id.clone(),
+            namespace_id: fail_fixture.namespace_id.clone(),
             trigger_id: TriggerId::new("tick-1"),
             kind: TriggerKind::Tick,
             time: Timestamp::Logical(10),
@@ -283,11 +308,15 @@ async fn timeout_policies() -> Result<(), Box<dyn std::error::Error>> {
     let fail_result: TriggerResult =
         client.call_tool_typed("scenario_trigger", fail_trigger_input).await?;
 
-    assert_eq!(fail_result.status, RunStatus::Failed);
+    require_eq(&fail_result.status, &RunStatus::Failed, "timeout fail status mismatch")?;
     match fail_result.decision.outcome {
         DecisionOutcome::Fail {
             reason,
-        } => assert_eq!(reason, "timeout"),
+        } => {
+            if reason != "timeout" {
+                return Err(format!("expected timeout reason, got {reason}").into());
+            }
+        }
         outcome => {
             return Err(format!("unexpected timeout fail outcome: {outcome:?}").into());
         }
@@ -315,6 +344,8 @@ async fn timeout_policies() -> Result<(), Box<dyn std::error::Error>> {
         scenario_id: advance_defined.scenario_id.clone(),
         trigger: decision_gate_core::TriggerEvent {
             run_id: advance_fixture.run_id.clone(),
+            tenant_id: advance_fixture.tenant_id.clone(),
+            namespace_id: advance_fixture.namespace_id.clone(),
             trigger_id: TriggerId::new("tick-2"),
             kind: TriggerKind::Tick,
             time: Timestamp::Logical(10),
@@ -327,16 +358,18 @@ async fn timeout_policies() -> Result<(), Box<dyn std::error::Error>> {
     let advance_result: TriggerResult =
         client.call_tool_typed("scenario_trigger", advance_trigger_input).await?;
 
-    assert_eq!(advance_result.status, RunStatus::Active);
+    require_eq(&advance_result.status, &RunStatus::Active, "advance timeout status mismatch")?;
     match advance_result.decision.outcome {
         DecisionOutcome::Advance {
             from_stage,
             to_stage,
             timeout,
         } => {
-            assert!(timeout);
-            assert_eq!(from_stage.as_str(), "stage-1");
-            assert_eq!(to_stage.as_str(), "stage-2");
+            if !timeout {
+                return Err("expected timeout flag for advance".into());
+            }
+            require_eq(&from_stage.as_str(), &"stage-1", "advance from stage mismatch")?;
+            require_eq(&to_stage.as_str(), &"stage-2", "advance to stage mismatch")?;
         }
         outcome => {
             return Err(format!("unexpected advance timeout outcome: {outcome:?}").into());
@@ -347,6 +380,8 @@ async fn timeout_policies() -> Result<(), Box<dyn std::error::Error>> {
         scenario_id: advance_defined.scenario_id.clone(),
         request: StatusRequest {
             run_id: advance_fixture.run_id.clone(),
+            tenant_id: advance_fixture.tenant_id.clone(),
+            namespace_id: advance_fixture.namespace_id.clone(),
             requested_at: Timestamp::Logical(11),
             correlation_id: None,
         },
@@ -354,7 +389,11 @@ async fn timeout_policies() -> Result<(), Box<dyn std::error::Error>> {
     let advance_status_input = serde_json::to_value(&advance_status)?;
     let advance_snapshot: ScenarioStatus =
         client.call_tool_typed("scenario_status", advance_status_input).await?;
-    assert_eq!(advance_snapshot.current_stage_id.as_str(), "stage-2");
+    require_eq(
+        &advance_snapshot.current_stage_id.as_str(),
+        &"stage-2",
+        "advance snapshot stage mismatch",
+    )?;
 
     let branch_fixture =
         ScenarioFixture::timeout_alternate_branch("timeout-branch", "run-branch", 5);
@@ -379,6 +418,8 @@ async fn timeout_policies() -> Result<(), Box<dyn std::error::Error>> {
         scenario_id: branch_defined.scenario_id.clone(),
         trigger: decision_gate_core::TriggerEvent {
             run_id: branch_fixture.run_id.clone(),
+            tenant_id: branch_fixture.tenant_id.clone(),
+            namespace_id: branch_fixture.namespace_id.clone(),
             trigger_id: TriggerId::new("tick-3"),
             kind: TriggerKind::Tick,
             time: Timestamp::Logical(10),
@@ -391,16 +432,18 @@ async fn timeout_policies() -> Result<(), Box<dyn std::error::Error>> {
     let branch_result: TriggerResult =
         client.call_tool_typed("scenario_trigger", branch_trigger_input).await?;
 
-    assert_eq!(branch_result.status, RunStatus::Active);
+    require_eq(&branch_result.status, &RunStatus::Active, "alternate branch status mismatch")?;
     match branch_result.decision.outcome {
         DecisionOutcome::Advance {
             from_stage,
             to_stage,
             timeout,
         } => {
-            assert!(timeout);
-            assert_eq!(from_stage.as_str(), "stage-1");
-            assert_eq!(to_stage.as_str(), "stage-alt");
+            if !timeout {
+                return Err("expected timeout flag for alternate branch".into());
+            }
+            require_eq(&from_stage.as_str(), &"stage-1", "branch from stage mismatch")?;
+            require_eq(&to_stage.as_str(), &"stage-alt", "branch to stage mismatch")?;
         }
         outcome => {
             return Err(format!("unexpected alternate branch outcome: {outcome:?}").into());
@@ -411,6 +454,8 @@ async fn timeout_policies() -> Result<(), Box<dyn std::error::Error>> {
         scenario_id: branch_defined.scenario_id,
         request: StatusRequest {
             run_id: branch_fixture.run_id,
+            tenant_id: branch_fixture.tenant_id,
+            namespace_id: branch_fixture.namespace_id,
             requested_at: Timestamp::Logical(11),
             correlation_id: None,
         },
@@ -418,7 +463,11 @@ async fn timeout_policies() -> Result<(), Box<dyn std::error::Error>> {
     let branch_status_input = serde_json::to_value(&branch_status)?;
     let branch_snapshot: ScenarioStatus =
         client.call_tool_typed("scenario_status", branch_status_input).await?;
-    assert_eq!(branch_snapshot.current_stage_id.as_str(), "stage-alt");
+    require_eq(
+        &branch_snapshot.current_stage_id.as_str(),
+        &"stage-alt",
+        "branch snapshot stage mismatch",
+    )?;
 
     reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
     reporter.finish(
@@ -435,4 +484,20 @@ async fn timeout_policies() -> Result<(), Box<dyn std::error::Error>> {
         ],
     )?;
     Ok(())
+}
+
+fn require(condition: bool, message: impl Into<String>) -> Result<(), Box<dyn std::error::Error>> {
+    if condition { Ok(()) } else { Err(message.into().into()) }
+}
+
+fn require_eq<T: PartialEq + std::fmt::Debug>(
+    left: &T,
+    right: &T,
+    context: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if left == right {
+        Ok(())
+    } else {
+        Err(format!("{context}: left={left:?} right={right:?}").into())
+    }
 }

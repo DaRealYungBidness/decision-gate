@@ -15,6 +15,7 @@ use axum::response::IntoResponse;
 use axum::routing::post;
 use decision_gate_core::EvidenceResult;
 use decision_gate_core::EvidenceValue;
+use decision_gate_core::TrustLane;
 use decision_gate_mcp::tools::EvidenceQueryRequest;
 use serde::Deserialize;
 use serde::Serialize;
@@ -122,9 +123,8 @@ async fn handle_rpc(State(state): State<ProviderState>, bytes: Bytes) -> impl In
     if state.response_delay > Duration::from_millis(0) {
         sleep(state.response_delay).await;
     }
-    let response = match request {
-        Ok(request) => handle_request(&state, request),
-        Err(_) => JsonRpcResponse {
+    let response = request.map_or_else(
+        |_| JsonRpcResponse {
             jsonrpc: "2.0",
             id: Value::Null,
             result: None,
@@ -133,7 +133,8 @@ async fn handle_rpc(State(state): State<ProviderState>, bytes: Bytes) -> impl In
                 message: "invalid request".to_string(),
             }),
         },
-    };
+        |request| handle_request(&state, request),
+    );
     axum::Json(response)
 }
 
@@ -171,6 +172,7 @@ fn handle_request(state: &ProviderState, request: JsonRpcRequest) -> JsonRpcResp
                     }
                     let result = EvidenceResult {
                         value: Some(EvidenceValue::Json(state.response_value.clone())),
+                        lane: TrustLane::Verified,
                         evidence_hash: None,
                         evidence_ref: None,
                         evidence_anchor: None,

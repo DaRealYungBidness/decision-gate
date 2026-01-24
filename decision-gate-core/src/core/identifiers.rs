@@ -61,6 +61,43 @@ impl From<String> for TenantId {
     }
 }
 
+/// Namespace identifier scoped within a tenant.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct NamespaceId(String);
+
+impl NamespaceId {
+    /// Creates a new namespace identifier.
+    #[must_use]
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+
+    /// Returns the identifier as a string slice.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for NamespaceId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl From<&str> for NamespaceId {
+    fn from(value: &str) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<String> for NamespaceId {
+    fn from(value: String) -> Self {
+        Self::new(value)
+    }
+}
+
 /// Scenario identifier for a scenario specification.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -284,7 +321,7 @@ impl From<String> for GateId {
 }
 
 /// Predicate identifier referenced in requirements.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct PredicateKey(String);
 
@@ -500,6 +537,80 @@ impl From<&str> for SchemaId {
 }
 
 impl From<String> for SchemaId {
+    fn from(value: String) -> Self {
+        Self::new(value)
+    }
+}
+
+/// Data shape schema identifier.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct DataShapeId(String);
+
+impl DataShapeId {
+    /// Creates a new data shape identifier.
+    #[must_use]
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+
+    /// Returns the identifier as a string slice.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for DataShapeId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl From<&str> for DataShapeId {
+    fn from(value: &str) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<String> for DataShapeId {
+    fn from(value: String) -> Self {
+        Self::new(value)
+    }
+}
+
+/// Data shape schema version identifier.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct DataShapeVersion(String);
+
+impl DataShapeVersion {
+    /// Creates a new schema version identifier.
+    #[must_use]
+    pub fn new(version: impl Into<String>) -> Self {
+        Self(version.into())
+    }
+
+    /// Returns the version as a string slice.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for DataShapeVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl From<&str> for DataShapeVersion {
+    fn from(value: &str) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<String> for DataShapeVersion {
     fn from(value: String) -> Self {
         Self::new(value)
     }

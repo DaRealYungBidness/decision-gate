@@ -565,7 +565,7 @@ fn test_or_with_value_predicates() -> TestResult {
 /// Tests not true becomes false.
 #[test]
 fn test_not_true_becomes_false() -> TestResult {
-    let req = Requirement::not(Requirement::predicate(MockPredicate::AlwaysTrue));
+    let req = Requirement::negate(Requirement::predicate(MockPredicate::AlwaysTrue));
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
 
@@ -576,7 +576,7 @@ fn test_not_true_becomes_false() -> TestResult {
 /// Tests not false becomes true.
 #[test]
 fn test_not_false_becomes_true() -> TestResult {
-    let req = Requirement::not(Requirement::predicate(MockPredicate::AlwaysFalse));
+    let req = Requirement::negate(Requirement::predicate(MockPredicate::AlwaysFalse));
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
 
@@ -587,7 +587,8 @@ fn test_not_false_becomes_true() -> TestResult {
 /// Tests not double negation.
 #[test]
 fn test_not_double_negation() -> TestResult {
-    let req = Requirement::not(Requirement::not(Requirement::predicate(MockPredicate::AlwaysTrue)));
+    let req =
+        Requirement::negate(Requirement::negate(Requirement::predicate(MockPredicate::AlwaysTrue)));
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
 
@@ -599,7 +600,7 @@ fn test_not_double_negation() -> TestResult {
 #[test]
 fn test_not_with_value_predicate() -> TestResult {
     // NOT (value >= 50) is equivalent to value < 50
-    let req = Requirement::not(Requirement::predicate(MockPredicate::ValueGte(50)));
+    let req = Requirement::negate(Requirement::predicate(MockPredicate::ValueGte(50)));
     let values = vec![0, 49, 50, 51, 100];
     let flags = vec![0; 5];
     let reader = MockReader::new(&values, &flags);
@@ -616,7 +617,7 @@ fn test_not_with_value_predicate() -> TestResult {
 #[test]
 fn test_not_and_becomes_nand() -> TestResult {
     // NOT(A AND B) is NAND
-    let req = Requirement::not(Requirement::and(vec![
+    let req = Requirement::negate(Requirement::and(vec![
         Requirement::predicate(MockPredicate::AlwaysTrue),
         Requirement::predicate(MockPredicate::AlwaysFalse),
     ]));
@@ -631,7 +632,7 @@ fn test_not_and_becomes_nand() -> TestResult {
 #[test]
 fn test_not_or_becomes_nor() -> TestResult {
     // NOT(A OR B) is NOR
-    let req = Requirement::not(Requirement::or(vec![
+    let req = Requirement::negate(Requirement::or(vec![
         Requirement::predicate(MockPredicate::AlwaysFalse),
         Requirement::predicate(MockPredicate::AlwaysFalse),
     ]));
@@ -882,11 +883,11 @@ fn test_nested_or_in_and() -> TestResult {
 #[test]
 fn test_deeply_nested() -> TestResult {
     // NOT(A AND (B OR (NOT C)))
-    let req = Requirement::not(Requirement::and(vec![
+    let req = Requirement::negate(Requirement::and(vec![
         Requirement::predicate(MockPredicate::AlwaysTrue),
         Requirement::or(vec![
             Requirement::predicate(MockPredicate::AlwaysFalse),
-            Requirement::not(Requirement::predicate(MockPredicate::AlwaysFalse)),
+            Requirement::negate(Requirement::predicate(MockPredicate::AlwaysFalse)),
         ]),
     ]));
     let (values, flags) = (vec![0], vec![0]);
@@ -963,7 +964,7 @@ fn test_is_trivially_satisfied_or_of_trivial() -> TestResult {
 /// Tests is trivially satisfied not of unsatisfiable.
 #[test]
 fn test_is_trivially_satisfied_not_of_unsatisfiable() -> TestResult {
-    let req: Requirement<MockPredicate> = Requirement::not(Requirement::or(vec![]));
+    let req: Requirement<MockPredicate> = Requirement::negate(Requirement::or(vec![]));
     check!(req.is_trivially_satisfied());
     Ok(())
 }
@@ -1043,7 +1044,7 @@ fn test_is_trivially_unsatisfiable_or_of_all_unsatisfiable() -> TestResult {
 /// Tests is trivially unsatisfiable not of satisfied.
 #[test]
 fn test_is_trivially_unsatisfiable_not_of_satisfied() -> TestResult {
-    let req: Requirement<MockPredicate> = Requirement::not(Requirement::and(vec![]));
+    let req: Requirement<MockPredicate> = Requirement::negate(Requirement::and(vec![]));
     check!(req.is_trivially_unsatisfiable());
     Ok(())
 }
@@ -1100,7 +1101,7 @@ fn test_complexity_predicate() -> TestResult {
 /// Tests complexity not.
 #[test]
 fn test_complexity_not() -> TestResult {
-    let req = Requirement::not(Requirement::predicate(MockPredicate::AlwaysTrue));
+    let req = Requirement::negate(Requirement::predicate(MockPredicate::AlwaysTrue));
     check_eq!(req.complexity(), 2); // 1 for NOT + 1 for predicate
     Ok(())
 }
@@ -1158,7 +1159,7 @@ fn test_complexity_nested() -> TestResult {
             Requirement::predicate(MockPredicate::AlwaysTrue),
             Requirement::predicate(MockPredicate::AlwaysFalse),
         ]),
-        Requirement::not(Requirement::predicate(MockPredicate::ValueGte(10))),
+        Requirement::negate(Requirement::predicate(MockPredicate::ValueGte(10))),
     ]);
     // AND(1) + OR(1) + pred(1) + pred(1) + NOT(1) + pred(1) = 6
     check_eq!(req.complexity(), 6);
@@ -1197,7 +1198,7 @@ fn test_constructor_or() -> TestResult {
 /// Tests constructor not.
 #[test]
 fn test_constructor_not() -> TestResult {
-    let req = Requirement::not(Requirement::predicate(MockPredicate::AlwaysTrue));
+    let req = Requirement::negate(Requirement::predicate(MockPredicate::AlwaysTrue));
     if matches!(req, Requirement::Not(_)) {
         return Ok(());
     }
@@ -1366,7 +1367,7 @@ fn test_many_nested_levels() -> TestResult {
     // Build a deeply nested requirement: NOT(NOT(NOT(NOT(true))))
     let mut req = Requirement::predicate(MockPredicate::AlwaysTrue);
     for _ in 0 .. 10 {
-        req = Requirement::not(req);
+        req = Requirement::negate(req);
     }
 
     let (values, flags) = (vec![0], vec![0]);
@@ -1467,7 +1468,7 @@ fn eval_block_by_rows(
 #[test]
 fn test_eval_block_matches_row_eval_for_compound_logic() -> TestResult {
     let req = Requirement::and(vec![
-        Requirement::not(Requirement::predicate(MockPredicate::AlwaysFalse)),
+        Requirement::negate(Requirement::predicate(MockPredicate::AlwaysFalse)),
         Requirement::or(vec![
             Requirement::predicate(MockPredicate::RowIndexEven),
             Requirement::predicate(MockPredicate::RowIndexLt(3)),

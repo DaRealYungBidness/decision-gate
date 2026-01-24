@@ -62,7 +62,6 @@ def show_gap(gap: Dict[str, Any]) -> None:
     print(f"Gap: {gap.get('id')} - {gap.get('title')}")
     print(f"Priority: {gap.get('priority')} | Status: {gap.get('status')} | Category: {gap.get('category')}")
     print(f"Estimated Effort: {gap.get('estimated_effort')}")
-    print(f"Hyperscaler Requirement: {gap.get('hyperscaler_requirement')}")
     print()
 
     print("Acceptance Criteria:")

@@ -20,6 +20,7 @@
 // ============================================================================
 
 use decision_gate_core::EvidenceContext;
+use decision_gate_core::NamespaceId;
 use decision_gate_core::RunId;
 use decision_gate_core::ScenarioId;
 use decision_gate_core::StageId;
@@ -44,6 +45,7 @@ pub fn sample_context() -> EvidenceContext {
 pub fn sample_context_with_time(trigger_time: Timestamp) -> EvidenceContext {
     EvidenceContext {
         tenant_id: TenantId::new("test-tenant"),
+        namespace_id: NamespaceId::new("default"),
         run_id: RunId::new("test-run"),
         scenario_id: ScenarioId::new("test-scenario"),
         stage_id: StageId::new("test-stage"),

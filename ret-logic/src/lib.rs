@@ -104,7 +104,7 @@ pub mod convenience {
     /// Creates a requirement that inverts another requirement
     #[must_use]
     pub fn not<P>(requirement: Requirement<P>) -> Requirement<P> {
-        Requirement::not(requirement)
+        Requirement::negate(requirement)
     }
 
     /// Creates a requirement requiring at least N of the given requirements
@@ -153,7 +153,7 @@ macro_rules! requirement {
 
     // Not case
     (not($req:tt)) => {
-        $crate::requirement::Requirement::not(requirement!($req))
+        $crate::requirement::Requirement::negate(requirement!($req))
     };
 
     // And case

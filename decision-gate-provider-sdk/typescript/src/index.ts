@@ -51,6 +51,7 @@ interface EvidenceQuery {
 
 interface EvidenceContext {
   tenant_id: string;
+  namespace_id: string;
   run_id: string;
   scenario_id: string;
   stage_id: string;
@@ -65,6 +66,7 @@ type EvidenceValue =
 
 interface EvidenceResult {
   value: EvidenceValue | null;
+  lane: "verified" | "asserted";
   evidence_hash: unknown | null;
   evidence_ref: unknown | null;
   evidence_anchor: unknown | null;

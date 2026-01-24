@@ -46,7 +46,6 @@ def render_table(headers: List[str], rows: List[List[str]]) -> str:
 def generate_coverage_report(registry: RegistryData, gaps: RegistryData) -> str:
     tests = list(registry.get("tests", []))
     categories = registry.get("categories", {})
-    hyperscaler = registry.get("hyperscaler_categories", {})
     gap_entries = list(gaps.get("gaps", []))
 
     by_category: Dict[str, int] = {}
@@ -64,7 +63,6 @@ def generate_coverage_report(registry: RegistryData, gaps: RegistryData) -> str:
         rows.append([
             test["name"],
             test.get("category", "unknown"),
-            ", ".join(test.get("hyperscaler_mapping", [])) or "-",
             str(test.get("estimated_runtime_sec", 0)),
             f"`{test.get('run_command', '')}`",
         ])
@@ -99,18 +97,13 @@ def generate_coverage_report(registry: RegistryData, gaps: RegistryData) -> str:
 
 ## P0 Tests
 
-{render_table(["Test", "Category", "Hyperscaler Mapping", "Est. Runtime (s)", "Run Command"], rows)}
+{render_table(["Test", "Category", "Est. Runtime (s)", "Run Command"], rows)}
 
 ## Category Coverage
 
 {render_table(["Category", "Tests", "Description"], category_rows)}
 
-## Hyperscaler Mapping
-
 """
-
-    for key, mapped in hyperscaler.items():
-        report += f"- **{key}**: {', '.join(mapped)}\n"
 
     if gap_rows:
         report += "\n## Open Gaps\n\n"

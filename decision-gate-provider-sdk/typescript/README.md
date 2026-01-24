@@ -27,3 +27,4 @@ node dist/index.js
 - This template uses Content-Length framing over stdio.
 - Frames larger than 1 MiB or headers over 8 KiB are rejected.
 - Return JSON-RPC errors for unsupported predicates.
+- Publish a capabilities JSON file and keep `tools/list` aligned with it.

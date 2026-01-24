@@ -113,7 +113,7 @@ fn test_kleene_and_or_not() -> TestResult {
         Requirement::predicate(TestPredicate::B),
         Requirement::predicate(TestPredicate::C),
     ]);
-    let not_req = Requirement::not(Requirement::predicate(TestPredicate::B));
+    let not_req = Requirement::negate(Requirement::predicate(TestPredicate::B));
 
     ensure(
         and_req.eval_tristate(&reader, 0, &KleeneLogic) == TriState::Unknown,

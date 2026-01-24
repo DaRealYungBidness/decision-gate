@@ -31,7 +31,7 @@ fn tooltips_manifest_includes_tool_names() {
     let terms: Vec<&str> = manifest.entries.iter().map(|entry| entry.term.as_str()).collect();
     for tool in ToolName::all() {
         let term = tool.as_str();
-        assert!(terms.contains(&term), "tooltip terms missing tool name: {}", term);
+        assert!(terms.contains(&term), "tooltip terms missing tool name: {term}");
     }
 }
 
@@ -60,7 +60,7 @@ fn tooltips_manifest_includes_core_terms() {
         "GateSpec",
     ];
     for term in required {
-        assert!(terms.contains(&term), "tooltip terms missing: {}", term);
+        assert!(terms.contains(&term), "tooltip terms missing: {term}");
     }
 }
 
@@ -68,12 +68,11 @@ fn tooltips_manifest_includes_core_terms() {
 fn tooltips_manifest_is_ascii() {
     let manifest = tooltips_manifest();
     for entry in manifest.entries {
-        assert!(entry.term.is_ascii(), "tooltip term must be ASCII: {}", entry.term);
-        assert!(entry.title.is_ascii(), "tooltip title must be ASCII: {}", entry.title);
-        assert!(
-            entry.description.is_ascii(),
-            "tooltip description must be ASCII: {}",
-            entry.description
-        );
+        let term = &entry.term;
+        let title = &entry.title;
+        let description = &entry.description;
+        assert!(term.is_ascii(), "tooltip term must be ASCII: {term}");
+        assert!(title.is_ascii(), "tooltip title must be ASCII: {title}");
+        assert!(description.is_ascii(), "tooltip description must be ASCII: {description}");
     }
 }

@@ -26,6 +26,7 @@ use decision_gate_core::EvidenceValue;
 use decision_gate_core::ProviderMissingError;
 use decision_gate_core::ScenarioSpec;
 use decision_gate_core::Timestamp;
+use decision_gate_core::TrustLane;
 use serde::Deserialize;
 use serde_json::Number;
 use serde_json::Value;
@@ -82,6 +83,7 @@ impl EvidenceProvider for TimeProvider {
                 let value = timestamp_value(ctx.trigger_time, self.config)?;
                 Ok(EvidenceResult {
                     value: Some(EvidenceValue::Json(value)),
+                    lane: TrustLane::Verified,
                     evidence_hash: None,
                     evidence_ref: None,
                     evidence_anchor: Some(anchor),
@@ -95,6 +97,7 @@ impl EvidenceProvider for TimeProvider {
                 let result = compare_time(ctx.trigger_time, threshold, query.predicate.as_str());
                 Ok(EvidenceResult {
                     value: Some(EvidenceValue::Json(Value::Bool(result))),
+                    lane: TrustLane::Verified,
                     evidence_hash: None,
                     evidence_ref: None,
                     evidence_anchor: Some(anchor),

@@ -37,7 +37,7 @@ fn normalize_json_matches_canonical_output() -> Result<(), Box<dyn std::error::E
     Ok(())
 }
 
-/// Confirms RON authoring input normalizes to the same ScenarioSpec.
+/// Confirms RON authoring input normalizes to the same `ScenarioSpec`.
 #[test]
 fn normalize_ron_matches_canonical_output() -> Result<(), Box<dyn std::error::Error>> {
     let spec = examples::scenario_example();

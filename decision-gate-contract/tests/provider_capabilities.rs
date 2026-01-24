@@ -16,7 +16,7 @@ use jsonschema::Draft;
 use jsonschema::JSONSchema;
 use serde_json::Value;
 
-fn comparator_order() -> [Comparator; 10] {
+const fn comparator_order() -> [Comparator; 10] {
     [
         Comparator::Equals,
         Comparator::NotEquals,
@@ -39,10 +39,10 @@ fn is_canonical_order(list: &[Comparator]) -> bool {
     list.windows(2).all(|pair| comparator_index(pair[0]) <= comparator_index(pair[1]))
 }
 
-fn compile_schema(schema: &Value) -> JSONSchema {
+fn compile_schema(schema: &Value) -> Result<JSONSchema, String> {
     let mut options = CompilationOptions::default();
     options.with_draft(Draft::Draft202012);
-    options.compile(schema).expect("provider schema compilation failed")
+    options.compile(schema).map_err(|err| format!("provider schema compilation failed: {err}"))
 }
 
 #[test]
@@ -78,95 +78,101 @@ fn provider_predicates_have_canonical_allowlists() {
 }
 
 #[test]
-fn time_provider_comparators_match_schema_expectations() {
+fn time_provider_comparators_match_schema_expectations() -> Result<(), String> {
     let contracts = provider_contracts();
     let time = contracts
         .iter()
         .find(|provider| provider.provider_id == "time")
-        .expect("time provider missing");
+        .ok_or_else(|| "time provider missing".to_string())?;
     let now = time
         .predicates
         .iter()
         .find(|predicate| predicate.name == "now")
-        .expect("time.now predicate missing");
-    assert_eq!(
-        now.allowed_comparators,
-        vec![
-            Comparator::Equals,
-            Comparator::NotEquals,
-            Comparator::GreaterThan,
-            Comparator::GreaterThanOrEqual,
-            Comparator::LessThan,
-            Comparator::LessThanOrEqual,
-            Comparator::InSet,
-            Comparator::Exists,
-            Comparator::NotExists,
-        ]
-    );
+        .ok_or_else(|| "time.now predicate missing".to_string())?;
+    let expected_now = vec![
+        Comparator::Equals,
+        Comparator::NotEquals,
+        Comparator::GreaterThan,
+        Comparator::GreaterThanOrEqual,
+        Comparator::LessThan,
+        Comparator::LessThanOrEqual,
+        Comparator::InSet,
+        Comparator::Exists,
+        Comparator::NotExists,
+    ];
+    if now.allowed_comparators != expected_now {
+        return Err("time.now comparators mismatch".to_string());
+    }
 
     let after = time
         .predicates
         .iter()
         .find(|predicate| predicate.name == "after")
-        .expect("time.after predicate missing");
-    assert_eq!(
-        after.allowed_comparators,
-        vec![Comparator::Equals, Comparator::NotEquals, Comparator::Exists, Comparator::NotExists,]
-    );
+        .ok_or_else(|| "time.after predicate missing".to_string())?;
+    let expected_after =
+        vec![Comparator::Equals, Comparator::NotEquals, Comparator::Exists, Comparator::NotExists];
+    if after.allowed_comparators != expected_after {
+        return Err("time.after comparators mismatch".to_string());
+    }
+    Ok(())
 }
 
 #[test]
-fn provider_determinism_metadata_is_set() {
+fn provider_determinism_metadata_is_set() -> Result<(), String> {
     let contracts = provider_contracts();
     let time = contracts
         .iter()
         .find(|provider| provider.provider_id == "time")
-        .expect("time provider missing");
+        .ok_or_else(|| "time provider missing".to_string())?;
     for predicate in &time.predicates {
-        assert_eq!(predicate.determinism, DeterminismClass::TimeDependent);
+        if predicate.determinism != DeterminismClass::TimeDependent {
+            return Err("time predicate determinism mismatch".to_string());
+        }
     }
 
     let env = contracts
         .iter()
         .find(|provider| provider.provider_id == "env")
-        .expect("env provider missing");
+        .ok_or_else(|| "env provider missing".to_string())?;
     let env_predicate = env
         .predicates
         .iter()
         .find(|predicate| predicate.name == "get")
-        .expect("env.get predicate missing");
-    assert_eq!(env_predicate.determinism, DeterminismClass::External);
+        .ok_or_else(|| "env.get predicate missing".to_string())?;
+    if env_predicate.determinism != DeterminismClass::External {
+        return Err("env.get determinism mismatch".to_string());
+    }
+    Ok(())
 }
 
 #[test]
-fn provider_predicate_examples_match_schemas() {
+fn provider_predicate_examples_match_schemas() -> Result<(), String> {
     let contracts = provider_contracts();
     for provider in contracts {
         for predicate in provider.predicates {
-            assert!(
-                !predicate.examples.is_empty(),
-                "{}.{} missing examples",
-                provider.provider_id,
-                predicate.name
-            );
-            let params_schema = compile_schema(&predicate.params_schema);
-            let result_schema = compile_schema(&predicate.result_schema);
+            if predicate.examples.is_empty() {
+                return Err(format!(
+                    "{}.{} missing examples",
+                    provider.provider_id, predicate.name
+                ));
+            }
+            let params_schema = compile_schema(&predicate.params_schema)?;
+            let result_schema = compile_schema(&predicate.result_schema)?;
             for example in predicate.examples {
-                let result = params_schema.validate(&example.params);
-                assert!(
-                    result.is_ok(),
-                    "{}.{} example params failed",
-                    provider.provider_id,
-                    predicate.name
-                );
-                let result = result_schema.validate(&example.result);
-                assert!(
-                    result.is_ok(),
-                    "{}.{} example result failed",
-                    provider.provider_id,
-                    predicate.name
-                );
+                if params_schema.validate(&example.params).is_err() {
+                    return Err(format!(
+                        "{}.{} example params failed",
+                        provider.provider_id, predicate.name
+                    ));
+                }
+                if result_schema.validate(&example.result).is_err() {
+                    return Err(format!(
+                        "{}.{} example result failed",
+                        provider.provider_id, predicate.name
+                    ));
+                }
             }
         }
     }
+    Ok(())
 }

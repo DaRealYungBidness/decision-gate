@@ -31,6 +31,7 @@ use decision_gate_core::Dispatcher;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::GateId;
 use decision_gate_core::GateSpec;
+use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketPayload;
 use decision_gate_core::PolicyDecider;
 use decision_gate_core::PolicyDecision;
@@ -45,6 +46,7 @@ use decision_gate_core::StageSpec;
 use decision_gate_core::TenantId;
 use decision_gate_core::Timestamp;
 use decision_gate_core::TriggerId;
+use decision_gate_core::TrustRequirement;
 use decision_gate_core::runtime::ControlPlane;
 use decision_gate_core::runtime::ControlPlaneConfig;
 use decision_gate_core::runtime::InMemoryRunStateStore;
@@ -55,15 +57,18 @@ use decision_gate_mcp::DefaultToolAuthz;
 use decision_gate_mcp::FederatedEvidenceProvider;
 use decision_gate_mcp::NoopAuditSink;
 use decision_gate_mcp::RequestContext;
+use decision_gate_mcp::SchemaRegistryConfig;
 use decision_gate_mcp::ToolRouter;
 use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::EvidencePolicyConfig;
+use decision_gate_mcp::config::PolicyConfig;
 use decision_gate_mcp::config::ProviderConfig;
 use decision_gate_mcp::config::ProviderTimeoutConfig;
 use decision_gate_mcp::config::ProviderType;
 use decision_gate_mcp::config::RunStateStoreConfig;
 use decision_gate_mcp::config::ServerConfig;
 use decision_gate_mcp::config::TrustConfig;
+use decision_gate_mcp::tools::ToolRouterConfig;
 use serde_json::json;
 
 struct NoopDispatcher;
@@ -97,6 +102,7 @@ impl PolicyDecider for PermitAll {
 fn sample_spec() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
+        namespace_id: NamespaceId::new("default"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -104,6 +110,7 @@ fn sample_spec() -> ScenarioSpec {
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-time"),
                 requirement: ret_logic::Requirement::predicate("after".into()),
+                trust: None,
             }],
             advance_to: AdvanceTo::Terminal,
             timeout: None,
@@ -119,6 +126,7 @@ fn sample_spec() -> ScenarioSpec {
             comparator: Comparator::Equals,
             expected: Some(json!(true)),
             policy_tags: Vec::new(),
+            trust: None,
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
@@ -142,6 +150,53 @@ fn builtin_provider(name: &str) -> ProviderConfig {
     }
 }
 
+/// Builds a tool router for MCP/core parity tests.
+fn build_router(config: &DecisionGateConfig) -> ToolRouter {
+    let evidence = FederatedEvidenceProvider::from_config(config).unwrap();
+    let capabilities = CapabilityRegistry::from_config(config).unwrap();
+    let store = decision_gate_core::SharedRunStateStore::from_store(
+        decision_gate_core::InMemoryRunStateStore::new(),
+    );
+    let schema_registry = decision_gate_core::SharedDataShapeRegistry::from_registry(
+        decision_gate_core::InMemoryDataShapeRegistry::new(),
+    );
+    let provider_transports = config
+        .providers
+        .iter()
+        .map(|provider| {
+            let transport = match provider.provider_type {
+                ProviderType::Builtin => decision_gate_mcp::tools::ProviderTransport::Builtin,
+                ProviderType::Mcp => decision_gate_mcp::tools::ProviderTransport::Mcp,
+            };
+            (provider.name.clone(), transport)
+        })
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let schema_registry_limits = decision_gate_mcp::tools::SchemaRegistryLimits {
+        max_schema_bytes: config.schema_registry.max_schema_bytes,
+        max_entries: config
+            .schema_registry
+            .max_entries
+            .map(|value| usize::try_from(value).unwrap_or(usize::MAX)),
+    };
+    let authz = Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
+    let audit = Arc::new(NoopAuditSink);
+    ToolRouter::new(ToolRouterConfig {
+        evidence,
+        evidence_policy: config.evidence.clone(),
+        dispatch_policy: config.policy.dispatch.clone(),
+        store,
+        schema_registry,
+        provider_transports,
+        schema_registry_limits,
+        capabilities: Arc::new(capabilities),
+        authz,
+        audit,
+        trust_requirement: TrustRequirement {
+            min_lane: config.trust.min_lane,
+        },
+    })
+}
+
 /// Tests mcp tools match core control plane.
 #[test]
 fn mcp_tools_match_core_control_plane() {
@@ -149,24 +204,13 @@ fn mcp_tools_match_core_control_plane() {
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
         providers: vec![builtin_provider("time")],
     };
     let evidence = FederatedEvidenceProvider::from_config(&config).unwrap();
-    let capabilities = CapabilityRegistry::from_config(&config).unwrap();
-    let store = decision_gate_core::SharedRunStateStore::from_store(
-        decision_gate_core::InMemoryRunStateStore::new(),
-    );
-    let authz = Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
-    let audit = Arc::new(NoopAuditSink);
-    let router = ToolRouter::new(
-        evidence.clone(),
-        config.evidence,
-        store,
-        Arc::new(capabilities),
-        authz,
-        audit,
-    );
+    let router = build_router(&config);
     let context = RequestContext::stdio();
 
     let define = decision_gate_mcp::tools::ScenarioDefineRequest {
@@ -178,6 +222,7 @@ fn mcp_tools_match_core_control_plane() {
 
     let run_config = RunConfig {
         tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: ScenarioId::new("scenario"),
         dispatch_targets: Vec::new(),
@@ -195,6 +240,8 @@ fn mcp_tools_match_core_control_plane() {
 
     let next_request = NextRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
+        tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         trigger_id: TriggerId::new("trigger-1"),
         agent_id: "agent-1".to_string(),
         time: Timestamp::Logical(2),

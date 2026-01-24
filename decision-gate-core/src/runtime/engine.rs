@@ -15,6 +15,8 @@
 // SECTION: Imports
 // ============================================================================
 
+use std::collections::BTreeMap;
+
 use ret_logic::LogicMode;
 use ret_logic::TriState;
 use serde::Deserialize;
@@ -29,12 +31,15 @@ use crate::core::EvidenceRecord;
 use crate::core::EvidenceResult;
 use crate::core::EvidenceValue;
 use crate::core::GateEvalRecord;
+use crate::core::GateEvaluation;
 use crate::core::GateOutcome;
 use crate::core::GateSpec;
+use crate::core::NamespaceId;
 use crate::core::PacketEnvelope;
 use crate::core::PacketPayload;
 use crate::core::PacketRecord;
 use crate::core::PacketSpec;
+use crate::core::PredicateKey;
 use crate::core::PredicateSpec;
 use crate::core::ProviderMissingError;
 use crate::core::RunConfig;
@@ -47,6 +52,7 @@ use crate::core::SpecError;
 use crate::core::StageId;
 use crate::core::StageSpec;
 use crate::core::SubmissionRecord;
+use crate::core::TenantId;
 use crate::core::TimeoutPolicy;
 use crate::core::Timestamp;
 use crate::core::ToolCallError;
@@ -56,6 +62,8 @@ use crate::core::TriggerEvent;
 use crate::core::TriggerId;
 use crate::core::TriggerKind;
 use crate::core::TriggerRecord;
+use crate::core::TrustLane;
+use crate::core::TrustRequirement;
 use crate::core::hashing::DEFAULT_HASH_ALGORITHM;
 use crate::core::hashing::HashAlgorithm;
 use crate::core::hashing::HashDigest;
@@ -100,6 +108,8 @@ pub struct ControlPlaneConfig {
     pub logic_mode: LogicMode,
     /// Hash algorithm used for canonical hashing.
     pub hash_algorithm: HashAlgorithm,
+    /// Minimum trust requirement for evidence.
+    pub trust_requirement: TrustRequirement,
 }
 
 impl Default for ControlPlaneConfig {
@@ -107,6 +117,7 @@ impl Default for ControlPlaneConfig {
         Self {
             logic_mode: LogicMode::Kleene,
             hash_algorithm: DEFAULT_HASH_ALGORITHM,
+            trust_requirement: TrustRequirement::default(),
         }
     }
 }
@@ -176,8 +187,11 @@ where
         if config.scenario_id != self.spec.scenario_id {
             return Err(ControlPlaneError::ScenarioMismatch(config.scenario_id.to_string()));
         }
+        if config.namespace_id != self.spec.namespace_id {
+            return Err(ControlPlaneError::NamespaceMismatch(config.namespace_id.to_string()));
+        }
 
-        if self.store.load(&config.run_id)?.is_some() {
+        if self.store.load(&config.tenant_id, &config.namespace_id, &config.run_id)?.is_some() {
             return Err(ControlPlaneError::RunAlreadyExists(config.run_id.to_string()));
         }
 
@@ -188,6 +202,7 @@ where
 
         let mut state = RunState {
             tenant_id: config.tenant_id,
+            namespace_id: config.namespace_id,
             run_id: config.run_id,
             scenario_id: config.scenario_id,
             spec_hash,
@@ -207,6 +222,8 @@ where
             let trigger_id = TriggerId::new("init");
             let init_trigger = TriggerEvent {
                 trigger_id: trigger_id.clone(),
+                tenant_id: state.tenant_id.clone(),
+                namespace_id: state.namespace_id.clone(),
                 run_id: state.run_id.clone(),
                 kind: TriggerKind::ExternalEvent,
                 time: started_at,
@@ -251,7 +268,8 @@ where
         &self,
         request: &StatusRequest,
     ) -> Result<ScenarioStatus, ControlPlaneError> {
-        let mut state = self.load_run(&request.run_id)?;
+        let mut state =
+            self.load_run(&request.tenant_id, &request.namespace_id, &request.run_id)?;
         let status = ScenarioStatus::from_state(&state);
         let call_id = format!("call-{}", state.tool_calls.len() + 1);
         let tool_record = build_tool_call_record(
@@ -276,6 +294,8 @@ where
     pub fn scenario_next(&self, request: &NextRequest) -> Result<NextResult, ControlPlaneError> {
         let trigger = TriggerEvent {
             trigger_id: request.trigger_id.clone(),
+            tenant_id: request.tenant_id.clone(),
+            namespace_id: request.namespace_id.clone(),
             run_id: request.run_id.clone(),
             kind: TriggerKind::AgentRequestNext,
             time: request.time,
@@ -284,7 +304,8 @@ where
             correlation_id: request.correlation_id.clone(),
         };
 
-        let mut state = self.load_run(&request.run_id)?;
+        let mut state =
+            self.load_run(&request.tenant_id, &request.namespace_id, &request.run_id)?;
         if let Err(err) = self.evidence.validate_providers(&self.spec) {
             let tool_error = provider_missing_tool_error(&err);
             let call_id = format!("call-{}", state.tool_calls.len() + 1);
@@ -329,7 +350,8 @@ where
         &self,
         request: &SubmitRequest,
     ) -> Result<SubmitResult, ControlPlaneError> {
-        let mut state = self.load_run(&request.run_id)?;
+        let mut state =
+            self.load_run(&request.tenant_id, &request.namespace_id, &request.run_id)?;
         if let Some(existing) = state
             .submissions
             .iter()
@@ -414,7 +436,8 @@ where
     ///
     /// Returns [`ControlPlaneError`] when trigger evaluation fails.
     pub fn trigger(&self, trigger: &TriggerEvent) -> Result<TriggerResult, ControlPlaneError> {
-        let mut state = self.load_run(&trigger.run_id)?;
+        let mut state =
+            self.load_run(&trigger.tenant_id, &trigger.namespace_id, &trigger.run_id)?;
         if let Err(err) = self.evidence.validate_providers(&self.spec) {
             let tool_error = provider_missing_tool_error(&err);
             let call_id = format!("call-{}", state.tool_calls.len() + 1);
@@ -449,28 +472,118 @@ where
         Ok(trigger_result)
     }
 
+    /// Evaluates a stage using asserted evidence without mutating run state.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ControlPlaneError`] when precheck evaluation fails.
+    pub fn precheck(&self, request: &PrecheckRequest) -> Result<PrecheckResult, ControlPlaneError> {
+        let stage_id = if let Some(stage_id) = &request.stage_id {
+            stage_id.clone()
+        } else {
+            self.spec.stages.first().ok_or(ControlPlaneError::MissingStages)?.stage_id.clone()
+        };
+        let stage_def = stage_spec(&self.spec, &stage_id)?;
+        let predicate_specs = predicate_specs(&self.spec, stage_def)?;
+        let default_requirement = self.config.trust_requirement;
+        let mut predicate_requirements = BTreeMap::new();
+        for spec in &predicate_specs {
+            let requirement = spec.trust.unwrap_or(default_requirement);
+            let requirement = default_requirement.stricter(requirement);
+            predicate_requirements.insert(spec.predicate.clone(), requirement);
+        }
+
+        let mut evidence_records = Vec::with_capacity(predicate_specs.len());
+        for spec in &predicate_specs {
+            let result =
+                request.evidence.get(&spec.predicate).cloned().unwrap_or_else(|| EvidenceResult {
+                    value: None,
+                    lane: TrustLane::Asserted,
+                    evidence_hash: None,
+                    evidence_ref: None,
+                    evidence_anchor: None,
+                    signature: None,
+                    content_type: None,
+                });
+            let normalized = normalize_evidence_result(&result, self.config.hash_algorithm)?;
+            let status = evaluate_comparator(spec.comparator, spec.expected.as_ref(), &normalized);
+            evidence_records.push(EvidenceRecord {
+                predicate: spec.predicate.clone(),
+                status,
+                result: normalized,
+                error: None,
+            });
+        }
+
+        let evaluator = GateEvaluator::new(self.config.logic_mode);
+        let mut gate_evaluations = Vec::new();
+        let mut gate_outcomes = Vec::new();
+        for gate in &stage_def.gates {
+            let gate_requirement =
+                default_requirement.stricter(gate.trust.unwrap_or(default_requirement));
+            let gate_evidence = evidence_for_gate(&evidence_records, gate);
+            let adjusted_evidence: Vec<EvidenceRecord> = gate_evidence
+                .into_iter()
+                .map(|record| {
+                    let predicate_requirement = predicate_requirements
+                        .get(&record.predicate)
+                        .copied()
+                        .unwrap_or(default_requirement);
+                    let effective_requirement = predicate_requirement.stricter(gate_requirement);
+                    apply_trust_requirement(record, effective_requirement)
+                })
+                .collect();
+            let snapshot = EvidenceSnapshot::new(adjusted_evidence);
+            let evaluation = evaluator.evaluate_gate(gate, &snapshot);
+            gate_outcomes.push((gate.gate_id.clone(), evaluation.status));
+            gate_evaluations.push(evaluation);
+        }
+
+        let decision =
+            if gate_evaluations.iter().all(|evaluation| evaluation.status == TriState::True) {
+                if let Some(next_stage) =
+                    resolve_next_stage_precheck(&self.spec, stage_def, &gate_outcomes)?
+                {
+                    DecisionOutcome::Advance {
+                        from_stage: stage_id,
+                        to_stage: next_stage,
+                        timeout: false,
+                    }
+                } else {
+                    DecisionOutcome::Complete {
+                        stage_id,
+                    }
+                }
+            } else {
+                let unmet = gate_evaluations
+                    .iter()
+                    .filter(|evaluation| evaluation.status != TriState::True)
+                    .map(|evaluation| evaluation.gate_id.clone())
+                    .collect();
+                DecisionOutcome::Hold {
+                    summary: SafeSummary {
+                        status: "hold".to_string(),
+                        unmet_gates: unmet,
+                        retry_hint: Some("await_evidence".to_string()),
+                        policy_tags: Vec::new(),
+                    },
+                }
+            };
+
+        Ok(PrecheckResult {
+            decision,
+            gate_evaluations,
+        })
+    }
+
     /// Evaluates a trigger and returns the updated state plus result.
-    #[allow(
-        clippy::too_many_lines,
-        reason = "Maintain a single linear flow for ordered state updates and auditability."
-    )]
     fn handle_trigger_internal(
         &self,
         mut state: RunState,
         trigger: &TriggerEvent,
     ) -> Result<(RunState, EvaluationResult), ControlPlaneError> {
         if state.status != RunStatus::Active {
-            let decision = state
-                .decisions
-                .last()
-                .cloned()
-                .ok_or(ControlPlaneError::RunInactive(state.status))?;
-            let packets = packets_for_decision(&state, &decision.decision_id);
-            let result = EvaluationResult {
-                decision,
-                packets,
-                status: state.status,
-            };
+            let result = inactive_result(&state)?;
             return Ok((state, result));
         }
 
@@ -478,67 +591,107 @@ where
             return Err(ControlPlaneError::RunMismatch(trigger.run_id.to_string()));
         }
 
-        if let Some(existing) = state
-            .decisions
-            .iter()
-            .find(|decision| decision.trigger_id == trigger.trigger_id)
-            .cloned()
-        {
-            let packets = packets_for_decision(&state, &existing.decision_id);
-            let result = EvaluationResult {
-                decision: existing,
-                packets,
-                status: state.status,
-            };
+        if let Some(result) = existing_trigger_result(&state, trigger) {
             return Ok((state, result));
         }
 
-        let trigger_seq = next_seq(&state.triggers)?;
-        state.triggers.push(TriggerRecord {
-            seq: trigger_seq,
-            event: trigger.clone(),
-        });
+        record_trigger(&mut state, trigger)?;
 
         let stage_def = stage_spec(&self.spec, &state.current_stage_id)?;
         if let Some(result) = self.handle_timeout(&mut state, trigger, stage_def)? {
             return Ok((state, result));
         }
-        let evidence_context = EvidenceContext {
-            tenant_id: state.tenant_id.clone(),
-            run_id: state.run_id.clone(),
-            scenario_id: state.scenario_id.clone(),
-            stage_id: state.current_stage_id.clone(),
-            trigger_id: trigger.trigger_id.clone(),
-            trigger_time: trigger.time,
-            correlation_id: trigger.correlation_id.clone(),
+        let evidence_context = build_evidence_context(&state, trigger);
+        let gate_results =
+            self.evaluate_stage_gates(&state, trigger, stage_def, &evidence_context)?;
+        state.gate_evals.extend(gate_results.records.clone());
+        let (decision, packets) = self.decide_from_gate_evals(
+            &mut state,
+            trigger,
+            stage_def,
+            &gate_results.records,
+            &gate_results.outcomes,
+        )?;
+
+        state.decisions.push(decision.clone());
+        state.packets.extend(packets.clone());
+
+        let result = EvaluationResult {
+            decision,
+            packets,
+            status: state.status,
         };
 
+        Ok((state, result))
+    }
+
+    /// Evaluates all gates for the stage using the provided evidence context.
+    fn evaluate_stage_gates(
+        &self,
+        state: &RunState,
+        trigger: &TriggerEvent,
+        stage_def: &StageSpec,
+        evidence_context: &EvidenceContext,
+    ) -> Result<GateEvaluationOutcome, ControlPlaneError> {
         let predicate_specs = predicate_specs(&self.spec, stage_def)?;
-        let evidence_records = self.evaluate_predicates(&predicate_specs, &evidence_context)?;
-        let snapshot = EvidenceSnapshot::new(evidence_records.clone());
+        let evidence_records = self.evaluate_predicates(&predicate_specs, evidence_context)?;
+        let default_requirement = self.config.trust_requirement;
+        let mut predicate_requirements = BTreeMap::new();
+        for spec in &predicate_specs {
+            let requirement = spec.trust.unwrap_or(default_requirement);
+            let requirement = default_requirement.stricter(requirement);
+            predicate_requirements.insert(spec.predicate.clone(), requirement);
+        }
         let evaluator = GateEvaluator::new(self.config.logic_mode);
         let mut gate_eval_records = Vec::new();
         let mut gate_outcomes = Vec::new();
 
         for gate in &stage_def.gates {
-            let evaluation = evaluator.evaluate_gate(gate, &snapshot);
+            let gate_requirement =
+                default_requirement.stricter(gate.trust.unwrap_or(default_requirement));
             let gate_evidence = evidence_for_gate(&evidence_records, gate);
+            let adjusted_evidence: Vec<EvidenceRecord> = gate_evidence
+                .into_iter()
+                .map(|record| {
+                    let predicate_requirement = predicate_requirements
+                        .get(&record.predicate)
+                        .copied()
+                        .unwrap_or(default_requirement);
+                    let effective_requirement = predicate_requirement.stricter(gate_requirement);
+                    apply_trust_requirement(record, effective_requirement)
+                })
+                .collect();
+            let snapshot = EvidenceSnapshot::new(adjusted_evidence.clone());
+            let evaluation = evaluator.evaluate_gate(gate, &snapshot);
             gate_outcomes.push((gate.gate_id.clone(), evaluation.status));
             gate_eval_records.push(GateEvalRecord {
                 trigger_id: trigger.trigger_id.clone(),
                 stage_id: state.current_stage_id.clone(),
                 evaluation,
-                evidence: gate_evidence,
+                evidence: adjusted_evidence,
             });
         }
 
-        state.gate_evals.extend(gate_eval_records.clone());
+        Ok(GateEvaluationOutcome {
+            records: gate_eval_records,
+            outcomes: gate_outcomes,
+        })
+    }
 
+    /// Builds a decision and packets from evaluated gate records.
+    fn decide_from_gate_evals(
+        &self,
+        state: &mut RunState,
+        trigger: &TriggerEvent,
+        stage_def: &StageSpec,
+        gate_eval_records: &[GateEvalRecord],
+        gate_outcomes: &[(crate::core::GateId, TriState)],
+    ) -> Result<(DecisionRecord, Vec<PacketRecord>), ControlPlaneError> {
         let decision_seq = next_seq(&state.decisions)?;
         let decision_id = DecisionId::new(format!("decision-{decision_seq}"));
-        let (decision, packets) = if gates_passed(&gate_eval_records) {
+        if gates_passed(gate_eval_records) {
             if let Some(next_stage) =
-                resolve_next_stage(&self.spec, stage_def, &gate_outcomes, &state)?
+                resolve_next_stage(&self.spec, stage_def, gate_outcomes, state)?
             {
                 let decision = DecisionRecord {
                     decision_id: decision_id.clone(),
@@ -554,11 +707,11 @@ where
                     correlation_id: trigger.correlation_id.clone(),
                 };
 
-                match self.issue_stage_packets(&state, &decision, &next_stage) {
+                match self.issue_stage_packets(state, &decision, &next_stage) {
                     Ok(packets) => {
                         state.current_stage_id = next_stage.clone();
                         state.stage_entered_at = trigger.time;
-                        (decision, packets)
+                        Ok((decision, packets))
                     }
                     Err(err) => {
                         state.status = RunStatus::Failed;
@@ -573,16 +726,7 @@ where
                             },
                             correlation_id: trigger.correlation_id.clone(),
                         };
-                        state.decisions.push(fail_decision.clone());
-                        let status = state.status;
-                        return Ok((
-                            state,
-                            EvaluationResult {
-                                decision: fail_decision,
-                                packets: Vec::new(),
-                                status,
-                            },
-                        ));
+                        Ok((fail_decision, Vec::new()))
                     }
                 }
             } else {
@@ -598,10 +742,10 @@ where
                     correlation_id: trigger.correlation_id.clone(),
                 };
                 state.status = RunStatus::Completed;
-                (decision, Vec::new())
+                Ok((decision, Vec::new()))
             }
         } else {
-            let summary = build_safe_summary(&gate_eval_records);
+            let summary = build_safe_summary(gate_eval_records);
             let decision = DecisionRecord {
                 decision_id,
                 seq: decision_seq,
@@ -613,19 +757,8 @@ where
                 },
                 correlation_id: trigger.correlation_id.clone(),
             };
-            (decision, Vec::new())
-        };
-
-        state.decisions.push(decision.clone());
-        state.packets.extend(packets.clone());
-
-        let result = EvaluationResult {
-            decision,
-            packets,
-            status: state.status,
-        };
-
-        Ok((state, result))
+            Ok((decision, Vec::new()))
+        }
     }
 
     /// Applies timeout policy for tick triggers when the stage timeout has elapsed.
@@ -777,6 +910,7 @@ where
                 Err(err) => (
                     EvidenceResult {
                         value: None,
+                        lane: TrustLane::Verified,
                         evidence_hash: None,
                         evidence_ref: None,
                         evidence_anchor: None,
@@ -858,8 +992,15 @@ where
     }
 
     /// Loads the run state or returns an error if missing.
-    fn load_run(&self, run_id: &RunId) -> Result<RunState, ControlPlaneError> {
-        self.store.load(run_id)?.ok_or_else(|| ControlPlaneError::RunNotFound(run_id.to_string()))
+    fn load_run(
+        &self,
+        tenant_id: &TenantId,
+        namespace_id: &NamespaceId,
+        run_id: &RunId,
+    ) -> Result<RunState, ControlPlaneError> {
+        self.store
+            .load(tenant_id, namespace_id, run_id)?
+            .ok_or_else(|| ControlPlaneError::RunNotFound(run_id.to_string()))
     }
 }
 
@@ -872,6 +1013,10 @@ where
 pub struct StatusRequest {
     /// Run identifier.
     pub run_id: RunId,
+    /// Tenant identifier.
+    pub tenant_id: TenantId,
+    /// Namespace identifier.
+    pub namespace_id: NamespaceId,
     /// Request timestamp.
     pub requested_at: Timestamp,
     /// Optional correlation identifier.
@@ -883,6 +1028,10 @@ pub struct StatusRequest {
 pub struct NextRequest {
     /// Run identifier.
     pub run_id: RunId,
+    /// Tenant identifier.
+    pub tenant_id: TenantId,
+    /// Namespace identifier.
+    pub namespace_id: NamespaceId,
     /// Trigger identifier.
     pub trigger_id: TriggerId,
     /// Agent identifier.
@@ -898,6 +1047,10 @@ pub struct NextRequest {
 pub struct SubmitRequest {
     /// Run identifier.
     pub run_id: RunId,
+    /// Tenant identifier.
+    pub tenant_id: TenantId,
+    /// Namespace identifier.
+    pub namespace_id: NamespaceId,
     /// Submission identifier.
     pub submission_id: String,
     /// Submission payload.
@@ -908,6 +1061,15 @@ pub struct SubmitRequest {
     pub submitted_at: Timestamp,
     /// Optional correlation identifier.
     pub correlation_id: Option<crate::core::CorrelationId>,
+}
+
+/// Request payload for precheck evaluation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PrecheckRequest {
+    /// Optional stage identifier override.
+    pub stage_id: Option<StageId>,
+    /// Asserted evidence keyed by predicate identifier.
+    pub evidence: BTreeMap<PredicateKey, EvidenceResult>,
 }
 
 /// Result returned by `scenario.next`.
@@ -948,6 +1110,15 @@ pub struct TriggerResult {
     pub packets: Vec<PacketRecord>,
     /// Run status after evaluation.
     pub status: RunStatus,
+}
+
+/// Result returned by precheck evaluation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PrecheckResult {
+    /// Predicted decision outcome.
+    pub decision: DecisionOutcome,
+    /// Gate evaluations for the stage.
+    pub gate_evaluations: Vec<GateEvaluation>,
 }
 
 impl TriggerResult {
@@ -1033,6 +1204,9 @@ pub enum ControlPlaneError {
     /// Scenario identifier mismatch.
     #[error("scenario mismatch for run: {0}")]
     ScenarioMismatch(String),
+    /// Namespace identifier mismatch.
+    #[error("namespace mismatch for run: {0}")]
+    NamespaceMismatch(String),
     /// Run already exists.
     #[error("run already exists: {0}")]
     RunAlreadyExists(String),
@@ -1153,9 +1327,86 @@ fn predicate_specs(
 }
 
 /// Filters evidence records relevant to a gate.
+/// Filters evidence records relevant to a gate.
 fn evidence_for_gate(records: &[EvidenceRecord], gate: &GateSpec) -> Vec<EvidenceRecord> {
     let predicates = collect_predicates(&gate.requirement);
     records.iter().filter(|record| predicates.contains(&record.predicate)).cloned().collect()
+}
+
+/// Container for gate evaluation records and summarized outcomes.
+struct GateEvaluationOutcome {
+    /// Full gate evaluation records.
+    records: Vec<GateEvalRecord>,
+    /// Gate outcomes keyed by gate identifier.
+    outcomes: Vec<(crate::core::GateId, TriState)>,
+}
+
+/// Builds an evaluation result for inactive runs using the latest decision.
+fn inactive_result(state: &RunState) -> Result<EvaluationResult, ControlPlaneError> {
+    let decision =
+        state.decisions.last().cloned().ok_or(ControlPlaneError::RunInactive(state.status))?;
+    let packets = packets_for_decision(state, &decision.decision_id);
+    Ok(EvaluationResult {
+        decision,
+        packets,
+        status: state.status,
+    })
+}
+
+/// Returns an existing decision result for an already-processed trigger.
+fn existing_trigger_result(state: &RunState, trigger: &TriggerEvent) -> Option<EvaluationResult> {
+    state.decisions.iter().find(|decision| decision.trigger_id == trigger.trigger_id).cloned().map(
+        |decision| EvaluationResult {
+            packets: packets_for_decision(state, &decision.decision_id),
+            status: state.status,
+            decision,
+        },
+    )
+}
+
+/// Appends a trigger record to the run state.
+fn record_trigger(state: &mut RunState, trigger: &TriggerEvent) -> Result<(), ControlPlaneError> {
+    let trigger_seq = next_seq(&state.triggers)?;
+    state.triggers.push(TriggerRecord {
+        seq: trigger_seq,
+        event: trigger.clone(),
+    });
+    Ok(())
+}
+
+/// Builds evidence context from the run state and trigger metadata.
+fn build_evidence_context(state: &RunState, trigger: &TriggerEvent) -> EvidenceContext {
+    EvidenceContext {
+        tenant_id: state.tenant_id.clone(),
+        namespace_id: state.namespace_id.clone(),
+        run_id: state.run_id.clone(),
+        scenario_id: state.scenario_id.clone(),
+        stage_id: state.current_stage_id.clone(),
+        trigger_id: trigger.trigger_id.clone(),
+        trigger_time: trigger.time,
+        correlation_id: trigger.correlation_id.clone(),
+    }
+}
+
+/// Applies a trust requirement to an evidence record.
+fn apply_trust_requirement(
+    mut record: EvidenceRecord,
+    requirement: TrustRequirement,
+) -> EvidenceRecord {
+    if record.result.lane.satisfies(requirement) {
+        return record;
+    }
+    record.status = TriState::Unknown;
+    if record.error.is_none() {
+        record.error = Some(crate::core::EvidenceProviderError {
+            code: "trust_lane".to_string(),
+            message: format!(
+                "evidence lane {:?} does not satisfy {:?}",
+                record.result.lane, requirement.min_lane
+            ),
+        });
+    }
+    record
 }
 
 /// Returns true if every gate evaluation passed.
@@ -1205,6 +1456,46 @@ fn resolve_next_stage(
     stage: &crate::core::StageSpec,
     gate_outcomes: &[(crate::core::GateId, TriState)],
     _state: &RunState,
+) -> Result<Option<StageId>, ControlPlaneError> {
+    match &stage.advance_to {
+        AdvanceTo::Linear => {
+            let index = spec
+                .stages
+                .iter()
+                .position(|spec| spec.stage_id == stage.stage_id)
+                .ok_or_else(|| ControlPlaneError::StageNotFound(stage.stage_id.to_string()))?;
+            let next = spec.stages.get(index + 1);
+            Ok(next.map(|stage| stage.stage_id.clone()))
+        }
+        AdvanceTo::Fixed {
+            stage_id,
+        } => Ok(Some(stage_id.clone())),
+        AdvanceTo::Branch {
+            branches,
+            default,
+        } => {
+            for branch in branches {
+                let outcome = gate_outcomes
+                    .iter()
+                    .find(|(gate_id, _)| *gate_id == branch.gate_id)
+                    .map_or(TriState::Unknown, |(_, status)| *status);
+                if gate_outcome_matches(outcome, branch.outcome) {
+                    return Ok(Some(branch.next_stage_id.clone()));
+                }
+            }
+            default.clone().map(Some).ok_or_else(|| {
+                ControlPlaneError::GateResolutionFailed("no branch matched".to_string())
+            })
+        }
+        AdvanceTo::Terminal => Ok(None),
+    }
+}
+
+/// Resolves the next stage without run state (used for precheck).
+fn resolve_next_stage_precheck(
+    spec: &ScenarioSpec,
+    stage: &crate::core::StageSpec,
+    gate_outcomes: &[(crate::core::GateId, TriState)],
 ) -> Result<Option<StageId>, ControlPlaneError> {
     match &stage.advance_to {
         AdvanceTo::Linear => {

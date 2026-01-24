@@ -25,6 +25,7 @@ use decision_gate_core::GateEvaluator;
 use decision_gate_core::GateId;
 use decision_gate_core::GateSpec;
 use decision_gate_core::PredicateKey;
+use decision_gate_core::TrustLane;
 use decision_gate_core::runtime::gate::EvidenceSnapshot;
 use ret_logic::LogicMode;
 use ret_logic::Requirement;
@@ -43,6 +44,7 @@ fn test_gate_evaluation_with_snapshot() {
             Requirement::predicate(PredicateKey::from("a")),
             Requirement::predicate(PredicateKey::from("b")),
         ]),
+        trust: None,
     };
 
     let snapshot = EvidenceSnapshot::new(vec![
@@ -51,6 +53,7 @@ fn test_gate_evaluation_with_snapshot() {
             status: TriState::True,
             result: EvidenceResult {
                 value: None,
+                lane: TrustLane::Verified,
                 evidence_hash: None,
                 evidence_ref: None,
                 evidence_anchor: None,
@@ -64,6 +67,7 @@ fn test_gate_evaluation_with_snapshot() {
             status: TriState::Unknown,
             result: EvidenceResult {
                 value: None,
+                lane: TrustLane::Verified,
                 evidence_hash: None,
                 evidence_ref: None,
                 evidence_anchor: None,

@@ -22,6 +22,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use decision_gate_contract::ToolName;
+use decision_gate_core::TrustLane;
 use decision_gate_store_sqlite::SqliteStoreMode;
 use decision_gate_store_sqlite::SqliteSyncMode;
 use serde::Deserialize;
@@ -74,6 +75,10 @@ const MAX_PROVIDER_CONNECT_TIMEOUT_MS: u64 = 10_000;
 const MIN_PROVIDER_REQUEST_TIMEOUT_MS: u64 = 500;
 /// Maximum MCP provider request timeout in milliseconds.
 const MAX_PROVIDER_REQUEST_TIMEOUT_MS: u64 = 30_000;
+/// Default max schema size accepted by registry (bytes).
+const DEFAULT_SCHEMA_MAX_BYTES: usize = 1024 * 1024;
+/// Maximum allowed schema size in bytes.
+const MAX_SCHEMA_MAX_BYTES: usize = 10 * 1024 * 1024;
 
 // ============================================================================
 // SECTION: Configuration Types
@@ -91,9 +96,15 @@ pub struct DecisionGateConfig {
     /// Evidence disclosure policy configuration.
     #[serde(default)]
     pub evidence: EvidencePolicyConfig,
+    /// Dispatch policy configuration.
+    #[serde(default)]
+    pub policy: PolicyConfig,
     /// Run state store configuration.
     #[serde(default)]
     pub run_state_store: RunStateStoreConfig,
+    /// Data shape registry configuration.
+    #[serde(default)]
+    pub schema_registry: SchemaRegistryConfig,
     /// Evidence provider configuration entries.
     #[serde(default)]
     pub providers: Vec<ProviderConfig>,
@@ -128,6 +139,7 @@ impl DecisionGateConfig {
     pub fn validate(&mut self) -> Result<(), ConfigError> {
         self.server.validate()?;
         self.run_state_store.validate()?;
+        self.schema_registry.validate()?;
         for provider in &self.providers {
             provider.validate()?;
         }
@@ -191,8 +203,7 @@ impl ServerConfig {
             tls.validate()?;
         }
         self.audit.validate()?;
-        let auth_mode =
-            self.auth.as_ref().map_or(ServerAuthMode::LocalOnly, |auth| auth.mode);
+        let auth_mode = self.auth.as_ref().map_or(ServerAuthMode::LocalOnly, |auth| auth.mode);
         match self.transport {
             ServerTransport::Http | ServerTransport::Sse => {
                 let bind = self.bind.as_deref().unwrap_or_default().trim();
@@ -471,12 +482,32 @@ pub struct TrustConfig {
     /// Default trust policy for providers.
     #[serde(default = "default_trust_policy")]
     pub default_policy: TrustPolicy,
+    /// Minimum evidence trust lane accepted by the control plane.
+    #[serde(default = "default_trust_lane")]
+    pub min_lane: TrustLane,
 }
 
 impl Default for TrustConfig {
     fn default() -> Self {
         Self {
             default_policy: TrustPolicy::Audit,
+            min_lane: default_trust_lane(),
+        }
+    }
+}
+
+/// Dispatch policy configuration.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct PolicyConfig {
+    /// Dispatch policy mode.
+    #[serde(default)]
+    pub dispatch: DispatchPolicy,
+}
+
+impl Default for PolicyConfig {
+    fn default() -> Self {
+        Self {
+            dispatch: DispatchPolicy::PermitAll,
         }
     }
 }
@@ -498,6 +529,22 @@ impl Default for EvidencePolicyConfig {
             allow_raw_values: false,
             require_provider_opt_in: true,
         }
+    }
+}
+
+/// Dispatch policy modes for packet disclosure.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DispatchPolicy {
+    /// Allow all dispatch targets.
+    PermitAll,
+    /// Deny all dispatch targets.
+    DenyAll,
+}
+
+impl Default for DispatchPolicy {
+    fn default() -> Self {
+        Self::PermitAll
     }
 }
 
@@ -573,6 +620,90 @@ pub enum RunStateStoreType {
     #[default]
     Memory,
     /// Use `SQLite`-backed durable store.
+    Sqlite,
+}
+
+/// Data shape registry configuration.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SchemaRegistryConfig {
+    /// Registry backend type.
+    #[serde(rename = "type", default)]
+    pub registry_type: SchemaRegistryType,
+    /// `SQLite` database path when using the sqlite backend.
+    #[serde(default)]
+    pub path: Option<PathBuf>,
+    /// Busy timeout in milliseconds.
+    #[serde(default = "default_store_busy_timeout_ms")]
+    pub busy_timeout_ms: u64,
+    /// `SQLite` journal mode.
+    #[serde(default)]
+    pub journal_mode: SqliteStoreMode,
+    /// `SQLite` synchronous mode.
+    #[serde(default)]
+    pub sync_mode: SqliteSyncMode,
+    /// Maximum schema payload size in bytes.
+    #[serde(default = "default_schema_max_bytes")]
+    pub max_schema_bytes: usize,
+    /// Optional max schemas per tenant + namespace.
+    #[serde(default)]
+    pub max_entries: Option<u64>,
+}
+
+impl Default for SchemaRegistryConfig {
+    fn default() -> Self {
+        Self {
+            registry_type: SchemaRegistryType::default(),
+            path: None,
+            busy_timeout_ms: default_store_busy_timeout_ms(),
+            journal_mode: SqliteStoreMode::default(),
+            sync_mode: SqliteSyncMode::default(),
+            max_schema_bytes: default_schema_max_bytes(),
+            max_entries: None,
+        }
+    }
+}
+
+impl SchemaRegistryConfig {
+    /// Validates schema registry configuration.
+    fn validate(&self) -> Result<(), ConfigError> {
+        if self.max_schema_bytes == 0 || self.max_schema_bytes > MAX_SCHEMA_MAX_BYTES {
+            return Err(ConfigError::Invalid(
+                "schema_registry max_schema_bytes out of range".to_string(),
+            ));
+        }
+        if self.max_entries == Some(0) {
+            return Err(ConfigError::Invalid(
+                "schema_registry max_entries must be greater than zero".to_string(),
+            ));
+        }
+        match self.registry_type {
+            SchemaRegistryType::Memory => {
+                if self.path.is_some() {
+                    return Err(ConfigError::Invalid(
+                        "memory schema_registry must not set path".to_string(),
+                    ));
+                }
+                Ok(())
+            }
+            SchemaRegistryType::Sqlite => {
+                let path = self.path.as_ref().ok_or_else(|| {
+                    ConfigError::Invalid("sqlite schema_registry requires path".to_string())
+                })?;
+                validate_store_path(path)?;
+                Ok(())
+            }
+        }
+    }
+}
+
+/// Schema registry backend type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum SchemaRegistryType {
+    /// Use the in-memory registry.
+    #[default]
+    Memory,
+    /// Use `SQLite`-backed durable registry.
     Sqlite,
 }
 
@@ -844,9 +975,19 @@ const fn default_store_busy_timeout_ms() -> u64 {
     5_000
 }
 
+/// Default max schema size for registry payloads.
+const fn default_schema_max_bytes() -> usize {
+    DEFAULT_SCHEMA_MAX_BYTES
+}
+
 /// Default trust policy for providers.
 const fn default_trust_policy() -> TrustPolicy {
     TrustPolicy::Audit
+}
+
+/// Default minimum evidence trust lane.
+const fn default_trust_lane() -> TrustLane {
+    TrustLane::Verified
 }
 
 /// Default MCP provider connect timeout in milliseconds.

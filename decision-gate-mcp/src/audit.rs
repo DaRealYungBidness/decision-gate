@@ -67,41 +67,55 @@ pub struct McpAuditEvent {
     pub redaction: &'static str,
 }
 
+/// Inputs required to construct an audit event.
+pub struct McpAuditEventParams {
+    /// Request identifier when provided.
+    pub request_id: Option<String>,
+    /// Transport type used for the request.
+    pub transport: ServerTransport,
+    /// Peer IP address if known.
+    pub peer_ip: Option<String>,
+    /// JSON-RPC method classification.
+    pub method: McpMethod,
+    /// Tool name when available (tools/call).
+    pub tool: Option<ToolName>,
+    /// Request outcome.
+    pub outcome: McpOutcome,
+    /// JSON-RPC error code when present.
+    pub error_code: Option<i64>,
+    /// Normalized error kind label.
+    pub error_kind: Option<&'static str>,
+    /// Request body size in bytes.
+    pub request_bytes: usize,
+    /// Response body size in bytes.
+    pub response_bytes: usize,
+    /// Client subject when provided.
+    pub client_subject: Option<String>,
+    /// Redaction classification for payload logging.
+    pub redaction: &'static str,
+}
+
 impl McpAuditEvent {
     /// Creates a new audit event with a consistent timestamp.
     #[must_use]
-    #[allow(clippy::too_many_arguments, reason = "audit events capture full request context")]
-    pub fn new(
-        request_id: Option<String>,
-        transport: ServerTransport,
-        peer_ip: Option<String>,
-        method: McpMethod,
-        tool: Option<ToolName>,
-        outcome: McpOutcome,
-        error_code: Option<i64>,
-        error_kind: Option<&'static str>,
-        request_bytes: usize,
-        response_bytes: usize,
-        client_subject: Option<String>,
-        redaction: &'static str,
-    ) -> Self {
+    pub fn new(params: McpAuditEventParams) -> Self {
         let timestamp_ms =
             SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis();
         Self {
             event: "mcp_request",
             timestamp_ms,
-            request_id,
-            transport,
-            peer_ip,
-            method,
-            tool,
-            outcome,
-            error_code,
-            error_kind,
-            request_bytes,
-            response_bytes,
-            client_subject,
-            redaction,
+            request_id: params.request_id,
+            transport: params.transport,
+            peer_ip: params.peer_ip,
+            method: params.method,
+            tool: params.tool,
+            outcome: params.outcome,
+            error_code: params.error_code,
+            error_kind: params.error_kind,
+            request_bytes: params.request_bytes,
+            response_bytes: params.response_bytes,
+            client_subject: params.client_subject,
+            redaction: params.redaction,
         }
     }
 }

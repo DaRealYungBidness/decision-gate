@@ -98,13 +98,13 @@ impl<P> RequirementBuilder<P> {
 /// # use ret_logic::Requirement;
 /// # let predicate = ();
 /// let builder = RequirementBuilder::predicate(predicate);
-/// let negated = !builder; // Equivalent to Requirement::not(...)
+/// let negated = !builder; // Equivalent to Requirement::negate(...)
 /// ```
 impl<P> Not for RequirementBuilder<P> {
     type Output = Self;
 
     fn not(self) -> Self::Output {
-        Self::new(Requirement::not(self.requirement))
+        Self::new(Requirement::negate(self.requirement))
     }
 }
 
@@ -307,7 +307,7 @@ pub mod convenience {
     /// Creates a requirement that inverts another requirement
     #[must_use]
     pub fn not<P>(requirement: Requirement<P>) -> Requirement<P> {
-        Requirement::not(requirement)
+        Requirement::negate(requirement)
     }
 
     /// Creates a requirement requiring at least N of the given requirements

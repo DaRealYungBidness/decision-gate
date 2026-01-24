@@ -29,6 +29,7 @@ use decision_gate_core::EvidenceResult;
 use decision_gate_core::EvidenceValue;
 use decision_gate_core::GateId;
 use decision_gate_core::GateSpec;
+use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketPayload;
 use decision_gate_core::PacketSpec;
 use decision_gate_core::PolicyDecider;
@@ -46,6 +47,7 @@ use decision_gate_core::StageSpec;
 use decision_gate_core::TenantId;
 use decision_gate_core::Timestamp;
 use decision_gate_core::TriggerId;
+use decision_gate_core::TrustLane;
 use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
 use decision_gate_core::hashing::hash_bytes;
 use decision_gate_core::runtime::ControlPlane;
@@ -66,6 +68,7 @@ impl EvidenceProvider for ExampleEvidenceProvider {
     ) -> Result<EvidenceResult, decision_gate_core::EvidenceError> {
         Ok(EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
+            lane: TrustLane::Verified,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -158,14 +161,16 @@ impl ArtifactSink for InMemoryArtifacts {
 
 impl ArtifactReader for InMemoryArtifacts {
     fn read_with_limit(&self, path: &str, max_bytes: usize) -> Result<Vec<u8>, ArtifactError> {
-        let guard = self
-            .files
-            .lock()
-            .map_err(|_| ArtifactError::Sink("artifact store mutex poisoned".to_string()))?;
-        let bytes = guard
-            .get(path)
-            .cloned()
-            .ok_or_else(|| ArtifactError::Sink("missing artifact".to_string()))?;
+        let bytes = {
+            let guard = self
+                .files
+                .lock()
+                .map_err(|_| ArtifactError::Sink("artifact store mutex poisoned".to_string()))?;
+            guard
+                .get(path)
+                .cloned()
+                .ok_or_else(|| ArtifactError::Sink("missing artifact".to_string()))?
+        };
         if bytes.len() > max_bytes {
             return Err(ArtifactError::TooLarge {
                 path: path.to_string(),
@@ -181,6 +186,7 @@ impl ArtifactReader for InMemoryArtifacts {
 fn build_spec() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("example"),
+        namespace_id: NamespaceId::new("default"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -198,6 +204,7 @@ fn build_spec() -> ScenarioSpec {
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-ready"),
                 requirement: ret_logic::Requirement::predicate("ready".into()),
+                trust: None,
             }],
             advance_to: AdvanceTo::Terminal,
             timeout: None,
@@ -213,6 +220,7 @@ fn build_spec() -> ScenarioSpec {
             comparator: Comparator::Equals,
             expected: Some(json!(true)),
             policy_tags: Vec::new(),
+            trust: None,
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
@@ -234,6 +242,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let run_config = RunConfig {
         tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: ScenarioId::new("example"),
         dispatch_targets: vec![DispatchTarget::Agent {
@@ -246,6 +255,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let next_request = NextRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
+        tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         trigger_id: TriggerId::new("trigger-1"),
         agent_id: "agent-1".to_string(),
         time: Timestamp::Logical(1),
@@ -255,6 +266,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let status_request = decision_gate_core::runtime::StatusRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
+        tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
         requested_at: Timestamp::Logical(2),
         correlation_id: None,
     };
@@ -263,7 +276,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = (result, status);
 
     let run_state = store
-        .load(&decision_gate_core::RunId::new("run-1"))?
+        .load(
+            &TenantId::new("tenant"),
+            &NamespaceId::new("default"),
+            &decision_gate_core::RunId::new("run-1"),
+        )?
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "run state missing"))?;
 
     let mut artifacts = InMemoryArtifacts::default();

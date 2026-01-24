@@ -19,9 +19,9 @@ runpacks for offline verification.
 
 ## Product State (Current)
 
-Decision Gate core is implemented end-to-end as a backend-agnostic control-plane engine.
-It includes canonical schemas, deterministic evaluation, tool-call APIs, and
-offline-verifiable runpacks. Production integration (HTTP/MCP services,
+Decision Gate core is implemented end-to-end as a backend-agnostic control-plane
+engine. It includes canonical schemas, deterministic evaluation, trust lanes,
+and offline-verifiable runpacks. Production integration (HTTP/MCP services,
 persistent storage, and policy engines) is intentionally external to this crate.
 
 ## Governance and Standards
@@ -45,8 +45,10 @@ artifacts, and disclosure policy remain Decision Gate responsibilities.
 ## Core Capabilities
 
 - Deterministic trigger ingestion, gate evaluation, and decision logging.
-- Tool-call surface (`scenario.status/next/submit`) backed by the same engine.
+- Precheck evaluation (read-only) that never mutates run state.
+- Trust lanes (verified vs asserted) enforced at gate/predicate level.
 - Runpack generation with RFC 8785 canonical hashing and offline verifier.
+- Schema registry traits and in-memory registry for data shapes.
 
 ## Canonical Source of Truth
 
@@ -62,9 +64,10 @@ Implemented in `decision-gate-core`:
 - Canonical schemas: scenario specs, stages, packets, triggers, decisions, run state.
 - Evidence contract: queries, results, anchors, comparators, tri-state outcomes.
 - Deterministic engine: idempotent trigger handling, gate evaluation, safe summaries.
-- Tool-call API: `scenario.status`, `scenario.next`, `scenario.submit`.
+- Control-plane API: `scenario.status`, `scenario.next`, `scenario.submit`, `precheck`.
 - Runpack builder + offline verifier with RFC 8785 canonical JSON hashing.
 - In-memory run state store and in-memory artifact sink for tests/examples.
+- In-memory schema registry for data shapes.
 
 Not implemented here (explicitly missing today):
 
@@ -72,7 +75,8 @@ Not implemented here (explicitly missing today):
 - Durable run state storage (database-backed store).
 - Durable runpack storage (filesystem/blob store adapters).
 - Policy engine integration beyond the `PolicyDecider` trait.
-- Schema registries, policy registries, and any adapter-specific implementations.
+- Scenario registry persistence (MCP holds this in memory today).
+- Scenario-level trust policies (only global + gate/predicate are enforced).
 
 ## Getting Started
 

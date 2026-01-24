@@ -309,7 +309,9 @@ async fn command_serve(command: ServeCommand) -> CliResult<ExitCode> {
 
     let server = McpServer::from_config(config)
         .map_err(|err| CliError::new(t!("serve.init_failed", error = err)))?;
-    server.serve().await.map_err(|err| CliError::new(t!("serve.failed", error = err)))?;
+    server.serve().await.map_err(|err: decision_gate_mcp::server::McpServerError| {
+        CliError::new(t!("serve.failed", error = err))
+    })?;
 
     Ok(ExitCode::SUCCESS)
 }
@@ -320,7 +322,7 @@ fn enforce_local_only(config: &DecisionGateConfig) -> CliResult<()> {
         ServerTransport::Stdio => Ok(()),
         ServerTransport::Http | ServerTransport::Sse => {
             let bind = config.server.bind.as_deref().unwrap_or_default();
-            let addr: SocketAddr = bind.parse().map_err(|err| {
+            let addr: SocketAddr = bind.parse().map_err(|err: std::net::AddrParseError| {
                 CliError::new(t!("serve.bind.parse_failed", bind = bind, error = err))
             })?;
             if !addr.ip().is_loopback() {
@@ -745,19 +747,29 @@ fn map_authoring_error(error: AuthoringError, path: &Path) -> CliError {
         AuthoringError::Parse {
             format,
             error,
-        } => t!("authoring.parse_failed", format = format, path = path.display(), error = error),
+        } => {
+            t!("authoring.parse_failed", format = format, path = path.display(), error = error)
+        }
         AuthoringError::Schema {
             error,
-        } => t!("authoring.schema_failed", path = path.display(), error = error),
+        } => {
+            t!("authoring.schema_failed", path = path.display(), error = error)
+        }
         AuthoringError::Deserialize {
             error,
-        } => t!("authoring.deserialize_failed", path = path.display(), error = error),
+        } => {
+            t!("authoring.deserialize_failed", path = path.display(), error = error)
+        }
         AuthoringError::Spec {
             error,
-        } => t!("authoring.spec_failed", path = path.display(), error = error),
+        } => {
+            t!("authoring.spec_failed", path = path.display(), error = error)
+        }
         AuthoringError::Canonicalization {
             error,
-        } => t!("authoring.canonicalize_failed", path = path.display(), error = error),
+        } => {
+            t!("authoring.canonicalize_failed", path = path.display(), error = error)
+        }
     };
     CliError::new(message)
 }

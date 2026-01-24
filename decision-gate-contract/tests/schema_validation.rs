@@ -45,6 +45,7 @@ use decision_gate_core::GateId;
 use decision_gate_core::GateTraceEntry;
 use decision_gate_core::HashAlgorithm;
 use decision_gate_core::HashDigest;
+use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketEnvelope;
 use decision_gate_core::PacketId;
 use decision_gate_core::PacketPayload;
@@ -66,6 +67,7 @@ use decision_gate_core::TriggerEvent;
 use decision_gate_core::TriggerId;
 use decision_gate_core::TriggerKind;
 use decision_gate_core::TriggerRecord;
+use decision_gate_core::TrustLane;
 use decision_gate_core::VisibilityPolicy;
 use jsonschema::CompilationOptions;
 use jsonschema::Draft;
@@ -281,6 +283,7 @@ const fn sample_timestamp() -> Timestamp {
 )]
 fn sample_run_state() -> RunState {
     let tenant_id = TenantId::new("tenant-1");
+    let namespace_id = NamespaceId::new("namespace-1");
     let run_id = RunId::new("run-1");
     let scenario_id = ScenarioId::new("scenario-1");
     let stage_id = StageId::new("stage-1");
@@ -295,6 +298,8 @@ fn sample_run_state() -> RunState {
 
     let trigger_event = TriggerEvent {
         trigger_id: trigger_id.clone(),
+        tenant_id: tenant_id.clone(),
+        namespace_id: namespace_id.clone(),
         run_id: run_id.clone(),
         kind: TriggerKind::Tick,
         time: timestamp,
@@ -305,6 +310,7 @@ fn sample_run_state() -> RunState {
 
     let evidence_result = EvidenceResult {
         value: Some(EvidenceValue::Json(json!({"status": "ok"}))),
+        lane: TrustLane::Verified,
         evidence_hash: Some(hash.clone()),
         evidence_ref: None,
         evidence_anchor: Some(EvidenceAnchor {
@@ -417,6 +423,7 @@ fn sample_run_state() -> RunState {
 
     RunState {
         tenant_id,
+        namespace_id,
         run_id,
         scenario_id,
         spec_hash: sample_hash_digest(),
@@ -436,4 +443,330 @@ fn sample_run_state() -> RunState {
         submissions: vec![submission],
         tool_calls: vec![tool_call],
     }
+}
+
+// ============================================================================
+// SECTION: Negative Validation Tests
+// ============================================================================
+
+#[test]
+fn scenario_schema_rejects_empty_stages() -> Result<(), Box<dyn Error>> {
+    let bundle = ContractBuilder::default().build()?;
+    let scenario_schema = artifact_json(&bundle, "schemas/scenario.schema.json")?;
+    let config_schema = artifact_json(&bundle, "schemas/config.schema.json")?;
+    let resolver = build_registry(&[scenario_schema.clone(), config_schema])?;
+    let scenario_validator = compile_schema(&scenario_schema, &resolver)?;
+
+    let invalid = json!({
+        "scenario_id": "test",
+        "namespace_id": "default",
+        "spec_version": "1",
+        "stages": [],
+        "predicates": [],
+        "policies": [],
+        "schemas": []
+    });
+    assert_invalid(&scenario_validator, &invalid, "scenario with empty stages")?;
+    Ok(())
+}
+
+#[test]
+fn scenario_schema_rejects_missing_scenario_id() -> Result<(), Box<dyn Error>> {
+    let bundle = ContractBuilder::default().build()?;
+    let scenario_schema = artifact_json(&bundle, "schemas/scenario.schema.json")?;
+    let config_schema = artifact_json(&bundle, "schemas/config.schema.json")?;
+    let resolver = build_registry(&[scenario_schema.clone(), config_schema])?;
+    let scenario_validator = compile_schema(&scenario_schema, &resolver)?;
+
+    let invalid = json!({
+        "namespace_id": "default",
+        "spec_version": "1",
+        "stages": [{
+            "stage_id": "stage-1",
+            "gates": [],
+            "advance_to": "terminal"
+        }],
+        "predicates": [],
+        "policies": [],
+        "schemas": []
+    });
+    assert_invalid(&scenario_validator, &invalid, "scenario missing scenario_id")?;
+    Ok(())
+}
+
+#[test]
+fn scenario_schema_rejects_empty_stage_id() -> Result<(), Box<dyn Error>> {
+    let bundle = ContractBuilder::default().build()?;
+    let scenario_schema = artifact_json(&bundle, "schemas/scenario.schema.json")?;
+    let config_schema = artifact_json(&bundle, "schemas/config.schema.json")?;
+    let resolver = build_registry(&[scenario_schema.clone(), config_schema])?;
+    let scenario_validator = compile_schema(&scenario_schema, &resolver)?;
+
+    let invalid = json!({
+        "scenario_id": "test",
+        "namespace_id": "default",
+        "spec_version": "1",
+        "stages": [{
+            "stage_id": "",
+            "gates": [],
+            "advance_to": "terminal"
+        }],
+        "predicates": [],
+        "policies": [],
+        "schemas": []
+    });
+    assert_invalid(&scenario_validator, &invalid, "scenario with empty stage_id")?;
+    Ok(())
+}
+
+#[test]
+fn config_schema_rejects_invalid_transport() -> Result<(), Box<dyn Error>> {
+    let bundle = ContractBuilder::default().build()?;
+    let scenario_schema = artifact_json(&bundle, "schemas/scenario.schema.json")?;
+    let config_schema = artifact_json(&bundle, "schemas/config.schema.json")?;
+    let resolver = build_registry(&[scenario_schema, config_schema.clone()])?;
+    let config_validator = compile_schema(&config_schema, &resolver)?;
+
+    let invalid = json!({
+        "server": {
+            "transport": "invalid_transport"
+        }
+    });
+    assert_invalid(&config_validator, &invalid, "config with invalid transport")?;
+    Ok(())
+}
+
+#[test]
+fn run_config_schema_rejects_missing_tenant_id() -> Result<(), Box<dyn Error>> {
+    let resolver = build_registry(&[schemas::scenario_schema(), schemas::config_schema()])?;
+    let run_config_validator = compile_schema(&schemas::run_config_schema(), &resolver)?;
+
+    let invalid = json!({
+        "namespace_id": "default",
+        "run_id": "run-1",
+        "scenario_id": "scenario-1"
+    });
+    assert_invalid(&run_config_validator, &invalid, "run config missing tenant_id")?;
+    Ok(())
+}
+
+#[test]
+fn run_config_schema_rejects_missing_run_id() -> Result<(), Box<dyn Error>> {
+    let resolver = build_registry(&[schemas::scenario_schema(), schemas::config_schema()])?;
+    let run_config_validator = compile_schema(&schemas::run_config_schema(), &resolver)?;
+
+    let invalid = json!({
+        "tenant_id": "tenant-1",
+        "namespace_id": "default",
+        "scenario_id": "scenario-1"
+    });
+    assert_invalid(&run_config_validator, &invalid, "run config missing run_id")?;
+    Ok(())
+}
+
+// ============================================================================
+// SECTION: Trust Lane Schema Validation
+// ============================================================================
+
+#[test]
+fn trust_lane_schema_validates_verified() -> Result<(), Box<dyn Error>> {
+    let trust_lane_schema = schemas::trust_lane_schema();
+    let resolver = build_registry(&[])?;
+    let validator = compile_schema(&trust_lane_schema, &resolver)?;
+
+    assert_valid(&validator, &json!("verified"), "verified lane")?;
+    Ok(())
+}
+
+#[test]
+fn trust_lane_schema_validates_asserted() -> Result<(), Box<dyn Error>> {
+    let trust_lane_schema = schemas::trust_lane_schema();
+    let resolver = build_registry(&[])?;
+    let validator = compile_schema(&trust_lane_schema, &resolver)?;
+
+    assert_valid(&validator, &json!("asserted"), "asserted lane")?;
+    Ok(())
+}
+
+#[test]
+fn trust_lane_schema_rejects_unknown_value() -> Result<(), Box<dyn Error>> {
+    let trust_lane_schema = schemas::trust_lane_schema();
+    let resolver = build_registry(&[])?;
+    let validator = compile_schema(&trust_lane_schema, &resolver)?;
+
+    assert_invalid(&validator, &json!("unknown"), "unknown trust lane")?;
+    assert_invalid(&validator, &json!("Verified"), "capitalized Verified")?;
+    assert_invalid(&validator, &json!(123), "numeric trust lane")?;
+    Ok(())
+}
+
+// ============================================================================
+// SECTION: Comparator Schema Validation
+// ============================================================================
+
+#[test]
+fn comparator_schema_validates_all_variants() -> Result<(), Box<dyn Error>> {
+    let comparator_schema = schemas::comparator_schema();
+    let resolver = build_registry(&[])?;
+    let validator = compile_schema(&comparator_schema, &resolver)?;
+
+    let valid_comparators = [
+        "equals",
+        "not_equals",
+        "greater_than",
+        "greater_than_or_equal",
+        "less_than",
+        "less_than_or_equal",
+        "contains",
+        "in_set",
+        "exists",
+        "not_exists",
+    ];
+
+    for comparator in valid_comparators {
+        assert_valid(&validator, &json!(comparator), comparator)?;
+    }
+    Ok(())
+}
+
+#[test]
+fn comparator_schema_rejects_invalid_values() -> Result<(), Box<dyn Error>> {
+    let comparator_schema = schemas::comparator_schema();
+    let resolver = build_registry(&[])?;
+    let validator = compile_schema(&comparator_schema, &resolver)?;
+
+    assert_invalid(&validator, &json!("Equals"), "capitalized Equals")?;
+    assert_invalid(&validator, &json!("eq"), "abbreviation eq")?;
+    assert_invalid(&validator, &json!("!="), "operator symbol")?;
+    assert_invalid(&validator, &json!(0), "numeric comparator")?;
+    Ok(())
+}
+
+// ============================================================================
+// SECTION: Data Shape Schema Validation
+// ============================================================================
+
+#[test]
+fn data_shape_ref_schema_validates_complete_ref() -> Result<(), Box<dyn Error>> {
+    let data_shape_ref_schema = schemas::data_shape_ref_schema();
+    let resolver = build_registry(&[])?;
+    let validator = compile_schema(&data_shape_ref_schema, &resolver)?;
+
+    let valid = json!({
+        "schema_id": "my-schema",
+        "version": "v1"
+    });
+    assert_valid(&validator, &valid, "complete data shape ref")?;
+    Ok(())
+}
+
+#[test]
+fn data_shape_ref_schema_rejects_missing_schema_id() -> Result<(), Box<dyn Error>> {
+    let data_shape_ref_schema = schemas::data_shape_ref_schema();
+    let resolver = build_registry(&[])?;
+    let validator = compile_schema(&data_shape_ref_schema, &resolver)?;
+
+    let invalid = json!({
+        "version": "v1"
+    });
+    assert_invalid(&validator, &invalid, "data shape ref missing schema_id")?;
+    Ok(())
+}
+
+#[test]
+fn data_shape_ref_schema_rejects_missing_version() -> Result<(), Box<dyn Error>> {
+    let data_shape_ref_schema = schemas::data_shape_ref_schema();
+    let resolver = build_registry(&[])?;
+    let validator = compile_schema(&data_shape_ref_schema, &resolver)?;
+
+    let invalid = json!({
+        "schema_id": "my-schema"
+    });
+    assert_invalid(&validator, &invalid, "data shape ref missing version")?;
+    Ok(())
+}
+
+// ============================================================================
+// SECTION: Timestamp Schema Validation
+// ============================================================================
+
+#[test]
+fn timestamp_schema_validates_logical() -> Result<(), Box<dyn Error>> {
+    let timestamp_schema = schemas::timestamp_schema();
+    let resolver = build_registry(&[])?;
+    let validator = compile_schema(&timestamp_schema, &resolver)?;
+
+    let valid = json!({"kind": "logical", "value": 12345});
+    assert_valid(&validator, &valid, "logical timestamp")?;
+    Ok(())
+}
+
+#[test]
+fn timestamp_schema_validates_unix_millis() -> Result<(), Box<dyn Error>> {
+    let timestamp_schema = schemas::timestamp_schema();
+    let resolver = build_registry(&[])?;
+    let validator = compile_schema(&timestamp_schema, &resolver)?;
+
+    let valid = json!({"kind": "unix_millis", "value": 1_710_000_000_000_i64});
+    assert_valid(&validator, &valid, "unix millis timestamp")?;
+    Ok(())
+}
+
+#[test]
+fn timestamp_schema_rejects_invalid_kind() -> Result<(), Box<dyn Error>> {
+    let timestamp_schema = schemas::timestamp_schema();
+    let resolver = build_registry(&[])?;
+    let validator = compile_schema(&timestamp_schema, &resolver)?;
+
+    // Invalid kind value
+    let invalid = json!({
+        "kind": "invalid",
+        "value": 123
+    });
+    assert_invalid(&validator, &invalid, "timestamp with invalid kind")?;
+    Ok(())
+}
+
+// ============================================================================
+// SECTION: Hash Digest Schema Validation
+// ============================================================================
+
+#[test]
+fn hash_digest_schema_validates_sha256() -> Result<(), Box<dyn Error>> {
+    let hash_schema = schemas::hash_digest_schema();
+    let resolver = build_registry(&[])?;
+    let validator = compile_schema(&hash_schema, &resolver)?;
+
+    let valid = json!({
+        "algorithm": "sha256",
+        "value": "abcdef1234567890"
+    });
+    assert_valid(&validator, &valid, "sha256 hash digest")?;
+    Ok(())
+}
+
+#[test]
+fn hash_digest_schema_rejects_missing_algorithm() -> Result<(), Box<dyn Error>> {
+    let hash_schema = schemas::hash_digest_schema();
+    let resolver = build_registry(&[])?;
+    let validator = compile_schema(&hash_schema, &resolver)?;
+
+    let invalid = json!({
+        "value": "abcdef1234567890"
+    });
+    assert_invalid(&validator, &invalid, "hash digest missing algorithm")?;
+    Ok(())
+}
+
+#[test]
+fn hash_digest_schema_rejects_missing_value() -> Result<(), Box<dyn Error>> {
+    let hash_schema = schemas::hash_digest_schema();
+    let resolver = build_registry(&[])?;
+    let validator = compile_schema(&hash_schema, &resolver)?;
+
+    let invalid = json!({
+        "algorithm": "sha256"
+    });
+    assert_invalid(&validator, &invalid, "hash digest missing value")?;
+    Ok(())
 }

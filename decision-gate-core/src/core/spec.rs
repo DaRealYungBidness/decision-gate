@@ -22,6 +22,7 @@ use serde::Serialize;
 use serde_json::Value;
 use thiserror::Error;
 
+use crate::core::TrustRequirement;
 use crate::core::disclosure::PacketPayload;
 use crate::core::evidence::Comparator;
 use crate::core::evidence::EvidenceQuery;
@@ -30,6 +31,7 @@ use crate::core::hashing::HashAlgorithm;
 use crate::core::hashing::HashDigest;
 use crate::core::hashing::HashError;
 use crate::core::identifiers::GateId;
+use crate::core::identifiers::NamespaceId;
 use crate::core::identifiers::PacketId;
 use crate::core::identifiers::PolicyId;
 use crate::core::identifiers::PredicateKey;
@@ -49,6 +51,8 @@ use crate::core::time::Timestamp;
 pub struct ScenarioSpec {
     /// Scenario identifier.
     pub scenario_id: ScenarioId,
+    /// Namespace identifier.
+    pub namespace_id: NamespaceId,
     /// Specification version identifier.
     pub spec_version: SpecVersion,
     /// Scenario stages in deterministic order.
@@ -202,6 +206,9 @@ pub struct GateSpec {
     pub gate_id: GateId,
     /// Requirement tree defining the gate logic.
     pub requirement: Requirement<PredicateKey>,
+    /// Optional trust requirement override for this gate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trust: Option<TrustRequirement>,
 }
 
 /// Predicate specification mapping a predicate key to evidence query rules.
@@ -217,6 +224,9 @@ pub struct PredicateSpec {
     pub expected: Option<Value>,
     /// Optional policy tags for safe summaries.
     pub policy_tags: Vec<String>,
+    /// Optional trust requirement override for this predicate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trust: Option<TrustRequirement>,
 }
 
 // ============================================================================
