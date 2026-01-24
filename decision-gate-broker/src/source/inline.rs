@@ -42,7 +42,7 @@ impl InlineSource {
 
     /// Decodes a base64-encoded payload.
     fn decode_base64(encoded: &str) -> Result<Vec<u8>, SourceError> {
-        let estimated = ((encoded.len() + 3) / 4).saturating_mul(3);
+        let estimated = encoded.len().div_ceil(4).saturating_mul(3);
         enforce_max_bytes(estimated)?;
         let bytes = STANDARD
             .decode(encoded.as_bytes())

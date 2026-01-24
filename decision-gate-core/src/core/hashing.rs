@@ -188,14 +188,19 @@ fn hex_encode(bytes: &[u8]) -> String {
 
 /// Writer that fails when a size limit would be exceeded.
 struct LimitedWriter<'a> {
+    /// Output buffer for encoded bytes.
     inner: &'a mut Vec<u8>,
+    /// Maximum allowed byte count.
     max_bytes: usize,
+    /// Bytes written so far.
     written: usize,
+    /// Total bytes attempted when limit was hit.
     limit_hit: Option<usize>,
 }
 
 impl<'a> LimitedWriter<'a> {
-    fn new(inner: &'a mut Vec<u8>, max_bytes: usize) -> Self {
+    /// Creates a limited writer over the provided buffer.
+    const fn new(inner: &'a mut Vec<u8>, max_bytes: usize) -> Self {
         Self {
             inner,
             max_bytes,
@@ -204,7 +209,8 @@ impl<'a> LimitedWriter<'a> {
         }
     }
 
-    fn limit_hit(&self) -> Option<usize> {
+    /// Returns the attempted size when the limit was exceeded.
+    const fn limit_hit(&self) -> Option<usize> {
         self.limit_hit
     }
 }
@@ -214,7 +220,7 @@ impl Write for LimitedWriter<'_> {
         let remaining = self.max_bytes.saturating_sub(self.written);
         if buf.len() > remaining {
             self.limit_hit = Some(self.written.saturating_add(buf.len()));
-            return Err(io::Error::new(io::ErrorKind::Other, "size limit exceeded"));
+            return Err(io::Error::other("size limit exceeded"));
         }
         self.inner.extend_from_slice(buf);
         self.written = self.written.saturating_add(buf.len());

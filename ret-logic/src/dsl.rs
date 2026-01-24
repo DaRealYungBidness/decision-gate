@@ -14,7 +14,7 @@
 //! (`and`, `or`, `not`), the `require_group`/`at_least` operator, and predicate
 //! symbols that are resolved through a user-supplied [`PredicateResolver`].
 //! Security posture: DSL input is untrusted; enforce validation and limits per
-//! Docs/security/threat_model.md.
+//! `Docs/security/threat_model.md`.
 //!
 //! ### Grammar (informal)
 //! - **Predicates**: `is_alive`, `has_ap`, `stunned` (any identifier resolved by the resolver)
@@ -57,7 +57,9 @@ use crate::serde_support::RequirementValidator;
 // SECTION: Limits
 // ============================================================================
 
+/// Maximum allowed DSL input size in bytes.
 const MAX_DSL_INPUT_BYTES: usize = 1024 * 1024;
+/// Maximum supported nesting depth for DSL expressions.
 const MAX_DSL_NESTING: usize = 32;
 
 // ============================================================================
@@ -656,6 +658,7 @@ where
         Ok(args)
     }
 
+    /// Runs a parser step while enforcing the nesting limit.
     fn with_nesting<T>(
         &mut self,
         position: usize,

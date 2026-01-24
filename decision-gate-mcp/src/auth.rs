@@ -16,6 +16,7 @@
 // ============================================================================
 
 use std::collections::BTreeSet;
+use std::io::Write;
 use std::net::IpAddr;
 
 use decision_gate_contract::ToolName;
@@ -32,6 +33,7 @@ use crate::config::ServerTransport;
 // SECTION: Constants
 // ============================================================================
 
+/// Maximum allowed Authorization header size in bytes.
 const MAX_AUTH_HEADER_BYTES: usize = 8 * 1024;
 
 // ============================================================================
@@ -56,7 +58,7 @@ pub struct RequestContext {
 impl RequestContext {
     /// Builds a stdio request context.
     #[must_use]
-    pub fn stdio() -> Self {
+    pub const fn stdio() -> Self {
         Self {
             transport: ServerTransport::Stdio,
             peer_ip: None,
@@ -68,7 +70,7 @@ impl RequestContext {
 
     /// Builds an HTTP/SSE request context.
     #[must_use]
-    pub fn http(
+    pub const fn http(
         transport: ServerTransport,
         peer_ip: Option<IpAddr>,
         auth_header: Option<String>,
@@ -93,7 +95,7 @@ impl RequestContext {
     /// Returns true when the peer IP is loopback.
     #[must_use]
     pub fn peer_is_loopback(&self) -> bool {
-        self.peer_ip.map_or(false, |ip| ip.is_loopback())
+        self.peer_ip.is_some_and(|ip| ip.is_loopback())
     }
 }
 
@@ -113,7 +115,8 @@ pub struct AuthContext {
 }
 
 impl AuthContext {
-    fn method_label(&self) -> &'static str {
+    /// Returns a stable label for the authentication method.
+    const fn method_label(&self) -> &'static str {
         match self.method {
             AuthMethod::Local => "local",
             AuthMethod::BearerToken => "bearer_token",
@@ -143,6 +146,7 @@ pub enum AuthAction<'a> {
 }
 
 impl AuthAction<'_> {
+    /// Returns a stable label for the requested action.
     fn label(self) -> String {
         match self {
             AuthAction::ListTools => "tools/list".to_string(),
@@ -173,6 +177,10 @@ pub enum AuthError {
 /// Authn/authz interface for MCP tool calls.
 pub trait ToolAuthz: Send + Sync {
     /// Authorize a tool request. Returns an authenticated context on success.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuthError`] if the caller is unauthenticated or unauthorized.
     fn authorize(
         &self,
         ctx: &RequestContext,
@@ -192,9 +200,13 @@ pub trait AuthAuditSink: Send + Sync {
 
 /// Default authz implementation derived from server config.
 pub struct DefaultToolAuthz {
+    /// Configured auth mode.
     mode: ServerAuthMode,
+    /// Allowed bearer tokens.
     bearer_tokens: BTreeSet<String>,
+    /// Allowed mTLS subject names.
     mtls_subjects: BTreeSet<String>,
+    /// Optional tool allowlist.
     allowed_tools: Option<BTreeSet<ToolName>>,
 }
 
@@ -202,7 +214,7 @@ impl DefaultToolAuthz {
     /// Builds a default authz policy from server auth configuration.
     #[must_use]
     pub fn from_config(config: Option<&ServerAuthConfig>) -> Self {
-        let mode = config.map(|cfg| cfg.mode).unwrap_or(ServerAuthMode::LocalOnly);
+        let mode = config.map_or(ServerAuthMode::LocalOnly, |cfg| cfg.mode);
         let bearer_tokens =
             config.map(|cfg| cfg.bearer_tokens.iter().cloned().collect()).unwrap_or_default();
         let mtls_subjects =
@@ -249,12 +261,11 @@ impl ToolAuthz for DefaultToolAuthz {
             ServerAuthMode::Mtls => authorize_mtls(ctx, &self.mtls_subjects)?,
         };
 
-        if let AuthAction::CallTool(tool) = action {
-            if let Some(allowed) = &self.allowed_tools {
-                if !allowed.contains(tool) {
-                    return Err(AuthError::Unauthorized("tool not authorized".to_string()));
-                }
-            }
+        if let AuthAction::CallTool(tool) = action
+            && let Some(allowed) = &self.allowed_tools
+            && !allowed.contains(tool)
+        {
+            return Err(AuthError::Unauthorized("tool not authorized".to_string()));
         }
 
         if auth.subject.is_none() && matches!(auth.method, AuthMethod::Local) {
@@ -339,7 +350,7 @@ pub struct StderrAuditSink;
 impl AuthAuditSink for StderrAuditSink {
     fn record(&self, event: &AuthAuditEvent) {
         if let Ok(payload) = serde_json::to_string(event) {
-            eprintln!("{payload}");
+            let _ = writeln!(std::io::stderr(), "{payload}");
         }
     }
 }
@@ -355,7 +366,8 @@ impl AuthAuditSink for NoopAuditSink {
 // SECTION: Helpers
 // ============================================================================
 
-fn transport_label(transport: ServerTransport) -> &'static str {
+/// Returns a stable label for the server transport.
+const fn transport_label(transport: ServerTransport) -> &'static str {
     match transport {
         ServerTransport::Stdio => "stdio",
         ServerTransport::Http => "http",
@@ -363,6 +375,7 @@ fn transport_label(transport: ServerTransport) -> &'static str {
     }
 }
 
+/// Authorizes a local-only request based on the transport and peer IP.
 fn authorize_local_only(ctx: &RequestContext) -> Result<AuthContext, AuthError> {
     match ctx.transport {
         ServerTransport::Stdio => Ok(AuthContext {
@@ -386,6 +399,7 @@ fn authorize_local_only(ctx: &RequestContext) -> Result<AuthContext, AuthError> 
     }
 }
 
+/// Authorizes a bearer token request against the configured token set.
 fn authorize_bearer(
     ctx: &RequestContext,
     tokens: &BTreeSet<String>,
@@ -402,6 +416,7 @@ fn authorize_bearer(
     })
 }
 
+/// Authorizes an mTLS subject request against the configured subject set.
 fn authorize_mtls(
     ctx: &RequestContext,
     subjects: &BTreeSet<String>,
@@ -420,7 +435,8 @@ fn authorize_mtls(
     })
 }
 
-fn parse_bearer_token(auth_header: Option<&str>) -> Result<String, AuthError> {
+/// Parses and validates a bearer token from an Authorization header.
+pub(crate) fn parse_bearer_token(auth_header: Option<&str>) -> Result<String, AuthError> {
     let header = auth_header
         .ok_or_else(|| AuthError::Unauthenticated("missing authorization".to_string()))?;
     if header.len() > MAX_AUTH_HEADER_BYTES {

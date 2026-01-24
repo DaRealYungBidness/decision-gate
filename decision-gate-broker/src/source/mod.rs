@@ -72,7 +72,7 @@ pub enum SourceError {
 }
 
 /// Returns an error when a payload exceeds the configured size cap.
-pub(crate) fn enforce_max_bytes(actual_bytes: usize) -> Result<(), SourceError> {
+pub(crate) const fn enforce_max_bytes(actual_bytes: usize) -> Result<(), SourceError> {
     if actual_bytes > MAX_SOURCE_BYTES {
         return Err(SourceError::TooLarge {
             max_bytes: MAX_SOURCE_BYTES,

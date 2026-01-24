@@ -34,9 +34,12 @@ use decision_gate_mcp::config::ProviderConfig;
 use decision_gate_mcp::config::ProviderTimeoutConfig;
 use decision_gate_mcp::config::ProviderType;
 use decision_gate_mcp::config::RunStateStoreConfig;
+use decision_gate_mcp::config::ServerAuditConfig;
 use decision_gate_mcp::config::ServerAuthConfig;
 use decision_gate_mcp::config::ServerAuthMode;
 use decision_gate_mcp::config::ServerConfig;
+use decision_gate_mcp::config::ServerLimitsConfig;
+use decision_gate_mcp::config::ServerTlsConfig;
 use decision_gate_mcp::config::ServerTransport;
 use decision_gate_mcp::config::TrustConfig;
 use tempfile::TempDir;
@@ -80,7 +83,10 @@ fn server_stdio_no_bind_required() {
         transport: ServerTransport::Stdio,
         bind: None,
         max_body_bytes: 1024 * 1024,
+        limits: ServerLimitsConfig::default(),
         auth: None,
+        tls: None,
+        audit: ServerAuditConfig::default(),
     };
     assert!(validate_server_config(config).is_ok());
 }
@@ -92,7 +98,10 @@ fn server_max_body_bytes_zero_rejected() {
         transport: ServerTransport::Stdio,
         bind: None,
         max_body_bytes: 0,
+        limits: ServerLimitsConfig::default(),
         auth: None,
+        tls: None,
+        audit: ServerAuditConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -107,7 +116,10 @@ fn server_http_requires_bind() {
         transport: ServerTransport::Http,
         bind: None,
         max_body_bytes: 1024 * 1024,
+        limits: ServerLimitsConfig::default(),
         auth: None,
+        tls: None,
+        audit: ServerAuditConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -122,7 +134,10 @@ fn server_sse_requires_bind() {
         transport: ServerTransport::Sse,
         bind: None,
         max_body_bytes: 1024 * 1024,
+        limits: ServerLimitsConfig::default(),
         auth: None,
+        tls: None,
+        audit: ServerAuditConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -137,7 +152,10 @@ fn server_http_loopback_allowed() {
         transport: ServerTransport::Http,
         bind: Some("127.0.0.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
+        limits: ServerLimitsConfig::default(),
         auth: None,
+        tls: None,
+        audit: ServerAuditConfig::default(),
     };
     assert!(validate_server_config(config).is_ok());
 }
@@ -149,7 +167,10 @@ fn server_http_ipv6_loopback_allowed() {
         transport: ServerTransport::Http,
         bind: Some("[::1]:8080".to_string()),
         max_body_bytes: 1024 * 1024,
+        limits: ServerLimitsConfig::default(),
         auth: None,
+        tls: None,
+        audit: ServerAuditConfig::default(),
     };
     assert!(validate_server_config(config).is_ok());
 }
@@ -161,7 +182,10 @@ fn server_http_non_loopback_rejected() {
         transport: ServerTransport::Http,
         bind: Some("0.0.0.0:8080".to_string()),
         max_body_bytes: 1024 * 1024,
+        limits: ServerLimitsConfig::default(),
         auth: None,
+        tls: None,
+        audit: ServerAuditConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -176,7 +200,10 @@ fn server_http_external_ip_rejected() {
         transport: ServerTransport::Http,
         bind: Some("192.168.1.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
+        limits: ServerLimitsConfig::default(),
         auth: None,
+        tls: None,
+        audit: ServerAuditConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -189,7 +216,10 @@ fn server_invalid_bind_format_rejected() {
         transport: ServerTransport::Http,
         bind: Some("not-an-address".to_string()),
         max_body_bytes: 1024 * 1024,
+        limits: ServerLimitsConfig::default(),
         auth: None,
+        tls: None,
+        audit: ServerAuditConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -204,7 +234,10 @@ fn server_empty_bind_rejected() {
         transport: ServerTransport::Http,
         bind: Some("   ".to_string()),
         max_body_bytes: 1024 * 1024,
+        limits: ServerLimitsConfig::default(),
         auth: None,
+        tls: None,
+        audit: ServerAuditConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -217,12 +250,15 @@ fn server_http_non_loopback_allowed_with_bearer_auth() {
         transport: ServerTransport::Http,
         bind: Some("0.0.0.0:8080".to_string()),
         max_body_bytes: 1024 * 1024,
+        limits: ServerLimitsConfig::default(),
         auth: Some(ServerAuthConfig {
             mode: ServerAuthMode::BearerToken,
             bearer_tokens: vec!["token-1".to_string()],
             mtls_subjects: Vec::new(),
             allowed_tools: Vec::new(),
         }),
+        tls: None,
+        audit: ServerAuditConfig::default(),
     };
     assert!(validate_server_config(config).is_ok());
 }
@@ -234,12 +270,15 @@ fn server_stdio_rejects_bearer_auth() {
         transport: ServerTransport::Stdio,
         bind: None,
         max_body_bytes: 1024 * 1024,
+        limits: ServerLimitsConfig::default(),
         auth: Some(ServerAuthConfig {
             mode: ServerAuthMode::BearerToken,
             bearer_tokens: vec!["token-1".to_string()],
             mtls_subjects: Vec::new(),
             allowed_tools: Vec::new(),
         }),
+        tls: None,
+        audit: ServerAuditConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -252,12 +291,15 @@ fn server_auth_bearer_requires_token() {
         transport: ServerTransport::Http,
         bind: Some("127.0.0.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
+        limits: ServerLimitsConfig::default(),
         auth: Some(ServerAuthConfig {
             mode: ServerAuthMode::BearerToken,
             bearer_tokens: Vec::new(),
             mtls_subjects: Vec::new(),
             allowed_tools: Vec::new(),
         }),
+        tls: None,
+        audit: ServerAuditConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -270,12 +312,15 @@ fn server_auth_rejects_unknown_tool_in_allowlist() {
         transport: ServerTransport::Http,
         bind: Some("127.0.0.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
+        limits: ServerLimitsConfig::default(),
         auth: Some(ServerAuthConfig {
             mode: ServerAuthMode::BearerToken,
             bearer_tokens: vec!["token-1".to_string()],
             mtls_subjects: Vec::new(),
             allowed_tools: vec!["invalid_tool".to_string()],
         }),
+        tls: None,
+        audit: ServerAuditConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -288,12 +333,118 @@ fn server_auth_mtls_requires_subjects() {
         transport: ServerTransport::Http,
         bind: Some("127.0.0.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
+        limits: ServerLimitsConfig::default(),
         auth: Some(ServerAuthConfig {
             mode: ServerAuthMode::Mtls,
             bearer_tokens: Vec::new(),
             mtls_subjects: Vec::new(),
             allowed_tools: Vec::new(),
         }),
+        tls: None,
+        audit: ServerAuditConfig::default(),
+    };
+    let result = validate_server_config(config);
+    assert!(result.is_err());
+}
+
+/// Verifies max_inflight must be non-zero.
+#[test]
+fn server_limits_rejects_zero_inflight() {
+    let config = ServerConfig {
+        transport: ServerTransport::Http,
+        bind: Some("127.0.0.1:8080".to_string()),
+        max_body_bytes: 1024 * 1024,
+        limits: ServerLimitsConfig {
+            max_inflight: 0,
+            rate_limit: None,
+        },
+        auth: None,
+        tls: None,
+        audit: ServerAuditConfig::default(),
+    };
+    let result = validate_server_config(config);
+    assert!(result.is_err());
+}
+
+/// Verifies rate limit requires max_requests.
+#[test]
+fn server_rate_limit_rejects_zero_requests() {
+    let config = ServerConfig {
+        transport: ServerTransport::Http,
+        bind: Some("127.0.0.1:8080".to_string()),
+        max_body_bytes: 1024 * 1024,
+        limits: ServerLimitsConfig {
+            max_inflight: 64,
+            rate_limit: Some(decision_gate_mcp::config::RateLimitConfig {
+                max_requests: 0,
+                window_ms: 1_000,
+                max_entries: 8,
+            }),
+        },
+        auth: None,
+        tls: None,
+        audit: ServerAuditConfig::default(),
+    };
+    let result = validate_server_config(config);
+    assert!(result.is_err());
+}
+
+/// Verifies TLS config requires non-empty paths.
+#[test]
+fn server_tls_rejects_empty_paths() {
+    let config = ServerConfig {
+        transport: ServerTransport::Http,
+        bind: Some("127.0.0.1:8080".to_string()),
+        max_body_bytes: 1024 * 1024,
+        limits: ServerLimitsConfig::default(),
+        auth: None,
+        tls: Some(ServerTlsConfig {
+            cert_path: "   ".to_string(),
+            key_path: String::new(),
+            client_ca_path: None,
+            require_client_cert: true,
+        }),
+        audit: ServerAuditConfig::default(),
+    };
+    let result = validate_server_config(config);
+    assert!(result.is_err());
+}
+
+/// Verifies stdio transport rejects TLS configuration.
+#[test]
+fn server_stdio_rejects_tls() {
+    let config = ServerConfig {
+        transport: ServerTransport::Stdio,
+        bind: None,
+        max_body_bytes: 1024 * 1024,
+        limits: ServerLimitsConfig::default(),
+        auth: None,
+        tls: Some(ServerTlsConfig {
+            cert_path: "cert.pem".to_string(),
+            key_path: "key.pem".to_string(),
+            client_ca_path: None,
+            require_client_cert: true,
+        }),
+        audit: ServerAuditConfig::default(),
+    };
+    let result = validate_server_config(config);
+    assert!(result.is_err());
+}
+
+/// Verifies audit path rejects empty values.
+#[test]
+fn server_audit_rejects_empty_path() {
+    let config = ServerConfig {
+        transport: ServerTransport::Http,
+        bind: Some("127.0.0.1:8080".to_string()),
+        max_body_bytes: 1024 * 1024,
+        limits: ServerLimitsConfig::default(),
+        auth: None,
+        tls: None,
+        audit: ServerAuditConfig {
+            enabled: true,
+            path: Some("   ".to_string()),
+        },
     };
     let result = validate_server_config(config);
     assert!(result.is_err());

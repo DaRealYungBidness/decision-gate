@@ -104,6 +104,7 @@ impl std::error::Error for PlanError {}
 // ============================================================================
 
 impl Plan {
+    /// Maximum number of constants supported in a plan.
     const MAX_CONSTANTS: usize = u16::MAX as usize + 1;
 
     /// Creates a new empty plan

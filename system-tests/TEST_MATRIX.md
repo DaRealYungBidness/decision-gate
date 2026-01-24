@@ -20,6 +20,10 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `http_tool_allowlist_enforced` | security | Tool allowlist denies unauthorized MCP calls. |
 | `http_mtls_subject_required` | security | mTLS subject required for MCP tool calls. |
 | `sse_bearer_token_required` | security | SSE transport enforces bearer auth. |
+| `http_rate_limit_enforced` | operations | Rate limiting rejects excess HTTP requests. |
+| `http_tls_handshake_success` | operations | TLS handshake succeeds with test CA. |
+| `http_mtls_client_cert_required` | security | mTLS client certs required when configured. |
+| `http_audit_log_written` | operations | Audit log emits structured JSON lines. |
 | `idempotent_trigger` | reliability | Duplicate trigger IDs do not create new decisions. |
 | `provider_time_after` | providers | Time provider predicate executes as expected. |
 

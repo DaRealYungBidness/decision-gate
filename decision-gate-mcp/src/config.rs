@@ -25,6 +25,7 @@ use decision_gate_contract::ToolName;
 use decision_gate_store_sqlite::SqliteStoreMode;
 use decision_gate_store_sqlite::SqliteSyncMode;
 use serde::Deserialize;
+use serde::Serialize;
 use thiserror::Error;
 
 // ============================================================================
@@ -49,6 +50,22 @@ const MAX_AUTH_TOKEN_LENGTH: usize = 256;
 const MAX_AUTH_TOOL_RULES: usize = 128;
 /// Maximum length of an mTLS subject string.
 const MAX_AUTH_SUBJECT_LENGTH: usize = 512;
+/// Default maximum inflight requests for MCP servers.
+const DEFAULT_MAX_INFLIGHT: usize = 256;
+/// Minimum allowed rate limit window in milliseconds.
+const MIN_RATE_LIMIT_WINDOW_MS: u64 = 100;
+/// Maximum allowed rate limit window in milliseconds.
+const MAX_RATE_LIMIT_WINDOW_MS: u64 = 60_000;
+/// Maximum allowed requests per rate limit window.
+const MAX_RATE_LIMIT_REQUESTS: u32 = 100_000;
+/// Maximum number of tracked rate limit entries.
+const MAX_RATE_LIMIT_ENTRIES: usize = 65_536;
+/// Default max requests per window when rate limiting is enabled.
+const DEFAULT_RATE_LIMIT_MAX_REQUESTS: u32 = 1_000;
+/// Default rate limit window in milliseconds when enabled.
+const DEFAULT_RATE_LIMIT_WINDOW_MS: u64 = 1_000;
+/// Default max tracked rate limit entries when enabled.
+const DEFAULT_RATE_LIMIT_MAX_ENTRIES: usize = 4_096;
 /// Minimum MCP provider connect timeout in milliseconds.
 const MIN_PROVIDER_CONNECT_TIMEOUT_MS: u64 = 100;
 /// Maximum MCP provider connect timeout in milliseconds.
@@ -130,9 +147,18 @@ pub struct ServerConfig {
     /// Maximum request body size in bytes.
     #[serde(default = "default_max_body_bytes")]
     pub max_body_bytes: usize,
+    /// Request limits (rate/concurrency).
+    #[serde(default)]
+    pub limits: ServerLimitsConfig,
     /// Optional authentication configuration for inbound tool calls.
     #[serde(default)]
     pub auth: Option<ServerAuthConfig>,
+    /// Optional TLS configuration for HTTP/SSE transports.
+    #[serde(default)]
+    pub tls: Option<ServerTlsConfig>,
+    /// Audit logging configuration.
+    #[serde(default)]
+    pub audit: ServerAuditConfig,
 }
 
 impl Default for ServerConfig {
@@ -141,7 +167,10 @@ impl Default for ServerConfig {
             transport: ServerTransport::Stdio,
             bind: None,
             max_body_bytes: default_max_body_bytes(),
+            limits: ServerLimitsConfig::default(),
             auth: None,
+            tls: None,
+            audit: ServerAuditConfig::default(),
         }
     }
 }
@@ -154,11 +183,16 @@ impl ServerConfig {
                 "max_body_bytes must be greater than zero".to_string(),
             ));
         }
+        self.limits.validate()?;
         if let Some(auth) = &self.auth {
             auth.validate()?;
         }
+        if let Some(tls) = &self.tls {
+            tls.validate()?;
+        }
+        self.audit.validate()?;
         let auth_mode =
-            self.auth.as_ref().map(|auth| auth.mode).unwrap_or(ServerAuthMode::LocalOnly);
+            self.auth.as_ref().map_or(ServerAuthMode::LocalOnly, |auth| auth.mode);
         match self.transport {
             ServerTransport::Http | ServerTransport::Sse => {
                 let bind = self.bind.as_deref().unwrap_or_default().trim();
@@ -182,14 +216,152 @@ impl ServerConfig {
                         "stdio transport only supports local_only auth".to_string(),
                     ));
                 }
+                if self.tls.is_some() {
+                    return Err(ConfigError::Invalid(
+                        "stdio transport does not support tls".to_string(),
+                    ));
+                }
             }
         }
         Ok(())
     }
 }
 
+/// Request limits for the MCP server.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ServerLimitsConfig {
+    /// Maximum inflight requests.
+    #[serde(default = "default_max_inflight")]
+    pub max_inflight: usize,
+    /// Optional rate limit configuration.
+    #[serde(default)]
+    pub rate_limit: Option<RateLimitConfig>,
+}
+
+impl Default for ServerLimitsConfig {
+    fn default() -> Self {
+        Self {
+            max_inflight: default_max_inflight(),
+            rate_limit: None,
+        }
+    }
+}
+
+impl ServerLimitsConfig {
+    /// Validates request limits.
+    fn validate(&self) -> Result<(), ConfigError> {
+        if self.max_inflight == 0 {
+            return Err(ConfigError::Invalid("max_inflight must be greater than zero".to_string()));
+        }
+        if let Some(rate_limit) = &self.rate_limit {
+            rate_limit.validate()?;
+        }
+        Ok(())
+    }
+}
+
+/// Rate limit configuration for MCP server requests.
+#[derive(Debug, Clone, Deserialize)]
+pub struct RateLimitConfig {
+    /// Maximum requests per time window.
+    #[serde(default = "default_rate_limit_max_requests")]
+    pub max_requests: u32,
+    /// Window duration in milliseconds.
+    #[serde(default = "default_rate_limit_window_ms")]
+    pub window_ms: u64,
+    /// Maximum number of distinct rate limit entries.
+    #[serde(default = "default_rate_limit_max_entries")]
+    pub max_entries: usize,
+}
+
+impl RateLimitConfig {
+    /// Validates rate limit settings.
+    fn validate(&self) -> Result<(), ConfigError> {
+        if self.max_requests == 0 {
+            return Err(ConfigError::Invalid(
+                "rate_limit max_requests must be greater than zero".to_string(),
+            ));
+        }
+        if self.max_requests > MAX_RATE_LIMIT_REQUESTS {
+            return Err(ConfigError::Invalid("rate_limit max_requests too large".to_string()));
+        }
+        if self.window_ms < MIN_RATE_LIMIT_WINDOW_MS || self.window_ms > MAX_RATE_LIMIT_WINDOW_MS {
+            return Err(ConfigError::Invalid(format!(
+                "rate_limit window_ms must be between {MIN_RATE_LIMIT_WINDOW_MS} and \
+                 {MAX_RATE_LIMIT_WINDOW_MS}",
+            )));
+        }
+        if self.max_entries == 0 {
+            return Err(ConfigError::Invalid(
+                "rate_limit max_entries must be greater than zero".to_string(),
+            ));
+        }
+        if self.max_entries > MAX_RATE_LIMIT_ENTRIES {
+            return Err(ConfigError::Invalid("rate_limit max_entries too large".to_string()));
+        }
+        Ok(())
+    }
+}
+
+/// TLS configuration for MCP HTTP/SSE transports.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ServerTlsConfig {
+    /// Server certificate chain (PEM).
+    pub cert_path: String,
+    /// Server private key (PEM).
+    pub key_path: String,
+    /// Optional client CA bundle (PEM) for mTLS.
+    #[serde(default)]
+    pub client_ca_path: Option<String>,
+    /// Require client certificates when a client CA bundle is configured.
+    #[serde(default = "default_tls_require_client_cert")]
+    pub require_client_cert: bool,
+}
+
+impl ServerTlsConfig {
+    /// Validates TLS configuration paths.
+    fn validate(&self) -> Result<(), ConfigError> {
+        validate_path_string("tls.cert_path", &self.cert_path)?;
+        validate_path_string("tls.key_path", &self.key_path)?;
+        if let Some(path) = &self.client_ca_path {
+            validate_path_string("tls.client_ca_path", path)?;
+        }
+        Ok(())
+    }
+}
+
+/// Audit logging configuration for MCP server requests.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ServerAuditConfig {
+    /// Enable structured audit logging.
+    #[serde(default = "default_audit_enabled")]
+    pub enabled: bool,
+    /// Optional audit log path (JSON lines).
+    #[serde(default)]
+    pub path: Option<String>,
+}
+
+impl Default for ServerAuditConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_audit_enabled(),
+            path: None,
+        }
+    }
+}
+
+impl ServerAuditConfig {
+    /// Validates audit configuration.
+    fn validate(&self) -> Result<(), ConfigError> {
+        if let Some(path) = &self.path {
+            validate_path_string("audit.path", path)?;
+        }
+        Ok(())
+    }
+}
+
 /// Supported MCP transport types.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ServerTransport {
     /// Use stdin/stdout transport.
@@ -220,7 +392,7 @@ pub struct ServerAuthConfig {
     /// Auth mode for inbound MCP tool calls.
     #[serde(default)]
     pub mode: ServerAuthMode,
-    /// Accepted bearer tokens (required for bearer_token mode).
+    /// Accepted bearer tokens (required for `bearer_token` mode).
     #[serde(default)]
     pub bearer_tokens: Vec<String>,
     /// Allowed mTLS subjects (required for mtls mode).
@@ -608,9 +780,58 @@ fn validate_path(path: &Path) -> Result<(), ConfigError> {
     Ok(())
 }
 
+/// Validates a path string against length constraints.
+fn validate_path_string(field: &str, value: &str) -> Result<(), ConfigError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(ConfigError::Invalid(format!("{field} must be non-empty")));
+    }
+    if trimmed.len() > MAX_TOTAL_PATH_LENGTH {
+        return Err(ConfigError::Invalid(format!("{field} exceeds max length")));
+    }
+    let path = Path::new(trimmed);
+    for component in path.components() {
+        let component_value = component.as_os_str().to_string_lossy();
+        if component_value.len() > MAX_PATH_COMPONENT_LENGTH {
+            return Err(ConfigError::Invalid(format!("{field} path component too long")));
+        }
+    }
+    Ok(())
+}
+
 /// Default maximum request body size in bytes.
 const fn default_max_body_bytes() -> usize {
     1024 * 1024
+}
+
+/// Default maximum inflight requests.
+const fn default_max_inflight() -> usize {
+    DEFAULT_MAX_INFLIGHT
+}
+
+/// Default max requests per rate limit window.
+const fn default_rate_limit_max_requests() -> u32 {
+    DEFAULT_RATE_LIMIT_MAX_REQUESTS
+}
+
+/// Default rate limit window in milliseconds.
+const fn default_rate_limit_window_ms() -> u64 {
+    DEFAULT_RATE_LIMIT_WINDOW_MS
+}
+
+/// Default max entries for rate limiting.
+const fn default_rate_limit_max_entries() -> usize {
+    DEFAULT_RATE_LIMIT_MAX_ENTRIES
+}
+
+/// Default to requiring client certificates when configured.
+const fn default_tls_require_client_cert() -> bool {
+    true
+}
+
+/// Default audit logging enabled.
+const fn default_audit_enabled() -> bool {
+    true
 }
 
 /// Default value for requiring provider opt-in to raw evidence.

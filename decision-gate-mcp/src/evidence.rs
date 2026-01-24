@@ -404,7 +404,7 @@ fn call_http(
     if let Some(token) = bearer {
         builder = builder.bearer_auth(token);
     }
-    let mut response = builder.send().map_err(map_http_send_error)?;
+    let mut response = builder.send().map_err(|err| map_http_send_error(&err))?;
     if !response.status().is_success() {
         return Err(EvidenceError::Provider(format!(
             "http request failed with status {}",
@@ -495,14 +495,11 @@ fn read_http_body(
     response: &mut reqwest::blocking::Response,
     max_bytes: usize,
 ) -> Result<Vec<u8>, EvidenceError> {
-    let max_bytes_u64 = match u64::try_from(max_bytes) {
-        Ok(value) => value,
-        Err(_) => u64::MAX,
-    };
-    if let Some(length) = response.content_length() {
-        if length > max_bytes_u64 {
-            return Err(EvidenceError::Provider("http response too large".to_string()));
-        }
+    let max_bytes_u64 = u64::try_from(max_bytes).unwrap_or(u64::MAX);
+    if let Some(length) = response.content_length()
+        && length > max_bytes_u64
+    {
+        return Err(EvidenceError::Provider("http response too large".to_string()));
     }
     let mut limited = response.take(max_bytes_u64.saturating_add(1));
     let mut buf = Vec::new();
@@ -520,7 +517,7 @@ fn read_http_body(
 }
 
 /// Maps reqwest send errors to stable provider error messages.
-fn map_http_send_error(error: reqwest::Error) -> EvidenceError {
+fn map_http_send_error(error: &reqwest::Error) -> EvidenceError {
     if error.is_timeout() {
         EvidenceError::Provider("http request timed out".to_string())
     } else {

@@ -11,7 +11,9 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use decision_gate_contract::tooling::ToolDefinition;
+use reqwest::Certificate;
 use reqwest::Client;
+use reqwest::Identity;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
@@ -33,7 +35,10 @@ struct JsonRpcResponse {
 
 #[derive(Debug, Deserialize, Serialize)]
 struct JsonRpcError {
+    code: i64,
     message: String,
+    #[serde(default)]
+    data: Option<Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -77,6 +82,33 @@ impl McpHttpClient {
             .timeout(timeout)
             .build()
             .map_err(|err| format!("failed to build http client: {err}"))?;
+        Self::new_with_client(base_url, client)
+    }
+
+    /// Creates a new MCP HTTP client with a custom TLS configuration.
+    pub fn new_with_tls(
+        base_url: String,
+        timeout: Duration,
+        ca_pem: &[u8],
+        identity_pem: Option<&[u8]>,
+    ) -> Result<Self, String> {
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+        let mut builder = Client::builder().timeout(timeout);
+        let cert =
+            Certificate::from_pem(ca_pem).map_err(|err| format!("invalid ca cert: {err}"))?;
+        builder = builder.add_root_certificate(cert);
+        if let Some(identity_pem) = identity_pem {
+            let identity = Identity::from_pem(identity_pem)
+                .map_err(|err| format!("invalid client identity: {err}"))?;
+            builder = builder.identity(identity);
+        }
+        let client =
+            builder.build().map_err(|err| format!("failed to build tls client: {err:?}"))?;
+        Self::new_with_client(base_url, client)
+    }
+
+    /// Creates a new MCP HTTP client from an existing reqwest client.
+    pub fn new_with_client(base_url: String, client: Client) -> Result<Self, String> {
         Ok(Self {
             base_url,
             client,

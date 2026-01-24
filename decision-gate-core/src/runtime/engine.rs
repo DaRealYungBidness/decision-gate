@@ -696,6 +696,7 @@ where
         }))
     }
 
+    /// Advances the run on timeout using a synthetic outcome.
     fn timeout_advance(
         &self,
         state: &mut RunState,

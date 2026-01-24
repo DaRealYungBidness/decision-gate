@@ -29,6 +29,7 @@ use helpers::readiness::wait_for_server_ready;
 use helpers::scenarios::ScenarioFixture;
 use serde::Deserialize;
 use serde_json::Value;
+use tokio::time::sleep;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn http_bearer_token_required() -> Result<(), Box<dyn std::error::Error>> {
@@ -180,6 +181,8 @@ async fn sse_bearer_token_required() -> Result<(), Box<dyn std::error::Error>> {
         "method": "tools/list"
     });
 
+    wait_for_sse_ready(&base_url, &request, Duration::from_secs(5)).await?;
+
     let unauthorized = send_sse_request(&base_url, &request, None).await?;
     let unauthorized_error = unauthorized
         .error
@@ -244,4 +247,23 @@ async fn send_sse_request(
     let payload: JsonRpcResponse =
         serde_json::from_str(json).map_err(|err| format!("invalid json-rpc: {err}"))?;
     Ok(payload)
+}
+
+async fn wait_for_sse_ready(
+    base_url: &str,
+    request: &serde_json::Value,
+    timeout: Duration,
+) -> Result<(), String> {
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        match send_sse_request(base_url, request, None).await {
+            Ok(_) => return Ok(()),
+            Err(err) => {
+                if std::time::Instant::now() >= deadline {
+                    return Err(format!("sse server not ready: {err}"));
+                }
+                sleep(Duration::from_millis(100)).await;
+            }
+        }
+    }
 }

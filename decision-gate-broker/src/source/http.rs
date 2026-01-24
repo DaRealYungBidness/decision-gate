@@ -91,13 +91,14 @@ impl Source for HttpSource {
         if !response.status().is_success() {
             return Err(SourceError::Http(format!("http status {}", response.status())));
         }
-        if let Some(length) = response.content_length() {
-            if length > crate::source::MAX_SOURCE_BYTES as u64 {
-                return Err(SourceError::TooLarge {
-                    max_bytes: crate::source::MAX_SOURCE_BYTES,
-                    actual_bytes: length as usize,
-                });
-            }
+        if let Some(length) = response.content_length()
+            && length > crate::source::MAX_SOURCE_BYTES as u64
+        {
+            let actual_bytes = usize::try_from(length).unwrap_or(usize::MAX);
+            return Err(SourceError::TooLarge {
+                max_bytes: crate::source::MAX_SOURCE_BYTES,
+                actual_bytes,
+            });
         }
         let content_type = response
             .headers()

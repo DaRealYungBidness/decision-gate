@@ -205,7 +205,9 @@ fn numeric_cmp(left: &Number, right: &Number) -> Option<std::cmp::Ordering> {
 
 /// Integer representation of JSON numbers for deterministic comparison.
 enum IntegerValue {
+    /// Signed integer value.
     Signed(i64),
+    /// Unsigned integer value.
     Unsigned(u64),
 }
 

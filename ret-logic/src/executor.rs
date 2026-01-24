@@ -42,13 +42,17 @@ type EvalTable<R> = [EvalFn<R>; 256];
 // SECTION: Internal Combine Mode
 // ============================================================================
 
+/// Boolean combine mode for plan stack execution.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CombineMode {
+    /// Logical AND with short-circuit identity of true.
     And,
+    /// Logical OR with short-circuit identity of false.
     Or,
 }
 
 impl CombineMode {
+    /// Returns the identity value for the combine operator.
     const fn identity(self) -> bool {
         match self {
             Self::And => true,
@@ -56,6 +60,7 @@ impl CombineMode {
         }
     }
 
+    /// Combines two boolean values using the configured operator.
     const fn combine(self, lhs: bool, rhs: bool) -> bool {
         match self {
             Self::And => lhs && rhs,
@@ -68,6 +73,7 @@ impl CombineMode {
 // SECTION: Constants
 // ============================================================================
 
+/// Maximum stack depth allowed during plan execution.
 const MAX_PLAN_STACK_DEPTH: usize = 64;
 
 // ============================================================================

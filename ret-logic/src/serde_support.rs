@@ -10,7 +10,7 @@
 //! Strongly typed serde helpers give deterministic serialization/deserialization
 //! outcomes while exposing consistent validation errors for requirement structures.
 //! Security posture: deserialized requirements are untrusted; validate and fail
-//! closed per Docs/security/threat_model.md.
+//! closed per `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports
@@ -515,11 +515,19 @@ pub mod ron_utils {
     use super::Serialize;
     use super::convenience;
 
+    /// Maximum allowed RON file size in bytes.
     const MAX_RON_FILE_BYTES: usize = 1024 * 1024;
 
+    /// Errors emitted while loading RON requirement files.
     #[derive(Debug)]
     enum RonFileError {
-        FileTooLarge { max_bytes: usize, actual_bytes: usize },
+        /// File exceeds configured size limit.
+        FileTooLarge {
+            /// Maximum allowed bytes.
+            max_bytes: usize,
+            /// Actual file size in bytes.
+            actual_bytes: usize,
+        },
     }
 
     impl fmt::Display for RonFileError {
@@ -537,6 +545,7 @@ pub mod ron_utils {
 
     impl Error for RonFileError {}
 
+    /// Reads a file into a string while enforcing a size cap.
     fn read_to_string_with_limit(path: impl AsRef<Path>) -> Result<String, Box<dyn Error>> {
         let file = fs::File::open(path)?;
         let mut contents = String::new();

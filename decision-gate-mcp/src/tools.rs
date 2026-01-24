@@ -124,6 +124,10 @@ impl ToolRouter {
     }
 
     /// Lists the MCP tools supported by this server.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ToolError`] when authorization fails.
     pub fn list_tools(&self, context: &RequestContext) -> Result<Vec<ToolDefinition>, ToolError> {
         self.authorize(context, AuthAction::ListTools)?;
         Ok(decision_gate_contract::tooling::tool_definitions())
@@ -550,6 +554,7 @@ impl ToolRouter {
         runtime.ok_or_else(|| ToolError::NotFound("scenario not defined".to_string()))
     }
 
+    /// Authorizes a tool action and emits an auth audit record.
     fn authorize(&self, context: &RequestContext, action: AuthAction<'_>) -> Result<(), ToolError> {
         match self.authz.authorize(context, action) {
             Ok(auth_ctx) => {

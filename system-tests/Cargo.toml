@@ -18,6 +18,7 @@ decision-gate-mcp = { path = "../decision-gate-mcp" }
 decision-gate-store-sqlite = { path = "../decision-gate-store-sqlite" }
 jsonschema = { version = "0.18", features = ["draft202012"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs"] }
 ret-logic = { path = "../ret-logic" }
 serde = { version = "1.0", features = ["derive"] }
 serde_jcs = "0.1"

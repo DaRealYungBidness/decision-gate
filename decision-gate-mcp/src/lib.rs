@@ -15,12 +15,14 @@
 // SECTION: Modules
 // ============================================================================
 
+pub mod audit;
 pub mod auth;
 pub mod capabilities;
 pub mod config;
 pub mod evidence;
 pub mod runpack;
 pub mod server;
+pub mod telemetry;
 pub mod tools;
 
 #[cfg(test)]
@@ -44,6 +46,11 @@ mod tests {
 // SECTION: Re-Exports
 // ============================================================================
 
+pub use audit::McpAuditEvent;
+pub use audit::McpAuditSink;
+pub use audit::McpFileAuditSink;
+pub use audit::McpNoopAuditSink;
+pub use audit::McpStderrAuditSink;
 pub use auth::AuthAuditSink;
 pub use auth::AuthContext;
 pub use auth::DefaultToolAuthz;
@@ -56,4 +63,10 @@ pub use evidence::ProviderClientConfig;
 pub use runpack::FileArtifactReader;
 pub use runpack::FileArtifactSink;
 pub use server::McpServer;
+pub use telemetry::MCP_LATENCY_BUCKETS_MS;
+pub use telemetry::McpMethod;
+pub use telemetry::McpMetricEvent;
+pub use telemetry::McpMetrics;
+pub use telemetry::McpOutcome;
+pub use telemetry::NoopMetrics;
 pub use tools::ToolRouter;

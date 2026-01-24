@@ -45,9 +45,19 @@ validation and explicit error typing.
 ### 2) [P0] Transport Hardening and Operational Telemetry
 **What**: Add rate limiting, structured error responses, TLS/mTLS, and audit logs.
 **Why**: This is required for hyperscaler/DoD-grade deployments.
-**Status**: Open.
-**How**: Harden JSON-RPC handlers and introduce structured audit logging with
-redaction policies for evidence output.
+**Status**: Implemented.
+**How**: Added rate limiting and inflight caps, structured JSON-RPC error data
+(kind/retry hints), TLS/mTLS transport support with client CA enforcement, and
+structured audit logs with payload redaction. Metrics hooks are available for
+request counters and latency histograms.
+**P0 Validation Notes** (accepted tradeoffs for this slice):
+- Metrics are hooks (counters/latency buckets) without a built-in Prometheus or
+  OpenTelemetry exporter.
+- Rate limiting uses a fixed-window limiter (production-grade, less smooth than
+  token-bucket).
+- TLS/mTLS is file-based; certificate rotation/renewal automation is out of
+  scope.
+- No fuzz/load tests yet for malformed payloads or sustained concurrency.
 
 ### 3) [P1] Policy Engine Integration
 **What**: Replace `PermitAll` with real policy adapters.
@@ -134,5 +144,5 @@ auth audit logging.
 Evidence, storage, and dispatch interfaces already exist in
 `decision-gate-core/src/interfaces/mod.rs`, enabling durable backends and
 policy enforcement without core rewrites. Remaining gaps are durable runpack
-storage, transport hardening/telemetry, policy engine integration, scenario
-examples, and run lifecycle guidance.
+storage, policy engine integration, scenario examples, and run lifecycle
+guidance.

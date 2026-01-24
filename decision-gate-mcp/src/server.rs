@@ -16,13 +16,18 @@
 // SECTION: Imports
 // ============================================================================
 
+use std::collections::HashMap;
 use std::convert::Infallible;
+use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::io::Read;
 use std::io::Write;
 use std::net::SocketAddr;
+use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
+use std::time::Instant;
 
 use axum::Router;
 use axum::body::Bytes;
@@ -35,24 +40,49 @@ use axum::response::IntoResponse;
 use axum::response::Sse;
 use axum::response::sse::Event;
 use axum::routing::post;
+use decision_gate_contract::ToolName;
 use decision_gate_core::InMemoryRunStateStore;
 use decision_gate_core::SharedRunStateStore;
+use decision_gate_core::hashing::HashAlgorithm;
+use decision_gate_core::hashing::hash_bytes;
 use decision_gate_store_sqlite::SqliteRunStateStore;
 use decision_gate_store_sqlite::SqliteStoreConfig;
+use rustls::RootCertStore;
+use rustls::pki_types::CertificateDer;
+use rustls::pki_types::PrivateKeyDer;
+use rustls::pki_types::PrivatePkcs1KeyDer;
+use rustls::pki_types::PrivatePkcs8KeyDer;
+use rustls::pki_types::PrivateSec1KeyDer;
+use rustls::server::WebPkiClientVerifier;
+use rustls_pemfile::Item;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
+use tokio::sync::Semaphore;
 use tokio_stream::wrappers::ReceiverStream;
 
+use crate::audit::McpAuditEvent;
+use crate::audit::McpAuditSink;
+use crate::audit::McpFileAuditSink;
+use crate::audit::McpNoopAuditSink;
+use crate::audit::McpStderrAuditSink;
 use crate::auth::DefaultToolAuthz;
 use crate::auth::RequestContext;
 use crate::auth::StderrAuditSink;
 use crate::capabilities::CapabilityRegistry;
 use crate::config::DecisionGateConfig;
+use crate::config::RateLimitConfig;
 use crate::config::RunStateStoreType;
+use crate::config::ServerAuditConfig;
 use crate::config::ServerAuthMode;
+use crate::config::ServerTlsConfig;
 use crate::config::ServerTransport;
 use crate::evidence::FederatedEvidenceProvider;
+use crate::telemetry::McpMethod;
+use crate::telemetry::McpMetricEvent;
+use crate::telemetry::McpMetrics;
+use crate::telemetry::McpOutcome;
+use crate::telemetry::NoopMetrics;
 use crate::tools::ToolDefinition;
 use crate::tools::ToolError;
 use crate::tools::ToolRouter;
@@ -67,6 +97,10 @@ pub struct McpServer {
     config: DecisionGateConfig,
     /// Tool router for request dispatch.
     router: ToolRouter,
+    /// Metrics sink for observability.
+    metrics: Arc<dyn McpMetrics>,
+    /// Audit sink for request logging.
+    audit: Arc<dyn McpAuditSink>,
 }
 
 impl McpServer {
@@ -75,7 +109,33 @@ impl McpServer {
     /// # Errors
     ///
     /// Returns [`McpServerError`] when initialization fails.
-    pub fn from_config(mut config: DecisionGateConfig) -> Result<Self, McpServerError> {
+    pub fn from_config(config: DecisionGateConfig) -> Result<Self, McpServerError> {
+        Self::from_config_with_metrics(config, Arc::new(NoopMetrics))
+    }
+
+    /// Builds a new MCP server with a custom metrics sink.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpServerError`] when initialization fails.
+    pub fn from_config_with_metrics(
+        config: DecisionGateConfig,
+        metrics: Arc<dyn McpMetrics>,
+    ) -> Result<Self, McpServerError> {
+        let audit = build_audit_sink(&config.server.audit)?;
+        Self::from_config_with_observability(config, metrics, audit)
+    }
+
+    /// Builds a new MCP server with custom metrics and audit sinks.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpServerError`] when initialization fails.
+    pub fn from_config_with_observability(
+        mut config: DecisionGateConfig,
+        metrics: Arc<dyn McpMetrics>,
+        audit: Arc<dyn McpAuditSink>,
+    ) -> Result<Self, McpServerError> {
         config.validate().map_err(|err| McpServerError::Config(err.to_string()))?;
         let evidence = FederatedEvidenceProvider::from_config(&config)
             .map_err(|err| McpServerError::Init(err.to_string()))?;
@@ -83,19 +143,21 @@ impl McpServer {
             .map_err(|err| McpServerError::Init(err.to_string()))?;
         let store = build_run_state_store(&config)?;
         let authz = Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
-        let audit = Arc::new(StderrAuditSink);
+        let auth_audit = Arc::new(StderrAuditSink);
         let router = ToolRouter::new(
             evidence,
             config.evidence.clone(),
             store,
             Arc::new(capabilities),
             authz,
-            audit,
+            auth_audit,
         );
         emit_local_only_warning(&config.server);
         Ok(Self {
             config,
             router,
+            metrics,
+            audit,
         })
     }
 
@@ -106,11 +168,19 @@ impl McpServer {
     /// Returns [`McpServerError`] when the server fails.
     pub async fn serve(self) -> Result<(), McpServerError> {
         let transport = self.config.server.transport;
-        let max_body_bytes = self.config.server.max_body_bytes;
         match transport {
-            ServerTransport::Stdio => serve_stdio(&self.router, max_body_bytes),
-            ServerTransport::Http => serve_http(self.config, self.router).await,
-            ServerTransport::Sse => serve_sse(self.config, self.router).await,
+            ServerTransport::Stdio => serve_stdio(
+                &self.router,
+                Arc::clone(&self.metrics),
+                Arc::clone(&self.audit),
+                &self.config.server,
+            ),
+            ServerTransport::Http => {
+                serve_http(self.config, self.router, self.metrics, self.audit).await
+            }
+            ServerTransport::Sse => {
+                serve_sse(self.config, self.router, self.metrics, self.audit).await
+            }
         }
     }
 }
@@ -140,20 +210,117 @@ fn build_run_state_store(
     Ok(store)
 }
 
+/// Builds an audit sink from server configuration.
+fn build_audit_sink(config: &ServerAuditConfig) -> Result<Arc<dyn McpAuditSink>, McpServerError> {
+    if !config.enabled {
+        return Ok(Arc::new(McpNoopAuditSink));
+    }
+    if let Some(path) = &config.path {
+        let sink = McpFileAuditSink::new(Path::new(path))
+            .map_err(|err| McpServerError::Config(format!("audit log open failed: {err}")))?;
+        return Ok(Arc::new(sink));
+    }
+    Ok(Arc::new(McpStderrAuditSink))
+}
+
+/// Builds a TLS config for HTTP/SSE transports.
+fn build_tls_config(
+    config: &ServerTlsConfig,
+) -> Result<axum_server::tls_rustls::RustlsConfig, McpServerError> {
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+    let certs = load_certificates(&config.cert_path)?;
+    let key = load_private_key(&config.key_path)?;
+    let builder = if let Some(ca_path) = &config.client_ca_path {
+        let roots = load_root_store(ca_path)?;
+        let roots = Arc::new(roots);
+        let verifier = if config.require_client_cert {
+            WebPkiClientVerifier::builder(roots)
+        } else {
+            WebPkiClientVerifier::builder(roots).allow_unauthenticated()
+        }
+        .build()
+        .map_err(|err| McpServerError::Config(format!("tls client verifier failed: {err}")))?;
+        rustls::ServerConfig::builder().with_client_cert_verifier(verifier)
+    } else {
+        rustls::ServerConfig::builder().with_no_client_auth()
+    };
+    let mut server_config = builder
+        .with_single_cert(certs, key)
+        .map_err(|err| McpServerError::Config(format!("tls config invalid: {err}")))?;
+    server_config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+    Ok(axum_server::tls_rustls::RustlsConfig::from_config(Arc::new(server_config)))
+}
+
+/// Loads a PEM-encoded certificate chain from disk.
+fn load_certificates(path: &str) -> Result<Vec<CertificateDer<'static>>, McpServerError> {
+    let file = File::open(path)
+        .map_err(|err| McpServerError::Config(format!("tls cert open failed: {err}")))?;
+    let mut reader = BufReader::new(file);
+    let certs = rustls_pemfile::certs(&mut reader)
+        .map_err(|err| McpServerError::Config(format!("tls cert read failed: {err}")))?;
+    if certs.is_empty() {
+        return Err(McpServerError::Config("tls cert file contains no certificates".to_string()));
+    }
+    Ok(certs.into_iter().map(CertificateDer::from).collect())
+}
+
+/// Loads a PEM-encoded private key from disk.
+fn load_private_key(path: &str) -> Result<PrivateKeyDer<'static>, McpServerError> {
+    let file = File::open(path)
+        .map_err(|err| McpServerError::Config(format!("tls key open failed: {err}")))?;
+    let mut reader = BufReader::new(file);
+    let items = rustls_pemfile::read_all(&mut reader)
+        .map_err(|err| McpServerError::Config(format!("tls key read failed: {err}")))?;
+    for item in items {
+        match item {
+            Item::PKCS8Key(key) => return Ok(PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(key))),
+            Item::RSAKey(key) => return Ok(PrivateKeyDer::Pkcs1(PrivatePkcs1KeyDer::from(key))),
+            Item::ECKey(key) => return Ok(PrivateKeyDer::Sec1(PrivateSec1KeyDer::from(key))),
+            _ => {}
+        }
+    }
+    Err(McpServerError::Config("tls key file contains no private key".to_string()))
+}
+
+/// Loads a PEM-encoded CA bundle into a root store.
+fn load_root_store(path: &str) -> Result<RootCertStore, McpServerError> {
+    let file = File::open(path)
+        .map_err(|err| McpServerError::Config(format!("tls ca open failed: {err}")))?;
+    let mut reader = BufReader::new(file);
+    let certs = rustls_pemfile::certs(&mut reader)
+        .map_err(|err| McpServerError::Config(format!("tls ca read failed: {err}")))?;
+    if certs.is_empty() {
+        return Err(McpServerError::Config(
+            "tls client ca file contains no certificates".to_string(),
+        ));
+    }
+    let mut store = RootCertStore::empty();
+    for cert in certs {
+        store
+            .add(CertificateDer::from(cert))
+            .map_err(|err| McpServerError::Config(format!("tls ca invalid: {err}")))?;
+    }
+    Ok(store)
+}
+
 // ============================================================================
 // SECTION: Stdio Transport
 // ============================================================================
 
 /// Serves JSON-RPC requests over stdin/stdout.
-fn serve_stdio(router: &ToolRouter, max_body_bytes: usize) -> Result<(), McpServerError> {
+fn serve_stdio(
+    router: &ToolRouter,
+    metrics: Arc<dyn McpMetrics>,
+    audit: Arc<dyn McpAuditSink>,
+    server: &crate::config::ServerConfig,
+) -> Result<(), McpServerError> {
     let mut reader = BufReader::new(std::io::stdin());
     let mut writer = std::io::stdout();
+    let state = build_server_state(router.clone(), server, metrics, audit);
     loop {
-        let bytes = read_framed(&mut reader, max_body_bytes)?;
-        let request: JsonRpcRequest = serde_json::from_slice(&bytes)
-            .map_err(|_| McpServerError::Transport("invalid json-rpc request".to_string()))?;
+        let bytes = read_framed(&mut reader, server.max_body_bytes)?;
         let context = RequestContext::stdio();
-        let response = handle_request(router, &context, request);
+        let response = parse_request(&state, &context, &Bytes::from(bytes));
         let payload = serde_json::to_vec(&response.1)
             .map_err(|_| McpServerError::Transport("json-rpc serialization failed".to_string()))?;
         write_framed(&mut writer, &payload)?;
@@ -165,7 +332,12 @@ fn serve_stdio(router: &ToolRouter, max_body_bytes: usize) -> Result<(), McpServ
 // ============================================================================
 
 /// Serves JSON-RPC requests over HTTP.
-async fn serve_http(config: DecisionGateConfig, router: ToolRouter) -> Result<(), McpServerError> {
+async fn serve_http(
+    config: DecisionGateConfig,
+    router: ToolRouter,
+    metrics: Arc<dyn McpMetrics>,
+    audit: Arc<dyn McpAuditSink>,
+) -> Result<(), McpServerError> {
     let bind = config
         .server
         .bind
@@ -173,21 +345,31 @@ async fn serve_http(config: DecisionGateConfig, router: ToolRouter) -> Result<()
         .ok_or_else(|| McpServerError::Config("bind address required".to_string()))?;
     let addr: SocketAddr =
         bind.parse().map_err(|_| McpServerError::Config("invalid bind address".to_string()))?;
-    let state = Arc::new(ServerState {
-        router,
-        max_body_bytes: config.server.max_body_bytes,
-    });
+    let state = Arc::new(build_server_state(router, &config.server, metrics, audit));
     let app = Router::new().route("/rpc", post(handle_http)).with_state(state);
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .map_err(|_| McpServerError::Transport("http bind failed".to_string()))?;
-    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
-        .await
-        .map_err(|_| McpServerError::Transport("http server failed".to_string()))
+    if let Some(tls) = &config.server.tls {
+        let tls_config = build_tls_config(tls)?;
+        axum_server::bind_rustls(addr, tls_config)
+            .serve(app.into_make_service_with_connect_info::<SocketAddr>())
+            .await
+            .map_err(|_| McpServerError::Transport("http tls server failed".to_string()))
+    } else {
+        let listener = tokio::net::TcpListener::bind(addr)
+            .await
+            .map_err(|_| McpServerError::Transport("http bind failed".to_string()))?;
+        axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
+            .await
+            .map_err(|_| McpServerError::Transport("http server failed".to_string()))
+    }
 }
 
 /// Serves JSON-RPC requests over SSE.
-async fn serve_sse(config: DecisionGateConfig, router: ToolRouter) -> Result<(), McpServerError> {
+async fn serve_sse(
+    config: DecisionGateConfig,
+    router: ToolRouter,
+    metrics: Arc<dyn McpMetrics>,
+    audit: Arc<dyn McpAuditSink>,
+) -> Result<(), McpServerError> {
     let bind = config
         .server
         .bind
@@ -195,17 +377,22 @@ async fn serve_sse(config: DecisionGateConfig, router: ToolRouter) -> Result<(),
         .ok_or_else(|| McpServerError::Config("bind address required".to_string()))?;
     let addr: SocketAddr =
         bind.parse().map_err(|_| McpServerError::Config("invalid bind address".to_string()))?;
-    let state = Arc::new(ServerState {
-        router,
-        max_body_bytes: config.server.max_body_bytes,
-    });
+    let state = Arc::new(build_server_state(router, &config.server, metrics, audit));
     let app = Router::new().route("/rpc", post(handle_sse)).with_state(state);
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .map_err(|_| McpServerError::Transport("sse bind failed".to_string()))?;
-    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
-        .await
-        .map_err(|_| McpServerError::Transport("sse server failed".to_string()))
+    if let Some(tls) = &config.server.tls {
+        let tls_config = build_tls_config(tls)?;
+        axum_server::bind_rustls(addr, tls_config)
+            .serve(app.into_make_service_with_connect_info::<SocketAddr>())
+            .await
+            .map_err(|_| McpServerError::Transport("sse tls server failed".to_string()))
+    } else {
+        let listener = tokio::net::TcpListener::bind(addr)
+            .await
+            .map_err(|_| McpServerError::Transport("sse bind failed".to_string()))?;
+        axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
+            .await
+            .map_err(|_| McpServerError::Transport("sse server failed".to_string()))
+    }
 }
 
 /// Shared server state for HTTP/SSE handlers.
@@ -215,6 +402,122 @@ struct ServerState {
     router: ToolRouter,
     /// Maximum allowed request body size.
     max_body_bytes: usize,
+    /// Metrics sink for request telemetry.
+    metrics: Arc<dyn McpMetrics>,
+    /// Audit sink for request logging.
+    audit: Arc<dyn McpAuditSink>,
+    /// Rate limiter for incoming requests.
+    rate_limiter: Option<Arc<RateLimiter>>,
+    /// Concurrency limiter for inflight requests.
+    inflight: Arc<Semaphore>,
+}
+
+fn build_server_state(
+    router: ToolRouter,
+    server: &crate::config::ServerConfig,
+    metrics: Arc<dyn McpMetrics>,
+    audit: Arc<dyn McpAuditSink>,
+) -> ServerState {
+    let rate_limiter =
+        server.limits.rate_limit.as_ref().map(|config| Arc::new(RateLimiter::new(config.clone())));
+    let inflight = Arc::new(Semaphore::new(server.limits.max_inflight));
+    ServerState {
+        router,
+        max_body_bytes: server.max_body_bytes,
+        metrics,
+        audit,
+        rate_limiter,
+        inflight,
+    }
+}
+
+// ============================================================================
+// SECTION: Limits
+// ============================================================================
+
+/// Fixed-window rate limiter with in-memory buckets.
+struct RateLimiter {
+    /// Rate limit configuration.
+    config: RateLimitConfig,
+    /// Per-key request buckets.
+    buckets: std::sync::Mutex<HashMap<String, RateLimitBucket>>,
+}
+
+/// Rolling state for a single rate limit key.
+struct RateLimitBucket {
+    /// Window start time for the current bucket.
+    window_start: Instant,
+    /// Requests observed in the current window.
+    count: u32,
+    /// Last request timestamp for eviction.
+    last_seen: Instant,
+}
+
+/// Decision returned by the rate limiter.
+enum RateLimitDecision {
+    /// Allow the request.
+    Allow,
+    /// Limit the request with a retry delay.
+    Limited {
+        /// Milliseconds before retrying the request.
+        retry_after_ms: u64,
+    },
+    /// Reject because the limiter is over capacity.
+    OverCapacity,
+}
+
+impl RateLimiter {
+    /// Creates a new rate limiter from configuration.
+    fn new(config: RateLimitConfig) -> Self {
+        Self {
+            config,
+            buckets: std::sync::Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Checks the limiter for the given key and updates the bucket.
+    fn check(&self, key: &str) -> RateLimitDecision {
+        let window = Duration::from_millis(self.config.window_ms);
+        let ttl = Duration::from_millis(self.config.window_ms.saturating_mul(2));
+        let now = Instant::now();
+        {
+            let Ok(mut buckets) = self.buckets.lock() else {
+                return RateLimitDecision::OverCapacity;
+            };
+
+            if buckets.len() > self.config.max_entries {
+                buckets.retain(|_, bucket| now.duration_since(bucket.last_seen) <= ttl);
+            }
+
+            if buckets.len() > self.config.max_entries {
+                RateLimitDecision::OverCapacity
+            } else {
+                let bucket = buckets.entry(key.to_string()).or_insert(RateLimitBucket {
+                    window_start: now,
+                    count: 0,
+                    last_seen: now,
+                });
+
+                if now.duration_since(bucket.window_start) >= window {
+                    bucket.window_start = now;
+                    bucket.count = 0;
+                }
+
+                bucket.last_seen = now;
+                if bucket.count >= self.config.max_requests {
+                    let elapsed = now.duration_since(bucket.window_start);
+                    let retry_after_ms = u64::try_from(window.saturating_sub(elapsed).as_millis())
+                        .unwrap_or(u64::MAX);
+                    RateLimitDecision::Limited {
+                        retry_after_ms,
+                    }
+                } else {
+                    bucket.count = bucket.count.saturating_add(1);
+                    RateLimitDecision::Allow
+                }
+            }
+        }
+    }
 }
 
 /// Handles HTTP JSON-RPC requests.
@@ -287,6 +590,23 @@ struct JsonRpcError {
     code: i64,
     /// Human-readable error message.
     message: String,
+    /// Structured error metadata.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<JsonRpcErrorData>,
+}
+
+/// JSON-RPC error metadata payload.
+#[derive(Debug, Serialize)]
+struct JsonRpcErrorData {
+    /// Normalized error kind label.
+    kind: &'static str,
+    /// Whether the request may be retried safely.
+    retryable: bool,
+    /// Request identifier when provided.
+    request_id: Option<String>,
+    /// Suggested retry delay in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    retry_after_ms: Option<u64>,
 }
 
 /// Tool call parameters for JSON-RPC requests.
@@ -323,95 +643,144 @@ enum ToolContent {
     },
 }
 
+#[derive(Debug, Clone, Copy)]
+struct McpRequestInfo {
+    /// JSON-RPC method classification.
+    method: McpMethod,
+    /// Tool name when available.
+    tool: Option<ToolName>,
+}
+
+
 /// Dispatches a JSON-RPC request to the tool router.
+#[allow(clippy::too_many_lines, reason = "centralized JSON-RPC handling with validation")]
 fn handle_request(
     router: &ToolRouter,
     base_context: &RequestContext,
     request: JsonRpcRequest,
-) -> (StatusCode, JsonRpcResponse) {
-    let context = base_context.clone().with_request_id(request.id.to_string());
+) -> (StatusCode, JsonRpcResponse, McpRequestInfo) {
+    let context = base_context.clone();
     if request.jsonrpc != "2.0" {
+        let request_id = Some(request.id.to_string());
         return (
             StatusCode::BAD_REQUEST,
-            JsonRpcResponse {
-                jsonrpc: "2.0",
-                id: request.id,
-                result: None,
-                error: Some(JsonRpcError {
-                    code: -32600,
-                    message: "invalid json-rpc version".to_string(),
-                }),
+            jsonrpc_error_response(
+                request.id,
+                -32600,
+                "invalid json-rpc version".to_string(),
+                request_id,
+                None,
+            ),
+            McpRequestInfo {
+                method: McpMethod::Invalid,
+                tool: None,
             },
         );
     }
     match request.method.as_str() {
-        "tools/list" => match router.list_tools(&context) {
-            Ok(tools) => match serde_json::to_value(ToolListResult {
-                tools,
-            }) {
-                Ok(value) => (
-                    StatusCode::OK,
-                    JsonRpcResponse {
-                        jsonrpc: "2.0",
-                        id: request.id,
-                        result: Some(value),
-                        error: None,
-                    },
-                ),
-                Err(_) => jsonrpc_error(request.id, ToolError::Serialization),
-            },
-            Err(err) => jsonrpc_error(request.id, err),
-        },
+        "tools/list" => {
+            let info = McpRequestInfo {
+                method: McpMethod::ToolsList,
+                tool: None,
+            };
+            match router.list_tools(&context) {
+                Ok(tools) => {
+                    if let Ok(value) = serde_json::to_value(ToolListResult {
+                        tools,
+                    }) {
+                        (
+                            StatusCode::OK,
+                            JsonRpcResponse {
+                                jsonrpc: "2.0",
+                                id: request.id,
+                                result: Some(value),
+                                error: None,
+                            },
+                            info,
+                        )
+                    } else {
+                        let response = jsonrpc_error(request.id, ToolError::Serialization);
+                        (response.0, response.1, info)
+                    }
+                }
+                Err(err) => {
+                    let response = jsonrpc_error(request.id, err);
+                    (response.0, response.1, info)
+                }
+            }
+        }
         "tools/call" => {
             let id = request.id;
             let params = request.params.unwrap_or(Value::Null);
             let call = serde_json::from_value::<ToolCallParams>(params);
             match call {
                 Ok(call) => {
-                    match call_tool_with_blocking(router, context, &call.name, call.arguments) {
-                        Ok(result) => match serde_json::to_value(ToolCallResult {
-                            content: vec![ToolContent::Json {
-                                json: result,
-                            }],
-                        }) {
-                            Ok(value) => (
-                                StatusCode::OK,
-                                JsonRpcResponse {
-                                    jsonrpc: "2.0",
-                                    id,
-                                    result: Some(value),
-                                    error: None,
-                                },
-                            ),
-                            Err(_) => jsonrpc_error(id, ToolError::Serialization),
-                        },
-                        Err(err) => jsonrpc_error(id, err),
+                    let info = McpRequestInfo {
+                        method: McpMethod::ToolsCall,
+                        tool: ToolName::parse(&call.name),
+                    };
+                    match call_tool_with_blocking(router, &context, &call.name, call.arguments) {
+                        Ok(result) => {
+                            if let Ok(value) = serde_json::to_value(ToolCallResult {
+                                content: vec![ToolContent::Json {
+                                    json: result,
+                                }],
+                            }) {
+                                (
+                                    StatusCode::OK,
+                                    JsonRpcResponse {
+                                        jsonrpc: "2.0",
+                                        id,
+                                        result: Some(value),
+                                        error: None,
+                                    },
+                                    info,
+                                )
+                            } else {
+                                let response = jsonrpc_error(id, ToolError::Serialization);
+                                (response.0, response.1, info)
+                            }
+                        }
+                        Err(err) => {
+                            let response = jsonrpc_error(id, err);
+                            (response.0, response.1, info)
+                        }
                     }
                 }
                 Err(_) => (
                     StatusCode::BAD_REQUEST,
-                    JsonRpcResponse {
-                        jsonrpc: "2.0",
-                        id,
-                        result: None,
-                        error: Some(JsonRpcError {
-                            code: -32602,
-                            message: "invalid tool params".to_string(),
-                        }),
+                    {
+                        let request_id = Some(id.to_string());
+                        jsonrpc_error_response(
+                            id,
+                            -32602,
+                            "invalid tool params".to_string(),
+                            request_id,
+                            None,
+                        )
+                    },
+                    McpRequestInfo {
+                        method: McpMethod::ToolsCall,
+                        tool: None,
                     },
                 ),
             }
         }
         _ => (
             StatusCode::BAD_REQUEST,
-            JsonRpcResponse {
-                jsonrpc: "2.0",
-                id: request.id,
-                result: None,
-                error: Some(JsonRpcError {
-                    code: -32601,
-                    message: "method not found".to_string(),
-                }),
+            {
+                let request_id = Some(request.id.to_string());
+                jsonrpc_error_response(
+                    request.id,
+                    -32601,
+                    "method not found".to_string(),
+                    request_id,
+                    None,
+                )
+            },
+            McpRequestInfo {
+                method: McpMethod::Other,
+                tool: None,
             },
         ),
     }
@@ -420,58 +789,149 @@ fn handle_request(
 /// Executes a tool call, shifting to a blocking context when available.
 fn call_tool_with_blocking(
     router: &ToolRouter,
-    context: RequestContext,
+    context: &RequestContext,
     name: &str,
     arguments: Value,
 ) -> Result<Value, ToolError> {
     match tokio::runtime::Handle::try_current() {
         Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
-            tokio::task::block_in_place(|| router.handle_tool_call(&context, name, arguments))
+            tokio::task::block_in_place(|| router.handle_tool_call(context, name, arguments))
         }
-        _ => router.handle_tool_call(&context, name, arguments),
+        _ => router.handle_tool_call(context, name, arguments),
     }
 }
 
 /// Parses and validates a JSON-RPC request payload.
+#[allow(clippy::too_many_lines, reason = "centralized JSON-RPC validation path")]
 fn parse_request(
     state: &ServerState,
     context: &RequestContext,
     bytes: &Bytes,
 ) -> (StatusCode, JsonRpcResponse) {
-    if bytes.len() > state.max_body_bytes {
-        return (
-            StatusCode::PAYLOAD_TOO_LARGE,
-            JsonRpcResponse {
-                jsonrpc: "2.0",
-                id: Value::Null,
-                result: None,
-                error: Some(JsonRpcError {
-                    code: -32070,
-                    message: "request body too large".to_string(),
-                }),
-            },
+    let started_at = Instant::now();
+    let request_bytes = bytes.len();
+    let _permit = if let Ok(permit) = state.inflight.try_acquire() {
+        Some(permit)
+    } else {
+        let response = jsonrpc_error_response(
+            Value::Null,
+            -32072,
+            "server overloaded".to_string(),
+            context.request_id.clone(),
+            None,
         );
+        let info = McpRequestInfo {
+            method: McpMethod::Invalid,
+            tool: None,
+        };
+        record_metrics(state, context, info, &response, request_bytes, started_at.elapsed());
+        record_audit(state, context, info, &response, request_bytes);
+        return (StatusCode::SERVICE_UNAVAILABLE, response);
+    };
+
+    if let Some(rate_limiter) = &state.rate_limiter {
+        match rate_limiter.check(&rate_limit_key(context)) {
+            RateLimitDecision::Allow => {}
+            RateLimitDecision::Limited {
+                retry_after_ms,
+            } => {
+                let response = jsonrpc_error_response(
+                    Value::Null,
+                    -32071,
+                    "rate limit exceeded".to_string(),
+                    context.request_id.clone(),
+                    Some(retry_after_ms),
+                );
+                let info = McpRequestInfo {
+                    method: McpMethod::Invalid,
+                    tool: None,
+                };
+                record_metrics(
+                    state,
+                    context,
+                    info,
+                    &response,
+                    request_bytes,
+                    started_at.elapsed(),
+                );
+                record_audit(state, context, info, &response, request_bytes);
+                return (StatusCode::TOO_MANY_REQUESTS, response);
+            }
+            RateLimitDecision::OverCapacity => {
+                let response = jsonrpc_error_response(
+                    Value::Null,
+                    -32072,
+                    "rate limiter overloaded".to_string(),
+                    context.request_id.clone(),
+                    None,
+                );
+                let info = McpRequestInfo {
+                    method: McpMethod::Invalid,
+                    tool: None,
+                };
+                record_metrics(
+                    state,
+                    context,
+                    info,
+                    &response,
+                    request_bytes,
+                    started_at.elapsed(),
+                );
+                record_audit(state, context, info, &response, request_bytes);
+                return (StatusCode::SERVICE_UNAVAILABLE, response);
+            }
+        }
     }
+
+    if bytes.len() > state.max_body_bytes {
+        let response = jsonrpc_error_response(
+            Value::Null,
+            -32070,
+            "request body too large".to_string(),
+            context.request_id.clone(),
+            None,
+        );
+        let info = McpRequestInfo {
+            method: McpMethod::Invalid,
+            tool: None,
+        };
+        record_metrics(state, context, info, &response, request_bytes, started_at.elapsed());
+        record_audit(state, context, info, &response, request_bytes);
+        return (StatusCode::PAYLOAD_TOO_LARGE, response);
+    }
+
     let request: Result<JsonRpcRequest, _> = serde_json::from_slice(bytes.as_ref());
-    request.map_or_else(
+    let (status, response, info, audit_context) = request.map_or_else(
         |_| {
+            let response = jsonrpc_error_response(
+                Value::Null,
+                -32600,
+                "invalid json-rpc request".to_string(),
+                context.request_id.clone(),
+                None,
+            );
             (
                 StatusCode::BAD_REQUEST,
-                JsonRpcResponse {
-                    jsonrpc: "2.0",
-                    id: Value::Null,
-                    result: None,
-                    error: Some(JsonRpcError {
-                        code: -32600,
-                        message: "invalid json-rpc request".to_string(),
-                    }),
+                response,
+                McpRequestInfo {
+                    method: McpMethod::Invalid,
+                    tool: None,
                 },
+                context.clone(),
             )
         },
-        |request| handle_request(&state.router, context, request),
-    )
+        |request| {
+            let context = context.clone().with_request_id(request.id.to_string());
+            let (status, response, info) = handle_request(&state.router, &context, request);
+            (status, response, info, context)
+        },
+    );
+    record_metrics(state, &audit_context, info, &response, request_bytes, started_at.elapsed());
+    record_audit(state, &audit_context, info, &response, request_bytes);
+    (status, response)
 }
 
+/// Builds an auth context for HTTP/SSE requests from headers.
 fn http_request_context(
     transport: ServerTransport,
     peer: SocketAddr,
@@ -486,13 +946,116 @@ fn http_request_context(
     RequestContext::http(transport, Some(peer.ip()), auth_header, client_subject)
 }
 
+/// Derives the rate limit key for a request.
+fn rate_limit_key(context: &RequestContext) -> String {
+    if let Ok(token) = crate::auth::parse_bearer_token(context.auth_header.as_deref()) {
+        let digest = hash_bytes(HashAlgorithm::Sha256, token.as_bytes());
+        return format!("bearer:{}", digest.value);
+    }
+    if let Some(subject) = &context.client_subject {
+        return format!("mtls:{subject}");
+    }
+    if let Some(peer_ip) = context.peer_ip {
+        return format!("ip:{peer_ip}");
+    }
+    match context.transport {
+        ServerTransport::Stdio => "transport:stdio".to_string(),
+        ServerTransport::Http => "transport:http".to_string(),
+        ServerTransport::Sse => "transport:sse".to_string(),
+    }
+}
+
+/// Emits a warning when running without explicit auth policy.
 fn emit_local_only_warning(server: &crate::config::ServerConfig) {
-    let auth_mode = server.auth.as_ref().map(|auth| auth.mode).unwrap_or(ServerAuthMode::LocalOnly);
+    let auth_mode = server.auth.as_ref().map_or(ServerAuthMode::LocalOnly, |auth| auth.mode);
     if auth_mode == ServerAuthMode::LocalOnly {
-        eprintln!(
+        let _ = writeln!(
+            std::io::stderr(),
             "decision-gate-mcp: WARNING: server running in local-only mode without explicit auth; \
              configure server.auth to enable bearer_token or mtls"
         );
+    }
+}
+
+/// Emits metrics events for a request.
+fn record_metrics(
+    state: &ServerState,
+    context: &RequestContext,
+    info: McpRequestInfo,
+    response: &JsonRpcResponse,
+    request_bytes: usize,
+    latency: std::time::Duration,
+) {
+    let outcome = if response.error.is_some() { McpOutcome::Error } else { McpOutcome::Ok };
+    let error_code = response.error.as_ref().map(|error| error.code);
+    let error_kind = error_code.and_then(error_kind_for_code);
+    let response_bytes = serde_json::to_vec(response).map_or(0, |payload| payload.len());
+    let event = McpMetricEvent {
+        transport: context.transport,
+        method: info.method,
+        tool: info.tool,
+        outcome,
+        error_code,
+        error_kind,
+        request_bytes,
+        response_bytes,
+    };
+    state.metrics.record_request(event.clone());
+    state.metrics.record_latency(event, latency);
+}
+
+/// Emits an audit record for a request.
+fn record_audit(
+    state: &ServerState,
+    context: &RequestContext,
+    info: McpRequestInfo,
+    response: &JsonRpcResponse,
+    request_bytes: usize,
+) {
+    let outcome = if response.error.is_some() { McpOutcome::Error } else { McpOutcome::Ok };
+    let error_code = response.error.as_ref().map(|error| error.code);
+    let error_kind = error_code.and_then(error_kind_for_code);
+    let response_bytes = serde_json::to_vec(response).map_or(0, |payload| payload.len());
+    let redaction = match info.tool {
+        Some(ToolName::EvidenceQuery) => "evidence",
+        _ => "full",
+    };
+    let event = McpAuditEvent::new(
+        context.request_id.clone(),
+        context.transport,
+        context.peer_ip.map(|ip| ip.to_string()),
+        info.method,
+        info.tool,
+        outcome,
+        error_code,
+        error_kind,
+        request_bytes,
+        response_bytes,
+        context.client_subject.clone(),
+        redaction,
+    );
+    state.audit.record(&event);
+}
+
+/// Maps JSON-RPC error codes to audit labels.
+const fn error_kind_for_code(code: i64) -> Option<&'static str> {
+    match code {
+        -32600 => Some("invalid_request"),
+        -32601 => Some("method_not_found"),
+        -32602 => Some("invalid_params"),
+        -32001 => Some("unauthenticated"),
+        -32003 => Some("unauthorized"),
+        -32004 => Some("not_found"),
+        -32009 => Some("conflict"),
+        -32020 => Some("evidence"),
+        -32030 => Some("control_plane"),
+        -32040 => Some("runpack"),
+        -32050 => Some("internal"),
+        -32060 => Some("serialization"),
+        -32070 => Some("request_too_large"),
+        -32071 => Some("rate_limited"),
+        -32072 => Some("inflight_limit"),
+        _ => None,
     }
 }
 
@@ -517,18 +1080,44 @@ fn jsonrpc_error(id: Value, error: ToolError) -> (StatusCode, JsonRpcResponse) {
         ToolError::Internal(message) => (StatusCode::OK, -32050, message),
         ToolError::Serialization => (StatusCode::OK, -32060, "serialization failed".to_string()),
     };
-    (
-        status,
-        JsonRpcResponse {
-            jsonrpc: "2.0",
-            id,
-            result: None,
-            error: Some(JsonRpcError {
-                code,
-                message,
-            }),
-        },
-    )
+    let request_id = Some(id.to_string());
+    (status, jsonrpc_error_response(id, code, message, request_id, None))
+}
+
+/// Builds a JSON-RPC error response with structured metadata.
+fn jsonrpc_error_response(
+    id: Value,
+    code: i64,
+    message: String,
+    request_id: Option<String>,
+    retry_after_ms: Option<u64>,
+) -> JsonRpcResponse {
+    let error_data = JsonRpcErrorData {
+        kind: error_kind_label(code),
+        retryable: retryable_for_code(code),
+        request_id,
+        retry_after_ms,
+    };
+    JsonRpcResponse {
+        jsonrpc: "2.0",
+        id,
+        result: None,
+        error: Some(JsonRpcError {
+            code,
+            message,
+            data: Some(error_data),
+        }),
+    }
+}
+
+/// Returns a stable error kind label for the given code.
+fn error_kind_label(code: i64) -> &'static str {
+    error_kind_for_code(code).unwrap_or("unknown")
+}
+
+/// Returns true when the error code is retryable.
+const fn retryable_for_code(code: i64) -> bool {
+    matches!(code, -32071 | -32072)
 }
 
 // ============================================================================
@@ -624,8 +1213,121 @@ mod tests {
 
     use std::io::BufReader;
     use std::io::Cursor;
+    use std::sync::Arc;
+    use std::sync::Mutex;
+    use std::time::Duration;
 
+    use axum::body::Bytes;
+    use axum::http::StatusCode;
+    use decision_gate_core::InMemoryRunStateStore;
+    use decision_gate_core::SharedRunStateStore;
+    use serde_json::json;
+
+    use super::build_server_state;
+    use super::parse_request;
     use super::read_framed;
+    use crate::audit::McpAuditEvent;
+    use crate::audit::McpAuditSink;
+    use crate::auth::DefaultToolAuthz;
+    use crate::auth::NoopAuditSink;
+    use crate::auth::RequestContext;
+    use crate::capabilities::CapabilityRegistry;
+    use crate::config::DecisionGateConfig;
+    use crate::config::EvidencePolicyConfig;
+    use crate::config::ProviderConfig;
+    use crate::config::ProviderTimeoutConfig;
+    use crate::config::ProviderType;
+    use crate::config::RateLimitConfig;
+    use crate::config::RunStateStoreConfig;
+    use crate::config::ServerAuthConfig;
+    use crate::config::ServerAuthMode;
+    use crate::config::ServerConfig;
+    use crate::config::ServerTransport;
+    use crate::config::TrustConfig;
+    use crate::evidence::FederatedEvidenceProvider;
+    use crate::telemetry::McpMethod;
+    use crate::telemetry::McpMetricEvent;
+    use crate::telemetry::McpMetrics;
+    use crate::telemetry::McpOutcome;
+    use crate::tools::ToolRouter;
+
+    #[derive(Default)]
+    struct TestMetrics {
+        events: Mutex<Vec<McpMetricEvent>>,
+        latencies: Mutex<Vec<(McpMetricEvent, Duration)>>,
+    }
+
+    impl McpMetrics for TestMetrics {
+        fn record_request(&self, event: McpMetricEvent) {
+            self.events.lock().expect("events lock").push(event);
+        }
+
+        fn record_latency(&self, event: McpMetricEvent, latency: Duration) {
+            self.latencies.lock().expect("latencies lock").push((event, latency));
+        }
+    }
+
+    #[derive(Default)]
+    struct TestAudit {
+        events: Mutex<Vec<McpAuditEvent>>,
+    }
+
+    impl McpAuditSink for TestAudit {
+        fn record(&self, event: &McpAuditEvent) {
+            self.events.lock().expect("events lock").push(event.clone());
+        }
+    }
+
+    fn sample_config() -> DecisionGateConfig {
+        DecisionGateConfig {
+            server: ServerConfig::default(),
+            trust: TrustConfig::default(),
+            evidence: EvidencePolicyConfig::default(),
+            run_state_store: RunStateStoreConfig::default(),
+            providers: builtin_providers(),
+        }
+    }
+
+    fn sample_router(config: &DecisionGateConfig) -> ToolRouter {
+        let evidence = FederatedEvidenceProvider::from_config(config).expect("evidence provider");
+        let capabilities = CapabilityRegistry::from_config(config).expect("capabilities");
+        let store = SharedRunStateStore::from_store(InMemoryRunStateStore::new());
+        let authz = Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
+        let audit = Arc::new(NoopAuditSink);
+        ToolRouter::new(
+            evidence,
+            config.evidence.clone(),
+            store,
+            Arc::new(capabilities),
+            authz,
+            audit,
+        )
+    }
+
+    fn builtin_providers() -> Vec<ProviderConfig> {
+        vec![
+            builtin_provider("time"),
+            builtin_provider("env"),
+            builtin_provider("json"),
+            builtin_provider("http"),
+        ]
+    }
+
+    fn builtin_provider(name: &str) -> ProviderConfig {
+        ProviderConfig {
+            name: name.to_string(),
+            provider_type: ProviderType::Builtin,
+            command: Vec::new(),
+            url: None,
+            allow_insecure_http: false,
+            capabilities_path: None,
+            auth: None,
+            trust: None,
+            allow_raw: false,
+            timeouts: ProviderTimeoutConfig::default(),
+            config: None,
+        }
+    }
 
     #[test]
     fn read_framed_rejects_payload_over_limit() {
@@ -653,5 +1355,164 @@ mod tests {
         assert!(result.is_ok());
         let bytes = result.expect("payload read");
         assert_eq!(bytes, payload);
+    }
+
+    #[test]
+    fn metrics_recorded_for_tools_list() {
+        let mut config = sample_config();
+        config.server.limits.max_inflight = 1;
+        let metrics = Arc::new(TestMetrics::default());
+        let audit = Arc::new(TestAudit::default());
+        let state =
+            build_server_state(sample_router(&config), &config.server, metrics.clone(), audit);
+        let context = RequestContext::stdio();
+        let payload = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/list",
+        });
+        let bytes = Bytes::from(serde_json::to_vec(&payload).expect("payload bytes"));
+        let response = parse_request(&state, &context, &bytes);
+        assert_eq!(response.0, StatusCode::OK);
+
+        let events = metrics.events.lock().expect("events lock");
+        assert_eq!(events.len(), 1);
+        let event = &events[0];
+        assert_eq!(event.method, McpMethod::ToolsList);
+        assert_eq!(event.outcome, McpOutcome::Ok);
+        assert_eq!(event.error_code, None);
+        assert!(event.response_bytes > 0);
+
+        let latencies = metrics.latencies.lock().expect("latencies lock");
+        assert_eq!(latencies.len(), 1);
+        assert_eq!(latencies[0].0.method, McpMethod::ToolsList);
+    }
+
+    #[test]
+    fn metrics_recorded_for_unauthenticated_list() {
+        let mut config = sample_config();
+        config.server.auth = Some(ServerAuthConfig {
+            mode: ServerAuthMode::BearerToken,
+            bearer_tokens: vec!["token".to_string()],
+            mtls_subjects: Vec::new(),
+            allowed_tools: Vec::new(),
+        });
+        let metrics = Arc::new(TestMetrics::default());
+        let audit = Arc::new(TestAudit::default());
+        let state =
+            build_server_state(sample_router(&config), &config.server, metrics.clone(), audit);
+        let context = RequestContext::http(
+            ServerTransport::Http,
+            Some(std::net::IpAddr::from([127, 0, 0, 1])),
+            None,
+            None,
+        );
+        let payload = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/list",
+        });
+        let bytes = Bytes::from(serde_json::to_vec(&payload).expect("payload bytes"));
+        let response = parse_request(&state, &context, &bytes);
+        assert_eq!(response.0, StatusCode::UNAUTHORIZED);
+
+        let events = metrics.events.lock().expect("events lock");
+        assert_eq!(events.len(), 1);
+        let event = &events[0];
+        assert_eq!(event.method, McpMethod::ToolsList);
+        assert_eq!(event.outcome, McpOutcome::Error);
+        assert_eq!(event.error_code, Some(-32001));
+        assert_eq!(event.error_kind, Some("unauthenticated"));
+    }
+
+    #[test]
+    fn rate_limit_rejects_after_threshold() {
+        let mut config = sample_config();
+        config.server.limits.rate_limit = Some(RateLimitConfig {
+            max_requests: 1,
+            window_ms: 60_000,
+            max_entries: 8,
+        });
+        let metrics = Arc::new(TestMetrics::default());
+        let audit = Arc::new(TestAudit::default());
+        let state = build_server_state(sample_router(&config), &config.server, metrics, audit);
+        let context = RequestContext::http(
+            ServerTransport::Http,
+            Some(std::net::IpAddr::from([127, 0, 0, 1])),
+            None,
+            None,
+        );
+        let payload = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/list",
+        });
+        let bytes = Bytes::from(serde_json::to_vec(&payload).expect("payload bytes"));
+        let first = parse_request(&state, &context, &bytes);
+        assert_eq!(first.0, StatusCode::OK);
+        let second = parse_request(&state, &context, &bytes);
+        assert_eq!(second.0, StatusCode::TOO_MANY_REQUESTS);
+        let error = second.1.error.expect("rate limit error");
+        assert_eq!(error.code, -32071);
+        let data = error.data.expect("error data");
+        assert_eq!(data.kind, "rate_limited");
+        assert!(data.retryable);
+    }
+
+    #[test]
+    fn inflight_limit_rejects_when_exhausted() {
+        let mut config = sample_config();
+        config.server.limits.max_inflight = 1;
+        let metrics = Arc::new(TestMetrics::default());
+        let audit = Arc::new(TestAudit::default());
+        let state = build_server_state(sample_router(&config), &config.server, metrics, audit);
+        assert_eq!(state.inflight.available_permits(), 1);
+        let permit = state.inflight.try_acquire().expect("permit");
+        assert_eq!(state.inflight.available_permits(), 0);
+        let context = RequestContext::http(
+            ServerTransport::Http,
+            Some(std::net::IpAddr::from([127, 0, 0, 1])),
+            None,
+            None,
+        );
+        let payload = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/list",
+        });
+        let bytes = Bytes::from(serde_json::to_vec(&payload).expect("payload bytes"));
+        let response = parse_request(&state, &context, &bytes);
+        drop(permit);
+        assert_eq!(response.0, StatusCode::SERVICE_UNAVAILABLE);
+        let error = response.1.error.expect("inflight error");
+        assert_eq!(error.code, -32072);
+        let data = error.data.expect("error data");
+        assert_eq!(data.kind, "inflight_limit");
+        assert!(data.retryable);
+    }
+
+    #[test]
+    fn audit_records_evidence_redaction() {
+        let config = sample_config();
+        let metrics = Arc::new(TestMetrics::default());
+        let audit = Arc::new(TestAudit::default());
+        let state =
+            build_server_state(sample_router(&config), &config.server, metrics, audit.clone());
+        let context = RequestContext::stdio();
+        let payload = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "evidence_query",
+                "arguments": {}
+            }
+        });
+        let bytes = Bytes::from(serde_json::to_vec(&payload).expect("payload bytes"));
+        let _ = parse_request(&state, &context, &bytes);
+        let events = audit.events.lock().expect("events lock");
+        assert_eq!(events.len(), 1);
+        let event = &events[0];
+        assert_eq!(event.redaction, "evidence");
     }
 }

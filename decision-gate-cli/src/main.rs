@@ -58,9 +58,9 @@ use thiserror::Error;
 // SECTION: Limits
 // ============================================================================
 
-/// Maximum size of a ScenarioSpec JSON input.
+/// Maximum size of a `ScenarioSpec` JSON input.
 const MAX_SPEC_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;
-/// Maximum size of a RunState JSON input.
+/// Maximum size of a `RunState` JSON input.
 const MAX_RUN_STATE_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES * 8;
 /// Maximum size of a runpack manifest JSON input.
 const MAX_MANIFEST_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;

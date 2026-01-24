@@ -134,10 +134,7 @@ impl ArtifactReader for FileArtifactReader {
         let metadata = fs::metadata(&resolved)
             .map_err(|_| ArtifactError::Sink("unable to read artifact metadata".to_string()))?;
         let actual_bytes = usize::try_from(metadata.len()).unwrap_or(usize::MAX);
-        let max_bytes_u64 = match u64::try_from(max_bytes) {
-            Ok(value) => value,
-            Err(_) => u64::MAX,
-        };
+        let max_bytes_u64 = u64::try_from(max_bytes).unwrap_or(u64::MAX);
         if metadata.len() > max_bytes_u64 {
             return Err(ArtifactError::TooLarge {
                 path: path.to_string(),

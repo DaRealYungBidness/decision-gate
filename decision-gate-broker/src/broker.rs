@@ -315,15 +315,18 @@ fn compute_payload_hash(
 /// Payload kind used for content type validation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PayloadKind {
+    /// JSON payloads (`application/json` or `+json`).
     Json,
+    /// Raw byte payloads.
     Bytes,
 }
 
 impl PayloadKind {
-    fn label(self) -> &'static str {
+    /// Returns a stable label for error reporting.
+    const fn label(self) -> &'static str {
         match self {
-            PayloadKind::Json => "json",
-            PayloadKind::Bytes => "bytes",
+            Self::Json => "json",
+            Self::Bytes => "bytes",
         }
     }
 }

@@ -19,9 +19,12 @@ use decision_gate_mcp::config::ProviderConfig;
 use decision_gate_mcp::config::ProviderTimeoutConfig;
 use decision_gate_mcp::config::ProviderType;
 use decision_gate_mcp::config::RunStateStoreConfig;
+use decision_gate_mcp::config::ServerAuditConfig;
 use decision_gate_mcp::config::ServerAuthConfig;
 use decision_gate_mcp::config::ServerAuthMode;
 use decision_gate_mcp::config::ServerConfig;
+use decision_gate_mcp::config::ServerLimitsConfig;
+use decision_gate_mcp::config::ServerTlsConfig;
 use decision_gate_mcp::config::ServerTransport;
 use decision_gate_mcp::config::TrustConfig;
 use decision_gate_mcp::server::McpServerError;
@@ -72,7 +75,10 @@ pub fn base_http_config(bind: &str) -> DecisionGateConfig {
             transport: ServerTransport::Http,
             bind: Some(bind.to_string()),
             max_body_bytes: 1024 * 1024,
+            limits: ServerLimitsConfig::default(),
             auth: None,
+            tls: None,
+            audit: ServerAuditConfig::default(),
         },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
@@ -89,6 +95,40 @@ pub fn base_http_config_with_bearer(bind: &str, token: &str) -> DecisionGateConf
         bearer_tokens: vec![token.to_string()],
         mtls_subjects: Vec::new(),
         allowed_tools: Vec::new(),
+    });
+    config
+}
+
+/// Builds a base HTTP config with TLS enabled.
+pub fn base_http_config_with_tls(
+    bind: &str,
+    cert_path: &Path,
+    key_path: &Path,
+) -> DecisionGateConfig {
+    let mut config = base_http_config(bind);
+    config.server.tls = Some(ServerTlsConfig {
+        cert_path: cert_path.display().to_string(),
+        key_path: key_path.display().to_string(),
+        client_ca_path: None,
+        require_client_cert: true,
+    });
+    config
+}
+
+/// Builds a base HTTP config with TLS+mTLS enabled.
+pub fn base_http_config_with_mtls_tls(
+    bind: &str,
+    cert_path: &Path,
+    key_path: &Path,
+    ca_path: &Path,
+    require_client_cert: bool,
+) -> DecisionGateConfig {
+    let mut config = base_http_config(bind);
+    config.server.tls = Some(ServerTlsConfig {
+        cert_path: cert_path.display().to_string(),
+        key_path: key_path.display().to_string(),
+        client_ca_path: Some(ca_path.display().to_string()),
+        require_client_cert,
     });
     config
 }
@@ -112,7 +152,10 @@ pub fn base_sse_config(bind: &str) -> DecisionGateConfig {
             transport: ServerTransport::Sse,
             bind: Some(bind.to_string()),
             max_body_bytes: 1024 * 1024,
+            limits: ServerLimitsConfig::default(),
             auth: None,
+            tls: None,
+            audit: ServerAuditConfig::default(),
         },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
@@ -211,7 +254,8 @@ fn builtin_provider(name: &str) -> ProviderConfig {
 pub async fn spawn_mcp_server(config: DecisionGateConfig) -> Result<McpServerHandle, String> {
     let bind =
         config.server.bind.clone().ok_or_else(|| "missing bind for server config".to_string())?;
-    let base_url = format!("http://{bind}/rpc");
+    let scheme = if config.server.tls.is_some() { "https" } else { "http" };
+    let base_url = format!("{scheme}://{bind}/rpc");
     let server = tokio::task::spawn_blocking(move || McpServer::from_config(config))
         .await
         .map_err(|err| format!("mcp server init join failed: {err}"))?

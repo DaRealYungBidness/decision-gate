@@ -86,7 +86,8 @@ impl FileSource {
         Ok(path)
     }
 
-    fn read_with_limit(&self, path: &PathBuf) -> Result<Vec<u8>, SourceError> {
+    /// Reads bytes from disk while enforcing the maximum source size.
+    fn read_with_limit(path: &PathBuf) -> Result<Vec<u8>, SourceError> {
         let file = std::fs::File::open(path).map_err(|err| {
             if err.kind() == ErrorKind::NotFound {
                 SourceError::NotFound(err.to_string())
@@ -105,7 +106,7 @@ impl FileSource {
 impl Source for FileSource {
     fn fetch(&self, content_ref: &ContentRef) -> Result<SourcePayload, SourceError> {
         let path = self.resolve_path(&content_ref.uri)?;
-        let bytes = self.read_with_limit(&path)?;
+        let bytes = Self::read_with_limit(&path)?;
         Ok(SourcePayload {
             bytes,
             content_type: None,
