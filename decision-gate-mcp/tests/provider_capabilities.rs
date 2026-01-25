@@ -74,6 +74,30 @@ fn scenario_define_rejects_expected_schema_mismatch() {
 }
 
 #[test]
+fn scenario_define_rejects_in_set_without_array_expected() {
+    let router = common::sample_router();
+    let mut spec = common::sample_spec();
+    spec.predicates[0].comparator = Comparator::InSet;
+    spec.predicates[0].expected = Some(json!(true));
+
+    let request = ScenarioDefineRequest {
+        spec,
+    };
+    let result = router.handle_tool_call(
+        &local_request_context(),
+        "scenario_define",
+        serde_json::to_value(&request).unwrap(),
+    );
+    let err = result.expect_err("expected in_set expected value violation");
+    match err {
+        ToolError::CapabilityViolation {
+            code, ..
+        } => assert_eq!(code, "expected_invalid"),
+        other => panic!("unexpected error: {other:?}"),
+    }
+}
+
+#[test]
 fn evidence_query_rejects_missing_params() {
     let router = common::sample_router();
     let request = EvidenceQueryRequest {

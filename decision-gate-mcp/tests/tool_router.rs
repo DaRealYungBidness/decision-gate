@@ -27,6 +27,7 @@
 
 mod common;
 
+use decision_gate_core::Comparator;
 use decision_gate_core::DataShapeId;
 use decision_gate_core::DataShapeRecord;
 use decision_gate_core::DataShapeRef;
@@ -1111,6 +1112,64 @@ fn precheck_rejects_payload_mismatch() {
 }
 
 #[test]
+fn precheck_rejects_comparator_schema_mismatch() {
+    let mut config = sample_config();
+    config.trust.min_lane = TrustLane::Asserted;
+    let router = router_with_config(config);
+    let mut spec = sample_spec_with_id("precheck-comparator-mismatch");
+    spec.predicates[0].query.predicate = "now".to_string();
+    spec.predicates[0].query.params = None;
+    spec.predicates[0].comparator = Comparator::GreaterThan;
+    spec.predicates[0].expected = Some(json!(10));
+    let _ = define_scenario(&router, spec.clone()).unwrap();
+
+    let mut record = sample_shape_record("asserted", "v1");
+    record.schema = json!({
+        "type": "object",
+        "properties": {
+            "after": { "type": "string" }
+        },
+        "required": ["after"],
+        "additionalProperties": false
+    });
+    let tenant_id = record.tenant_id.clone();
+    let namespace_id = record.namespace_id.clone();
+    let schema_id = record.schema_id.clone();
+    let version = record.version.clone();
+    let register = SchemasRegisterRequest {
+        record,
+    };
+    let _ = router
+        .handle_tool_call(
+            &local_request_context(),
+            "schemas_register",
+            serde_json::to_value(&register).unwrap(),
+        )
+        .unwrap();
+
+    let request = PrecheckToolRequest {
+        tenant_id,
+        namespace_id,
+        scenario_id: Some(spec.scenario_id),
+        spec: None,
+        stage_id: None,
+        data_shape: DataShapeRef {
+            schema_id,
+            version,
+        },
+        payload: json!({"after": "2024-01-01"}),
+    };
+    let error = router
+        .handle_tool_call(
+            &local_request_context(),
+            "precheck",
+            serde_json::to_value(&request).unwrap(),
+        )
+        .unwrap_err();
+    assert!(error.to_string().contains("comparator greater_than not allowed"));
+}
+
+#[test]
 fn precheck_rejects_missing_scenario_and_spec() {
     let router = sample_router();
     let record = sample_shape_record("asserted", "v1");
@@ -1349,5 +1408,5 @@ fn precheck_rejects_non_object_payload_with_multiple_predicates() {
             serde_json::to_value(&request).unwrap(),
         )
         .unwrap_err();
-    assert!(error.to_string().contains("payload must be an object keyed by predicate ids"));
+    assert!(error.to_string().contains("non-object data shape requires exactly one predicate"));
 }

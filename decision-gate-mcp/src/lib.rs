@@ -24,6 +24,7 @@ pub mod runpack;
 pub mod server;
 pub mod telemetry;
 pub mod tools;
+pub mod validation;
 
 // ============================================================================
 // SECTION: Re-Exports

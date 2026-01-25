@@ -86,7 +86,7 @@ Return true if trigger time is after the threshold.
 
 - Determinism: time_dependent
 - Params required: yes
-- Allowed comparators: equals, not_equals, exists, not_exists
+- Allowed comparators: equals, not_equals, in_set, exists, not_exists
 - Anchor types: trigger_time_unix_millis, trigger_time_logical
 - Content types: application/json
 
@@ -144,7 +144,7 @@ Return true if trigger time is before the threshold.
 
 - Determinism: time_dependent
 - Params required: yes
-- Allowed comparators: equals, not_equals, exists, not_exists
+- Allowed comparators: equals, not_equals, in_set, exists, not_exists
 - Anchor types: trigger_time_unix_millis, trigger_time_logical
 - Content types: application/json
 
@@ -579,7 +579,7 @@ Return a hash of the response body.
 
 - Determinism: external
 - Params required: yes
-- Allowed comparators: equals, not_equals, exists, not_exists
+- Allowed comparators: exists, not_exists
 - Anchor types: url
 - Content types: application/json
 

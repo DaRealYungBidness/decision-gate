@@ -65,6 +65,7 @@ use decision_gate_mcp::config::ProviderType;
 use decision_gate_mcp::config::RunStateStoreConfig;
 use decision_gate_mcp::config::ServerConfig;
 use decision_gate_mcp::config::TrustConfig;
+use decision_gate_mcp::config::ValidationConfig;
 use decision_gate_mcp::tools::ProviderTransport;
 use decision_gate_mcp::tools::SchemaRegistryLimits;
 use decision_gate_mcp::tools::ToolRouterConfig;
@@ -81,6 +82,7 @@ pub fn sample_config() -> DecisionGateConfig {
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
@@ -134,6 +136,7 @@ pub fn router_with_config(config: DecisionGateConfig) -> ToolRouter {
     ToolRouter::new(ToolRouterConfig {
         evidence,
         evidence_policy: config.evidence,
+        validation: config.validation,
         dispatch_policy: config.policy.dispatch,
         store,
         schema_registry,

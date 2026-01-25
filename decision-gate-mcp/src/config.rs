@@ -96,6 +96,9 @@ pub struct DecisionGateConfig {
     /// Evidence disclosure policy configuration.
     #[serde(default)]
     pub evidence: EvidencePolicyConfig,
+    /// Validation configuration for scenario and precheck inputs.
+    #[serde(default)]
+    pub validation: ValidationConfig,
     /// Dispatch policy configuration.
     #[serde(default)]
     pub policy: PolicyConfig,
@@ -138,6 +141,7 @@ impl DecisionGateConfig {
     /// Returns [`ConfigError`] when configuration is invalid.
     pub fn validate(&mut self) -> Result<(), ConfigError> {
         self.server.validate()?;
+        self.validation.validate()?;
         self.run_state_store.validate()?;
         self.schema_registry.validate()?;
         for provider in &self.providers {
@@ -532,20 +536,69 @@ impl Default for EvidencePolicyConfig {
     }
 }
 
+/// Validation configuration for strict comparator enforcement.
+#[allow(clippy::struct_excessive_bools, reason = "Config flags mirror user-facing toggles.")]
+#[derive(Debug, Clone, Deserialize)]
+pub struct ValidationConfig {
+    /// Enforce strict comparator validation (default on).
+    #[serde(default = "default_validation_strict")]
+    pub strict: bool,
+    /// Validation profile name.
+    #[serde(default)]
+    pub profile: ValidationProfile,
+    /// Allow permissive mode when strict is disabled.
+    #[serde(default)]
+    pub allow_permissive: bool,
+    /// Enable lexicographic comparator family.
+    #[serde(default)]
+    pub enable_lexicographic: bool,
+    /// Enable deep equality comparator family.
+    #[serde(default)]
+    pub enable_deep_equals: bool,
+}
+
+impl Default for ValidationConfig {
+    fn default() -> Self {
+        Self {
+            strict: default_validation_strict(),
+            profile: ValidationProfile::default(),
+            allow_permissive: false,
+            enable_lexicographic: false,
+            enable_deep_equals: false,
+        }
+    }
+}
+
+impl ValidationConfig {
+    /// Validates validation configuration.
+    fn validate(&self) -> Result<(), ConfigError> {
+        if !self.strict && !self.allow_permissive {
+            return Err(ConfigError::Invalid(
+                "validation.strict=false requires validation.allow_permissive=true".to_string(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Validation profile identifiers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ValidationProfile {
+    /// Strict comparator validation profile v1.
+    #[default]
+    StrictCoreV1,
+}
+
 /// Dispatch policy modes for packet disclosure.
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum DispatchPolicy {
     /// Allow all dispatch targets.
+    #[default]
     PermitAll,
     /// Deny all dispatch targets.
     DenyAll,
-}
-
-impl Default for DispatchPolicy {
-    fn default() -> Self {
-        Self::PermitAll
-    }
 }
 
 /// Run state store configuration.
@@ -988,6 +1041,11 @@ const fn default_trust_policy() -> TrustPolicy {
 /// Default minimum evidence trust lane.
 const fn default_trust_lane() -> TrustLane {
     TrustLane::Verified
+}
+
+/// Default strict validation toggle.
+const fn default_validation_strict() -> bool {
+    true
 }
 
 /// Default MCP provider connect timeout in milliseconds.

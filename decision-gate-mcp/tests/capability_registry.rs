@@ -39,6 +39,7 @@ use decision_gate_mcp::config::RunStateStoreConfig;
 use decision_gate_mcp::config::SchemaRegistryConfig;
 use decision_gate_mcp::config::ServerConfig;
 use decision_gate_mcp::config::TrustConfig;
+use decision_gate_mcp::config::ValidationConfig;
 use serde_json::json;
 use tempfile::TempDir;
 
@@ -47,6 +48,7 @@ fn base_config() -> DecisionGateConfig {
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),

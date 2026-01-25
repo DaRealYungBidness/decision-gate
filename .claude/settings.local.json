@@ -5,7 +5,8 @@
       "Bash(cargo clippy:*)",
       "Bash(wc:*)",
       "Bash(ls -la \"c:\\\\Users\\\\Micha\\\\Documents\\\\GitHub\\\\decision-gate\\\\decision-gate-core\\\\src\\\\core\"\" | grep \".rs \")",
-      "Bash(Get-ChildItem -Recurse \"c:\\\\Users\\\\Micha\\\\Documents\\\\GitHub\\\\decision-gate\\\\decision-gate-mcp\\\\src\" -Name)"
+      "Bash(Get-ChildItem -Recurse \"c:\\\\Users\\\\Micha\\\\Documents\\\\GitHub\\\\decision-gate\\\\decision-gate-mcp\\\\src\" -Name)",
+      "Bash(ls:*)"
     ]
   }
 }

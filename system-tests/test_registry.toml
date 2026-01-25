@@ -227,6 +227,66 @@ artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
 [[tests]]
+name = "strict_validation_precheck_rejects_comparator_mismatch"
+category = "functional"
+priority = "P1"
+description = "Precheck rejects comparator/schema mismatches under strict validation."
+files = ["system-tests/tests/validation.rs"]
+run_command = "cargo test -p system-tests --test validation -- --exact strict_validation_precheck_rejects_comparator_mismatch"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "strict_validation_precheck_allows_permissive"
+category = "functional"
+priority = "P1"
+description = "Precheck proceeds when strict validation is disabled with allow_permissive."
+files = ["system-tests/tests/validation.rs"]
+run_command = "cargo test -p system-tests --test validation -- --exact strict_validation_precheck_allows_permissive"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "strict_validation_rejects_disabled_comparators"
+category = "functional"
+priority = "P1"
+description = "Scenario define rejects lex/deep comparators when disabled by config."
+files = ["system-tests/tests/validation.rs"]
+run_command = "cargo test -p system-tests --test validation -- --exact strict_validation_rejects_disabled_comparators"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "strict_validation_allows_enabled_comparators"
+category = "functional"
+priority = "P1"
+description = "Scenario define accepts lex/deep comparators when enabled."
+files = ["system-tests/tests/validation.rs"]
+run_command = "cargo test -p system-tests --test validation -- --exact strict_validation_allows_enabled_comparators"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "strict_validation_rejects_in_set_non_array"
+category = "functional"
+priority = "P1"
+description = "Scenario define rejects in_set when expected is not an array."
+files = ["system-tests/tests/validation.rs"]
+run_command = "cargo test -p system-tests --test validation -- --exact strict_validation_rejects_in_set_non_array"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "strict_validation_precheck_allows_union_contains"
+category = "functional"
+priority = "P1"
+description = "Precheck accepts contains comparator with string/null union schemas."
+files = ["system-tests/tests/validation.rs"]
+run_command = "cargo test -p system-tests --test validation -- --exact strict_validation_precheck_allows_union_contains"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
 name = "http_tool_allowlist_blocks_precheck"
 category = "security"
 priority = "P1"

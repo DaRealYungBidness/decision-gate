@@ -89,6 +89,7 @@ fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
     ToolRouter::new(ToolRouterConfig {
         evidence,
         evidence_policy: config.evidence,
+        validation: config.validation,
         dispatch_policy: config.policy.dispatch,
         store,
         schema_registry,

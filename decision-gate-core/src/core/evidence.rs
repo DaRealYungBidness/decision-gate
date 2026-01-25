@@ -44,7 +44,7 @@ pub struct EvidenceQuery {
 // ============================================================================
 
 /// Comparator applied to evidence values.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Comparator {
     /// Value equality comparison.
@@ -59,10 +59,22 @@ pub enum Comparator {
     LessThan,
     /// Numeric less-than-or-equal comparison.
     LessThanOrEqual,
+    /// Lexicographic greater-than comparison for strings.
+    LexGreaterThan,
+    /// Lexicographic greater-than-or-equal comparison for strings.
+    LexGreaterThanOrEqual,
+    /// Lexicographic less-than comparison for strings.
+    LexLessThan,
+    /// Lexicographic less-than-or-equal comparison for strings.
+    LexLessThanOrEqual,
     /// String containment comparison.
     Contains,
     /// Membership in an expected set.
     InSet,
+    /// Deep equality comparison for arrays/objects.
+    DeepEquals,
+    /// Deep inequality comparison for arrays/objects.
+    DeepNotEquals,
     /// Evidence exists (value must be present).
     Exists,
     /// Evidence does not exist (value must be absent).

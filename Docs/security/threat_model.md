@@ -81,6 +81,8 @@ agent conversations.
 - Evidence hash normalization; optional signature verification (ed25519) when
   configured.
 - Capability registry validates predicate params and allowed comparators.
+- Strict comparator/type validation rejects invalid predicates before scenario
+  registration and precheck evaluation.
 - Size and path limits for config files, provider contracts, runpack artifacts.
 - HTTP/SSE request body limits; provider-specific response size limits.
 - MCP tool calls require explicit authn/authz (local-only by default; bearer or
@@ -93,6 +95,8 @@ agent conversations.
 ### Input Validation and Parsing
 - JSON-RPC, config files, and JSONPath are untrusted; schema validation and size
   limits apply.
+- Predicate comparators are validated against schema-derived type classes with
+  explicit allowlists; ambiguous or invalid combinations are rejected.
 - Stdio transports have no inherent body limit; deployment must bound or
   sandbox inputs.
 

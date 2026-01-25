@@ -1,21 +1,14 @@
 # Copyright (c) 2026 Michael Campbell. All rights reserved.
 # RET Logic crate manifest (self-contained for stand-alone publishing)
 # ============================================================================
-# This manifest mirrors the workspace defaults so the crate can live outside
-# the workspace without losing lint or profile settings.
+# Lint settings mirror workspace defaults for standalone builds; release
+# profiles live at the workspace root when used in the workspace.
 # ============================================================================
 
 [package]
 name = "ret-logic"
 version = "0.1.0"
 edition = "2024"
-
-[profile.release]
-opt-level = 3
-lto = "fat"
-codegen-units = 1
-incremental = false
-debug = false
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }

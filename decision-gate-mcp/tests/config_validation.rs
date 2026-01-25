@@ -44,6 +44,7 @@ use decision_gate_mcp::config::ServerLimitsConfig;
 use decision_gate_mcp::config::ServerTlsConfig;
 use decision_gate_mcp::config::ServerTransport;
 use decision_gate_mcp::config::TrustConfig;
+use decision_gate_mcp::config::ValidationConfig;
 use tempfile::TempDir;
 
 /// Validates a standalone server config via the public config validator.
@@ -54,6 +55,7 @@ fn validate_server_config(
         server,
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
@@ -70,6 +72,7 @@ fn validate_provider_config(
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
@@ -642,6 +645,7 @@ fn schema_registry_memory_rejects_path() {
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig {
@@ -666,6 +670,7 @@ fn schema_registry_sqlite_requires_path() {
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig {
@@ -685,6 +690,32 @@ fn schema_registry_sqlite_requires_path() {
     assert!(error.to_string().contains("schema_registry"));
 }
 
+// ============================================================================
+// SECTION: Validation Config Tests
+// ============================================================================
+
+#[test]
+fn validation_strict_disabled_requires_allow_permissive() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig {
+            strict: false,
+            allow_permissive: false,
+            ..ValidationConfig::default()
+        },
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+    };
+    let result = config.validate();
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("allow_permissive"));
+}
+
 /// Verifies `schema_registry` rejects zero `max_schema_bytes`.
 #[test]
 fn schema_registry_rejects_zero_max_schema_bytes() {
@@ -692,6 +723,7 @@ fn schema_registry_rejects_zero_max_schema_bytes() {
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig {
@@ -711,6 +743,7 @@ fn schema_registry_rejects_zero_max_entries() {
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig {
@@ -734,6 +767,7 @@ fn run_state_store_sqlite_requires_path() {
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig {
             store_type: decision_gate_mcp::config::RunStateStoreType::Sqlite,
@@ -759,6 +793,7 @@ fn run_state_store_memory_rejects_path() {
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig {
             store_type: decision_gate_mcp::config::RunStateStoreType::Memory,
@@ -782,6 +817,7 @@ fn run_state_store_sqlite_accepts_path() {
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig {
             store_type: decision_gate_mcp::config::RunStateStoreType::Sqlite,
@@ -805,6 +841,7 @@ fn run_state_store_sqlite_rejects_zero_retention() {
         server: ServerConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig {
             store_type: decision_gate_mcp::config::RunStateStoreType::Sqlite,

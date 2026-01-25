@@ -34,3 +34,9 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `federated_provider_echo` | providers | External MCP provider integration works. |
 | `packet_disclosure_visibility` | security | Packet visibility labels and policy tags persist. |
 | `runpack_tamper_detection` | runpack | Tampered runpack fails verification. |
+| `strict_validation_precheck_rejects_comparator_mismatch` | functional | Precheck rejects comparator/schema mismatches. |
+| `strict_validation_precheck_allows_permissive` | functional | Permissive mode allows precheck to proceed. |
+| `strict_validation_rejects_disabled_comparators` | functional | Disabled comparator families are rejected. |
+| `strict_validation_allows_enabled_comparators` | functional | Enabled comparator families are accepted. |
+| `strict_validation_rejects_in_set_non_array` | functional | in_set requires expected array values. |
+| `strict_validation_precheck_allows_union_contains` | functional | Union string/null schema permits contains. |

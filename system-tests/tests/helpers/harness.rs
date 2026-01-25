@@ -29,6 +29,7 @@ use decision_gate_mcp::config::ServerLimitsConfig;
 use decision_gate_mcp::config::ServerTlsConfig;
 use decision_gate_mcp::config::ServerTransport;
 use decision_gate_mcp::config::TrustConfig;
+use decision_gate_mcp::config::ValidationConfig;
 use decision_gate_mcp::server::McpServerError;
 use tokio::task::JoinHandle;
 
@@ -84,6 +85,7 @@ pub fn base_http_config(bind: &str) -> DecisionGateConfig {
         },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
@@ -163,6 +165,7 @@ pub fn base_sse_config(bind: &str) -> DecisionGateConfig {
         },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),

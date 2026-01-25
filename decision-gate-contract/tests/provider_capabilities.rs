@@ -16,7 +16,7 @@ use jsonschema::Draft;
 use jsonschema::JSONSchema;
 use serde_json::Value;
 
-const fn comparator_order() -> [Comparator; 10] {
+const fn comparator_order() -> [Comparator; 16] {
     [
         Comparator::Equals,
         Comparator::NotEquals,
@@ -24,8 +24,14 @@ const fn comparator_order() -> [Comparator; 10] {
         Comparator::GreaterThanOrEqual,
         Comparator::LessThan,
         Comparator::LessThanOrEqual,
+        Comparator::LexGreaterThan,
+        Comparator::LexGreaterThanOrEqual,
+        Comparator::LexLessThan,
+        Comparator::LexLessThanOrEqual,
         Comparator::Contains,
         Comparator::InSet,
+        Comparator::DeepEquals,
+        Comparator::DeepNotEquals,
         Comparator::Exists,
         Comparator::NotExists,
     ]
@@ -109,8 +115,13 @@ fn time_provider_comparators_match_schema_expectations() -> Result<(), String> {
         .iter()
         .find(|predicate| predicate.name == "after")
         .ok_or_else(|| "time.after predicate missing".to_string())?;
-    let expected_after =
-        vec![Comparator::Equals, Comparator::NotEquals, Comparator::Exists, Comparator::NotExists];
+    let expected_after = vec![
+        Comparator::Equals,
+        Comparator::NotEquals,
+        Comparator::InSet,
+        Comparator::Exists,
+        Comparator::NotExists,
+    ];
     if after.allowed_comparators != expected_after {
         return Err("time.after comparators mismatch".to_string());
     }

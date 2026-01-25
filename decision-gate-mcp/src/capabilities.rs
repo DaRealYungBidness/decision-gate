@@ -291,19 +291,13 @@ impl CapabilityRegistry {
                 capability.contract.params_required,
                 &capability.params_schema,
             )?;
-            if let Some(expected) = &predicate.expected {
-                validate_schema_value(
-                    provider_id,
-                    predicate_name,
-                    expected,
-                    &capability.result_schema,
-                )
-                .map_err(|error| CapabilityError::ExpectedInvalid {
-                    provider_id: provider_id.to_string(),
-                    predicate: predicate_name.to_string(),
-                    error,
-                })?;
-            }
+            validate_expected_value(
+                provider_id,
+                predicate_name,
+                predicate.comparator,
+                predicate.expected.as_ref(),
+                &capability.result_schema,
+            )?;
             if !capability.contract.allowed_comparators.contains(&predicate.comparator) {
                 return Err(CapabilityError::ComparatorNotAllowed {
                     provider_id: provider_id.to_string(),
@@ -342,6 +336,20 @@ impl CapabilityRegistry {
             providers.push((provider_id.clone(), predicates));
         }
         providers
+    }
+
+    /// Returns the predicate contract for the requested provider.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CapabilityError`] when the provider or predicate is missing.
+    pub fn predicate_contract(
+        &self,
+        provider_id: &str,
+        predicate: &str,
+    ) -> Result<&PredicateContract, CapabilityError> {
+        let capability = self.lookup_predicate(provider_id, predicate)?;
+        Ok(&capability.contract)
     }
 
     /// Locates a predicate capability by provider and predicate name.
@@ -540,6 +548,66 @@ fn validate_schema_value(
     }
 }
 
+/// Validates expected values against predicate comparators.
+fn validate_expected_value(
+    provider_id: &str,
+    predicate: &str,
+    comparator: Comparator,
+    expected: Option<&Value>,
+    schema: &JSONSchema,
+) -> Result<(), CapabilityError> {
+    match comparator {
+        Comparator::Exists | Comparator::NotExists => {
+            if expected.is_some() {
+                return Err(CapabilityError::ExpectedInvalid {
+                    provider_id: provider_id.to_string(),
+                    predicate: predicate.to_string(),
+                    error: "expected value must be omitted for exists/not_exists".to_string(),
+                });
+            }
+            Ok(())
+        }
+        Comparator::InSet => {
+            let expected = expected.ok_or_else(|| CapabilityError::ExpectedInvalid {
+                provider_id: provider_id.to_string(),
+                predicate: predicate.to_string(),
+                error: "expected array required for in_set comparator".to_string(),
+            })?;
+            let Value::Array(values) = expected else {
+                return Err(CapabilityError::ExpectedInvalid {
+                    provider_id: provider_id.to_string(),
+                    predicate: predicate.to_string(),
+                    error: "expected array required for in_set comparator".to_string(),
+                });
+            };
+            for value in values {
+                validate_schema_value(provider_id, predicate, value, schema).map_err(|error| {
+                    CapabilityError::ExpectedInvalid {
+                        provider_id: provider_id.to_string(),
+                        predicate: predicate.to_string(),
+                        error,
+                    }
+                })?;
+            }
+            Ok(())
+        }
+        _ => {
+            let expected = expected.ok_or_else(|| CapabilityError::ExpectedInvalid {
+                provider_id: provider_id.to_string(),
+                predicate: predicate.to_string(),
+                error: "expected value required for comparator".to_string(),
+            })?;
+            validate_schema_value(provider_id, predicate, expected, schema).map_err(|error| {
+                CapabilityError::ExpectedInvalid {
+                    provider_id: provider_id.to_string(),
+                    predicate: predicate.to_string(),
+                    error,
+                }
+            })
+        }
+    }
+}
+
 /// Returns the comparator label used in error messages.
 fn comparator_label(comparator: Comparator) -> String {
     match comparator {
@@ -549,8 +617,14 @@ fn comparator_label(comparator: Comparator) -> String {
         Comparator::GreaterThanOrEqual => "greater_than_or_equal".to_string(),
         Comparator::LessThan => "less_than".to_string(),
         Comparator::LessThanOrEqual => "less_than_or_equal".to_string(),
+        Comparator::LexGreaterThan => "lex_greater_than".to_string(),
+        Comparator::LexGreaterThanOrEqual => "lex_greater_than_or_equal".to_string(),
+        Comparator::LexLessThan => "lex_less_than".to_string(),
+        Comparator::LexLessThanOrEqual => "lex_less_than_or_equal".to_string(),
         Comparator::Contains => "contains".to_string(),
         Comparator::InSet => "in_set".to_string(),
+        Comparator::DeepEquals => "deep_equals".to_string(),
+        Comparator::DeepNotEquals => "deep_not_equals".to_string(),
         Comparator::Exists => "exists".to_string(),
         Comparator::NotExists => "not_exists".to_string(),
     }
@@ -573,7 +647,7 @@ fn comparator_index(comparator: Comparator) -> Option<usize> {
 }
 
 /// Returns the canonical comparator ordering.
-const fn comparator_order() -> [Comparator; 10] {
+const fn comparator_order() -> [Comparator; 16] {
     [
         Comparator::Equals,
         Comparator::NotEquals,
@@ -581,8 +655,14 @@ const fn comparator_order() -> [Comparator; 10] {
         Comparator::GreaterThanOrEqual,
         Comparator::LessThan,
         Comparator::LessThanOrEqual,
+        Comparator::LexGreaterThan,
+        Comparator::LexGreaterThanOrEqual,
+        Comparator::LexLessThan,
+        Comparator::LexLessThanOrEqual,
         Comparator::Contains,
         Comparator::InSet,
+        Comparator::DeepEquals,
+        Comparator::DeepNotEquals,
         Comparator::Exists,
         Comparator::NotExists,
     ]

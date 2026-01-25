@@ -86,6 +86,10 @@ Global setting permitting raw evidence values in results. When false, providers 
 
 Permits YAML parsing in the JSON evidence provider. YAML is a superset of JSON with additional syntax. Enable when config files use YAML format. Disable to restrict to pure JSON for stricter validation.
 
+## `allowed_comparators`
+
+Allow-list of comparators valid for this predicate output.
+
 ## `allowed_hosts`
 
 Hostname allowlist for HTTP provider outbound requests. Only URLs matching these hosts are permitted. Prevents SSRF: queries to unapproved hosts fail with a security error. Required for http providers in production.
@@ -93,6 +97,10 @@ Hostname allowlist for HTTP provider outbound requests. Only URLs matching these
 ## `allowlist`
 
 List of environment variable keys the env provider may read. Queries for keys not in the allowlist fail with a policy error. Use allowlists to limit exposure: only permit the specific variables your predicates need.
+
+## `anchor_types`
+
+Anchor type strings that the predicate may emit.
 
 ## `bind`
 
@@ -106,9 +114,21 @@ Filesystem path to a provider's capability contract JSON. The contract declares 
 
 The comparison operator applied to evidence. Supported comparators: equals, not_equals, greater_than, greater_than_or_equal, less_than, less_than_or_equal, contains, in_set, exists, not_exists. All comparators except exists/not_exists require an expected value and return unknown on type mismatch. Numeric comparators return unknown for non-numbers. exists/not_exists ignore expected.
 
+## `config_schema`
+
+JSON Schema validating provider configuration entries.
+
+## `contains`
+
+True when evidence (array or string) contains the expected value.
+
 ## `content_hash`
 
 Hash metadata for any payload content. Includes the hash algorithm and hash value. Enables integrity verification of packets, submissions, and evidence without requiring access to the raw content. Used throughout runpacks.
+
+## `content_types`
+
+MIME types for evidence values returned by the predicate.
 
 ## `correlation_id`
 
@@ -122,6 +142,14 @@ The recorded outcome of a trigger evaluation. Contains decision_id, seq, trigger
 
 Unique identifier for a recorded decision. Generated when a trigger evaluation produces an outcome and linked to the decision sequence, trigger_id, and stage_id. Decision IDs enable audit trails and debugging.
 
+## `deep_equals`
+
+Deep structural equality for JSON objects and arrays.
+
+## `deep_not_equals`
+
+Deep structural inequality for JSON objects and arrays.
+
 ## `default_policy`
 
 Default trust policy for evidence providers. Options: 'audit' or 'require_signature' (with key list). Individual providers can override. Start with 'audit' and tighten per-provider as needed.
@@ -129,6 +157,14 @@ Default trust policy for evidence providers. Options: 'audit' or 'require_signat
 ## `denylist`
 
 List of environment variable keys the env provider must never read. Queries for denied keys fail immediately. Use denylists for defense-in-depth: block known-sensitive keys (API_KEY, SECRET_*, etc.) even if accidentally queried.
+
+## `description`
+
+Short summary describing provider behavior and intent.
+
+## `determinism`
+
+Predicate output stability: deterministic, time_dependent, or external.
 
 ## `dispatch_targets`
 
@@ -138,6 +174,10 @@ Destinations where emitted packets are delivered. Configure targets in run_confi
 
 Disclosure packets emitted when a run enters a stage. Use entry_packets to release information at specific workflow points: e.g., reveal configuration after approval, emit audit events, or trigger downstream systems. Packets include payload, schema_id, and visibility_labels for access control.
 
+## `equals`
+
+True when evidence equals expected (numbers, strings, booleans, or JSON values).
+
 ## `evidence_hash`
 
 SHA-256 hash of an evidence value for integrity verification. Computed over the canonical form of EvidenceValue. Evidence hashes enable verification without exposing raw values: auditors can confirm evidence matched expectations even when raw disclosure is blocked.
@@ -145,6 +185,14 @@ SHA-256 hash of an evidence value for integrity verification. Computed over the 
 ## `evidence_query`
 
 Queries an evidence provider with the configured disclosure policy applied. Returns the EvidenceResult containing the value (or hash), anchor metadata, and optional signature. Use this for debugging predicates or building custom gates outside the standard scenario flow.
+
+## `examples`
+
+Example predicate invocations with params and results.
+
+## `exists`
+
+True when evidence value is present. Expected is ignored.
 
 ## `expected`
 
@@ -162,9 +210,21 @@ The list of GateSpecs evaluated when a run enters a stage. All gates are evaluat
 
 Timestamp recorded in the runpack manifest indicating when the export was created. Expressed as ISO 8601. Useful for audit logs and freshness checks. Does not affect verification outcome.
 
+## `greater_than`
+
+True when numeric evidence is greater than expected.
+
+## `greater_than_or_equal`
+
+True when numeric evidence is greater than or equal to expected.
+
 ## `hash_algorithm`
 
 Algorithm used for hashing evidence and runpack artifacts. Currently SHA-256 exclusively. Recorded in manifests for forward compatibility. Do not assume other algorithms without checking this field.
+
+## `in_set`
+
+True when evidence is contained in the expected array.
 
 ## `include_verification`
 
@@ -177,6 +237,30 @@ Flag controlling whether scenario_start emits entry_packets for the initial stag
 ## `jsonpath`
 
 JSONPath selector used by the JSON provider to extract values from documents. Syntax follows RFC 9535. Examples: '$.version', '$.config.features[*].name'. The extracted value becomes the evidence for comparator evaluation.
+
+## `less_than`
+
+True when numeric evidence is less than expected.
+
+## `less_than_or_equal`
+
+True when numeric evidence is less than or equal to expected.
+
+## `lex_greater_than`
+
+Lexicographic string compare: true when evidence sorts after expected.
+
+## `lex_greater_than_or_equal`
+
+Lexicographic string compare: true when evidence sorts after or equals expected.
+
+## `lex_less_than`
+
+Lexicographic string compare: true when evidence sorts before expected.
+
+## `lex_less_than_or_equal`
+
+Lexicographic string compare: true when evidence sorts before or equals expected.
 
 ## `logical`
 
@@ -214,6 +298,22 @@ Maximum HTTP response body size the HTTP provider will read. Prevents memory exh
 
 Maximum byte length for environment variable values returned by the env provider. Prevents oversized values from bloating evidence results. Values exceeding this are truncated or rejected per provider config.
 
+## `name`
+
+Human-readable provider name shown in docs and UIs.
+
+## `not_equals`
+
+True when evidence does not equal expected.
+
+## `not_exists`
+
+True when evidence value is missing. Expected is ignored.
+
+## `notes`
+
+Optional notes about provider behavior or determinism.
+
 ## `on_timeout`
 
 Stage timeout policy (TimeoutPolicy). Always present in StageSpec and used only when timeout is set; ignored when timeout is null. Supports 'fail', 'advance_with_flag', or 'alternate_branch' behaviors.
@@ -234,6 +334,14 @@ Identifier for a disclosure packet. Must be unique within the scenario. Used to 
 
 Provider-specific parameters passed to a predicate. Structure varies by provider: env.get needs {key}, time.after needs {timestamp}, http.status needs {url}. Invalid or missing required params cause the provider to fail, yielding an unknown outcome.
 
+## `params_required`
+
+Whether EvidenceQuery.params must be supplied for this predicate.
+
+## `params_schema`
+
+JSON Schema for predicate params payloads.
+
 ## `payload`
 
 The content body of a packet, submission, or trigger payload. Encoded as PacketPayload: json, bytes, or external content_ref (uri + content_hash, optional encryption). Payloads are hashed for integrity and may be schema-validated before emission.
@@ -249,6 +357,10 @@ Evaluates a scenario against asserted data without mutating run state. Validates
 ## `predicate`
 
 The predicate name to evaluate within a provider. Each provider exposes named predicates (e.g., 'get' for env, 'after' for time, 'status' for http). The predicate determines what the provider checks and what params it accepts. See providers.json for the complete predicate catalog per provider.
+
+## `predicates`
+
+List of predicate capability contracts exposed by the provider.
 
 ## `provider_id`
 
@@ -273,6 +385,14 @@ Requires providers to explicitly opt into raw disclosure via allow_raw in their 
 ## `requirement`
 
 The RET expression that a gate must satisfy. This field contains the root of a Requirement tree (And/Or/Not/RequireGroup/Predicate). The gate passes only when the entire tree evaluates to true. Design requirements to handle unknown outcomes explicitly via branching or RequireGroup thresholds.
+
+## `result`
+
+Example output value for a predicate invocation.
+
+## `result_schema`
+
+JSON Schema for predicate output values.
 
 ## `root`
 

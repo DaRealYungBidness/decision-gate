@@ -1,7 +1,8 @@
 # Copyright (c) 2026 Michael Campbell. All rights reserved.
 # Decision Gate Contract manifest (self-contained for stand-alone publishing)
 # ============================================================================
-# This manifest is intentionally strict and does not inherit workspace defaults.
+# Lint settings are defined here for standalone builds; workspace profiles
+# are owned by the workspace root when building inside the workspace.
 # ============================================================================
 
 [package]
@@ -13,13 +14,6 @@ rust-version = "1.92"
 [[bin]]
 name = "decision-gate-contract"
 path = "src/main.rs"
-
-[profile.release]
-opt-level = 3
-lto = "fat"
-codegen-units = 1
-incremental = false
-debug = false
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }

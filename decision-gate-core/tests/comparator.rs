@@ -196,12 +196,11 @@ fn comparator_greater_than_with_string_types_returns_unknown() {
 }
 
 #[test]
-fn comparator_greater_than_float_returns_unknown() {
-    // Implementation uses integer-only semantics; floats return Unknown
-    let evidence = result_with_json(json!(0.1 + 0.2));
+fn comparator_greater_than_decimal_returns_true() {
+    let evidence = result_with_json(json!(1.5));
     assert_eq!(
-        evaluate_comparator(Comparator::GreaterThan, Some(&json!(0.3)), &evidence),
-        TriState::Unknown
+        evaluate_comparator(Comparator::GreaterThan, Some(&json!(1.4)), &evidence),
+        TriState::True
     );
 }
 
@@ -395,6 +394,75 @@ fn comparator_contains_unicode_characters() {
     let evidence = result_with_json(json!("hello 世界"));
     assert_eq!(
         evaluate_comparator(Comparator::Contains, Some(&json!("世界")), &evidence),
+        TriState::True
+    );
+}
+
+// ============================================================================
+// SECTION: Lexicographic Comparators
+// ============================================================================
+
+#[test]
+fn comparator_lexicographic_ordering_on_strings() {
+    let evidence = result_with_json(json!("b"));
+    assert_eq!(
+        evaluate_comparator(Comparator::LexGreaterThan, Some(&json!("a")), &evidence),
+        TriState::True
+    );
+    assert_eq!(
+        evaluate_comparator(Comparator::LexLessThanOrEqual, Some(&json!("b")), &evidence),
+        TriState::True
+    );
+}
+
+// ============================================================================
+// SECTION: Deep Equality
+// ============================================================================
+
+#[test]
+fn comparator_deep_equals_objects() {
+    let evidence = result_with_json(json!({"a": 1, "b": [true, false]}));
+    assert_eq!(
+        evaluate_comparator(
+            Comparator::DeepEquals,
+            Some(&json!({"a": 1, "b": [true, false]})),
+            &evidence
+        ),
+        TriState::True
+    );
+}
+
+#[test]
+fn comparator_deep_not_equals_arrays() {
+    let evidence = result_with_json(json!([1, 2, 3]));
+    assert_eq!(
+        evaluate_comparator(Comparator::DeepNotEquals, Some(&json!([1, 2, 4])), &evidence),
+        TriState::True
+    );
+}
+
+// ============================================================================
+// SECTION: Temporal Ordering
+// ============================================================================
+
+#[test]
+fn comparator_orders_rfc3339_datetimes() {
+    let evidence = result_with_json(json!("2024-01-02T00:00:00Z"));
+    assert_eq!(
+        evaluate_comparator(
+            Comparator::GreaterThan,
+            Some(&json!("2024-01-01T23:00:00Z")),
+            &evidence
+        ),
+        TriState::True
+    );
+}
+
+#[test]
+fn comparator_orders_rfc3339_dates() {
+    let evidence = result_with_json(json!("2024-01-02"));
+    assert_eq!(
+        evaluate_comparator(Comparator::LessThan, Some(&json!("2024-01-03")), &evidence),
         TriState::True
     );
 }

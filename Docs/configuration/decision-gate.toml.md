@@ -68,6 +68,36 @@ default_policy = { require_signature = { keys = ["key1.pub"] } }
 | `allow_raw_values` | bool | `false` | Enables raw evidence disclosure. |
 | `require_provider_opt_in` | bool | `true` | Providers must opt in via `allow_raw`. |
 
+### `[validation]`
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `strict` | bool | `true` | Reject invalid comparator/type combos at scenario definition and precheck. |
+| `profile` | `"strict_core_v1"` | `strict_core_v1` | Strict comparator matrix/profile identifier. |
+| `allow_permissive` | bool | `false` | Required when `strict = false` (explicit footgun opt-in). |
+| `enable_lexicographic` | bool | `false` | Enables lexicographic comparator family (opt-in per schema). |
+| `enable_deep_equals` | bool | `false` | Enables deep equality comparator family (opt-in per schema). |
+
+Strict validation (default):
+```toml
+[validation]
+strict = true
+profile = "strict_core_v1"
+```
+
+Permissive validation (explicit opt-in):
+```toml
+[validation]
+strict = false
+allow_permissive = true
+```
+
+Optional comparator families:
+```toml
+[validation]
+enable_lexicographic = true
+enable_deep_equals = true
+```
+
 ### `[run_state_store]`
 | Field | Type | Default | Notes |
 | --- | --- | --- | --- |

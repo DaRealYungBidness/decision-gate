@@ -213,6 +213,70 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          exists/not_exists ignore expected.",
     ),
     (
+        "equals",
+        "True when evidence equals expected (numbers, strings, booleans, or JSON values).",
+    ),
+    (
+        "not_equals",
+        "True when evidence does not equal expected.",
+    ),
+    (
+        "greater_than",
+        "True when numeric evidence is greater than expected.",
+    ),
+    (
+        "greater_than_or_equal",
+        "True when numeric evidence is greater than or equal to expected.",
+    ),
+    (
+        "less_than",
+        "True when numeric evidence is less than expected.",
+    ),
+    (
+        "less_than_or_equal",
+        "True when numeric evidence is less than or equal to expected.",
+    ),
+    (
+        "lex_greater_than",
+        "Lexicographic string compare: true when evidence sorts after expected.",
+    ),
+    (
+        "lex_greater_than_or_equal",
+        "Lexicographic string compare: true when evidence sorts after or equals expected.",
+    ),
+    (
+        "lex_less_than",
+        "Lexicographic string compare: true when evidence sorts before expected.",
+    ),
+    (
+        "lex_less_than_or_equal",
+        "Lexicographic string compare: true when evidence sorts before or equals expected.",
+    ),
+    (
+        "contains",
+        "True when evidence (array or string) contains the expected value.",
+    ),
+    (
+        "in_set",
+        "True when evidence is contained in the expected array.",
+    ),
+    (
+        "deep_equals",
+        "Deep structural equality for JSON objects and arrays.",
+    ),
+    (
+        "deep_not_equals",
+        "Deep structural inequality for JSON objects and arrays.",
+    ),
+    (
+        "exists",
+        "True when evidence value is present. Expected is ignored.",
+    ),
+    (
+        "not_exists",
+        "True when evidence value is missing. Expected is ignored.",
+    ),
+    (
         "expected",
         "The target value compared against evidence output. Type must match the evidence type: \
          JSON values for equals/in_set, numbers for greater_than, arrays for in_set (evidence \
@@ -544,6 +608,65 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
         "Wrapper for tool request payloads. Used in MCP protocol messages. Contains the tool \
          name, parameters, and request metadata. Internal structure; most users interact via \
          higher-level scenario_* tools.",
+    ),
+    // =====================================================================
+    // CAPABILITY CONTRACTS
+    // =====================================================================
+    (
+        "name",
+        "Human-readable provider name shown in docs and UIs.",
+    ),
+    (
+        "description",
+        "Short summary describing provider behavior and intent.",
+    ),
+    (
+        "config_schema",
+        "JSON Schema validating provider configuration entries.",
+    ),
+    (
+        "notes",
+        "Optional notes about provider behavior or determinism.",
+    ),
+    (
+        "predicates",
+        "List of predicate capability contracts exposed by the provider.",
+    ),
+    (
+        "determinism",
+        "Predicate output stability: deterministic, time_dependent, or external.",
+    ),
+    (
+        "params_required",
+        "Whether EvidenceQuery.params must be supplied for this predicate.",
+    ),
+    (
+        "params_schema",
+        "JSON Schema for predicate params payloads.",
+    ),
+    (
+        "result_schema",
+        "JSON Schema for predicate output values.",
+    ),
+    (
+        "allowed_comparators",
+        "Allow-list of comparators valid for this predicate output.",
+    ),
+    (
+        "anchor_types",
+        "Anchor type strings that the predicate may emit.",
+    ),
+    (
+        "content_types",
+        "MIME types for evidence values returned by the predicate.",
+    ),
+    (
+        "examples",
+        "Example predicate invocations with params and results.",
+    ),
+    (
+        "result",
+        "Example output value for a predicate invocation.",
     ),
     // =====================================================================
     // PROVIDER CONFIGURATION

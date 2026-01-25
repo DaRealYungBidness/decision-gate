@@ -9,15 +9,22 @@
 //! ## Overview
 //! Comparator evaluation converts evidence results into tri-state outcomes.
 //! Missing or invalid evidence yields `Unknown` to preserve fail-closed
-//! behavior. Numeric ordering is integer-only; decimal values return `Unknown`.
+//! behavior. Numeric ordering is decimal-aware and deterministic.
 
 // ============================================================================
 // SECTION: Imports
 // ============================================================================
 
+use std::cmp::Ordering;
+use std::str::FromStr;
+
+use bigdecimal::BigDecimal;
 use ret_logic::TriState;
 use serde_json::Number;
 use serde_json::Value;
+use time::Date;
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 
 use crate::core::Comparator;
 use crate::core::EvidenceResult;
@@ -80,14 +87,20 @@ fn evaluate_json_comparator(
     };
 
     match comparator {
-        Comparator::Equals => TriState::from(evidence == expected),
-        Comparator::NotEquals => TriState::from(evidence != expected),
+        Comparator::Equals => compare_equals(evidence, expected),
+        Comparator::NotEquals => compare_not_equals(evidence, expected),
         Comparator::GreaterThan
         | Comparator::GreaterThanOrEqual
         | Comparator::LessThan
-        | Comparator::LessThanOrEqual => compare_numbers(comparator, evidence, expected),
+        | Comparator::LessThanOrEqual => compare_ordering(comparator, evidence, expected),
+        Comparator::LexGreaterThan
+        | Comparator::LexGreaterThanOrEqual
+        | Comparator::LexLessThan
+        | Comparator::LexLessThanOrEqual => compare_lexicographic(comparator, evidence, expected),
         Comparator::Contains => compare_contains(evidence, expected),
         Comparator::InSet => compare_in_set(evidence, expected),
+        Comparator::DeepEquals => compare_deep_equals(evidence, expected),
+        Comparator::DeepNotEquals => compare_deep_not_equals(evidence, expected),
         Comparator::Exists | Comparator::NotExists => TriState::Unknown,
     }
 }
@@ -130,28 +143,92 @@ fn evaluate_bytes_comparator(
     }
 }
 
-/// Compares numeric JSON values using the comparator.
-fn compare_numbers(comparator: Comparator, left: &Value, right: &Value) -> TriState {
-    let Some(left_num) = left.as_number() else {
-        return TriState::Unknown;
-    };
-    let Some(right_num) = right.as_number() else {
-        return TriState::Unknown;
-    };
+/// Compares JSON values for equality, with decimal-aware numeric handling.
+fn compare_equals(left: &Value, right: &Value) -> TriState {
+    match (left, right) {
+        (Value::Number(left_num), Value::Number(right_num)) => {
+            compare_decimal_equality(left_num, right_num, true)
+        }
+        _ => TriState::from(left == right),
+    }
+}
 
-    let Some(ordering) = numeric_cmp(left_num, right_num) else {
+/// Compares JSON values for inequality, with decimal-aware numeric handling.
+fn compare_not_equals(left: &Value, right: &Value) -> TriState {
+    match (left, right) {
+        (Value::Number(left_num), Value::Number(right_num)) => {
+            compare_decimal_equality(left_num, right_num, false)
+        }
+        _ => TriState::from(left != right),
+    }
+}
+
+/// Compares numeric or temporal JSON values using ordering comparators.
+fn compare_ordering(comparator: Comparator, left: &Value, right: &Value) -> TriState {
+    if let (Some(left_num), Some(right_num)) = (left.as_number(), right.as_number()) {
+        if let Some(ordering) = decimal_cmp(left_num, right_num) {
+            let result = match comparator {
+                Comparator::GreaterThan => ordering.is_gt(),
+                Comparator::GreaterThanOrEqual => ordering.is_ge(),
+                Comparator::LessThan => ordering.is_lt(),
+                Comparator::LessThanOrEqual => ordering.is_le(),
+                _ => return TriState::Unknown,
+            };
+            return TriState::from(result);
+        }
+        return TriState::Unknown;
+    }
+
+    if let (Value::String(left), Value::String(right)) = (left, right)
+        && let Some(ordering) = temporal_cmp(left, right)
+    {
+        let result = match comparator {
+            Comparator::GreaterThan => ordering.is_gt(),
+            Comparator::GreaterThanOrEqual => ordering.is_ge(),
+            Comparator::LessThan => ordering.is_lt(),
+            Comparator::LessThanOrEqual => ordering.is_le(),
+            _ => return TriState::Unknown,
+        };
+        return TriState::from(result);
+    }
+
+    TriState::Unknown
+}
+
+/// Compares string values using lexicographic ordering.
+fn compare_lexicographic(comparator: Comparator, left: &Value, right: &Value) -> TriState {
+    let (Value::String(left), Value::String(right)) = (left, right) else {
         return TriState::Unknown;
     };
-
+    let ordering = left.cmp(right);
     let result = match comparator {
-        Comparator::GreaterThan => ordering.is_gt(),
-        Comparator::GreaterThanOrEqual => ordering.is_ge(),
-        Comparator::LessThan => ordering.is_lt(),
-        Comparator::LessThanOrEqual => ordering.is_le(),
+        Comparator::LexGreaterThan => ordering.is_gt(),
+        Comparator::LexGreaterThanOrEqual => ordering.is_ge(),
+        Comparator::LexLessThan => ordering.is_lt(),
+        Comparator::LexLessThanOrEqual => ordering.is_le(),
         _ => return TriState::Unknown,
     };
-
     TriState::from(result)
+}
+
+/// Compares arrays/objects using deep structural equality.
+fn compare_deep_equals(left: &Value, right: &Value) -> TriState {
+    match (left, right) {
+        (Value::Array(_), Value::Array(_)) | (Value::Object(_), Value::Object(_)) => {
+            TriState::from(left == right)
+        }
+        _ => TriState::Unknown,
+    }
+}
+
+/// Compares arrays/objects using deep structural inequality.
+fn compare_deep_not_equals(left: &Value, right: &Value) -> TriState {
+    match (left, right) {
+        (Value::Array(_), Value::Array(_)) | (Value::Object(_), Value::Object(_)) => {
+            TriState::from(left != right)
+        }
+        _ => TriState::Unknown,
+    }
 }
 
 /// Evaluates containment semantics for JSON values.
@@ -176,45 +253,51 @@ fn compare_in_set(value: &Value, expected: &Value) -> TriState {
     }
 }
 
-/// Compares two JSON numbers using integer-only semantics.
-fn numeric_cmp(left: &Number, right: &Number) -> Option<std::cmp::Ordering> {
-    let left = integer_value(left)?;
-    let right = integer_value(right)?;
-
-    match (left, right) {
-        (IntegerValue::Signed(left), IntegerValue::Signed(right)) => Some(left.cmp(&right)),
-        (IntegerValue::Unsigned(left), IntegerValue::Unsigned(right)) => Some(left.cmp(&right)),
-        (IntegerValue::Signed(left), IntegerValue::Unsigned(right)) => {
-            if left < 0 {
-                Some(std::cmp::Ordering::Less)
-            } else {
-                let left = u64::try_from(left).ok()?;
-                Some(left.cmp(&right))
-            }
-        }
-        (IntegerValue::Unsigned(left), IntegerValue::Signed(right)) => {
-            if right < 0 {
-                Some(std::cmp::Ordering::Greater)
-            } else {
-                let right = u64::try_from(right).ok()?;
-                Some(left.cmp(&right))
-            }
-        }
-    }
+/// Compares numbers by parsing them into `BigDecimal` values.
+fn compare_decimal_equality(left: &Number, right: &Number, equals: bool) -> TriState {
+    let Some(left) = decimal_from_number(left) else {
+        return TriState::Unknown;
+    };
+    let Some(right) = decimal_from_number(right) else {
+        return TriState::Unknown;
+    };
+    TriState::from(if equals { left == right } else { left != right })
 }
 
-/// Integer representation of JSON numbers for deterministic comparison.
-enum IntegerValue {
-    /// Signed integer value.
-    Signed(i64),
-    /// Unsigned integer value.
-    Unsigned(u64),
+/// Orders numeric JSON values using decimal-aware comparison.
+fn decimal_cmp(left: &Number, right: &Number) -> Option<Ordering> {
+    let left = decimal_from_number(left)?;
+    let right = decimal_from_number(right)?;
+    Some(left.cmp(&right))
 }
 
-/// Extracts integer values and rejects decimals.
-fn integer_value(value: &Number) -> Option<IntegerValue> {
-    if let Some(value) = value.as_i64() {
-        return Some(IntegerValue::Signed(value));
+/// Parses a JSON number into `BigDecimal` with a stable string representation.
+fn decimal_from_number(number: &Number) -> Option<BigDecimal> {
+    let rendered = number.to_string();
+    BigDecimal::from_str(&rendered).ok()
+}
+
+/// Compares RFC3339 date-time or date-only strings.
+fn temporal_cmp(left: &str, right: &str) -> Option<Ordering> {
+    if let (Ok(left), Ok(right)) =
+        (OffsetDateTime::parse(left, &Rfc3339), OffsetDateTime::parse(right, &Rfc3339))
+    {
+        return Some(left.cmp(&right));
     }
-    value.as_u64().map(IntegerValue::Unsigned)
+    let left = parse_rfc3339_date(left)?;
+    let right = parse_rfc3339_date(right)?;
+    Some(left.cmp(&right))
+}
+
+/// Parses an RFC3339 date-only value (YYYY-MM-DD).
+fn parse_rfc3339_date(value: &str) -> Option<Date> {
+    let mut parts = value.split('-');
+    let year: i32 = parts.next()?.parse().ok()?;
+    let month: u8 = parts.next()?.parse().ok()?;
+    let day: u8 = parts.next()?.parse().ok()?;
+    if parts.next().is_some() {
+        return None;
+    }
+    let month = time::Month::try_from(month).ok()?;
+    Date::from_calendar_date(year, month, day).ok()
 }

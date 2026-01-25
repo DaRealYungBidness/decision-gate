@@ -390,18 +390,20 @@ fn http_provider_contract() -> ProviderContract {
 #[must_use]
 fn allowed_comparators_for_schema(schema: &Value) -> Vec<Comparator> {
     if let Some(options) = schema.get("oneOf").and_then(Value::as_array) {
-        let mut allowed = Vec::new();
-        for option in options {
-            merge_comparators(&mut allowed, allowed_comparators_for_schema(option));
-        }
-        return canonicalize_comparators(allowed);
+        return intersect_comparators(options);
     }
     if let Some(options) = schema.get("anyOf").and_then(Value::as_array) {
-        let mut allowed = Vec::new();
-        for option in options {
-            merge_comparators(&mut allowed, allowed_comparators_for_schema(option));
-        }
-        return canonicalize_comparators(allowed);
+        return intersect_comparators(options);
+    }
+
+    if let Some(values) = schema.get("enum").and_then(Value::as_array) && !values.is_empty() {
+        return canonicalize_comparators(vec![
+            Comparator::Equals,
+            Comparator::NotEquals,
+            Comparator::InSet,
+            Comparator::Exists,
+            Comparator::NotExists,
+        ]);
     }
 
     let mut allowed = Vec::new();
@@ -443,7 +445,7 @@ fn comparators_for_type(kind: &str) -> Vec<Comparator> {
             Comparator::Exists,
             Comparator::NotExists,
         ],
-        "string" | "array" => vec![
+        "string" => vec![
             Comparator::Equals,
             Comparator::NotEquals,
             Comparator::Contains,
@@ -451,14 +453,15 @@ fn comparators_for_type(kind: &str) -> Vec<Comparator> {
             Comparator::Exists,
             Comparator::NotExists,
         ],
-        "boolean" | "object" | "null" => {
-            vec![
-                Comparator::Equals,
-                Comparator::NotEquals,
-                Comparator::Exists,
-                Comparator::NotExists,
-            ]
-        }
+        "array" => vec![Comparator::Contains, Comparator::Exists, Comparator::NotExists],
+        "boolean" => vec![
+            Comparator::Equals,
+            Comparator::NotEquals,
+            Comparator::InSet,
+            Comparator::Exists,
+            Comparator::NotExists,
+        ],
+        "object" | "null" => vec![Comparator::Exists, Comparator::NotExists],
         _ => default_comparators(),
     }
 }
@@ -483,7 +486,7 @@ fn canonicalize_comparators(input: Vec<Comparator>) -> Vec<Comparator> {
 
 /// Returns the canonical comparator ordering.
 #[must_use]
-const fn comparator_order() -> [Comparator; 10] {
+const fn comparator_order() -> [Comparator; 16] {
     [
         Comparator::Equals,
         Comparator::NotEquals,
@@ -491,8 +494,14 @@ const fn comparator_order() -> [Comparator; 10] {
         Comparator::GreaterThanOrEqual,
         Comparator::LessThan,
         Comparator::LessThanOrEqual,
+        Comparator::LexGreaterThan,
+        Comparator::LexGreaterThanOrEqual,
+        Comparator::LexLessThan,
+        Comparator::LexLessThanOrEqual,
         Comparator::Contains,
         Comparator::InSet,
+        Comparator::DeepEquals,
+        Comparator::DeepNotEquals,
         Comparator::Exists,
         Comparator::NotExists,
     ]
@@ -525,11 +534,75 @@ const fn comparator_label(comparator: Comparator) -> &'static str {
         Comparator::GreaterThanOrEqual => "greater_than_or_equal",
         Comparator::LessThan => "less_than",
         Comparator::LessThanOrEqual => "less_than_or_equal",
+        Comparator::LexGreaterThan => "lex_greater_than",
+        Comparator::LexGreaterThanOrEqual => "lex_greater_than_or_equal",
+        Comparator::LexLessThan => "lex_less_than",
+        Comparator::LexLessThanOrEqual => "lex_less_than_or_equal",
         Comparator::Contains => "contains",
         Comparator::InSet => "in_set",
+        Comparator::DeepEquals => "deep_equals",
+        Comparator::DeepNotEquals => "deep_not_equals",
         Comparator::Exists => "exists",
         Comparator::NotExists => "not_exists",
     }
+}
+
+/// Intersects comparator lists across schema variants, ignoring null-only options.
+fn intersect_comparators(options: &[Value]) -> Vec<Comparator> {
+    let (non_null, null_only) = partition_null_variants(options);
+    let candidates = if non_null.is_empty() { null_only } else { non_null };
+    let mut iter = candidates.into_iter();
+    let Some(first) = iter.next() else {
+        return default_comparators();
+    };
+    let mut allowed = allowed_comparators_for_schema(first);
+    for option in iter {
+        let option_allowed = allowed_comparators_for_schema(option);
+        allowed.retain(|comparator| option_allowed.contains(comparator));
+    }
+    canonicalize_comparators(allowed)
+}
+
+/// Splits schema variants into null-only and non-null sets.
+fn partition_null_variants(options: &[Value]) -> (Vec<&Value>, Vec<&Value>) {
+    let mut non_null = Vec::new();
+    let mut null_only = Vec::new();
+    for option in options {
+        if is_null_schema(option) {
+            null_only.push(option);
+        } else {
+            non_null.push(option);
+        }
+    }
+    (non_null, null_only)
+}
+
+/// Returns true if a schema represents only null values.
+fn is_null_schema(schema: &Value) -> bool {
+    if let Some(values) = schema.get("enum").and_then(Value::as_array) {
+        return !values.is_empty() && values.iter().all(Value::is_null);
+    }
+    if let Some(schema_type) = schema.get("type") {
+        match schema_type {
+            Value::String(kind) => return kind == "null",
+            Value::Array(kinds) => {
+                let mut has_null = false;
+                let mut has_other = false;
+                for kind in kinds {
+                    if let Some(kind) = kind.as_str() {
+                        if kind == "null" {
+                            has_null = true;
+                        } else {
+                            has_other = true;
+                        }
+                    }
+                }
+                return has_null && !has_other;
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 /// Render a JSON value in a fenced markdown code block.

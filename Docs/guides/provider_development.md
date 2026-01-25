@@ -119,6 +119,15 @@ Provide precise JSON schemas for both params and results:
 - Result schemas should reflect actual value types returned in EvidenceResult.
 - Allowed comparators should be minimal and intentional for the data shape.
 
+Strict comparator validation is enforced by default:
+- Comparator allow-lists must be compatible with the result schema type or
+  scenario definition fails closed.
+- Lexicographic and deep-equality comparators are opt-in: the server must enable
+  them in `decision-gate.toml`, and the result schema must declare
+  `x-decision-gate.allowed_comparators`.
+- `in_set` requires `expected` to be an array of values that match the result
+  schema; `exists`/`not_exists` must omit `expected`.
+
 Include at least one example per predicate (params + result) to help authors
 build correct ScenarioSpec predicates.
 

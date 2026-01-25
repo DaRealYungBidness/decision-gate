@@ -93,9 +93,11 @@ use crate::capabilities::CapabilityError;
 use crate::capabilities::CapabilityRegistry;
 use crate::config::DispatchPolicy;
 use crate::config::EvidencePolicyConfig;
+use crate::config::ValidationConfig;
 use crate::evidence::FederatedEvidenceProvider;
 use crate::runpack::FileArtifactReader;
 use crate::runpack::FileArtifactSink;
+use crate::validation::StrictValidator;
 
 /// Default page size for list-style tools.
 const DEFAULT_LIST_LIMIT: usize = 50;
@@ -121,6 +123,8 @@ pub struct ToolRouter {
     store: SharedRunStateStore,
     /// Data shape registry for asserted schemas.
     schema_registry: SharedDataShapeRegistry,
+    /// Strict comparator validation.
+    validation: StrictValidator,
     /// Provider transport metadata for discovery.
     provider_transports: BTreeMap<String, ProviderTransport>,
     /// Limits for schema registration.
@@ -153,6 +157,8 @@ pub struct ToolRouterConfig {
     pub schema_registry_limits: SchemaRegistryLimits,
     /// Capability registry used for preflight validation.
     pub capabilities: Arc<CapabilityRegistry>,
+    /// Validation configuration for strict comparator enforcement.
+    pub validation: ValidationConfig,
     /// Authn/authz policy for tool calls.
     pub authz: Arc<dyn ToolAuthz>,
     /// Audit sink for auth decisions.
@@ -172,6 +178,7 @@ impl ToolRouter {
             dispatch_policy: config.dispatch_policy,
             store: config.store,
             schema_registry: config.schema_registry,
+            validation: StrictValidator::new(config.validation),
             provider_transports: config.provider_transports,
             schema_registry_limits: config.schema_registry_limits,
             capabilities: config.capabilities,
@@ -636,6 +643,9 @@ impl ToolRouter {
         }
 
         self.capabilities.validate_spec(&request.spec).map_err(ToolError::from)?;
+        self.validation
+            .validate_spec(&request.spec, &self.capabilities)
+            .map_err(|err| ToolError::InvalidParams(err.to_string()))?;
 
         let store = self.store.clone();
         let dispatcher = McpDispatcher::new(DEFAULT_HASH_ALGORITHM);
@@ -1006,6 +1016,10 @@ impl ToolRouter {
             ));
         }
 
+        self.validation
+            .validate_precheck(&spec, &record.schema)
+            .map_err(|err| ToolError::InvalidParams(err.to_string()))?;
+
         let evidence = build_asserted_evidence(&spec, &request.payload)?;
         let core_request = CorePrecheckRequest {
             stage_id: request.stage_id.clone(),
@@ -1122,8 +1136,8 @@ impl decision_gate_core::PolicyDecider for DispatchPolicy {
         _payload: &PacketPayload,
     ) -> Result<decision_gate_core::PolicyDecision, decision_gate_core::PolicyError> {
         match self {
-            DispatchPolicy::PermitAll => Ok(decision_gate_core::PolicyDecision::Permit),
-            DispatchPolicy::DenyAll => Ok(decision_gate_core::PolicyDecision::Deny),
+            Self::PermitAll => Ok(decision_gate_core::PolicyDecision::Permit),
+            Self::DenyAll => Ok(decision_gate_core::PolicyDecision::Deny),
         }
     }
 }

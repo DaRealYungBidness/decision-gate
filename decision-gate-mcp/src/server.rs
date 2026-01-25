@@ -159,6 +159,7 @@ impl McpServer {
         let router = ToolRouter::new(ToolRouterConfig {
             evidence,
             evidence_policy: config.evidence.clone(),
+            validation: config.validation.clone(),
             dispatch_policy: config.policy.dispatch.clone(),
             store,
             schema_registry,
@@ -744,7 +745,6 @@ struct McpRequestInfo {
     /// Tool name when available.
     tool: Option<ToolName>,
 }
-
 
 /// Dispatches a JSON-RPC request to the tool router.
 fn handle_request(
@@ -1375,6 +1375,7 @@ mod tests {
     use crate::config::ServerConfig;
     use crate::config::ServerTransport;
     use crate::config::TrustConfig;
+    use crate::config::ValidationConfig;
     use crate::evidence::FederatedEvidenceProvider;
     use crate::telemetry::McpMethod;
     use crate::telemetry::McpMetricEvent;
@@ -1415,6 +1416,7 @@ mod tests {
             server: ServerConfig::default(),
             trust: TrustConfig::default(),
             evidence: EvidencePolicyConfig::default(),
+            validation: ValidationConfig::default(),
             policy: PolicyConfig::default(),
             run_state_store: RunStateStoreConfig::default(),
             schema_registry: SchemaRegistryConfig::default(),
@@ -1436,6 +1438,7 @@ mod tests {
         ToolRouter::new(ToolRouterConfig {
             evidence,
             evidence_policy: config.evidence.clone(),
+            validation: config.validation.clone(),
             dispatch_policy: config.policy.dispatch.clone(),
             store,
             schema_registry,
