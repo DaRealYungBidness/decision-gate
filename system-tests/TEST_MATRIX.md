@@ -32,6 +32,7 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | --- | --- | --- |
 | `http_transport_end_to_end` | mcp_transport | HTTP JSON-RPC transport works end-to-end. |
 | `federated_provider_echo` | providers | External MCP provider integration works. |
+| `assetcore_interop_fixtures` | providers | AssetCore interop fixture map executes via provider stub. |
 | `packet_disclosure_visibility` | security | Packet visibility labels and policy tags persist. |
 | `strict_mode_rejects_default_namespace` | security | Strict mode rejects default namespace. |
 | `dev_permissive_emits_warning` | operations | Dev-permissive mode emits explicit warning. |

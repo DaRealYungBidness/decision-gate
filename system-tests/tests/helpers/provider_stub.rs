@@ -19,6 +19,7 @@ use decision_gate_core::TrustLane;
 use decision_gate_mcp::tools::EvidenceQueryRequest;
 use serde::Deserialize;
 use serde::Serialize;
+use serde_json::Map;
 use serde_json::Value;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
@@ -27,8 +28,22 @@ use super::harness::allocate_bind_addr;
 
 #[derive(Clone)]
 struct ProviderState {
-    response_value: Value,
+    response: ProviderResponse,
     response_delay: Duration,
+}
+
+#[derive(Clone)]
+enum ProviderResponse {
+    Fixed(Value),
+    Fixtures(Vec<ProviderFixture>),
+}
+
+/// Fixture describing a predicate response for a specific parameter set.
+#[derive(Clone, Debug)]
+pub struct ProviderFixture {
+    pub predicate: String,
+    pub params: Value,
+    pub result: Value,
 }
 
 /// Handle for the stub MCP provider server.
@@ -60,9 +75,27 @@ pub async fn spawn_provider_stub_with_delay(
     response_value: Value,
     response_delay: Duration,
 ) -> Result<ProviderStubHandle, String> {
+    spawn_provider_stub_with_response(ProviderResponse::Fixed(response_value), response_delay).await
+}
+
+/// Spawn a stub MCP provider that returns responses based on fixtures.
+pub async fn spawn_provider_fixture_stub(
+    fixtures: Vec<ProviderFixture>,
+) -> Result<ProviderStubHandle, String> {
+    spawn_provider_stub_with_response(
+        ProviderResponse::Fixtures(fixtures),
+        Duration::from_millis(0),
+    )
+    .await
+}
+
+async fn spawn_provider_stub_with_response(
+    response: ProviderResponse,
+    response_delay: Duration,
+) -> Result<ProviderStubHandle, String> {
     let addr = allocate_bind_addr()?;
     let state = ProviderState {
-        response_value,
+        response,
         response_delay,
     };
     let app = Router::new().route("/rpc", post(handle_rpc)).with_state(state);
@@ -170,8 +203,33 @@ fn handle_request(state: &ProviderState, request: JsonRpcRequest) -> JsonRpcResp
                             }),
                         };
                     }
+                    let parsed = parsed.expect("checked is_err");
+                    let response_value = match &state.response {
+                        ProviderResponse::Fixed(value) => value.clone(),
+                        ProviderResponse::Fixtures(fixtures) => {
+                            let predicate = &parsed.query.predicate;
+                            let params = normalize_params(parsed.query.params.clone());
+                            let fixture = fixtures.iter().find(|fixture| {
+                                fixture.predicate == *predicate && fixture.params == params
+                            });
+                            match fixture {
+                                Some(fixture) => fixture.result.clone(),
+                                None => {
+                                    return JsonRpcResponse {
+                                        jsonrpc: "2.0",
+                                        id: request.id,
+                                        result: None,
+                                        error: Some(JsonRpcError {
+                                            code: -32602,
+                                            message: "no matching fixture".to_string(),
+                                        }),
+                                    };
+                                }
+                            }
+                        }
+                    };
                     let result = EvidenceResult {
-                        value: Some(EvidenceValue::Json(state.response_value.clone())),
+                        value: Some(EvidenceValue::Json(response_value)),
                         lane: TrustLane::Verified,
                         evidence_hash: None,
                         evidence_ref: None,
@@ -214,4 +272,8 @@ fn handle_request(state: &ProviderState, request: JsonRpcRequest) -> JsonRpcResp
             }),
         },
     }
+}
+
+fn normalize_params(params: Option<Value>) -> Value {
+    params.unwrap_or_else(|| Value::Object(Map::new()))
 }

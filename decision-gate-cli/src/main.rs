@@ -13,6 +13,12 @@
 //! untrusted and must be validated; see `Docs/security/threat_model.md`.
 
 // ============================================================================
+// SECTION: Modules
+// ============================================================================
+
+mod interop;
+
+// ============================================================================
 // SECTION: Imports
 // ============================================================================
 
@@ -22,6 +28,7 @@ use std::net::SocketAddr;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
@@ -36,10 +43,13 @@ use decision_gate_contract::AuthoringError;
 use decision_gate_contract::AuthoringFormat;
 use decision_gate_contract::authoring;
 use decision_gate_core::HashAlgorithm;
+use decision_gate_core::RunConfig;
 use decision_gate_core::RunState;
+use decision_gate_core::RunStatus;
 use decision_gate_core::RunpackManifest;
 use decision_gate_core::ScenarioSpec;
 use decision_gate_core::Timestamp;
+use decision_gate_core::TriggerEvent;
 use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
 use decision_gate_core::runtime::MAX_RUNPACK_ARTIFACT_BYTES;
 use decision_gate_core::runtime::RunpackBuilder;
@@ -51,6 +61,9 @@ use decision_gate_mcp::FileArtifactReader;
 use decision_gate_mcp::FileArtifactSink;
 use decision_gate_mcp::McpServer;
 use decision_gate_mcp::config::ServerTransport;
+use interop::InteropConfig;
+use interop::run_interop;
+use interop::validate_inputs;
 use serde::de::DeserializeOwned;
 use thiserror::Error;
 
@@ -66,6 +79,12 @@ const MAX_RUN_STATE_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES * 8;
 const MAX_MANIFEST_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;
 /// Maximum size of an authoring input payload.
 const MAX_AUTHORING_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;
+/// Maximum size of interop scenario spec inputs.
+const MAX_INTEROP_SPEC_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;
+/// Maximum size of interop run config inputs.
+const MAX_INTEROP_RUN_CONFIG_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;
+/// Maximum size of interop trigger inputs.
+const MAX_INTEROP_TRIGGER_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;
 
 // ============================================================================
 // SECTION: CLI Types
@@ -106,6 +125,12 @@ enum Commands {
         #[command(subcommand)]
         command: ConfigCommand,
     },
+    /// Interop evaluation utilities.
+    Interop {
+        /// Selected interop subcommand.
+        #[command(subcommand)]
+        command: InteropCommand,
+    },
 }
 
 /// Configuration for the `serve` command.
@@ -139,6 +164,71 @@ enum AuthoringCommand {
 enum ConfigCommand {
     /// Validate a Decision Gate configuration file.
     Validate(ConfigValidateCommand),
+}
+
+/// Interop subcommands.
+#[derive(Subcommand, Debug)]
+enum InteropCommand {
+    /// Execute an interop evaluation against an MCP server.
+    Eval(InteropEvalCommand),
+}
+
+/// Expected run status for interop evaluation.
+#[derive(ValueEnum, Copy, Clone, Debug)]
+enum ExpectedRunStatusArg {
+    /// Run remains active.
+    Active,
+    /// Run completes successfully.
+    Completed,
+    /// Run fails.
+    Failed,
+}
+
+/// Arguments for interop evaluation.
+#[derive(Args, Debug)]
+struct InteropEvalCommand {
+    /// MCP HTTP JSON-RPC base URL (e.g., http://127.0.0.1:8088/rpc).
+    #[arg(long, value_name = "URL")]
+    mcp_url: String,
+    /// Path to the scenario spec JSON file.
+    #[arg(long, value_name = "PATH")]
+    spec: PathBuf,
+    /// Path to the run config JSON file.
+    #[arg(long, value_name = "PATH")]
+    run_config: PathBuf,
+    /// Path to the trigger event JSON file.
+    #[arg(long, value_name = "PATH")]
+    trigger: PathBuf,
+    /// Timestamp for scenario start (unix milliseconds).
+    #[arg(long, value_name = "UNIX_MS", conflicts_with = "started_at_logical")]
+    started_at_unix_ms: Option<i64>,
+    /// Timestamp for scenario start (logical).
+    #[arg(long, value_name = "LOGICAL", conflicts_with = "started_at_unix_ms")]
+    started_at_logical: Option<u64>,
+    /// Timestamp for status request (unix milliseconds).
+    #[arg(long, value_name = "UNIX_MS", conflicts_with = "status_requested_at_logical")]
+    status_requested_at_unix_ms: Option<i64>,
+    /// Timestamp for status request (logical).
+    #[arg(long, value_name = "LOGICAL", conflicts_with = "status_requested_at_unix_ms")]
+    status_requested_at_logical: Option<u64>,
+    /// Issue entry packets immediately on scenario start.
+    #[arg(long, action = ArgAction::SetTrue)]
+    issue_entry_packets: bool,
+    /// Expected run status for exit code evaluation.
+    #[arg(long, value_enum, value_name = "STATUS")]
+    expect_status: Option<ExpectedRunStatusArg>,
+    /// Optional bearer token for MCP authentication.
+    #[arg(long, value_name = "TOKEN")]
+    bearer_token: Option<String>,
+    /// Optional client subject header for mTLS proxy auth.
+    #[arg(long, value_name = "SUBJECT")]
+    client_subject: Option<String>,
+    /// MCP request timeout in milliseconds.
+    #[arg(long, value_name = "MS", default_value_t = 5_000)]
+    timeout_ms: u64,
+    /// Optional output path for the interop report (defaults to stdout).
+    #[arg(long, value_name = "PATH")]
+    output: Option<PathBuf>,
 }
 
 /// Supported authoring formats for `ScenarioSpec` inputs.
@@ -293,6 +383,9 @@ async fn run() -> CliResult<ExitCode> {
         Commands::Config {
             command,
         } => command_config(command),
+        Commands::Interop {
+            command,
+        } => command_interop(command).await,
     }
 }
 
@@ -393,6 +486,91 @@ fn command_config_validate(command: &ConfigValidateCommand) -> CliResult<ExitCod
         .map_err(|err| CliError::new(t!("config.load_failed", error = err)))?;
     write_stdout_line(&t!("config.validate.ok"))
         .map_err(|err| CliError::new(output_error("stdout", &err)))?;
+    Ok(ExitCode::SUCCESS)
+}
+
+// ============================================================================
+// SECTION: Interop Commands
+// ============================================================================
+
+/// Dispatches interop subcommands.
+async fn command_interop(command: InteropCommand) -> CliResult<ExitCode> {
+    match command {
+        InteropCommand::Eval(command) => command_interop_eval(command).await,
+    }
+}
+
+/// Executes the interop evaluation command.
+async fn command_interop_eval(command: InteropEvalCommand) -> CliResult<ExitCode> {
+    let spec_label = t!("interop.kind.spec");
+    let run_config_label = t!("interop.kind.run_config");
+    let trigger_label = t!("interop.kind.trigger");
+
+    let spec: ScenarioSpec = read_interop_json(&command.spec, &spec_label, MAX_INTEROP_SPEC_BYTES)?;
+    spec.validate().map_err(|err| {
+        CliError::new(t!("interop.spec_failed", path = command.spec.display(), error = err))
+    })?;
+    let run_config: RunConfig =
+        read_interop_json(&command.run_config, &run_config_label, MAX_INTEROP_RUN_CONFIG_BYTES)?;
+    let trigger: TriggerEvent =
+        read_interop_json(&command.trigger, &trigger_label, MAX_INTEROP_TRIGGER_BYTES)?;
+
+    validate_inputs(&spec, &run_config, &trigger)
+        .map_err(|err| CliError::new(t!("interop.input_invalid", error = err)))?;
+
+    let started_at = resolve_interop_timestamp(
+        command.started_at_unix_ms,
+        command.started_at_logical,
+        trigger.time,
+        "started_at",
+    )?;
+    let status_requested_at = resolve_interop_timestamp(
+        command.status_requested_at_unix_ms,
+        command.status_requested_at_logical,
+        trigger.time,
+        "status_requested_at",
+    )?;
+
+    let timeout = Duration::from_millis(command.timeout_ms);
+    let report = run_interop(InteropConfig {
+        mcp_url: command.mcp_url,
+        spec,
+        run_config,
+        trigger,
+        started_at,
+        status_requested_at,
+        issue_entry_packets: command.issue_entry_packets,
+        bearer_token: command.bearer_token,
+        client_subject: command.client_subject,
+        timeout,
+    })
+    .await
+    .map_err(|err| CliError::new(t!("interop.execution_failed", error = err)))?;
+
+    let mut report_bytes = serde_jcs::to_vec(&report)
+        .map_err(|err| CliError::new(t!("interop.report.serialize_failed", error = err)))?;
+    report_bytes.push(b'\n');
+
+    if let Some(output) = &command.output {
+        fs::write(output, &report_bytes).map_err(|err| {
+            CliError::new(t!("interop.report.write_failed", path = output.display(), error = err))
+        })?;
+    } else {
+        write_stdout_bytes(&report_bytes)
+            .map_err(|err| CliError::new(output_error("stdout", &err)))?;
+    }
+
+    if let Some(expected) = command.expect_status {
+        let expected_status = run_status_from_arg(expected);
+        if report.status.status != expected_status {
+            return Err(CliError::new(t!(
+                "interop.expect_status_mismatch",
+                expected = format_run_status(expected_status),
+                actual = format_run_status(report.status.status)
+            )));
+        }
+    }
+
     Ok(ExitCode::SUCCESS)
 }
 
@@ -584,6 +762,35 @@ fn read_export_json<T: DeserializeOwned>(
     })
 }
 
+/// Reads a JSON file for interop inputs.
+fn read_interop_json<T: DeserializeOwned>(
+    path: &Path,
+    kind: &str,
+    max_bytes: usize,
+) -> CliResult<T> {
+    let bytes = read_bytes_with_limit(path, max_bytes).map_err(|err| match err {
+        ReadLimitError::Io(err) => CliError::new(t!(
+            "interop.read_failed",
+            kind = kind,
+            path = path.display(),
+            error = err
+        )),
+        ReadLimitError::TooLarge {
+            size,
+            limit,
+        } => CliError::new(t!(
+            "input.read_too_large",
+            kind = kind,
+            path = path.display(),
+            size = size,
+            limit = limit
+        )),
+    })?;
+    serde_json::from_slice(&bytes).map_err(|err| {
+        CliError::new(t!("interop.parse_failed", kind = kind, path = path.display(), error = err))
+    })
+}
+
 /// Reads a JSON manifest file for runpack verification.
 fn read_manifest_json<T: DeserializeOwned>(path: &Path, max_bytes: usize) -> CliResult<T> {
     let bytes = read_bytes_with_limit(path, max_bytes).map_err(|err| match err {
@@ -690,6 +897,44 @@ fn format_verification_status(status: VerificationStatus) -> String {
     match status {
         VerificationStatus::Pass => t!("runpack.verify.status.pass"),
         VerificationStatus::Fail => t!("runpack.verify.status.fail"),
+    }
+}
+
+/// Resolves an interop timestamp from CLI inputs and fallback values.
+fn resolve_interop_timestamp(
+    unix_ms: Option<i64>,
+    logical: Option<u64>,
+    fallback: Timestamp,
+    label: &str,
+) -> CliResult<Timestamp> {
+    match (unix_ms, logical) {
+        (Some(_), Some(_)) => Err(CliError::new(t!("interop.timestamp.conflict", label = label))),
+        (Some(value), None) => {
+            if value < 0 {
+                return Err(CliError::new(t!("interop.timestamp.negative", label = label)));
+            }
+            Ok(Timestamp::UnixMillis(value))
+        }
+        (None, Some(value)) => Ok(Timestamp::Logical(value)),
+        (None, None) => Ok(fallback),
+    }
+}
+
+/// Maps CLI run status selections to core run status values.
+fn run_status_from_arg(status: ExpectedRunStatusArg) -> RunStatus {
+    match status {
+        ExpectedRunStatusArg::Active => RunStatus::Active,
+        ExpectedRunStatusArg::Completed => RunStatus::Completed,
+        ExpectedRunStatusArg::Failed => RunStatus::Failed,
+    }
+}
+
+/// Formats run status values for interop output.
+fn format_run_status(status: RunStatus) -> String {
+    match status {
+        RunStatus::Active => t!("interop.status.active"),
+        RunStatus::Completed => t!("interop.status.completed"),
+        RunStatus::Failed => t!("interop.status.failed"),
     }
 }
 

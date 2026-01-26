@@ -1,0 +1,280 @@
+{
+  "commit_request": {
+    "actor_id": "assetcore-interop",
+    "idempotency_key": "assetcore-interop-seed",
+    "metadata": {
+      "purpose": "decision-gate interop seed",
+      "scenario_id": "assetcore-interop-full"
+    },
+    "operations": [
+      {
+        "args": {
+          "request": {
+            "behavior": {
+              "balance_scale": 1000
+            },
+            "class_id": "gold",
+            "flags": 2,
+            "name": "Gold"
+          }
+        },
+        "op": "RegisterClass"
+      },
+      {
+        "args": {
+          "request": {
+            "class_id": "widget",
+            "flags": 2,
+            "name": "Widget"
+          }
+        },
+        "op": "RegisterClass"
+      },
+      {
+        "args": {
+          "request": {
+            "class_id": "medkit",
+            "flags": 2,
+            "name": "Medkit"
+          }
+        },
+        "op": "RegisterClass"
+      },
+      {
+        "args": {
+          "request": {
+            "class_id": "robot",
+            "flags": 2,
+            "name": "Robot"
+          }
+        },
+        "op": "RegisterClass"
+      },
+      {
+        "args": {
+          "request": {
+            "class_id": "sword",
+            "flags": 2,
+            "name": "Sword"
+          }
+        },
+        "op": "RegisterClass"
+      },
+      {
+        "args": {
+          "request": {
+            "class_id": "helmet",
+            "flags": 2,
+            "name": "Helmet"
+          }
+        },
+        "op": "RegisterClass"
+      },
+      {
+        "args": {
+          "request": {
+            "class_id": "widget",
+            "shape": {
+              "height": 1,
+              "width": 1
+            }
+          }
+        },
+        "op": "RegisterClassShape"
+      },
+      {
+        "args": {
+          "request": {
+            "class_id": "medkit",
+            "shape": {
+              "height": 1,
+              "width": 1
+            }
+          }
+        },
+        "op": "RegisterClassShape"
+      },
+      {
+        "args": {
+          "request": {
+            "class_id": "robot",
+            "shape": {
+              "height": 1,
+              "width": 1
+            }
+          }
+        },
+        "op": "RegisterClassShape"
+      },
+      {
+        "args": {
+          "request": {
+            "class_id": "sword",
+            "shape": {
+              "height": 1,
+              "width": 1
+            }
+          }
+        },
+        "op": "RegisterClassShape"
+      },
+      {
+        "args": {
+          "request": {
+            "class_id": "helmet",
+            "shape": {
+              "height": 1,
+              "width": 1
+            }
+          }
+        },
+        "op": "RegisterClassShape"
+      },
+      {
+        "args": {
+          "external_id": "vault-001",
+          "kind": {
+            "quantization_inv": 1000,
+            "type": "balance"
+          }
+        },
+        "op": "CreateContainer"
+      },
+      {
+        "args": {
+          "external_id": "belt-01",
+          "kind": {
+            "capacity": 10,
+            "type": "grid"
+          }
+        },
+        "op": "CreateContainer"
+      },
+      {
+        "args": {
+          "external_id": "grid-007",
+          "kind": {
+            "capacity": 25,
+            "grid_width": 5,
+            "type": "grid"
+          }
+        },
+        "op": "CreateContainer"
+      },
+      {
+        "args": {
+          "external_id": "slots-gear",
+          "kind": {
+            "count": 8,
+            "type": "slots"
+          }
+        },
+        "op": "CreateContainer"
+      },
+      {
+        "args": {
+          "external_id": "line-01",
+          "kind": {
+            "max_x": 10000,
+            "min_x": 0,
+            "quantization_inv": 1000,
+            "type": "continuous_line_1d"
+          }
+        },
+        "op": "CreateContainer"
+      },
+      {
+        "args": {
+          "external_id": "floor-01",
+          "kind": {
+            "max_x": 10000,
+            "max_y": 8000,
+            "min_x": 0,
+            "min_y": 0,
+            "quantization_inv": 1000,
+            "type": "continuous_grid_2d"
+          }
+        },
+        "op": "CreateContainer"
+      },
+      {
+        "args": {
+          "class_id": "gold",
+          "key": null,
+          "location": {
+            "container_id": "vault-001",
+            "kind": "balance"
+          },
+          "quantity": "150"
+        },
+        "op": "AddFungible"
+      },
+      {
+        "args": {
+          "class_id": "widget",
+          "key": null,
+          "location": {
+            "container_id": "belt-01",
+            "kind": "grid_cell",
+            "position": 4,
+            "rotation": "none"
+          },
+          "quantity": "12"
+        },
+        "op": "AddFungible"
+      },
+      {
+        "args": {
+          "class_id": "medkit",
+          "key": null,
+          "location": {
+            "container_id": "grid-007",
+            "kind": "grid_cell",
+            "position": 9,
+            "rotation": "none"
+          },
+          "quantity": "12"
+        },
+        "op": "AddFungible"
+      },
+      {
+        "args": {
+          "class_id": "robot",
+          "key": null,
+          "location": {
+            "container_id": "belt-01",
+            "kind": "grid_cell",
+            "position": 3
+          }
+        },
+        "op": "AddInstance"
+      },
+      {
+        "args": {
+          "class_id": "sword",
+          "key": null,
+          "location": {
+            "container_id": "grid-007",
+            "kind": "grid_cell",
+            "position": 1
+          }
+        },
+        "op": "AddInstance"
+      },
+      {
+        "args": {
+          "class_id": "helmet",
+          "key": null,
+          "location": {
+            "container_id": "slots-gear",
+            "kind": "slot",
+            "slot_index": 1
+          }
+        },
+        "op": "AddInstance"
+      }
+    ]
+  },
+  "namespace_id": 1,
+  "plan_version": "v1"
+}

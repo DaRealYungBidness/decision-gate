@@ -1,0 +1,1182 @@
+{
+  "config_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "auth_token": {
+        "description": "Optional bearer token for authenticated reads.",
+        "type": "string"
+      },
+      "base_url": {
+        "description": "AssetCore read base URL.",
+        "type": "string"
+      },
+      "namespace_id": {
+        "description": "AssetCore namespace identifier.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "base_url",
+      "namespace_id"
+    ],
+    "type": "object"
+  },
+  "description": "AssetCore is a deterministic structured memory substrate. It stores all world state explicitly in containers and modifies that state through atomic, replayable transactions. Read structured memory projections for Decision Gate predicates that reflect container topology, fixed-point quantities, and deterministic geometry.",
+  "name": "AssetCore Read",
+  "notes": [
+    "Generated from AssetCore invariance metadata; do not edit by hand.",
+    "Scaled integer values use container_quantization_inv for unit conversion."
+  ],
+  "predicates": [
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return the container kind for a container id.",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Classify a container by topology.",
+          "params": {
+            "container_id": "vault-001"
+          },
+          "result": "balance"
+        }
+      ],
+      "name": "container_kind",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "container_id"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "enum": [
+          "balance",
+          "grid1d",
+          "grid2d",
+          "continuous_line_1d",
+          "continuous_grid_2d",
+          "slots"
+        ],
+        "type": "string"
+      }
+    },
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "greater_than",
+        "greater_than_or_equal",
+        "less_than",
+        "less_than_or_equal",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return the fixed-point scale (units per 1.0) for a container.",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Read a container quantization scale.",
+          "params": {
+            "container_id": "vault-001"
+          },
+          "result": 1000
+        }
+      ],
+      "name": "container_quantization_inv",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "container_id"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "type": "integer"
+      }
+    },
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "greater_than",
+        "greater_than_or_equal",
+        "less_than",
+        "less_than_or_equal",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return a balance quantity as a scaled integer.",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Scaled balance amount (quantization_inv=1000).",
+          "params": {
+            "class_id": "gold",
+            "container_id": "vault-001"
+          },
+          "result": 150000
+        }
+      ],
+      "name": "balance_amount_scaled",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "class_id": {
+            "description": "External class identifier.",
+            "type": "string"
+          },
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          },
+          "stack_key": {
+            "description": "Optional stack key for fungible variants.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "container_id",
+          "class_id"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "type": "integer"
+      }
+    },
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "greater_than",
+        "greater_than_or_equal",
+        "less_than",
+        "less_than_or_equal",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return slot count for a slots container.",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Read slot count for a slots container.",
+          "params": {
+            "container_id": "slots-gear"
+          },
+          "result": 8
+        }
+      ],
+      "name": "slot_count",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "container_id"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "type": "integer"
+      }
+    },
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return true if a slot is occupied.",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Check whether a slot is occupied.",
+          "params": {
+            "container_id": "slots-gear",
+            "slot_index": 1
+          },
+          "result": true
+        }
+      ],
+      "name": "slot_occupied",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          },
+          "slot_index": {
+            "description": "1-based slot index.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "container_id",
+          "slot_index"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "type": "boolean"
+      }
+    },
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return true if a slot holds an instance of a class.",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Check whether a slot holds a specific class.",
+          "params": {
+            "class_id": "helmet",
+            "container_id": "slots-gear",
+            "slot_index": 1
+          },
+          "result": true
+        }
+      ],
+      "name": "slot_instance_is_class",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "class_id": {
+            "description": "External class identifier.",
+            "type": "string"
+          },
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          },
+          "slot_index": {
+            "description": "1-based slot index.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "container_id",
+          "class_id",
+          "slot_index"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "type": "boolean"
+      }
+    },
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "greater_than",
+        "greater_than_or_equal",
+        "less_than",
+        "less_than_or_equal",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return grid capacity in addressable cells.",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Read a grid container capacity.",
+          "params": {
+            "container_id": "grid-007"
+          },
+          "result": 25
+        }
+      ],
+      "name": "grid_capacity",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "container_id"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "type": "integer"
+      }
+    },
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "greater_than",
+        "greater_than_or_equal",
+        "less_than",
+        "less_than_or_equal",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return stack quantity at a 1D grid position.",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Read stack quantity at a 1D grid position.",
+          "params": {
+            "class_id": "widget",
+            "container_id": "belt-01",
+            "x": 4
+          },
+          "result": 12
+        }
+      ],
+      "name": "grid1d_cell_stack_qty",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "class_id": {
+            "description": "External class identifier.",
+            "type": "string"
+          },
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          },
+          "stack_key": {
+            "description": "Optional stack key for fungible variants.",
+            "type": "string"
+          },
+          "x": {
+            "description": "1-based grid coordinate along the X axis.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "container_id",
+          "class_id",
+          "x"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "type": "integer"
+      }
+    },
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return true if an instance occupies a 1D grid position.",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Check for an instance at a 1D grid position.",
+          "params": {
+            "container_id": "belt-01",
+            "x": 3
+          },
+          "result": true
+        }
+      ],
+      "name": "grid1d_cell_instance_present",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          },
+          "x": {
+            "description": "1-based grid coordinate along the X axis.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "container_id",
+          "x"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "type": "boolean"
+      }
+    },
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return true if a class instance occupies a 1D grid position.",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Check for an instance of a class at a 1D grid position.",
+          "params": {
+            "class_id": "robot",
+            "container_id": "belt-01",
+            "x": 3
+          },
+          "result": true
+        }
+      ],
+      "name": "grid1d_cell_instance_is_class",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "class_id": {
+            "description": "External class identifier.",
+            "type": "string"
+          },
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          },
+          "x": {
+            "description": "1-based grid coordinate along the X axis.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "container_id",
+          "class_id",
+          "x"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "type": "boolean"
+      }
+    },
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "greater_than",
+        "greater_than_or_equal",
+        "less_than",
+        "less_than_or_equal",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return grid width for 2D containers.",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Read grid width for a 2D container.",
+          "params": {
+            "container_id": "grid-007"
+          },
+          "result": 5
+        }
+      ],
+      "name": "grid_width",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "container_id"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "type": "integer"
+      }
+    },
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "greater_than",
+        "greater_than_or_equal",
+        "less_than",
+        "less_than_or_equal",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return stack quantity at a 2D grid position.",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Read stack quantity at a 2D grid position.",
+          "params": {
+            "class_id": "medkit",
+            "container_id": "grid-007",
+            "x": 4,
+            "y": 2
+          },
+          "result": 12
+        }
+      ],
+      "name": "grid2d_cell_stack_qty",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "class_id": {
+            "description": "External class identifier.",
+            "type": "string"
+          },
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          },
+          "stack_key": {
+            "description": "Optional stack key for fungible variants.",
+            "type": "string"
+          },
+          "x": {
+            "description": "1-based grid coordinate along the X axis.",
+            "type": "integer"
+          },
+          "y": {
+            "description": "1-based grid coordinate along the Y axis.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "container_id",
+          "class_id",
+          "x",
+          "y"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "type": "integer"
+      }
+    },
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return true if an instance occupies a 2D grid position.",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Check for an instance at a 2D grid position.",
+          "params": {
+            "container_id": "grid-007",
+            "x": 1,
+            "y": 1
+          },
+          "result": true
+        }
+      ],
+      "name": "grid2d_cell_instance_present",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          },
+          "x": {
+            "description": "1-based grid coordinate along the X axis.",
+            "type": "integer"
+          },
+          "y": {
+            "description": "1-based grid coordinate along the Y axis.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "container_id",
+          "x",
+          "y"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "type": "boolean"
+      }
+    },
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return true if a class instance occupies a 2D grid position.",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Check for an instance of a class at a 2D grid position.",
+          "params": {
+            "class_id": "sword",
+            "container_id": "grid-007",
+            "x": 1,
+            "y": 1
+          },
+          "result": true
+        }
+      ],
+      "name": "grid2d_cell_instance_is_class",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "class_id": {
+            "description": "External class identifier.",
+            "type": "string"
+          },
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          },
+          "x": {
+            "description": "1-based grid coordinate along the X axis.",
+            "type": "integer"
+          },
+          "y": {
+            "description": "1-based grid coordinate along the Y axis.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "container_id",
+          "class_id",
+          "x",
+          "y"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "type": "boolean"
+      }
+    },
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "greater_than",
+        "greater_than_or_equal",
+        "less_than",
+        "less_than_or_equal",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return the minimum X bound (scaled integer).",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Read the minimum X bound for a continuous 1D container.",
+          "params": {
+            "container_id": "line-01"
+          },
+          "result": 0
+        }
+      ],
+      "name": "continuous1d_min_x_scaled",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "container_id"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "type": "integer"
+      }
+    },
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "greater_than",
+        "greater_than_or_equal",
+        "less_than",
+        "less_than_or_equal",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return the maximum X bound (scaled integer).",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Read the maximum X bound for a continuous 1D container.",
+          "params": {
+            "container_id": "line-01"
+          },
+          "result": 10000
+        }
+      ],
+      "name": "continuous1d_max_x_scaled",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "container_id"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "type": "integer"
+      }
+    },
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "greater_than",
+        "greater_than_or_equal",
+        "less_than",
+        "less_than_or_equal",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return overlap count for a 1D placement candidate.",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Return overlap count for a 1D placement candidate.",
+          "params": {
+            "center_x_scaled": 1200,
+            "container_id": "line-01",
+            "span_length_scaled": 400
+          },
+          "result": 0
+        }
+      ],
+      "name": "continuous1d_overlap_count",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "center_x_scaled": {
+            "description": "Fixed-point center X coordinate (scaled integer).",
+            "type": "integer"
+          },
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          },
+          "span_length_scaled": {
+            "description": "Fixed-point span length (scaled integer).",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "container_id",
+          "center_x_scaled",
+          "span_length_scaled"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "type": "integer"
+      }
+    },
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "greater_than",
+        "greater_than_or_equal",
+        "less_than",
+        "less_than_or_equal",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return the minimum X bound (scaled integer).",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Read the minimum X bound for a continuous 2D container.",
+          "params": {
+            "container_id": "floor-01"
+          },
+          "result": 0
+        }
+      ],
+      "name": "continuous2d_min_x_scaled",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "container_id"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "type": "integer"
+      }
+    },
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "greater_than",
+        "greater_than_or_equal",
+        "less_than",
+        "less_than_or_equal",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return the maximum X bound (scaled integer).",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Read the maximum X bound for a continuous 2D container.",
+          "params": {
+            "container_id": "floor-01"
+          },
+          "result": 10000
+        }
+      ],
+      "name": "continuous2d_max_x_scaled",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "container_id"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "type": "integer"
+      }
+    },
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "greater_than",
+        "greater_than_or_equal",
+        "less_than",
+        "less_than_or_equal",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return the minimum Y bound (scaled integer).",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Read the minimum Y bound for a continuous 2D container.",
+          "params": {
+            "container_id": "floor-01"
+          },
+          "result": 0
+        }
+      ],
+      "name": "continuous2d_min_y_scaled",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "container_id"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "type": "integer"
+      }
+    },
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "greater_than",
+        "greater_than_or_equal",
+        "less_than",
+        "less_than_or_equal",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return the maximum Y bound (scaled integer).",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Read the maximum Y bound for a continuous 2D container.",
+          "params": {
+            "container_id": "floor-01"
+          },
+          "result": 8000
+        }
+      ],
+      "name": "continuous2d_max_y_scaled",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "container_id"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "type": "integer"
+      }
+    },
+    {
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "greater_than",
+        "greater_than_or_equal",
+        "less_than",
+        "less_than_or_equal",
+        "in_set",
+        "exists",
+        "not_exists"
+      ],
+      "anchor_types": [],
+      "content_types": [
+        "application/json"
+      ],
+      "description": "Return overlap count for a 2D placement candidate.",
+      "determinism": "deterministic",
+      "examples": [
+        {
+          "description": "Return overlap count for a 2D placement candidate.",
+          "params": {
+            "center_x_scaled": 1200,
+            "center_y_scaled": 800,
+            "container_id": "floor-01",
+            "rect_height_scaled": 100,
+            "rect_width_scaled": 200,
+            "rotation_millideg": 0
+          },
+          "result": 0
+        }
+      ],
+      "name": "continuous2d_overlap_count",
+      "params_required": true,
+      "params_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "center_x_scaled": {
+            "description": "Fixed-point center X coordinate (scaled integer).",
+            "type": "integer"
+          },
+          "center_y_scaled": {
+            "description": "Fixed-point center Y coordinate (scaled integer).",
+            "type": "integer"
+          },
+          "container_id": {
+            "description": "External container identifier.",
+            "type": "string"
+          },
+          "rect_height_scaled": {
+            "description": "Fixed-point rectangle height (scaled integer).",
+            "type": "integer"
+          },
+          "rect_width_scaled": {
+            "description": "Fixed-point rectangle width (scaled integer).",
+            "type": "integer"
+          },
+          "rotation_millideg": {
+            "description": "Rotation in millidegrees (0..=359999).",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "container_id",
+          "center_x_scaled",
+          "center_y_scaled",
+          "rect_width_scaled",
+          "rect_height_scaled",
+          "rotation_millideg"
+        ],
+        "type": "object"
+      },
+      "result_schema": {
+        "type": "integer"
+      }
+    }
+  ],
+  "provider_id": "assetcore_read",
+  "transport": "mcp"
+}

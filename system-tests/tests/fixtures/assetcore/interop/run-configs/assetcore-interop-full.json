@@ -1,0 +1,13 @@
+{
+  "dispatch_targets": [
+    {
+      "agent_id": "interop-agent",
+      "kind": "agent"
+    }
+  ],
+  "namespace_id": "assetcore-interop",
+  "policy_tags": [],
+  "run_id": "assetcore-interop-run",
+  "scenario_id": "assetcore-interop-full",
+  "tenant_id": "assetcore-interop-tenant"
+}

@@ -11,11 +11,13 @@ Decision Gate is in an active design and stabilization phase.
 
 ## Overview
 
-Decision Gate is a backend-agnostic control plane for gated disclosure and stage
-advancement. It does **not** run agent conversations; it ingests triggers,
-evaluates evidence-backed gates, dispatches controlled disclosures into
-whatever agent SDK or workflow the host application uses, and exports
-runpacks for offline verification.
+Decision Gate is a backend-agnostic requirement-evaluation system for gated
+steps, controlled disclosure, and stage advancement. It does **not** run agent
+conversations; it ingests triggers, evaluates evidence-backed gates, dispatches
+controlled disclosures into whatever agent SDK or workflow the host application
+uses, and exports runpacks for offline verification. In the operational sense,
+this serves as deterministic progress evaluation: a run cannot advance until
+its requirements pass.
 
 ## Product State (Current)
 

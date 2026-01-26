@@ -25,3 +25,9 @@
     clippy::unwrap_in_result,
     reason = "Test-only output and panic-based assertions are permitted."
 )]
+
+// ============================================================================
+// SECTION: Modules
+// ============================================================================
+
+mod interop;

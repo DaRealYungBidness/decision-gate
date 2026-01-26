@@ -1,0 +1,14 @@
+{
+  "correlation_id": null,
+  "kind": "external_event",
+  "namespace_id": "assetcore-interop",
+  "payload": null,
+  "run_id": "assetcore-interop-run",
+  "source_id": "assetcore-interop",
+  "tenant_id": "assetcore-interop-tenant",
+  "time": {
+    "kind": "unix_millis",
+    "value": 1710000000000
+  },
+  "trigger_id": "assetcore-interop-trigger"
+}

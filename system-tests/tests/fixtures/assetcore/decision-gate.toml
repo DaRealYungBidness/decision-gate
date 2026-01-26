@@ -1,0 +1,35 @@
+[server]
+transport = "http"
+mode = "strict"
+bind = "127.0.0.1:8088"
+max_body_bytes = 1048576
+
+[namespace]
+allow_default = false
+
+[trust]
+default_policy = "audit"
+min_lane = "verified"
+
+[evidence]
+allow_raw_values = false
+require_provider_opt_in = true
+
+[policy]
+engine = "permit_all"
+
+[run_state_store]
+type = "sqlite"
+path = "decision-gate.db"
+journal_mode = "wal"
+sync_mode = "full"
+busy_timeout_ms = 5000
+max_versions = 1000
+
+[[providers]]
+name = "assetcore_read"
+type = "mcp"
+url = "http://127.0.0.1:9000/mcp"
+allow_insecure_http = true
+capabilities_path = "system-tests/tests/fixtures/assetcore/providers/assetcore_read.json"
+timeouts = { connect_timeout_ms = 2000, request_timeout_ms = 10000 }

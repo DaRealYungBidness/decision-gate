@@ -460,6 +460,7 @@ dependencies = [
  "decision-gate-contract",
  "decision-gate-core",
  "decision-gate-mcp",
+ "reqwest",
  "serde",
  "serde_jcs",
  "serde_json",

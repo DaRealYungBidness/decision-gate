@@ -12,10 +12,11 @@ Dependencies:
 
 # Decision Gate
 
-Decision Gate is a deterministic, replayable control plane for gated disclosure.
-It evaluates evidence-backed gates, emits auditable decisions, and supports
-offline verification via runpacks. It is backend-agnostic and integrates via
-explicit interfaces rather than embedding into agent frameworks.
+Decision Gate is a deterministic, replayable requirement-evaluation system for
+gated steps and controlled disclosure. It evaluates evidence-backed gates (or
+asserted data in precheck) to decide whether a plan can advance, emits auditable
+decisions, and supports offline verification via runpacks. It is backend-agnostic
+and integrates via explicit interfaces rather than embedding into agent frameworks.
 
 RET stands for **Requirement Evaluation Tree** and refers to the universal
 predicate algebra used by the engine.
@@ -43,10 +44,12 @@ predicate algebra used by the engine.
 - [References](#references)
 
 ## Overview
-Decision Gate is a control plane. It does not run conversations or agents.
-It ingests triggers, evaluates evidence-backed predicates, and emits auditable
-decisions and disclosures. Evidence can be provider-pulled (verified) or
-asserted for precheck; asserted data never mutates run state.
+Decision Gate is a control plane for deterministic checkpoints. It does not run
+conversations or agents. It ingests triggers, evaluates evidence-backed
+predicates, and emits auditable decisions and disclosures. Evidence can be
+provider-pulled (verified) or asserted for precheck; asserted data never mutates
+run state. In the operational sense, this is LLM/task evaluation: progress is
+gated until explicit requirements are satisfied.
 
 ## Current Status (Accuracy Notes)
 Implemented:

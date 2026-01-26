@@ -317,6 +317,26 @@ artifacts = ["summary.json", "summary.md", "tool_transcript.json", "echo_provide
 estimated_runtime_sec = 12
 
 [[tests]]
+name = "assetcore_interop_fixtures"
+category = "providers"
+priority = "P1"
+description = "AssetCore interop fixture map executes via federated provider."
+files = ["system-tests/tests/providers.rs"]
+run_command = "cargo test -p system-tests --test providers -- --exact assetcore_interop_fixtures"
+artifacts = [
+  "summary.json",
+  "summary.md",
+  "tool_transcript.json",
+  "interop_spec.json",
+  "interop_run_config.json",
+  "interop_trigger.json",
+  "interop_fixture_map.json",
+  "interop_status.json",
+  "interop_decision.json",
+]
+estimated_runtime_sec = 15
+
+[[tests]]
 name = "packet_disclosure_visibility"
 category = "security"
 priority = "P1"

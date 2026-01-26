@@ -1,0 +1,465 @@
+{
+  "default_tenant_id": null,
+  "namespace_id": "assetcore-interop",
+  "policies": [],
+  "predicates": [
+    {
+      "comparator": "equals",
+      "expected": "balance",
+      "policy_tags": [],
+      "predicate": "container_kind",
+      "query": {
+        "params": {
+          "container_id": "vault-001"
+        },
+        "predicate": "container_kind",
+        "provider_id": "assetcore_read"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": 1000,
+      "policy_tags": [],
+      "predicate": "container_quantization_inv",
+      "query": {
+        "params": {
+          "container_id": "vault-001"
+        },
+        "predicate": "container_quantization_inv",
+        "provider_id": "assetcore_read"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": 150000,
+      "policy_tags": [],
+      "predicate": "balance_amount_scaled",
+      "query": {
+        "params": {
+          "class_id": "gold",
+          "container_id": "vault-001"
+        },
+        "predicate": "balance_amount_scaled",
+        "provider_id": "assetcore_read"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": 8,
+      "policy_tags": [],
+      "predicate": "slot_count",
+      "query": {
+        "params": {
+          "container_id": "slots-gear"
+        },
+        "predicate": "slot_count",
+        "provider_id": "assetcore_read"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": [],
+      "predicate": "slot_occupied",
+      "query": {
+        "params": {
+          "container_id": "slots-gear",
+          "slot_index": 1
+        },
+        "predicate": "slot_occupied",
+        "provider_id": "assetcore_read"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": [],
+      "predicate": "slot_instance_is_class",
+      "query": {
+        "params": {
+          "class_id": "helmet",
+          "container_id": "slots-gear",
+          "slot_index": 1
+        },
+        "predicate": "slot_instance_is_class",
+        "provider_id": "assetcore_read"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": 25,
+      "policy_tags": [],
+      "predicate": "grid_capacity",
+      "query": {
+        "params": {
+          "container_id": "grid-007"
+        },
+        "predicate": "grid_capacity",
+        "provider_id": "assetcore_read"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": 12,
+      "policy_tags": [],
+      "predicate": "grid1d_cell_stack_qty",
+      "query": {
+        "params": {
+          "class_id": "widget",
+          "container_id": "belt-01",
+          "x": 4
+        },
+        "predicate": "grid1d_cell_stack_qty",
+        "provider_id": "assetcore_read"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": [],
+      "predicate": "grid1d_cell_instance_present",
+      "query": {
+        "params": {
+          "container_id": "belt-01",
+          "x": 3
+        },
+        "predicate": "grid1d_cell_instance_present",
+        "provider_id": "assetcore_read"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": [],
+      "predicate": "grid1d_cell_instance_is_class",
+      "query": {
+        "params": {
+          "class_id": "robot",
+          "container_id": "belt-01",
+          "x": 3
+        },
+        "predicate": "grid1d_cell_instance_is_class",
+        "provider_id": "assetcore_read"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": 5,
+      "policy_tags": [],
+      "predicate": "grid_width",
+      "query": {
+        "params": {
+          "container_id": "grid-007"
+        },
+        "predicate": "grid_width",
+        "provider_id": "assetcore_read"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": 12,
+      "policy_tags": [],
+      "predicate": "grid2d_cell_stack_qty",
+      "query": {
+        "params": {
+          "class_id": "medkit",
+          "container_id": "grid-007",
+          "x": 4,
+          "y": 2
+        },
+        "predicate": "grid2d_cell_stack_qty",
+        "provider_id": "assetcore_read"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": [],
+      "predicate": "grid2d_cell_instance_present",
+      "query": {
+        "params": {
+          "container_id": "grid-007",
+          "x": 1,
+          "y": 1
+        },
+        "predicate": "grid2d_cell_instance_present",
+        "provider_id": "assetcore_read"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": [],
+      "predicate": "grid2d_cell_instance_is_class",
+      "query": {
+        "params": {
+          "class_id": "sword",
+          "container_id": "grid-007",
+          "x": 1,
+          "y": 1
+        },
+        "predicate": "grid2d_cell_instance_is_class",
+        "provider_id": "assetcore_read"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": 0,
+      "policy_tags": [],
+      "predicate": "continuous1d_min_x_scaled",
+      "query": {
+        "params": {
+          "container_id": "line-01"
+        },
+        "predicate": "continuous1d_min_x_scaled",
+        "provider_id": "assetcore_read"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": 10000,
+      "policy_tags": [],
+      "predicate": "continuous1d_max_x_scaled",
+      "query": {
+        "params": {
+          "container_id": "line-01"
+        },
+        "predicate": "continuous1d_max_x_scaled",
+        "provider_id": "assetcore_read"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": 0,
+      "policy_tags": [],
+      "predicate": "continuous1d_overlap_count",
+      "query": {
+        "params": {
+          "center_x_scaled": 1200,
+          "container_id": "line-01",
+          "span_length_scaled": 400
+        },
+        "predicate": "continuous1d_overlap_count",
+        "provider_id": "assetcore_read"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": 0,
+      "policy_tags": [],
+      "predicate": "continuous2d_min_x_scaled",
+      "query": {
+        "params": {
+          "container_id": "floor-01"
+        },
+        "predicate": "continuous2d_min_x_scaled",
+        "provider_id": "assetcore_read"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": 10000,
+      "policy_tags": [],
+      "predicate": "continuous2d_max_x_scaled",
+      "query": {
+        "params": {
+          "container_id": "floor-01"
+        },
+        "predicate": "continuous2d_max_x_scaled",
+        "provider_id": "assetcore_read"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": 0,
+      "policy_tags": [],
+      "predicate": "continuous2d_min_y_scaled",
+      "query": {
+        "params": {
+          "container_id": "floor-01"
+        },
+        "predicate": "continuous2d_min_y_scaled",
+        "provider_id": "assetcore_read"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": 8000,
+      "policy_tags": [],
+      "predicate": "continuous2d_max_y_scaled",
+      "query": {
+        "params": {
+          "container_id": "floor-01"
+        },
+        "predicate": "continuous2d_max_y_scaled",
+        "provider_id": "assetcore_read"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": 0,
+      "policy_tags": [],
+      "predicate": "continuous2d_overlap_count",
+      "query": {
+        "params": {
+          "center_x_scaled": 1200,
+          "center_y_scaled": 800,
+          "container_id": "floor-01",
+          "rect_height_scaled": 100,
+          "rect_width_scaled": 200,
+          "rotation_millideg": 0
+        },
+        "predicate": "continuous2d_overlap_count",
+        "provider_id": "assetcore_read"
+      }
+    }
+  ],
+  "scenario_id": "assetcore-interop-full",
+  "schemas": [],
+  "spec_version": "v1",
+  "stages": [
+    {
+      "advance_to": {
+        "kind": "terminal"
+      },
+      "entry_packets": [],
+      "gates": [
+        {
+          "gate_id": "gate_container_kind",
+          "requirement": {
+            "Predicate": "container_kind"
+          }
+        },
+        {
+          "gate_id": "gate_container_quantization_inv",
+          "requirement": {
+            "Predicate": "container_quantization_inv"
+          }
+        },
+        {
+          "gate_id": "gate_balance_amount_scaled",
+          "requirement": {
+            "Predicate": "balance_amount_scaled"
+          }
+        },
+        {
+          "gate_id": "gate_slot_count",
+          "requirement": {
+            "Predicate": "slot_count"
+          }
+        },
+        {
+          "gate_id": "gate_slot_occupied",
+          "requirement": {
+            "Predicate": "slot_occupied"
+          }
+        },
+        {
+          "gate_id": "gate_slot_instance_is_class",
+          "requirement": {
+            "Predicate": "slot_instance_is_class"
+          }
+        },
+        {
+          "gate_id": "gate_grid_capacity",
+          "requirement": {
+            "Predicate": "grid_capacity"
+          }
+        },
+        {
+          "gate_id": "gate_grid1d_cell_stack_qty",
+          "requirement": {
+            "Predicate": "grid1d_cell_stack_qty"
+          }
+        },
+        {
+          "gate_id": "gate_grid1d_cell_instance_present",
+          "requirement": {
+            "Predicate": "grid1d_cell_instance_present"
+          }
+        },
+        {
+          "gate_id": "gate_grid1d_cell_instance_is_class",
+          "requirement": {
+            "Predicate": "grid1d_cell_instance_is_class"
+          }
+        },
+        {
+          "gate_id": "gate_grid_width",
+          "requirement": {
+            "Predicate": "grid_width"
+          }
+        },
+        {
+          "gate_id": "gate_grid2d_cell_stack_qty",
+          "requirement": {
+            "Predicate": "grid2d_cell_stack_qty"
+          }
+        },
+        {
+          "gate_id": "gate_grid2d_cell_instance_present",
+          "requirement": {
+            "Predicate": "grid2d_cell_instance_present"
+          }
+        },
+        {
+          "gate_id": "gate_grid2d_cell_instance_is_class",
+          "requirement": {
+            "Predicate": "grid2d_cell_instance_is_class"
+          }
+        },
+        {
+          "gate_id": "gate_continuous1d_min_x_scaled",
+          "requirement": {
+            "Predicate": "continuous1d_min_x_scaled"
+          }
+        },
+        {
+          "gate_id": "gate_continuous1d_max_x_scaled",
+          "requirement": {
+            "Predicate": "continuous1d_max_x_scaled"
+          }
+        },
+        {
+          "gate_id": "gate_continuous1d_overlap_count",
+          "requirement": {
+            "Predicate": "continuous1d_overlap_count"
+          }
+        },
+        {
+          "gate_id": "gate_continuous2d_min_x_scaled",
+          "requirement": {
+            "Predicate": "continuous2d_min_x_scaled"
+          }
+        },
+        {
+          "gate_id": "gate_continuous2d_max_x_scaled",
+          "requirement": {
+            "Predicate": "continuous2d_max_x_scaled"
+          }
+        },
+        {
+          "gate_id": "gate_continuous2d_min_y_scaled",
+          "requirement": {
+            "Predicate": "continuous2d_min_y_scaled"
+          }
+        },
+        {
+          "gate_id": "gate_continuous2d_max_y_scaled",
+          "requirement": {
+            "Predicate": "continuous2d_max_y_scaled"
+          }
+        },
+        {
+          "gate_id": "gate_continuous2d_overlap_count",
+          "requirement": {
+            "Predicate": "continuous2d_overlap_count"
+          }
+        }
+      ],
+      "on_timeout": "fail",
+      "stage_id": "interop",
+      "timeout": null
+    }
+  ]
+}

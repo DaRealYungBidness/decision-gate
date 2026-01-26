@@ -10,6 +10,8 @@
 
 mod helpers;
 
+use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -27,6 +29,8 @@ use decision_gate_core::NamespaceId;
 use decision_gate_core::PredicateKey;
 use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
+use decision_gate_core::RunConfig;
+use decision_gate_core::RunStatus;
 use decision_gate_core::ScenarioId;
 use decision_gate_core::ScenarioSpec;
 use decision_gate_core::SpecVersion;
@@ -41,6 +45,7 @@ use decision_gate_mcp::config::ProviderTimeoutConfig;
 use decision_gate_mcp::tools::ScenarioDefineRequest;
 use decision_gate_mcp::tools::ScenarioDefineResponse;
 use decision_gate_mcp::tools::ScenarioStartRequest;
+use decision_gate_mcp::tools::ScenarioStatusRequest;
 use decision_gate_mcp::tools::ScenarioTriggerRequest;
 use helpers::artifacts::TestReporter;
 use helpers::harness::allocate_bind_addr;
@@ -48,10 +53,15 @@ use helpers::harness::base_http_config;
 use helpers::harness::config_with_provider;
 use helpers::harness::config_with_provider_timeouts;
 use helpers::harness::spawn_mcp_server;
+use helpers::provider_stub::ProviderFixture;
+use helpers::provider_stub::spawn_provider_fixture_stub;
 use helpers::provider_stub::spawn_provider_stub;
 use helpers::provider_stub::spawn_provider_stub_with_delay;
 use helpers::readiness::wait_for_server_ready;
 use helpers::scenarios::ScenarioFixture;
+use serde::Deserialize;
+use serde::de::DeserializeOwned;
+use serde_json::Value;
 use serde_json::json;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -281,6 +291,111 @@ async fn federated_provider_timeout_enforced() -> Result<(), Box<dyn std::error:
     Ok(())
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn assetcore_interop_fixtures() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("assetcore_interop_fixtures")?;
+    let fixture_root_dir = fixture_root("assetcore/interop");
+    let spec: ScenarioSpec =
+        load_fixture(&fixture_root_dir.join("scenarios/assetcore-interop-full.json"))?;
+    let run_config: RunConfig =
+        load_fixture(&fixture_root_dir.join("run-configs/assetcore-interop-full.json"))?;
+    let trigger: decision_gate_core::TriggerEvent =
+        load_fixture(&fixture_root_dir.join("triggers/assetcore-interop-full.json"))?;
+    let fixture_map: FixtureMap = load_fixture(&fixture_root_dir.join("fixture_map.json"))?;
+
+    let fixtures = fixture_map
+        .fixtures
+        .iter()
+        .map(|fixture| ProviderFixture {
+            predicate: fixture.predicate.clone(),
+            params: fixture.params.clone(),
+            result: fixture.expected.clone(),
+        })
+        .collect();
+
+    let provider = spawn_provider_fixture_stub(fixtures).await?;
+    let bind = allocate_bind_addr()?.to_string();
+    let provider_contract = fixture_root("assetcore/providers").join("assetcore_read.json");
+    let config =
+        config_with_provider(&bind, "assetcore_read", provider.base_url(), &provider_contract);
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(Duration::from_secs(5))?;
+    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+
+    let define_request = ScenarioDefineRequest {
+        spec: spec.clone(),
+    };
+    let define_input = serde_json::to_value(&define_request)?;
+    let define_output: ScenarioDefineResponse =
+        client.call_tool_typed("scenario_define", define_input).await?;
+
+    let started_at = trigger.time;
+    let start_request = ScenarioStartRequest {
+        scenario_id: define_output.scenario_id.clone(),
+        run_config: run_config.clone(),
+        started_at,
+        issue_entry_packets: false,
+    };
+    let start_input = serde_json::to_value(&start_request)?;
+    let _state: decision_gate_core::RunState =
+        client.call_tool_typed("scenario_start", start_input).await?;
+
+    let trigger_request = ScenarioTriggerRequest {
+        scenario_id: define_output.scenario_id.clone(),
+        trigger: trigger.clone(),
+    };
+    let trigger_input = serde_json::to_value(&trigger_request)?;
+    let trigger_result: TriggerResult =
+        client.call_tool_typed("scenario_trigger", trigger_input).await?;
+
+    let outcome = &trigger_result.decision.outcome;
+    if !matches!(outcome, DecisionOutcome::Complete { .. }) {
+        return Err(format!("unexpected decision outcome: {outcome:?}").into());
+    }
+
+    let status_request = ScenarioStatusRequest {
+        scenario_id: define_output.scenario_id,
+        request: decision_gate_core::runtime::StatusRequest {
+            tenant_id: run_config.tenant_id.clone(),
+            namespace_id: run_config.namespace_id.clone(),
+            run_id: run_config.run_id.clone(),
+            requested_at: trigger.time,
+            correlation_id: trigger.correlation_id.clone(),
+        },
+    };
+    let status_input = serde_json::to_value(&status_request)?;
+    let status: decision_gate_core::runtime::ScenarioStatus =
+        client.call_tool_typed("scenario_status", status_input).await?;
+
+    if status.status != RunStatus::Completed {
+        return Err(format!("unexpected run status: {:?}", status.status).into());
+    }
+
+    reporter.artifacts().write_json("interop_spec.json", &spec)?;
+    reporter.artifacts().write_json("interop_run_config.json", &run_config)?;
+    reporter.artifacts().write_json("interop_trigger.json", &trigger)?;
+    reporter.artifacts().write_json("interop_fixture_map.json", &fixture_map)?;
+    reporter.artifacts().write_json("interop_status.json", &status)?;
+    reporter.artifacts().write_json("interop_decision.json", &trigger_result.decision)?;
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["assetcore interop fixtures executed via federated provider".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+            "interop_spec.json".to_string(),
+            "interop_run_config.json".to_string(),
+            "interop_trigger.json".to_string(),
+            "interop_fixture_map.json".to_string(),
+            "interop_status.json".to_string(),
+            "interop_decision.json".to_string(),
+        ],
+    )?;
+    Ok(())
+}
+
 fn write_echo_contract(
     reporter: &TestReporter,
     provider_id: &str,
@@ -327,4 +442,28 @@ fn write_echo_contract(
     };
     let path = reporter.artifacts().write_json("echo_provider_contract.json", &contract)?;
     Ok(path)
+}
+
+fn fixture_root(path: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(path)
+}
+
+fn load_fixture<T: DeserializeOwned>(path: &Path) -> Result<T, Box<dyn std::error::Error>> {
+    let data = fs::read(path)
+        .map_err(|err| format!("failed to read fixture {}: {err}", path.display()))?;
+    let parsed = serde_json::from_slice(&data)
+        .map_err(|err| format!("failed to parse fixture {}: {err}", path.display()))?;
+    Ok(parsed)
+}
+
+#[derive(Debug, Deserialize, serde::Serialize)]
+struct FixtureMap {
+    fixtures: Vec<FixtureEntry>,
+}
+
+#[derive(Debug, Deserialize, serde::Serialize)]
+struct FixtureEntry {
+    predicate: String,
+    params: Value,
+    expected: Value,
 }

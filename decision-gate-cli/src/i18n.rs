@@ -118,6 +118,28 @@ const CATALOG_ITEMS: &[(&str, &str)] = &[
         "authoring.validate.ok",
         "ScenarioSpec valid (scenario_id={scenario_id}, spec_hash={spec_hash})",
     ),
+    ("interop.kind.spec", "scenario spec"),
+    ("interop.kind.run_config", "run config"),
+    ("interop.kind.trigger", "trigger event"),
+    ("interop.read_failed", "Failed to read {kind} file at {path}: {error}"),
+    ("interop.parse_failed", "Failed to parse {kind} JSON at {path}: {error}"),
+    ("interop.spec_failed", "ScenarioSpec validation failed for {path}: {error}"),
+    ("interop.input_invalid", "Interop input validation failed: {error}"),
+    ("interop.execution_failed", "Interop execution failed: {error}"),
+    ("interop.report.serialize_failed", "Failed to serialize interop report: {error}"),
+    ("interop.report.write_failed", "Failed to write interop report to {path}: {error}"),
+    (
+        "interop.expect_status_mismatch",
+        "Interop status mismatch (expected {expected}, actual {actual}).",
+    ),
+    (
+        "interop.timestamp.conflict",
+        "Both {label}_unix_ms and {label}_logical were provided; choose one.",
+    ),
+    ("interop.timestamp.negative", "{label}_unix_ms must be non-negative."),
+    ("interop.status.active", "active"),
+    ("interop.status.completed", "completed"),
+    ("interop.status.failed", "failed"),
 ];
 
 /// Translates `key` using the English fallback catalog while substituting `args`.
