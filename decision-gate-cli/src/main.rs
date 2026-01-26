@@ -831,18 +831,4 @@ fn emit_error(message: &str) -> ExitCode {
 }
 
 #[cfg(test)]
-mod tests {
-    //! Test-only lint relaxations for panic-based assertions and debug output.
-    #![allow(
-        clippy::panic,
-        clippy::print_stdout,
-        clippy::print_stderr,
-        clippy::unwrap_used,
-        clippy::expect_used,
-        clippy::use_debug,
-        clippy::dbg_macro,
-        clippy::panic_in_result_fn,
-        clippy::unwrap_in_result,
-        reason = "Test-only output and panic-based assertions are permitted."
-    )]
-}
+mod tests;

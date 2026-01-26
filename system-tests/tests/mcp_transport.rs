@@ -69,6 +69,10 @@ async fn stdio_transport_end_to_end() -> Result<(), Box<dyn std::error::Error>> 
     let config_path = temp_dir.path().join("decision-gate.toml");
     let config_contents = r#"[server]
 transport = "stdio"
+mode = "strict"
+
+[namespace]
+allow_default = true
 
 [[providers]]
 name = "time"

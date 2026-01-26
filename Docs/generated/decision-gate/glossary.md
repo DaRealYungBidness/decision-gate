@@ -62,6 +62,10 @@ Policy controlling what happens when a stage times out. Options: 'fail' marks th
 
 The policy controlling how a run progresses from the current stage. Four modes: 'linear' advances to the next stage in order; 'fixed' jumps to a named stage; 'branch' routes based on gate outcomes (true/false/unknown each map to a next_stage_id); 'terminal' ends the run. Branch mode enables conditional workflows.
 
+## `allow_default`
+
+Permit the literal 'default' namespace in strict mode. Defaults false. Production deployments should use explicit namespaces to avoid accidental cross-tenant collisions.
+
 ## `allow_http`
 
 Per-provider setting permitting http:// URLs for the HTTP evidence provider. Defaults to false (HTTPS only). Enable for internal health endpoints that lack TLS. Prefer HTTPS for any network-accessible services.
@@ -101,6 +105,14 @@ List of environment variable keys the env provider may read. Queries for keys no
 ## `anchor_types`
 
 Anchor type strings that the predicate may emit.
+
+## `audit_enabled`
+
+Enable structured MCP audit logging. When false, audit events are discarded. Default is true to preserve security and compliance evidence.
+
+## `audit_path`
+
+Filesystem path for MCP audit logs (JSON lines). When unset, audit events are written to stderr.
 
 ## `bind`
 
@@ -290,6 +302,10 @@ Lexicographic string compare: true when evidence sorts before expected.
 
 Lexicographic string compare: true when evidence sorts before or equals expected.
 
+## `log_precheck_payloads`
+
+Explicit opt-in to log raw precheck request/response payloads. Default false; hash-only auditing is always emitted when audit is enabled.
+
 ## `logical`
 
 A logical timestamp value used for deterministic ordering when wall-clock time is unavailable. Caller-supplied integers (>= 0) are accepted only when allow_logical is enabled. Useful for testing and simulation.
@@ -325,6 +341,10 @@ Maximum HTTP response body size the HTTP provider will read. Prevents memory exh
 ## `max_value_bytes`
 
 Maximum byte length for environment variable values returned by the env provider. Prevents oversized values from bloating evidence results. Values exceeding this are truncated or rejected per provider config.
+
+## `mode`
+
+Server operating mode: 'strict' (default) or 'dev_permissive'. Dev-permissive allows asserted evidence and the default namespace; use only for local development or controlled test environments.
 
 ## `name`
 

@@ -22,9 +22,11 @@ fail closed on errors.
 | Field | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `transport` | `"stdio" | "http" | "sse"` | `stdio` | HTTP/SSE require `bind`; non-loopback requires auth. |
+| `mode` | `"strict" | "dev_permissive"` | `strict` | Dev-permissive allows asserted evidence and default namespace; emits warnings. |
 | `bind` | string | `null` | Required for HTTP/SSE; loopback-only unless auth enabled. |
 | `max_body_bytes` | integer | `1048576` | Maximum JSON-RPC request size. |
 | `auth` | table | `null` | Inbound authn/authz for MCP tool calls. |
+| `audit` | table | `{ enabled = true }` | Structured audit logging configuration. |
 
 ### `[server.auth]`
 | Field | Type | Default | Notes |
@@ -51,10 +53,23 @@ mtls_subjects = ["CN=decision-gate-client,O=Example Corp"]
 When using `mtls` mode, the server expects the
 `x-decision-gate-client-subject` header from a trusted TLS-terminating proxy.
 
+### `[server.audit]`
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `enabled` | bool | `true` | Enable structured audit logging (JSON lines). |
+| `path` | string | `null` | Optional audit log path; defaults to stderr. |
+| `log_precheck_payloads` | bool | `false` | Explicit opt-in to log raw precheck payloads. |
+
+### `[namespace]`
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `allow_default` | bool | `false` | Allow the literal `default` namespace in strict mode. |
+
 ### `[trust]`
 | Field | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `default_policy` | `"audit" | "require_signature"` | `audit` | Global provider trust policy. |
+| `min_lane` | `"verified" | "asserted"` | `verified` | Minimum evidence trust lane accepted. |
 
 `require_signature` form:
 ```toml

@@ -24,7 +24,9 @@ use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
 use decision_gate_contract::ToolName;
+use decision_gate_core::HashDigest;
 use serde::Serialize;
+use serde_json::Value;
 
 use crate::config::ServerTransport;
 use crate::telemetry::McpMethod;
@@ -67,6 +69,37 @@ pub struct McpAuditEvent {
     pub redaction: &'static str,
 }
 
+/// Precheck audit event payload (hash-only by default).
+#[derive(Debug, Clone, Serialize)]
+pub struct PrecheckAuditEvent {
+    /// Event identifier.
+    pub event: &'static str,
+    /// Event timestamp (milliseconds since epoch).
+    pub timestamp_ms: u128,
+    /// Tenant identifier.
+    pub tenant_id: String,
+    /// Namespace identifier.
+    pub namespace_id: String,
+    /// Scenario identifier (from request or spec).
+    pub scenario_id: Option<String>,
+    /// Stage identifier override (if provided).
+    pub stage_id: Option<String>,
+    /// Data shape schema identifier.
+    pub schema_id: String,
+    /// Data shape schema version.
+    pub schema_version: String,
+    /// Canonical hash of the precheck request.
+    pub request_hash: HashDigest,
+    /// Canonical hash of the precheck response.
+    pub response_hash: HashDigest,
+    /// Optional raw request payload (explicit opt-in only).
+    pub request: Option<Value>,
+    /// Optional raw response payload (explicit opt-in only).
+    pub response: Option<Value>,
+    /// Redaction classification for payload logging.
+    pub redaction: &'static str,
+}
+
 /// Inputs required to construct an audit event.
 pub struct McpAuditEventParams {
     /// Request identifier when provided.
@@ -91,6 +124,32 @@ pub struct McpAuditEventParams {
     pub response_bytes: usize,
     /// Client subject when provided.
     pub client_subject: Option<String>,
+    /// Redaction classification for payload logging.
+    pub redaction: &'static str,
+}
+
+/// Inputs required to construct a precheck audit event.
+pub struct PrecheckAuditEventParams {
+    /// Tenant identifier.
+    pub tenant_id: String,
+    /// Namespace identifier.
+    pub namespace_id: String,
+    /// Scenario identifier (from request or spec).
+    pub scenario_id: Option<String>,
+    /// Stage identifier override (if provided).
+    pub stage_id: Option<String>,
+    /// Data shape schema identifier.
+    pub schema_id: String,
+    /// Data shape schema version.
+    pub schema_version: String,
+    /// Canonical hash of the precheck request.
+    pub request_hash: HashDigest,
+    /// Canonical hash of the precheck response.
+    pub response_hash: HashDigest,
+    /// Optional raw request payload (explicit opt-in only).
+    pub request: Option<Value>,
+    /// Optional raw response payload (explicit opt-in only).
+    pub response: Option<Value>,
     /// Redaction classification for payload logging.
     pub redaction: &'static str,
 }
@@ -120,6 +179,30 @@ impl McpAuditEvent {
     }
 }
 
+impl PrecheckAuditEvent {
+    /// Creates a new precheck audit event with a consistent timestamp.
+    #[must_use]
+    pub fn new(params: PrecheckAuditEventParams) -> Self {
+        let timestamp_ms =
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis();
+        Self {
+            event: "precheck_audit",
+            timestamp_ms,
+            tenant_id: params.tenant_id,
+            namespace_id: params.namespace_id,
+            scenario_id: params.scenario_id,
+            stage_id: params.stage_id,
+            schema_id: params.schema_id,
+            schema_version: params.schema_version,
+            request_hash: params.request_hash,
+            response_hash: params.response_hash,
+            request: params.request,
+            response: params.response,
+            redaction: params.redaction,
+        }
+    }
+}
+
 // ============================================================================
 // SECTION: Trait
 // ============================================================================
@@ -128,6 +211,9 @@ impl McpAuditEvent {
 pub trait McpAuditSink: Send + Sync {
     /// Record an audit event.
     fn record(&self, event: &McpAuditEvent);
+
+    /// Record a precheck audit event.
+    fn record_precheck(&self, _event: &PrecheckAuditEvent) {}
 }
 
 /// Audit sink that logs JSON lines to stderr.
@@ -135,6 +221,12 @@ pub struct McpStderrAuditSink;
 
 impl McpAuditSink for McpStderrAuditSink {
     fn record(&self, event: &McpAuditEvent) {
+        if let Ok(payload) = serde_json::to_string(event) {
+            let _ = writeln!(std::io::stderr(), "{payload}");
+        }
+    }
+
+    fn record_precheck(&self, event: &PrecheckAuditEvent) {
         if let Ok(payload) = serde_json::to_string(event) {
             let _ = writeln!(std::io::stderr(), "{payload}");
         }
@@ -163,6 +255,15 @@ impl McpFileAuditSink {
 
 impl McpAuditSink for McpFileAuditSink {
     fn record(&self, event: &McpAuditEvent) {
+        if let Ok(payload) = serde_json::to_string(event)
+            && let Ok(mut file) = self.file.lock()
+        {
+            let _ = writeln!(file, "{payload}");
+            let _ = file.flush();
+        }
+    }
+
+    fn record_precheck(&self, event: &PrecheckAuditEvent) {
         if let Ok(payload) = serde_json::to_string(event)
             && let Ok(mut file) = self.file.lock()
         {

@@ -32,8 +32,8 @@ mod common;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::HashAlgorithm;
 use decision_gate_core::ProviderId;
-use decision_gate_core::TrustRequirement;
 use decision_gate_mcp::FederatedEvidenceProvider;
+use decision_gate_mcp::McpNoopAuditSink;
 use decision_gate_mcp::ToolRouter;
 use decision_gate_mcp::auth::DefaultToolAuthz;
 use decision_gate_mcp::auth::NoopAuditSink;
@@ -84,6 +84,8 @@ fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
             .max_entries
             .map(|value| usize::try_from(value).unwrap_or(usize::MAX)),
     };
+    let trust_requirement = config.effective_trust_requirement();
+    let allow_default_namespace = config.allow_default_namespace();
     let authz = std::sync::Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
     let audit = std::sync::Arc::new(NoopAuditSink);
     ToolRouter::new(ToolRouterConfig {
@@ -98,9 +100,10 @@ fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
         capabilities: std::sync::Arc::new(capabilities),
         authz,
         audit,
-        trust_requirement: TrustRequirement {
-            min_lane: config.trust.min_lane,
-        },
+        trust_requirement,
+        precheck_audit: std::sync::Arc::new(McpNoopAuditSink),
+        precheck_audit_payloads: config.server.audit.log_precheck_payloads,
+        allow_default_namespace,
     })
 }
 

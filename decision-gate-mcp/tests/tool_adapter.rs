@@ -46,7 +46,6 @@ use decision_gate_core::StageSpec;
 use decision_gate_core::TenantId;
 use decision_gate_core::Timestamp;
 use decision_gate_core::TriggerId;
-use decision_gate_core::TrustRequirement;
 use decision_gate_core::runtime::ControlPlane;
 use decision_gate_core::runtime::ControlPlaneConfig;
 use decision_gate_core::runtime::InMemoryRunStateStore;
@@ -55,6 +54,7 @@ use decision_gate_core::runtime::NextResult;
 use decision_gate_mcp::DecisionGateConfig;
 use decision_gate_mcp::DefaultToolAuthz;
 use decision_gate_mcp::FederatedEvidenceProvider;
+use decision_gate_mcp::McpNoopAuditSink;
 use decision_gate_mcp::NoopAuditSink;
 use decision_gate_mcp::RequestContext;
 use decision_gate_mcp::SchemaRegistryConfig;
@@ -193,9 +193,10 @@ fn build_router(config: &DecisionGateConfig) -> ToolRouter {
         capabilities: Arc::new(capabilities),
         authz,
         audit,
-        trust_requirement: TrustRequirement {
-            min_lane: config.trust.min_lane,
-        },
+        trust_requirement: config.effective_trust_requirement(),
+        precheck_audit: Arc::new(McpNoopAuditSink),
+        precheck_audit_payloads: config.server.audit.log_precheck_payloads,
+        allow_default_namespace: config.allow_default_namespace(),
     })
 }
 
@@ -204,6 +205,7 @@ fn build_router(config: &DecisionGateConfig) -> ToolRouter {
 fn mcp_tools_match_core_control_plane() {
     let config = DecisionGateConfig {
         server: ServerConfig::default(),
+        namespace: decision_gate_mcp::config::NamespaceConfig { allow_default: true },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         validation: ValidationConfig::default(),
@@ -216,9 +218,7 @@ fn mcp_tools_match_core_control_plane() {
     let router = build_router(&config);
     let context = RequestContext::stdio();
 
-    let define = decision_gate_mcp::tools::ScenarioDefineRequest {
-        spec: sample_spec(),
-    };
+    let define = decision_gate_mcp::tools::ScenarioDefineRequest { spec: sample_spec() };
     let _ = router
         .handle_tool_call(&context, "scenario_define", serde_json::to_value(&define).unwrap())
         .unwrap();
@@ -280,6 +280,7 @@ fn mcp_tools_match_core_control_plane() {
 fn default_config() -> DecisionGateConfig {
     DecisionGateConfig {
         server: ServerConfig::default(),
+        namespace: decision_gate_mcp::config::NamespaceConfig { allow_default: true },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         validation: ValidationConfig::default(),
@@ -302,9 +303,7 @@ fn parity_scenario_status() {
     let context = RequestContext::stdio();
 
     // Define and start a scenario
-    let define = decision_gate_mcp::tools::ScenarioDefineRequest {
-        spec: sample_spec(),
-    };
+    let define = decision_gate_mcp::tools::ScenarioDefineRequest { spec: sample_spec() };
     router
         .handle_tool_call(&context, "scenario_define", serde_json::to_value(&define).unwrap())
         .unwrap();
@@ -386,9 +385,7 @@ fn parity_scenarios_list() {
     let context = RequestContext::stdio();
 
     // Define a scenario
-    let define = decision_gate_mcp::tools::ScenarioDefineRequest {
-        spec: sample_spec(),
-    };
+    let define = decision_gate_mcp::tools::ScenarioDefineRequest { spec: sample_spec() };
     router
         .handle_tool_call(&context, "scenario_define", serde_json::to_value(&define).unwrap())
         .unwrap();
@@ -440,9 +437,7 @@ fn parity_schemas_register_get() {
     };
 
     // Register schema
-    let register_request = SchemasRegisterRequest {
-        record: record.clone(),
-    };
+    let register_request = SchemasRegisterRequest { record: record.clone() };
     let register_result = router
         .handle_tool_call(
             &context,
@@ -494,9 +489,7 @@ fn parity_schemas_list() {
     };
 
     // Register schema
-    let register_request = SchemasRegisterRequest {
-        record,
-    };
+    let register_request = SchemasRegisterRequest { record };
     router
         .handle_tool_call(
             &context,
@@ -554,10 +547,7 @@ fn parity_evidence_query() {
         correlation_id: None,
     };
 
-    let request = EvidenceQueryRequest {
-        query,
-        context: evidence_context,
-    };
+    let request = EvidenceQueryRequest { query, context: evidence_context };
     let mcp_result = router
         .handle_tool_call(&context, "evidence_query", serde_json::to_value(&request).unwrap())
         .unwrap();
@@ -589,9 +579,7 @@ fn parity_precheck() {
     let spec = sample_spec();
 
     // Define the scenario
-    let define = decision_gate_mcp::tools::ScenarioDefineRequest {
-        spec: spec.clone(),
-    };
+    let define = decision_gate_mcp::tools::ScenarioDefineRequest { spec: spec.clone() };
     router
         .handle_tool_call(&context, "scenario_define", serde_json::to_value(&define).unwrap())
         .unwrap();
@@ -607,9 +595,7 @@ fn parity_precheck() {
         description: None,
         created_at: Timestamp::Logical(1),
     };
-    let register_request = SchemasRegisterRequest {
-        record,
-    };
+    let register_request = SchemasRegisterRequest { record };
     router
         .handle_tool_call(
             &context,
@@ -652,9 +638,7 @@ fn parity_scenario_status_not_found() {
     let context = RequestContext::stdio();
 
     // Define scenario but don't start a run
-    let define = decision_gate_mcp::tools::ScenarioDefineRequest {
-        spec: sample_spec(),
-    };
+    let define = decision_gate_mcp::tools::ScenarioDefineRequest { spec: sample_spec() };
     router
         .handle_tool_call(&context, "scenario_define", serde_json::to_value(&define).unwrap())
         .unwrap();
@@ -708,10 +692,7 @@ fn parity_evidence_query_unknown_provider() {
         correlation_id: None,
     };
 
-    let request = EvidenceQueryRequest {
-        query,
-        context: evidence_context,
-    };
+    let request = EvidenceQueryRequest { query, context: evidence_context };
     let result = router.handle_tool_call(
         &context,
         "evidence_query",

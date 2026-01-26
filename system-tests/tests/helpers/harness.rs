@@ -15,6 +15,7 @@ use std::time::Duration;
 use decision_gate_mcp::McpServer;
 use decision_gate_mcp::config::DecisionGateConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
+use decision_gate_mcp::config::NamespaceConfig;
 use decision_gate_mcp::config::PolicyConfig;
 use decision_gate_mcp::config::ProviderConfig;
 use decision_gate_mcp::config::ProviderTimeoutConfig;
@@ -26,6 +27,7 @@ use decision_gate_mcp::config::ServerAuthConfig;
 use decision_gate_mcp::config::ServerAuthMode;
 use decision_gate_mcp::config::ServerConfig;
 use decision_gate_mcp::config::ServerLimitsConfig;
+use decision_gate_mcp::config::ServerMode;
 use decision_gate_mcp::config::ServerTlsConfig;
 use decision_gate_mcp::config::ServerTransport;
 use decision_gate_mcp::config::TrustConfig;
@@ -76,12 +78,16 @@ pub fn base_http_config(bind: &str) -> DecisionGateConfig {
     DecisionGateConfig {
         server: ServerConfig {
             transport: ServerTransport::Http,
+            mode: ServerMode::Strict,
             bind: Some(bind.to_string()),
             max_body_bytes: 1024 * 1024,
             limits: ServerLimitsConfig::default(),
             auth: None,
             tls: None,
             audit: ServerAuditConfig::default(),
+        },
+        namespace: NamespaceConfig {
+            allow_default: true,
         },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
@@ -156,12 +162,16 @@ pub fn base_sse_config(bind: &str) -> DecisionGateConfig {
     DecisionGateConfig {
         server: ServerConfig {
             transport: ServerTransport::Sse,
+            mode: ServerMode::Strict,
             bind: Some(bind.to_string()),
             max_body_bytes: 1024 * 1024,
             limits: ServerLimitsConfig::default(),
             auth: None,
             tls: None,
             audit: ServerAuditConfig::default(),
+        },
+        namespace: NamespaceConfig {
+            allow_default: true,
         },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),

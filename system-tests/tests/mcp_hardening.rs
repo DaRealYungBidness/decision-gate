@@ -197,6 +197,7 @@ async fn http_audit_log_written() -> Result<(), Box<dyn std::error::Error>> {
     config.server.audit = ServerAuditConfig {
         enabled: true,
         path: Some(audit_path.display().to_string()),
+        log_precheck_payloads: false,
     };
     let server = spawn_mcp_server(config).await?;
 

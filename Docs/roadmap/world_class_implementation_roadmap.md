@@ -87,6 +87,7 @@ contracts, and docs freely to reach the best design.
 ---
 
 ### Phase 2: Dev-Permissive Mode + Default Namespace Policy (P1)
+**Status**: Implemented.
 **Features**:
 - Explicit dev-permissive toggle (asserted evidence allowed).
 - Strict mode rejects default namespace unless explicit.
@@ -106,8 +107,8 @@ contracts, and docs freely to reach the best design.
 - Tool namespace checks in `decision-gate-mcp/tests/tool_router.rs`.
 
 **System tests**:
-- Add `strict_mode_rejects_default_namespace` to `system-tests/tests/security.rs`.
-- Add `dev_permissive_emits_warning` to `system-tests/tests/operations.rs`.
+- `strict_mode_rejects_default_namespace` in `system-tests/tests/security.rs`.
+- `dev_permissive_emits_warning` in `system-tests/tests/operations.rs`.
 
 ---
 
@@ -137,6 +138,7 @@ contracts, and docs freely to reach the best design.
 ---
 
 ### Phase 4: Precheck Hash-Only Audit Logging (P1)
+**Status**: Implemented.
 **Features**:
 - Emit hash-only audit events for precheck request/response by default.
 - Never log raw asserted payload unless explicit opt-in.
@@ -152,7 +154,7 @@ contracts, and docs freely to reach the best design.
 - Audit payload redaction tests in `decision-gate-mcp/tests/mcp_hardening.rs`.
 
 **System tests**:
-- Add `precheck_audit_hash_only` to `system-tests/tests/operations.rs`.
+- `precheck_audit_hash_only` in `system-tests/tests/operations.rs`.
 
 ---
 

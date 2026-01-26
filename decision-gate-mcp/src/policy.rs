@@ -50,7 +50,10 @@ pub struct StaticPolicyConfig {
 
 impl Default for StaticPolicyConfig {
     fn default() -> Self {
-        Self { default: default_static_effect(), rules: Vec::new() }
+        Self {
+            default: default_static_effect(),
+            rules: Vec::new(),
+        }
     }
 }
 
@@ -265,10 +268,30 @@ pub enum DispatchTargetKind {
 impl DispatchTargetKind {
     fn matches(&self, target: &DispatchTarget) -> bool {
         match (self, target) {
-            (Self::Agent, DispatchTarget::Agent { .. }) => true,
-            (Self::Session, DispatchTarget::Session { .. }) => true,
-            (Self::External, DispatchTarget::External { .. }) => true,
-            (Self::Channel, DispatchTarget::Channel { .. }) => true,
+            (
+                Self::Agent,
+                DispatchTarget::Agent {
+                    ..
+                },
+            ) => true,
+            (
+                Self::Session,
+                DispatchTarget::Session {
+                    ..
+                },
+            ) => true,
+            (
+                Self::External,
+                DispatchTarget::External {
+                    ..
+                },
+            ) => true,
+            (
+                Self::Channel,
+                DispatchTarget::Channel {
+                    ..
+                },
+            ) => true,
             _ => false,
         }
     }
@@ -315,19 +338,28 @@ impl PolicyTargetSelector {
 
     fn matches(&self, target: &DispatchTarget) -> bool {
         match target {
-            DispatchTarget::Agent { agent_id } => {
+            DispatchTarget::Agent {
+                agent_id,
+            } => {
                 self.target_kind == DispatchTargetKind::Agent
                     && self.target_id.as_deref().map_or(true, |id| id == agent_id)
             }
-            DispatchTarget::Session { session_id } => {
+            DispatchTarget::Session {
+                session_id,
+            } => {
                 self.target_kind == DispatchTargetKind::Session
                     && self.target_id.as_deref().map_or(true, |id| id == session_id)
             }
-            DispatchTarget::Channel { channel } => {
+            DispatchTarget::Channel {
+                channel,
+            } => {
                 self.target_kind == DispatchTargetKind::Channel
                     && self.target_id.as_deref().map_or(true, |id| id == channel)
             }
-            DispatchTarget::External { system, target: target_id } => {
+            DispatchTarget::External {
+                system,
+                target: target_id,
+            } => {
                 if self.target_kind != DispatchTargetKind::External {
                     return false;
                 }

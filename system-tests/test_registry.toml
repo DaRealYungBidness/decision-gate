@@ -327,6 +327,36 @@ artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
 [[tests]]
+name = "strict_mode_rejects_default_namespace"
+category = "security"
+priority = "P1"
+description = "Strict mode rejects the default namespace without explicit allow."
+files = ["system-tests/tests/security.rs"]
+run_command = "cargo test -p system-tests --test security -- --exact strict_mode_rejects_default_namespace"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "dev_permissive_emits_warning"
+category = "operations"
+priority = "P1"
+description = "Dev-permissive mode emits an explicit startup warning."
+files = ["system-tests/tests/operations.rs"]
+run_command = "cargo test -p system-tests --test operations -- --exact dev_permissive_emits_warning"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "mcp.stderr.log"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "precheck_audit_hash_only"
+category = "operations"
+priority = "P1"
+description = "Precheck emits hash-only audit events by default."
+files = ["system-tests/tests/operations.rs"]
+run_command = "cargo test -p system-tests --test operations -- --exact precheck_audit_hash_only"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "mcp.stderr.log"]
+estimated_runtime_sec = 8
+
+[[tests]]
 name = "policy_denies_dispatch_targets"
 category = "security"
 priority = "P1"

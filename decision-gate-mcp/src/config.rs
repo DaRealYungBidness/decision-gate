@@ -23,6 +23,7 @@ use std::path::PathBuf;
 
 use decision_gate_contract::ToolName;
 use decision_gate_core::TrustLane;
+use decision_gate_core::TrustRequirement;
 use decision_gate_store_sqlite::SqliteStoreMode;
 use decision_gate_store_sqlite::SqliteSyncMode;
 use serde::Deserialize;
@@ -93,6 +94,9 @@ pub struct DecisionGateConfig {
     /// Server configuration.
     #[serde(default)]
     pub server: ServerConfig,
+    /// Namespace policy configuration.
+    #[serde(default)]
+    pub namespace: NamespaceConfig,
     /// Trust and policy configuration.
     #[serde(default)]
     pub trust: TrustConfig,
@@ -144,6 +148,7 @@ impl DecisionGateConfig {
     /// Returns [`ConfigError`] when configuration is invalid.
     pub fn validate(&mut self) -> Result<(), ConfigError> {
         self.server.validate()?;
+        self.namespace.validate()?;
         self.validation.validate()?;
         self.policy.validate()?;
         self.run_state_store.validate()?;
@@ -153,6 +158,28 @@ impl DecisionGateConfig {
         }
         Ok(())
     }
+
+    /// Returns the effective trust requirement for the configured mode.
+    #[must_use]
+    pub fn effective_trust_requirement(&self) -> TrustRequirement {
+        match self.server.mode {
+            ServerMode::DevPermissive => TrustRequirement {
+                min_lane: TrustLane::Asserted,
+            },
+            ServerMode::Strict => TrustRequirement {
+                min_lane: self.trust.min_lane,
+            },
+        }
+    }
+
+    /// Returns whether the default namespace is allowed.
+    #[must_use]
+    pub fn allow_default_namespace(&self) -> bool {
+        match self.server.mode {
+            ServerMode::DevPermissive => true,
+            ServerMode::Strict => self.namespace.allow_default,
+        }
+    }
 }
 
 /// Server configuration for MCP transports.
@@ -161,6 +188,9 @@ pub struct ServerConfig {
     /// Transport type for MCP.
     #[serde(default)]
     pub transport: ServerTransport,
+    /// Operational mode for the server.
+    #[serde(default)]
+    pub mode: ServerMode,
     /// Bind address for HTTP or SSE transports.
     #[serde(default)]
     pub bind: Option<String>,
@@ -185,6 +215,7 @@ impl Default for ServerConfig {
     fn default() -> Self {
         Self {
             transport: ServerTransport::Stdio,
+            mode: ServerMode::Strict,
             bind: None,
             max_body_bytes: default_max_body_bytes(),
             limits: ServerLimitsConfig::default(),
@@ -358,6 +389,9 @@ pub struct ServerAuditConfig {
     /// Optional audit log path (JSON lines).
     #[serde(default)]
     pub path: Option<String>,
+    /// Log raw precheck request/response payloads (explicit opt-in).
+    #[serde(default)]
+    pub log_precheck_payloads: bool,
 }
 
 impl Default for ServerAuditConfig {
@@ -365,6 +399,7 @@ impl Default for ServerAuditConfig {
         Self {
             enabled: default_audit_enabled(),
             path: None,
+            log_precheck_payloads: false,
         }
     }
 }
@@ -377,6 +412,17 @@ impl ServerAuditConfig {
         }
         Ok(())
     }
+}
+
+/// Server operating modes for security posture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ServerMode {
+    /// Strict mode (verified-only evidence, default namespace blocked).
+    #[default]
+    Strict,
+    /// Dev-permissive mode (asserted evidence allowed).
+    DevPermissive,
 }
 
 /// Supported MCP transport types.
@@ -501,6 +547,29 @@ impl Default for TrustConfig {
             default_policy: TrustPolicy::Audit,
             min_lane: default_trust_lane(),
         }
+    }
+}
+
+/// Namespace policy configuration.
+#[derive(Debug, Clone, Deserialize)]
+pub struct NamespaceConfig {
+    /// Allow the literal `default` namespace identifier.
+    #[serde(default)]
+    pub allow_default: bool,
+}
+
+impl Default for NamespaceConfig {
+    fn default() -> Self {
+        Self {
+            allow_default: false,
+        }
+    }
+}
+
+impl NamespaceConfig {
+    /// Validates namespace policy configuration.
+    fn validate(&self) -> Result<(), ConfigError> {
+        Ok(())
     }
 }
 

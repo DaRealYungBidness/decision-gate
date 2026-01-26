@@ -33,6 +33,9 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `http_transport_end_to_end` | mcp_transport | HTTP JSON-RPC transport works end-to-end. |
 | `federated_provider_echo` | providers | External MCP provider integration works. |
 | `packet_disclosure_visibility` | security | Packet visibility labels and policy tags persist. |
+| `strict_mode_rejects_default_namespace` | security | Strict mode rejects default namespace. |
+| `dev_permissive_emits_warning` | operations | Dev-permissive mode emits explicit warning. |
+| `precheck_audit_hash_only` | operations | Precheck audit logs are hash-only by default. |
 | `policy_denies_dispatch_targets` | security | Static policy engine denies disclosure and fails the run. |
 | `policy_error_fails_closed` | security | Policy engine errors fail closed with explicit reason. |
 | `runpack_tamper_detection` | runpack | Tampered runpack fails verification. |

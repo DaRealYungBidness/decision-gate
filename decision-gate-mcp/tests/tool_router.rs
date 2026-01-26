@@ -53,6 +53,7 @@ use decision_gate_core::runtime::SubmitRequest;
 use decision_gate_core::runtime::SubmitResult;
 use decision_gate_core::runtime::TriggerResult;
 use decision_gate_mcp::SchemaRegistryConfig;
+use decision_gate_mcp::config::ServerMode;
 use decision_gate_mcp::tools::EvidenceQueryRequest;
 use decision_gate_mcp::tools::EvidenceQueryResponse;
 use decision_gate_mcp::tools::PrecheckToolRequest;
@@ -149,6 +150,50 @@ fn unknown_tool_returns_error() {
     assert!(result.is_err());
     let error = result.unwrap_err();
     assert!(error.to_string().contains("unknown tool"));
+}
+
+// ============================================================================
+// SECTION: Namespace Policy Tests
+// ============================================================================
+
+/// Verifies strict mode rejects the default namespace unless explicitly allowed.
+#[test]
+fn strict_mode_rejects_default_namespace() {
+    let mut config = sample_config();
+    config.server.mode = ServerMode::Strict;
+    config.namespace.allow_default = false;
+    let router = router_with_config(config);
+    let spec = sample_spec();
+    let request = ScenarioDefineRequest {
+        spec,
+    };
+    let error = router
+        .handle_tool_call(
+            &local_request_context(),
+            "scenario_define",
+            serde_json::to_value(&request).unwrap(),
+        )
+        .unwrap_err();
+    assert!(error.to_string().contains("default namespace is not allowed"));
+}
+
+/// Verifies dev-permissive mode allows the default namespace.
+#[test]
+fn dev_permissive_allows_default_namespace() {
+    let mut config = sample_config();
+    config.server.mode = ServerMode::DevPermissive;
+    config.namespace.allow_default = false;
+    let router = router_with_config(config);
+    let spec = sample_spec();
+    let request = ScenarioDefineRequest {
+        spec,
+    };
+    let result = router.handle_tool_call(
+        &local_request_context(),
+        "scenario_define",
+        serde_json::to_value(&request).unwrap(),
+    );
+    assert!(result.is_ok());
 }
 
 // ============================================================================

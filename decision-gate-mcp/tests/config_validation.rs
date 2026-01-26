@@ -28,8 +28,10 @@
 
 use std::path::PathBuf;
 
+use decision_gate_core::TrustLane;
 use decision_gate_mcp::DecisionGateConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
+use decision_gate_mcp::config::NamespaceConfig;
 use decision_gate_mcp::config::PolicyConfig;
 use decision_gate_mcp::config::ProviderConfig;
 use decision_gate_mcp::config::ProviderTimeoutConfig;
@@ -41,6 +43,7 @@ use decision_gate_mcp::config::ServerAuthConfig;
 use decision_gate_mcp::config::ServerAuthMode;
 use decision_gate_mcp::config::ServerConfig;
 use decision_gate_mcp::config::ServerLimitsConfig;
+use decision_gate_mcp::config::ServerMode;
 use decision_gate_mcp::config::ServerTlsConfig;
 use decision_gate_mcp::config::ServerTransport;
 use decision_gate_mcp::config::TrustConfig;
@@ -59,6 +62,7 @@ fn validate_server_config(
 ) -> Result<(), decision_gate_mcp::config::ConfigError> {
     let mut config = DecisionGateConfig {
         server,
+        namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         validation: ValidationConfig::default(),
@@ -76,6 +80,7 @@ fn validate_provider_config(
 ) -> Result<(), decision_gate_mcp::config::ConfigError> {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         validation: ValidationConfig::default(),
@@ -92,6 +97,7 @@ fn validate_provider_config(
 fn policy_static_requires_config() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         validation: ValidationConfig::default(),
@@ -114,6 +120,7 @@ fn policy_static_requires_config() {
 fn policy_static_rejects_empty_rule() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         validation: ValidationConfig::default(),
@@ -153,6 +160,7 @@ fn policy_static_rejects_empty_rule() {
 fn policy_static_error_requires_message() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         validation: ValidationConfig::default(),
@@ -192,6 +200,7 @@ fn policy_static_error_requires_message() {
 fn policy_static_rejects_external_target_id() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         validation: ValidationConfig::default(),
@@ -236,6 +245,7 @@ fn policy_static_rejects_external_target_id() {
 fn policy_static_rejects_agent_with_system() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         validation: ValidationConfig::default(),
@@ -284,6 +294,7 @@ fn policy_static_rejects_agent_with_system() {
 fn server_stdio_no_bind_required() {
     let config = ServerConfig {
         transport: ServerTransport::Stdio,
+        mode: ServerMode::Strict,
         bind: None,
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -299,6 +310,7 @@ fn server_stdio_no_bind_required() {
 fn server_max_body_bytes_zero_rejected() {
     let config = ServerConfig {
         transport: ServerTransport::Stdio,
+        mode: ServerMode::Strict,
         bind: None,
         max_body_bytes: 0,
         limits: ServerLimitsConfig::default(),
@@ -317,6 +329,7 @@ fn server_max_body_bytes_zero_rejected() {
 fn server_http_requires_bind() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
+        mode: ServerMode::Strict,
         bind: None,
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -335,6 +348,7 @@ fn server_http_requires_bind() {
 fn server_sse_requires_bind() {
     let config = ServerConfig {
         transport: ServerTransport::Sse,
+        mode: ServerMode::Strict,
         bind: None,
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -353,6 +367,7 @@ fn server_sse_requires_bind() {
 fn server_http_loopback_allowed() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
+        mode: ServerMode::Strict,
         bind: Some("127.0.0.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -368,6 +383,7 @@ fn server_http_loopback_allowed() {
 fn server_http_ipv6_loopback_allowed() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
+        mode: ServerMode::Strict,
         bind: Some("[::1]:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -383,6 +399,7 @@ fn server_http_ipv6_loopback_allowed() {
 fn server_http_non_loopback_rejected() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
+        mode: ServerMode::Strict,
         bind: Some("0.0.0.0:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -401,6 +418,7 @@ fn server_http_non_loopback_rejected() {
 fn server_http_external_ip_rejected() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
+        mode: ServerMode::Strict,
         bind: Some("192.168.1.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -417,6 +435,7 @@ fn server_http_external_ip_rejected() {
 fn server_invalid_bind_format_rejected() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
+        mode: ServerMode::Strict,
         bind: Some("not-an-address".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -435,6 +454,7 @@ fn server_invalid_bind_format_rejected() {
 fn server_empty_bind_rejected() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
+        mode: ServerMode::Strict,
         bind: Some("   ".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -451,6 +471,7 @@ fn server_empty_bind_rejected() {
 fn server_http_non_loopback_allowed_with_bearer_auth() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
+        mode: ServerMode::Strict,
         bind: Some("0.0.0.0:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -471,6 +492,7 @@ fn server_http_non_loopback_allowed_with_bearer_auth() {
 fn server_stdio_rejects_bearer_auth() {
     let config = ServerConfig {
         transport: ServerTransport::Stdio,
+        mode: ServerMode::Strict,
         bind: None,
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -492,6 +514,7 @@ fn server_stdio_rejects_bearer_auth() {
 fn server_auth_bearer_requires_token() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
+        mode: ServerMode::Strict,
         bind: Some("127.0.0.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -513,6 +536,7 @@ fn server_auth_bearer_requires_token() {
 fn server_auth_rejects_unknown_tool_in_allowlist() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
+        mode: ServerMode::Strict,
         bind: Some("127.0.0.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -534,6 +558,7 @@ fn server_auth_rejects_unknown_tool_in_allowlist() {
 fn server_auth_mtls_requires_subjects() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
+        mode: ServerMode::Strict,
         bind: Some("127.0.0.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -555,6 +580,7 @@ fn server_auth_mtls_requires_subjects() {
 fn server_limits_rejects_zero_inflight() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
+        mode: ServerMode::Strict,
         bind: Some("127.0.0.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig {
@@ -574,6 +600,7 @@ fn server_limits_rejects_zero_inflight() {
 fn server_rate_limit_rejects_zero_requests() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
+        mode: ServerMode::Strict,
         bind: Some("127.0.0.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig {
@@ -597,6 +624,7 @@ fn server_rate_limit_rejects_zero_requests() {
 fn server_tls_rejects_empty_paths() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
+        mode: ServerMode::Strict,
         bind: Some("127.0.0.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -618,6 +646,7 @@ fn server_tls_rejects_empty_paths() {
 fn server_stdio_rejects_tls() {
     let config = ServerConfig {
         transport: ServerTransport::Stdio,
+        mode: ServerMode::Strict,
         bind: None,
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -639,6 +668,7 @@ fn server_stdio_rejects_tls() {
 fn server_audit_rejects_empty_path() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
+        mode: ServerMode::Strict,
         bind: Some("127.0.0.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -647,6 +677,7 @@ fn server_audit_rejects_empty_path() {
         audit: ServerAuditConfig {
             enabled: true,
             path: Some("   ".to_string()),
+            log_precheck_payloads: false,
         },
     };
     let result = validate_server_config(config);
@@ -837,6 +868,7 @@ fn provider_timeouts_reject_request_below_connect() {
 fn schema_registry_memory_rejects_path() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         validation: ValidationConfig::default(),
@@ -862,6 +894,7 @@ fn schema_registry_memory_rejects_path() {
 fn schema_registry_sqlite_requires_path() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         validation: ValidationConfig::default(),
@@ -892,6 +925,7 @@ fn schema_registry_sqlite_requires_path() {
 fn validation_strict_disabled_requires_allow_permissive() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         validation: ValidationConfig {
@@ -910,11 +944,104 @@ fn validation_strict_disabled_requires_allow_permissive() {
     assert!(error.to_string().contains("allow_permissive"));
 }
 
+// ============================================================================
+// SECTION: Server Mode + Namespace Policy Tests
+// ============================================================================
+
+#[test]
+fn dev_permissive_forces_asserted_trust_lane() {
+    let config = DecisionGateConfig {
+        server: ServerConfig {
+            mode: ServerMode::DevPermissive,
+            ..ServerConfig::default()
+        },
+        namespace: NamespaceConfig::default(),
+        trust: TrustConfig {
+            min_lane: TrustLane::Verified,
+            ..TrustConfig::default()
+        },
+        evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+    };
+    assert_eq!(config.effective_trust_requirement().min_lane, TrustLane::Asserted);
+}
+
+#[test]
+fn strict_mode_uses_configured_trust_lane() {
+    let config = DecisionGateConfig {
+        server: ServerConfig {
+            mode: ServerMode::Strict,
+            ..ServerConfig::default()
+        },
+        namespace: NamespaceConfig::default(),
+        trust: TrustConfig {
+            min_lane: TrustLane::Asserted,
+            ..TrustConfig::default()
+        },
+        evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+    };
+    assert_eq!(config.effective_trust_requirement().min_lane, TrustLane::Asserted);
+}
+
+#[test]
+fn dev_permissive_allows_default_namespace() {
+    let config = DecisionGateConfig {
+        server: ServerConfig {
+            mode: ServerMode::DevPermissive,
+            ..ServerConfig::default()
+        },
+        namespace: NamespaceConfig {
+            allow_default: false,
+        },
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+    };
+    assert!(config.allow_default_namespace());
+}
+
+#[test]
+fn strict_mode_requires_explicit_default_namespace_allow() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig {
+            mode: ServerMode::Strict,
+            ..ServerConfig::default()
+        },
+        namespace: NamespaceConfig {
+            allow_default: false,
+        },
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+    };
+    assert!(!config.allow_default_namespace());
+    config.namespace.allow_default = true;
+    assert!(config.allow_default_namespace());
+}
+
 /// Verifies `schema_registry` rejects zero `max_schema_bytes`.
 #[test]
 fn schema_registry_rejects_zero_max_schema_bytes() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         validation: ValidationConfig::default(),
@@ -935,6 +1062,7 @@ fn schema_registry_rejects_zero_max_schema_bytes() {
 fn schema_registry_rejects_zero_max_entries() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         validation: ValidationConfig::default(),
@@ -959,6 +1087,7 @@ fn schema_registry_rejects_zero_max_entries() {
 fn run_state_store_sqlite_requires_path() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         validation: ValidationConfig::default(),
@@ -985,6 +1114,7 @@ fn run_state_store_sqlite_requires_path() {
 fn run_state_store_memory_rejects_path() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         validation: ValidationConfig::default(),
@@ -1009,6 +1139,7 @@ fn run_state_store_memory_rejects_path() {
 fn run_state_store_sqlite_accepts_path() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         validation: ValidationConfig::default(),
@@ -1033,6 +1164,7 @@ fn run_state_store_sqlite_accepts_path() {
 fn run_state_store_sqlite_rejects_zero_retention() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         validation: ValidationConfig::default(),

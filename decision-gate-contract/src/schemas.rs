@@ -342,6 +342,7 @@ pub fn config_schema() -> Value {
         "type": "object",
         "properties": {
             "server": server_config_schema(),
+            "namespace": namespace_config_schema(),
             "trust": trust_config_schema(),
             "evidence": evidence_policy_schema(),
             "policy": policy_config_schema(),
@@ -1360,6 +1361,11 @@ fn server_config_schema() -> Value {
                 "enum": ["stdio", "http", "sse"],
                 "default": "stdio"
             },
+            "mode": {
+                "type": "string",
+                "enum": ["strict", "dev_permissive"],
+                "default": "strict"
+            },
             "bind": {
                 "oneOf": [
                     { "type": "null" },
@@ -1371,7 +1377,8 @@ fn server_config_schema() -> Value {
                 "type": "integer",
                 "minimum": 0,
                 "default": 1_048_576
-            }
+            },
+            "audit": server_audit_schema()
         },
         "allOf": [
             {
@@ -1392,6 +1399,32 @@ fn server_config_schema() -> Value {
     })
 }
 
+/// Returns the JSON schema for server audit configuration.
+#[must_use]
+fn server_audit_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "enabled": {
+                "type": "boolean",
+                "default": true
+            },
+            "path": {
+                "oneOf": [
+                    { "type": "null" },
+                    schema_for_string("Audit log path (JSON lines).")
+                ],
+                "default": null
+            },
+            "log_precheck_payloads": {
+                "type": "boolean",
+                "default": false
+            }
+        },
+        "additionalProperties": false
+    })
+}
+
 /// Returns the JSON schema for trust configuration.
 #[must_use]
 fn trust_config_schema() -> Value {
@@ -1400,6 +1433,21 @@ fn trust_config_schema() -> Value {
         "properties": {
             "default_policy": trust_policy_schema(),
             "min_lane": trust_lane_schema()
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for namespace policy configuration.
+#[must_use]
+fn namespace_config_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "allow_default": {
+                "type": "boolean",
+                "default": false
+            }
         },
         "additionalProperties": false
     })

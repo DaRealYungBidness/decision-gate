@@ -32,6 +32,7 @@ use decision_gate_core::StageSpec;
 use decision_gate_core::Timestamp;
 use decision_gate_core::TriggerEvent;
 use decision_gate_core::TriggerKind;
+use decision_gate_mcp::config::ServerMode;
 use decision_gate_mcp::policy::PolicyEffect;
 use decision_gate_mcp::policy::PolicyEngine;
 use decision_gate_mcp::policy::PolicyRule;
@@ -145,6 +146,40 @@ async fn packet_disclosure_visibility() -> Result<(), Box<dyn std::error::Error>
     reporter.finish(
         "pass",
         vec!["packet visibility metadata persisted".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+        ],
+    )?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn strict_mode_rejects_default_namespace() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("strict_mode_rejects_default_namespace")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let mut config = base_http_config(&bind);
+    config.server.mode = ServerMode::Strict;
+    config.namespace.allow_default = false;
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(std::time::Duration::from_secs(5))?;
+    wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
+
+    let fixture = ScenarioFixture::time_after("strict-default", "run-1", 0);
+    let define_request = ScenarioDefineRequest {
+        spec: fixture.spec,
+    };
+    let define_input = serde_json::to_value(&define_request)?;
+    let error = client.call_tool("scenario_define", define_input).await.unwrap_err();
+    if !error.contains("unauthorized") {
+        return Err(format!("unexpected error: {error}").into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["default namespace rejected in strict mode".to_string()],
         vec![
             "summary.json".to_string(),
             "summary.md".to_string(),

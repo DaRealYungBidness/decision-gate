@@ -1,6 +1,10 @@
 [server]
 transport = "stdio"
+mode = "strict"
 max_body_bytes = 1048576
+
+[namespace]
+allow_default = false
 
 [trust]
 default_policy = "audit"

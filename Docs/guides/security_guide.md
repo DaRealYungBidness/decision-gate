@@ -26,6 +26,25 @@ exposed by the MCP layer.
 When signature enforcement is enabled, unsigned or untrusted evidence is
 rejected and the gate remains held.
 
+## Server Mode and Namespace Policy
+Decision Gate runs in one of two explicit modes:
+
+- `server.mode = "strict"` (default): only verified evidence is accepted, and
+  the literal `default` namespace is rejected unless
+  `namespace.allow_default = true`.
+- `server.mode = "dev_permissive"`: asserted evidence is allowed (effective
+  trust lane forced to `asserted`) and the default namespace is permitted.
+  Startup emits a warning so operators can detect non-production posture.
+
+Use strict mode for production and high-assurance environments. Use
+dev-permissive only for local development, tests, or controlled sandboxes.
+
+## Precheck Audit Logging
+Precheck requests handle asserted payloads and are audited hash-only by default.
+Each precheck emits canonical JSON hashes for the request and response. Raw
+payload logging is disabled unless explicitly enabled via
+`server.audit.log_precheck_payloads = true`.
+
 ## Evidence Disclosure Policy
 `evidence_query` is a debug surface and is denied by default for raw values.
 

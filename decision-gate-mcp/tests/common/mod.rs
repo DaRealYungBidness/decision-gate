@@ -48,9 +48,9 @@ use decision_gate_core::TenantId;
 use decision_gate_core::TimeoutPolicy;
 use decision_gate_core::Timestamp;
 use decision_gate_core::TriggerId;
-use decision_gate_core::TrustRequirement;
 use decision_gate_mcp::DecisionGateConfig;
 use decision_gate_mcp::FederatedEvidenceProvider;
+use decision_gate_mcp::McpNoopAuditSink;
 use decision_gate_mcp::SchemaRegistryConfig;
 use decision_gate_mcp::ToolRouter;
 use decision_gate_mcp::auth::DefaultToolAuthz;
@@ -58,6 +58,7 @@ use decision_gate_mcp::auth::NoopAuditSink;
 use decision_gate_mcp::auth::RequestContext;
 use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::EvidencePolicyConfig;
+use decision_gate_mcp::config::NamespaceConfig;
 use decision_gate_mcp::config::PolicyConfig;
 use decision_gate_mcp::config::ProviderConfig;
 use decision_gate_mcp::config::ProviderTimeoutConfig;
@@ -80,6 +81,9 @@ use serde_json::json;
 pub fn sample_config() -> DecisionGateConfig {
     DecisionGateConfig {
         server: ServerConfig::default(),
+        namespace: NamespaceConfig {
+            allow_default: true,
+        },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         validation: ValidationConfig::default(),
@@ -131,6 +135,8 @@ pub fn router_with_config(config: DecisionGateConfig) -> ToolRouter {
             .max_entries
             .map(|value| usize::try_from(value).unwrap_or(usize::MAX)),
     };
+    let trust_requirement = config.effective_trust_requirement();
+    let allow_default_namespace = config.allow_default_namespace();
     let authz = Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
     let audit = Arc::new(NoopAuditSink);
     let dispatch_policy = config.policy.dispatch_policy().expect("dispatch policy");
@@ -146,9 +152,10 @@ pub fn router_with_config(config: DecisionGateConfig) -> ToolRouter {
         capabilities: Arc::new(capabilities),
         authz,
         audit,
-        trust_requirement: TrustRequirement {
-            min_lane: config.trust.min_lane,
-        },
+        trust_requirement,
+        precheck_audit: Arc::new(McpNoopAuditSink),
+        precheck_audit_payloads: config.server.audit.log_precheck_payloads,
+        allow_default_namespace,
     })
 }
 

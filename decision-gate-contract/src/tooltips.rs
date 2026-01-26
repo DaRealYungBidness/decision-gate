@@ -601,6 +601,32 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          for stdio.",
     ),
     (
+        "audit_enabled",
+        "Enable structured MCP audit logging. When false, audit events are discarded. Default is \
+         true to preserve security and compliance evidence.",
+    ),
+    (
+        "audit_path",
+        "Filesystem path for MCP audit logs (JSON lines). When unset, audit events are written to \
+         stderr.",
+    ),
+    (
+        "log_precheck_payloads",
+        "Explicit opt-in to log raw precheck request/response payloads. Default false; hash-only \
+         auditing is always emitted when audit is enabled.",
+    ),
+    (
+        "mode",
+        "Server operating mode: 'strict' (default) or 'dev_permissive'. Dev-permissive allows \
+         asserted evidence and the default namespace; use only for local development or \
+         controlled test environments.",
+    ),
+    (
+        "allow_default",
+        "Permit the literal 'default' namespace in strict mode. Defaults false. Production \
+         deployments should use explicit namespaces to avoid accidental cross-tenant collisions.",
+    ),
+    (
         "capabilities_path",
         "Filesystem path to a provider's capability contract JSON. The contract declares \
          supported predicates, param schemas, and comparator compatibility. The runtime validates \

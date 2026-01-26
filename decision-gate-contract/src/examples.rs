@@ -98,7 +98,11 @@ pub fn config_toml_example() -> String {
     String::from(
         r#"[server]
 transport = "stdio"
+mode = "strict"
 max_body_bytes = 1048576
+
+[namespace]
+allow_default = false
 
 [trust]
 default_policy = "audit"

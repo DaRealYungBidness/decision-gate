@@ -46,6 +46,9 @@ use tempfile::TempDir;
 fn base_config() -> DecisionGateConfig {
     DecisionGateConfig {
         server: ServerConfig::default(),
+        namespace: decision_gate_mcp::config::NamespaceConfig {
+            allow_default: true,
+        },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         validation: ValidationConfig::default(),
