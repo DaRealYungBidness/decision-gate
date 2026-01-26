@@ -40,6 +40,7 @@ predicate algebra used by the engine.
 - [Security](#security)
 - [Formatting](#formatting)
 - [Quick Start](#quick-start)
+- [References](#references)
 
 ## Overview
 Decision Gate is a control plane. It does not run conversations or agents.
@@ -440,3 +441,9 @@ Do not use `cargo fmt` in this repo.
   - `cargo run -p decision-gate-cli -- serve --config decision-gate.toml`
 - Durable run state: configure `run_state_store` in `decision-gate.toml` to use
   the SQLite backend (see `Docs/configuration/decision-gate.toml.md`).
+
+## References
+
+The Amity Affliction. (2014). _Pittsburgh_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=vu3xGr-lNVI
+
+Kublai Khan. (2017). _The Hammer_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=8GGMdMo61_o
