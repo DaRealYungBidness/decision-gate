@@ -433,6 +433,16 @@ enables offline verification of integrity and tamper detection.
 - Security guide: `Docs/guides/security_guide.md`
 - Integration patterns: `Docs/guides/integration_patterns.md`
 - AssetCore integration hub: `Docs/integrations/assetcore/`
+- Architecture:
+  - `Docs/architecture/comparator_validation_architecture.md`
+  - `Docs/architecture/decision_gate_assetcore_integration_contract.md`
+  - `Docs/architecture/decision_gate_namespace_registry_rbac_architecture.md`
+  - `Docs/architecture/decision_gate_auth_disclosure_architecture.md`
+  - `Docs/architecture/decision_gate_evidence_trust_anchor_architecture.md`
+  - `Docs/architecture/decision_gate_runpack_architecture.md`
+  - `Docs/architecture/decision_gate_scenario_state_architecture.md`
+  - `Docs/architecture/decision_gate_provider_capability_architecture.md`
+  - `Docs/architecture/decision_gate_system_test_architecture.md`
 
 ## Security
 Decision Gate assumes hostile inputs and fails closed on missing or invalid

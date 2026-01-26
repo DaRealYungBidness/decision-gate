@@ -46,6 +46,21 @@ pub struct DataShapeRecord {
     pub description: Option<String>,
     /// Timestamp recorded when the schema was created.
     pub created_at: Timestamp,
+    /// Optional signing metadata for registry records.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signing: Option<DataShapeSignature>,
+}
+
+/// Optional schema signing metadata.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DataShapeSignature {
+    /// Signing key identifier.
+    pub key_id: String,
+    /// Signature string (base64 or provider-defined encoding).
+    pub signature: String,
+    /// Optional signature algorithm label.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub algorithm: Option<String>,
 }
 
 /// Page of data shapes.

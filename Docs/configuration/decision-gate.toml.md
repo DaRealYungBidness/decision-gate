@@ -22,7 +22,7 @@ fail closed on errors.
 | Field | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `transport` | `"stdio" | "http" | "sse"` | `stdio` | HTTP/SSE require `bind`; non-loopback requires auth. |
-| `mode` | `"strict" | "dev_permissive"` | `strict` | Dev-permissive allows asserted evidence and default namespace; emits warnings. |
+| `mode` | `"strict" | "dev_permissive"` | `strict` | `dev_permissive` is legacy; prefer `[dev]` for explicit opt-in. |
 | `bind` | string | `null` | Required for HTTP/SSE; loopback-only unless auth enabled. |
 | `max_body_bytes` | integer | `1048576` | Maximum JSON-RPC request size. |
 | `auth` | table | `null` | Inbound authn/authz for MCP tool calls. |
@@ -35,6 +35,7 @@ fail closed on errors.
 | `bearer_tokens` | array | `[]` | Required for `bearer_token` mode. |
 | `mtls_subjects` | array | `[]` | Required for `mtls` mode (trusted proxy header). |
 | `allowed_tools` | array | `[]` | Optional tool allowlist (per-tool authz). |
+| `principals` | array | `[]` | Optional principal mappings for registry ACL (subject/roles). |
 
 Bearer token example:
 ```toml
@@ -53,6 +54,20 @@ mtls_subjects = ["CN=decision-gate-client,O=Example Corp"]
 When using `mtls` mode, the server expects the
 `x-decision-gate-client-subject` header from a trusted TLS-terminating proxy.
 
+Principal mapping example (registry ACL):
+```toml
+[[server.auth.principals]]
+subject = "loopback"
+policy_class = "prod"
+
+[[server.auth.principals.roles]]
+name = "TenantAdmin"
+tenant_id = "tenant-1"
+namespace_id = "default"
+```
+Built-in registry ACL expects `policy_class` values like `prod`, `project`,
+or `scratch` (case-insensitive). Unknown values are treated as `prod`.
+
 ### `[server.audit]`
 | Field | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -60,10 +75,22 @@ When using `mtls` mode, the server expects the
 | `path` | string | `null` | Optional audit log path; defaults to stderr. |
 | `log_precheck_payloads` | bool | `false` | Explicit opt-in to log raw precheck payloads. |
 
+### `[dev]`
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `permissive` | bool | `false` | Explicit opt-in to allow asserted evidence in dev. |
+| `permissive_scope` | `"asserted_evidence_only"` | `asserted_evidence_only` | Dev-permissive scope (fixed for v1). |
+| `permissive_ttl_days` | integer | `null` | Optional TTL for warnings (days since config mtime). |
+| `permissive_warn` | bool | `true` | Emit warnings on startup when dev-permissive enabled/expired. |
+| `permissive_exempt_providers` | array | `["assetcore_read","assetcore"]` | Providers exempt from dev-permissive relaxations. |
+
+Dev-permissive is rejected when `namespace.authority.mode = "assetcore_http"`.
+
 ### `[namespace]`
 | Field | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `allow_default` | bool | `false` | Allow the literal `default` namespace in strict mode. |
+| `allow_default` | bool | `false` | Allow the literal `default` namespace (opt-in). |
+| `default_tenants` | array | `[]` | Tenant allowlist required when `allow_default = true`. |
 
 ### `[namespace.authority]`
 | Field | Type | Default | Notes |
@@ -79,6 +106,7 @@ When using `mtls` mode, the server expects the
 | `connect_timeout_ms` | integer | `500` | HTTP connect timeout (ms). |
 | `request_timeout_ms` | integer | `2000` | HTTP request timeout (ms). |
 | `mapping` | table | `{}` | Optional DG namespace -> ASC numeric mapping. |
+| `mapping_mode` | `"explicit_map" | "numeric_parse"` | `numeric_parse` | Namespace mapping strategy (required for Asset Core). |
 
 Asset Core authority example:
 ```toml
@@ -90,6 +118,7 @@ base_url = "http://127.0.0.1:9001"
 auth_token = "token"
 connect_timeout_ms = 500
 request_timeout_ms = 2000
+mapping_mode = "explicit_map"
 mapping = { default = 42 }
 ```
 
@@ -228,6 +257,43 @@ busy_timeout_ms = 5000
 max_versions = 1000
 ```
 
+### `[schema_registry]`
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `type` | `"memory" | "sqlite"` | `memory` | Registry backend selection. |
+| `path` | string | `null` | SQLite database path (required for `sqlite`). |
+| `busy_timeout_ms` | integer | `5000` | SQLite busy timeout. |
+| `journal_mode` | `"wal" | "delete"` | `wal` | SQLite journal mode. |
+| `sync_mode` | `"full" | "normal"` | `full` | SQLite sync mode. |
+| `max_schema_bytes` | integer | `1048576` | Maximum schema payload size. |
+| `max_entries` | integer | `null` | Optional max schemas per tenant+namespace. |
+| `acl` | table | `{ mode = "builtin" }` | Registry ACL configuration. |
+
+### `[schema_registry.acl]`
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `mode` | `"builtin" | "custom"` | `builtin` | Built-in role rules or custom ACL rules. |
+| `default` | `"deny" | "allow"` | `deny` | Default decision when no rules match (custom only). |
+| `require_signing` | bool | `false` | Require schema signing metadata on writes. |
+| `rules` | array | `[]` | Custom ACL rules (only when `mode = "custom"`). |
+
+Built-in ACL relies on `server.auth.principals` for role and policy_class
+resolution. Without principals, registry access defaults to deny.
+
+Custom ACL example:
+```toml
+[schema_registry.acl]
+mode = "custom"
+default = "deny"
+
+[[schema_registry.acl.rules]]
+effect = "allow"
+actions = ["register", "list", "get"]
+tenants = ["tenant-1"]
+namespaces = ["default"]
+roles = ["TenantAdmin", "NamespaceAdmin"]
+```
+
 ### `[[providers]]`
 Provider entries register built-in or MCP providers.
 
@@ -238,7 +304,7 @@ Provider entries register built-in or MCP providers.
 | `command` | array | no | Stdio command for MCP providers. |
 | `url` | string | no | HTTP endpoint for MCP providers. |
 | `allow_insecure_http` | bool | `false` | Allow `http://` for MCP providers. |
-| `capabilities_path` | string | yes (MCP) | Path to the provider capability contract JSON. |
+| `capabilities_path` | string | yes (MCP) | Path to the provider contract JSON (capability contract). |
 | `auth` | table | no | Bearer token for MCP providers. |
 | `trust` | table | no | Per-provider trust override. |
 | `allow_raw` | bool | `false` | Allow raw evidence disclosure for this provider. |

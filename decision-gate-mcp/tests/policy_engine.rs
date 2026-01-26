@@ -59,8 +59,8 @@ fn sample_envelope_with_content_type(
         content_type: content_type.to_string(),
         content_hash: hash_bytes(DEFAULT_HASH_ALGORITHM, b"payload"),
         visibility: decision_gate_core::VisibilityPolicy::new(
-            labels.into_iter().map(|value| value.to_string()).collect(),
-            tags.into_iter().map(|value| value.to_string()).collect(),
+            labels.into_iter().map(ToString::to_string).collect(),
+            tags.into_iter().map(ToString::to_string).collect(),
         ),
         expiry: None,
         correlation_id: None,

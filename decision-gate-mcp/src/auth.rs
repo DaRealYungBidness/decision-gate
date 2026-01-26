@@ -123,6 +123,22 @@ impl AuthContext {
             AuthMethod::MtlsSubject => "mtls_subject",
         }
     }
+
+    /// Returns a stable principal identifier string for ACL mapping.
+    #[must_use]
+    pub fn principal_id(&self) -> String {
+        if let Some(subject) = &self.subject {
+            return subject.clone();
+        }
+        if let Some(fingerprint) = &self.token_fingerprint {
+            return format!("token:{fingerprint}");
+        }
+        match self.method {
+            AuthMethod::Local => "local".to_string(),
+            AuthMethod::BearerToken => "token:unknown".to_string(),
+            AuthMethod::MtlsSubject => "mtls:unknown".to_string(),
+        }
+    }
 }
 
 /// Authentication method used for the request.

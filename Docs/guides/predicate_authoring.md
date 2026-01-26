@@ -28,6 +28,9 @@ Predicate specs live in the ScenarioSpec `predicates` array. Each entry includes
   most comparators).
 - `policy_tags`: policy labels applied to predicate evaluation.
 
+Note: `query.predicate` is the provider check name from the provider contract.
+The top-level `predicate` key is the ScenarioSpec predicate identifier.
+
 Minimal example:
 
 ```json

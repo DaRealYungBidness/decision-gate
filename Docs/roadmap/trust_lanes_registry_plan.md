@@ -20,6 +20,10 @@ features, scope, trust model, and an ordered build plan for registry, discovery
 tools, namespaces, and precheck. This is the spec we should hand to an LLM for
 implementation.
 
+**Note (current policy)**: The literal `default` namespace is never implicitly
+allowed. Enable it explicitly with `namespace.allow_default = true` and
+`namespace.default_tenants`. Dev-permissive does not override this policy.
+
 ## Goals
 
 - Support two evidence lanes: provider-pulled (verified) and agent-pushed

@@ -44,6 +44,8 @@ use decision_gate_mcp::auth::DefaultToolAuthz;
 use decision_gate_mcp::auth::NoopAuditSink;
 use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::namespace_authority::NoopNamespaceAuthority;
+use decision_gate_mcp::registry_acl::PrincipalResolver;
+use decision_gate_mcp::registry_acl::RegistryAcl;
 use decision_gate_mcp::tools::PrecheckToolRequest;
 use decision_gate_mcp::tools::PrecheckToolResponse;
 use decision_gate_mcp::tools::ScenarioDefineRequest;
@@ -103,10 +105,40 @@ fn build_router(mut config: DecisionGateConfig, audit: Arc<TestAuditSink>) -> To
     let auth_audit = Arc::new(NoopAuditSink);
     let trust_requirement = config.effective_trust_requirement();
     let allow_default_namespace = config.allow_default_namespace();
+    let default_namespace_tenants = config
+        .namespace
+        .default_tenants
+        .iter()
+        .map(ToString::to_string)
+        .collect::<std::collections::BTreeSet<_>>();
     let evidence_policy = config.evidence.clone();
     let validation = config.validation.clone();
     let anchor_policy = config.anchors.to_policy();
+    let provider_trust_overrides = if config.is_dev_permissive() {
+        config
+            .dev
+            .permissive_exempt_providers
+            .iter()
+            .map(|id| {
+                (
+                    id.clone(),
+                    decision_gate_core::TrustRequirement {
+                        min_lane: config.trust.min_lane,
+                    },
+                )
+            })
+            .collect()
+    } else {
+        std::collections::BTreeMap::new()
+    };
+    let runpack_security_context = Some(decision_gate_core::RunpackSecurityContext {
+        dev_permissive: config.is_dev_permissive(),
+        namespace_authority: "dg_registry".to_string(),
+        namespace_mapping_mode: None,
+    });
     let precheck_audit_payloads = config.server.audit.log_precheck_payloads;
+    let principal_resolver = PrincipalResolver::from_config(config.server.auth.as_ref());
+    let registry_acl = RegistryAcl::new(&config.schema_registry.acl);
     ToolRouter::new(ToolRouterConfig {
         evidence,
         evidence_policy,
@@ -121,9 +153,14 @@ fn build_router(mut config: DecisionGateConfig, audit: Arc<TestAuditSink>) -> To
         audit: auth_audit,
         trust_requirement,
         anchor_policy,
+        provider_trust_overrides,
+        runpack_security_context,
         precheck_audit: audit,
         precheck_audit_payloads,
+        registry_acl,
+        principal_resolver,
         allow_default_namespace,
+        default_namespace_tenants,
         namespace_authority: Arc::new(NoopNamespaceAuthority),
     })
 }
@@ -144,6 +181,7 @@ fn register_schema(router: &ToolRouter, tenant_id: TenantId, namespace_id: Names
         }),
         description: Some("precheck audit schema".to_string()),
         created_at: Timestamp::Logical(1),
+        signing: None,
     };
     let request = SchemasRegisterRequest {
         record,
@@ -214,6 +252,7 @@ fn precheck_audit_hash_only_by_default() {
     assert!(event.response.is_none());
     assert!(!event.request_hash.value.is_empty());
     assert!(!event.response_hash.value.is_empty());
+    drop(events);
 }
 
 #[test]
@@ -234,4 +273,5 @@ fn precheck_audit_payloads_opt_in() {
     assert_eq!(event.redaction, "payload");
     assert!(event.request.is_some());
     assert!(event.response.is_some());
+    drop(events);
 }

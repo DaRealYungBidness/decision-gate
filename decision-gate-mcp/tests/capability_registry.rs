@@ -27,6 +27,7 @@ use decision_gate_contract::types::ProviderContract;
 use decision_gate_core::Comparator;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::ProviderId;
+use decision_gate_core::TenantId;
 use decision_gate_mcp::capabilities::CapabilityError;
 use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::AnchorPolicyConfig;
@@ -49,6 +50,7 @@ fn base_config() -> DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: decision_gate_mcp::config::NamespaceConfig {
             allow_default: true,
+            default_tenants: vec![TenantId::new("test-tenant")],
             ..decision_gate_mcp::config::NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
@@ -59,6 +61,8 @@ fn base_config() -> DecisionGateConfig {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
+        source_modified_at: None,
     }
 }
 

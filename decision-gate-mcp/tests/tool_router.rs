@@ -53,6 +53,10 @@ use decision_gate_core::runtime::SubmitRequest;
 use decision_gate_core::runtime::SubmitResult;
 use decision_gate_core::runtime::TriggerResult;
 use decision_gate_mcp::SchemaRegistryConfig;
+use decision_gate_mcp::config::PrincipalConfig;
+use decision_gate_mcp::config::PrincipalRoleConfig;
+use decision_gate_mcp::config::ServerAuthConfig;
+use decision_gate_mcp::config::ServerAuthMode;
 use decision_gate_mcp::config::ServerMode;
 use decision_gate_mcp::namespace_authority::NamespaceAuthority;
 use decision_gate_mcp::namespace_authority::NamespaceAuthorityError;
@@ -125,6 +129,7 @@ fn sample_shape_record(schema_id: &str, version: &str) -> DataShapeRecord {
         }),
         description: Some("test schema".to_string()),
         created_at: Timestamp::Logical(1),
+        signing: None,
     }
 }
 
@@ -177,7 +182,7 @@ fn strict_mode_rejects_default_namespace() {
     let mut config = sample_config();
     config.server.mode = ServerMode::Strict;
     config.namespace.allow_default = false;
-    let router = router_with_config(config);
+    let router = router_with_config(&config);
     let spec = sample_spec();
     let request = ScenarioDefineRequest {
         spec,
@@ -192,27 +197,33 @@ fn strict_mode_rejects_default_namespace() {
     assert!(error.to_string().contains("default namespace is not allowed"));
 }
 
-/// Verifies dev-permissive mode allows the default namespace.
+/// Verifies dev-permissive does not override default namespace policy.
 #[test]
-fn dev_permissive_allows_default_namespace() {
+fn dev_permissive_does_not_override_default_namespace() {
     let mut config = sample_config();
     config.server.mode = ServerMode::DevPermissive;
     config.namespace.allow_default = false;
-    let router = router_with_config(config);
+    let router = router_with_config(&config);
     let spec = sample_spec();
     let request = ScenarioDefineRequest {
         spec,
     };
-    let result = router.handle_tool_call(
-        &local_request_context(),
-        "scenario_define",
-        serde_json::to_value(&request).unwrap(),
-    );
-    assert!(result.is_ok());
+    let error = router
+        .handle_tool_call(
+            &local_request_context(),
+            "scenario_define",
+            serde_json::to_value(&request).unwrap(),
+        )
+        .unwrap_err();
+    assert!(error.to_string().contains("default namespace is not allowed"));
 }
 
 /// Verifies namespace authority failures deny tool calls.
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "End-to-end setup for namespace authority is clearer in one test."
+)]
 fn namespace_authority_denies_tool_call() {
     let config = sample_config();
     let evidence = decision_gate_mcp::FederatedEvidenceProvider::from_config(&config).unwrap();
@@ -252,10 +263,43 @@ fn namespace_authority_denies_tool_call() {
     let trust_requirement = config.effective_trust_requirement();
     let anchor_policy = config.anchors.to_policy();
     let allow_default_namespace = config.allow_default_namespace();
+    let default_namespace_tenants = config
+        .namespace
+        .default_tenants
+        .iter()
+        .map(ToString::to_string)
+        .collect::<std::collections::BTreeSet<_>>();
+    let provider_trust_overrides = if config.is_dev_permissive() {
+        config
+            .dev
+            .permissive_exempt_providers
+            .iter()
+            .map(|id| {
+                (
+                    id.clone(),
+                    decision_gate_core::TrustRequirement {
+                        min_lane: config.trust.min_lane,
+                    },
+                )
+            })
+            .collect()
+    } else {
+        std::collections::BTreeMap::new()
+    };
+    let runpack_security_context = Some(decision_gate_core::RunpackSecurityContext {
+        dev_permissive: config.is_dev_permissive(),
+        namespace_authority: "dg_registry".to_string(),
+        namespace_mapping_mode: None,
+    });
     let precheck_audit_payloads = config.server.audit.log_precheck_payloads;
     let authz = std::sync::Arc::new(decision_gate_mcp::auth::DefaultToolAuthz::from_config(
         config.server.auth.as_ref(),
     ));
+    let principal_resolver = decision_gate_mcp::registry_acl::PrincipalResolver::from_config(
+        config.server.auth.as_ref(),
+    );
+    let registry_acl =
+        decision_gate_mcp::registry_acl::RegistryAcl::new(&config.schema_registry.acl);
     let audit = std::sync::Arc::new(decision_gate_mcp::auth::NoopAuditSink);
     let router = decision_gate_mcp::ToolRouter::new(decision_gate_mcp::tools::ToolRouterConfig {
         evidence,
@@ -271,9 +315,14 @@ fn namespace_authority_denies_tool_call() {
         audit,
         trust_requirement,
         anchor_policy,
+        provider_trust_overrides,
+        runpack_security_context,
         precheck_audit: std::sync::Arc::new(decision_gate_mcp::McpNoopAuditSink),
         precheck_audit_payloads,
+        registry_acl,
+        principal_resolver,
         allow_default_namespace,
+        default_namespace_tenants,
         namespace_authority: std::sync::Arc::new(DenyNamespaceAuthority),
     });
     let request = ScenarioDefineRequest {
@@ -890,6 +939,61 @@ fn schemas_register_and_get_roundtrip() {
 }
 
 #[test]
+fn schemas_register_denied_without_registry_roles() {
+    let mut config = sample_config();
+    config.server.auth = None;
+    let router = router_with_config(&config);
+    let record = sample_shape_record("asserted-deny", "v1");
+    let request = SchemasRegisterRequest {
+        record,
+    };
+    let error = router
+        .handle_tool_call(
+            &local_request_context(),
+            "schemas_register",
+            serde_json::to_value(&request).unwrap(),
+        )
+        .unwrap_err();
+    assert!(error.to_string().contains("schema registry access denied"));
+}
+
+#[test]
+fn schemas_register_allowed_for_namespace_admin() {
+    let mut config = sample_config();
+    config.server.auth = Some(ServerAuthConfig {
+        mode: ServerAuthMode::LocalOnly,
+        bearer_tokens: Vec::new(),
+        mtls_subjects: Vec::new(),
+        allowed_tools: Vec::new(),
+        principals: vec![PrincipalConfig {
+            subject: "stdio".to_string(),
+            policy_class: Some("prod".to_string()),
+            roles: vec![PrincipalRoleConfig {
+                name: "NamespaceAdmin".to_string(),
+                tenant_id: Some(TenantId::new("test-tenant")),
+                namespace_id: Some(NamespaceId::new("default")),
+            }],
+        }],
+    });
+    let router = router_with_config(&config);
+    let record = sample_shape_record("asserted-allow", "v1");
+    let request = SchemasRegisterRequest {
+        record,
+    };
+    let response: SchemasRegisterResponse = serde_json::from_value(
+        router
+            .handle_tool_call(
+                &local_request_context(),
+                "schemas_register",
+                serde_json::to_value(&request).unwrap(),
+            )
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(response.record.schema_id.as_str(), "asserted-allow");
+}
+
+#[test]
 fn schemas_register_duplicate_rejected() {
     let router = sample_router();
     let record = sample_shape_record("asserted", "v1");
@@ -1060,7 +1164,7 @@ fn schemas_list_rejects_zero_limit() {
 fn schemas_register_rejects_when_registry_full() {
     let mut config = sample_config();
     config.schema_registry.max_entries = Some(1);
-    let router = router_with_config(config);
+    let router = router_with_config(&config);
     let record_a = sample_shape_record("alpha", "v1");
     let record_b = sample_shape_record("bravo", "v1");
     let register_a = SchemasRegisterRequest {
@@ -1154,7 +1258,7 @@ fn scenarios_list_includes_defined_scenario() {
 fn precheck_accepts_asserted_payload() {
     let mut config = sample_config();
     config.trust.min_lane = TrustLane::Asserted;
-    let router = router_with_config(config);
+    let router = router_with_config(&config);
     let spec = sample_spec_with_id("precheck-scenario");
     let _ = define_scenario(&router, spec.clone()).unwrap();
     let record = sample_shape_record("asserted", "v1");
@@ -1208,7 +1312,7 @@ fn precheck_accepts_asserted_payload() {
 fn precheck_rejects_payload_mismatch() {
     let mut config = sample_config();
     config.trust.min_lane = TrustLane::Asserted;
-    let router = router_with_config(config);
+    let router = router_with_config(&config);
     let spec = sample_spec_with_id("precheck-mismatch");
     let _ = define_scenario(&router, spec.clone()).unwrap();
     let record = sample_shape_record("asserted", "v1");
@@ -1253,7 +1357,7 @@ fn precheck_rejects_payload_mismatch() {
 fn precheck_rejects_comparator_schema_mismatch() {
     let mut config = sample_config();
     config.trust.min_lane = TrustLane::Asserted;
-    let router = router_with_config(config);
+    let router = router_with_config(&config);
     let mut spec = sample_spec_with_id("precheck-comparator-mismatch");
     spec.predicates[0].query.predicate = "now".to_string();
     spec.predicates[0].query.params = None;
@@ -1506,7 +1610,7 @@ fn precheck_rejects_unknown_schema() {
 fn precheck_rejects_non_object_payload_with_multiple_predicates() {
     let mut config = sample_config();
     config.trust.min_lane = TrustLane::Asserted;
-    let router = router_with_config(config);
+    let router = router_with_config(&config);
     let spec = sample_spec_with_two_predicates("precheck-multi");
     let record = DataShapeRecord {
         schema: json!({"type": "boolean"}),

@@ -76,7 +76,7 @@ fn spec_with_predicate(
 }
 
 /// Creates a default validation config with strict=true.
-fn strict_config() -> ValidationConfig {
+const fn strict_config() -> ValidationConfig {
     ValidationConfig {
         strict: true,
         profile: ValidationProfile::StrictCoreV1,
@@ -87,7 +87,7 @@ fn strict_config() -> ValidationConfig {
 }
 
 /// Creates a validation config with lexicographic enabled.
-fn config_with_lexicographic() -> ValidationConfig {
+const fn config_with_lexicographic() -> ValidationConfig {
     ValidationConfig {
         strict: true,
         profile: ValidationProfile::StrictCoreV1,
@@ -97,8 +97,8 @@ fn config_with_lexicographic() -> ValidationConfig {
     }
 }
 
-/// Creates a validation config with deep_equals enabled.
-fn config_with_deep_equals() -> ValidationConfig {
+/// Creates a validation config with `deep_equals` enabled.
+const fn config_with_deep_equals() -> ValidationConfig {
     ValidationConfig {
         strict: true,
         profile: ValidationProfile::StrictCoreV1,
@@ -109,7 +109,7 @@ fn config_with_deep_equals() -> ValidationConfig {
 }
 
 /// Creates a validation config with strict=false.
-fn permissive_config() -> ValidationConfig {
+const fn permissive_config() -> ValidationConfig {
     ValidationConfig {
         strict: false,
         profile: ValidationProfile::StrictCoreV1,
@@ -181,7 +181,7 @@ fn type_class_integer_forbids_lexicographic() {
 #[test]
 fn type_class_number_allows_numeric_ordering() {
     let validator = StrictValidator::new(strict_config());
-    let spec = spec_with_predicate(Comparator::GreaterThan, Some(json!(3.14)));
+    let spec = spec_with_predicate(Comparator::GreaterThan, Some(json!(std::f64::consts::PI)));
     let schema = json!({"type": "number"});
     let result = validator.validate_precheck(&spec, &schema);
     assert!(result.is_ok(), "number should allow greater_than: {result:?}");

@@ -1,0 +1,139 @@
+<!--
+Docs/architecture/decision_gate_provider_capability_architecture.md
+============================================================================
+Document: Decision Gate Provider Integration + Capability Registry Architecture
+Description: Current-state reference for provider configuration, capability
+             contract loading, and evidence provider federation.
+Purpose: Provide an implementation-grade map of how DG integrates providers and
+         validates predicates/queries.
+Dependencies:
+  - decision-gate-mcp/src/config.rs
+  - decision-gate-mcp/src/capabilities.rs
+  - decision-gate-mcp/src/evidence.rs
+  - decision-gate-mcp/src/tools.rs
+============================================================================
+Last Updated: 2026-01-26 (UTC)
+============================================================================
+-->
+
+# Decision Gate Provider Integration + Capability Registry Architecture
+
+> **Audience:** Engineers implementing provider integration or capability
+> validation for predicates and evidence queries.
+
+---
+
+## Table of Contents
+
+1. [Executive Overview](#executive-overview)
+2. [Provider Configuration](#provider-configuration)
+3. [Capability Registry](#capability-registry)
+4. [External Provider Contracts](#external-provider-contracts)
+5. [Evidence Provider Federation](#evidence-provider-federation)
+6. [Tool-Level Enforcement](#tool-level-enforcement)
+7. [File-by-File Cross Reference](#file-by-file-cross-reference)
+
+---
+
+## Executive Overview
+
+Decision Gate supports two provider types:
+
+- **Built-in providers** (compiled into the binary)
+- **External MCP providers** (stdio or HTTP transport)
+
+Provider capability contracts are the authoritative schema for predicate
+parameters, results, and allowed comparators. The capability registry validates
+scenario specs and evidence queries before evaluation. Evidence federation
+routes queries to providers and enforces trust policies.
+[F:decision-gate-mcp/src/config.rs L1456-L1542][F:decision-gate-mcp/src/capabilities.rs L216-L369][F:decision-gate-mcp/src/evidence.rs L91-L209]
+
+---
+
+## Provider Configuration
+
+Provider configuration is defined in `ProviderConfig`:
+
+- `type`: `builtin` or `mcp`
+- `command` / `url`: transport selection for MCP providers
+- `capabilities_path`: contract JSON path (required for MCP providers)
+- `auth.bearer_token`: optional provider auth
+- `trust`: per-provider trust override
+- `allow_raw`: opt-in for raw evidence disclosure
+- `timeouts`: HTTP connect and request timeouts
+
+Validation enforces:
+- MCP providers must specify `command` or `url` and `capabilities_path`.
+- `allow_insecure_http` is required for `http://` URLs.
+
+[F:decision-gate-mcp/src/config.rs L1412-L1542]
+
+---
+
+## Capability Registry
+
+The capability registry loads provider contracts and compiles JSON schemas for
+predicate params and results. It validates:
+
+- Provider and predicate existence
+- Required params presence
+- Params schema conformance
+- Expected-value schema conformance
+- Comparator allow-lists
+
+[F:decision-gate-mcp/src/capabilities.rs L216-L309][F:decision-gate-mcp/src/capabilities.rs L508-L520]
+
+Capability registry queries are used by both scenario definition and evidence
+query tools.
+[F:decision-gate-mcp/src/tools.rs L717-L720][F:decision-gate-mcp/src/tools.rs L869-L870]
+
+---
+
+## External Provider Contracts
+
+External providers must supply a contract JSON file that:
+
+- Matches the configured provider id
+- Declares `transport = "mcp"`
+- Defines predicates with allowed comparator lists
+
+Contracts are size-limited and path validated; invalid contracts fail closed.
+[F:decision-gate-mcp/src/capabilities.rs L392-L451][F:decision-gate-mcp/src/capabilities.rs L457-L487]
+
+---
+
+## Evidence Provider Federation
+
+Evidence federation combines built-in providers and MCP providers:
+
+- Built-ins are registered via the provider registry.
+- MCP providers are instantiated with stdio or HTTP transport.
+- Provider policies (trust + allow_raw) are applied per provider.
+
+[F:decision-gate-mcp/src/evidence.rs L137-L209][F:decision-gate-mcp/src/evidence.rs L220-L244]
+
+Trust policy enforcement (signature verification) runs per provider response.
+[F:decision-gate-mcp/src/evidence.rs L639-L689]
+
+---
+
+## Tool-Level Enforcement
+
+Tool behavior enforces capability and disclosure policy:
+
+- `scenario_define` validates the spec against capabilities before registering.
+- `evidence_query` validates queries and applies raw evidence redaction policy.
+
+[F:decision-gate-mcp/src/tools.rs L694-L885]
+
+---
+
+## File-by-File Cross Reference
+
+| Area | File | Notes |
+| --- | --- | --- |
+| Provider config + validation | `decision-gate-mcp/src/config.rs` | Provider type, transport, contract path, timeouts. |
+| Capability registry | `decision-gate-mcp/src/capabilities.rs` | Contract loading, schema compilation, validation. |
+| Evidence federation | `decision-gate-mcp/src/evidence.rs` | Provider registry + trust enforcement. |
+| Tool integration | `decision-gate-mcp/src/tools.rs` | Spec/query validation and disclosure policy. |
+

@@ -29,6 +29,7 @@ use decision_gate_core::DataShapePage;
 use decision_gate_core::DataShapeRecord;
 use decision_gate_core::DataShapeRegistry;
 use decision_gate_core::DataShapeRegistryError;
+use decision_gate_core::DataShapeSignature;
 use decision_gate_core::DataShapeVersion;
 use decision_gate_core::NamespaceId;
 use decision_gate_core::RunId;
@@ -56,7 +57,7 @@ use thiserror::Error;
 // ============================================================================//
 
 /// `SQLite` schema version for the store.
-const SCHEMA_VERSION: i64 = 3;
+const SCHEMA_VERSION: i64 = 4;
 /// Default busy timeout (ms).
 const DEFAULT_BUSY_TIMEOUT_MS: u64 = 5_000;
 /// Maximum length of a single path component.
@@ -260,6 +261,14 @@ impl DataShapeRegistry for SqliteRunStateStore {
         let schema_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, &schema_bytes);
         let created_at_json = serde_json::to_string(&record.created_at)
             .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
+        let (signing_key_id, signing_signature, signing_algorithm) =
+            record.signing.as_ref().map_or((None, None, None), |signing| {
+                (
+                    Some(signing.key_id.clone()),
+                    Some(signing.signature.clone()),
+                    signing.algorithm.clone(),
+                )
+            });
         let mut guard = self.connection.lock().map_err(|_| {
             DataShapeRegistryError::Io("schema registry mutex poisoned".to_string())
         })?;
@@ -269,8 +278,10 @@ impl DataShapeRegistry for SqliteRunStateStore {
             let result = tx.execute(
                 "INSERT INTO data_shapes (
                     tenant_id, namespace_id, schema_id, version,
-                    schema_json, schema_hash, hash_algorithm, description, created_at_json
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                    schema_json, schema_hash, hash_algorithm, description,
+                    signing_key_id, signing_signature, signing_algorithm,
+                    created_at_json
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
                 params![
                     record.tenant_id.as_str(),
                     record.namespace_id.as_str(),
@@ -280,6 +291,9 @@ impl DataShapeRegistry for SqliteRunStateStore {
                     schema_hash.value,
                     hash_algorithm_label(schema_hash.algorithm),
                     record.description.as_deref(),
+                    signing_key_id.as_deref(),
+                    signing_signature.as_deref(),
+                    signing_algorithm.as_deref(),
                     created_at_json,
                 ],
             );
@@ -313,8 +327,9 @@ impl DataShapeRegistry for SqliteRunStateStore {
             let row = tx
                 .query_row(
                     "SELECT schema_json, schema_hash, hash_algorithm, description, \
-                     created_at_json FROM data_shapes WHERE tenant_id = ?1 AND namespace_id = ?2 \
-                     AND schema_id = ?3 AND version = ?4",
+                     signing_key_id, signing_signature, signing_algorithm, created_at_json FROM \
+                     data_shapes WHERE tenant_id = ?1 AND namespace_id = ?2 AND schema_id = ?3 \
+                     AND version = ?4",
                     params![
                         tenant_id.as_str(),
                         namespace_id.as_str(),
@@ -326,8 +341,20 @@ impl DataShapeRegistry for SqliteRunStateStore {
                         let schema_hash: String = row.get(1)?;
                         let hash_algorithm: String = row.get(2)?;
                         let description: Option<String> = row.get(3)?;
-                        let created_at_json: String = row.get(4)?;
-                        Ok((schema_json, schema_hash, hash_algorithm, description, created_at_json))
+                        let signing_key_id: Option<String> = row.get(4)?;
+                        let signing_signature: Option<String> = row.get(5)?;
+                        let signing_algorithm: Option<String> = row.get(6)?;
+                        let created_at_json: String = row.get(7)?;
+                        Ok((
+                            schema_json,
+                            schema_hash,
+                            hash_algorithm,
+                            description,
+                            signing_key_id,
+                            signing_signature,
+                            signing_algorithm,
+                            created_at_json,
+                        ))
                     },
                 )
                 .optional()
@@ -336,7 +363,16 @@ impl DataShapeRegistry for SqliteRunStateStore {
             row
         };
         drop(guard);
-        let Some((schema_json, schema_hash, hash_algorithm, description, created_at_json)) = row
+        let Some((
+            schema_json,
+            schema_hash,
+            hash_algorithm,
+            description,
+            signing_key_id,
+            signing_signature,
+            signing_algorithm,
+            created_at_json,
+        )) = row
         else {
             return Ok(None);
         };
@@ -350,6 +386,7 @@ impl DataShapeRegistry for SqliteRunStateStore {
             .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
         let created_at: Timestamp = serde_json::from_str(&created_at_json)
             .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
+        let signing = build_signing(signing_key_id, signing_signature, signing_algorithm);
         Ok(Some(DataShapeRecord {
             tenant_id: tenant_id.clone(),
             namespace_id: namespace_id.clone(),
@@ -358,6 +395,7 @@ impl DataShapeRegistry for SqliteRunStateStore {
             schema,
             description,
             created_at,
+            signing,
         }))
     }
 
@@ -638,6 +676,9 @@ fn initialize_schema(connection: &mut Connection) -> Result<(), SqliteStoreError
                     schema_hash TEXT NOT NULL,
                     hash_algorithm TEXT NOT NULL,
                     description TEXT,
+                    signing_key_id TEXT,
+                    signing_signature TEXT,
+                    signing_algorithm TEXT,
                     created_at_json TEXT NOT NULL,
                     PRIMARY KEY (tenant_id, namespace_id, schema_id, version)
                 );
@@ -645,6 +686,16 @@ fn initialize_schema(connection: &mut Connection) -> Result<(), SqliteStoreError
                     ON data_shapes (tenant_id, namespace_id, schema_id, version);",
             )
             .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+        }
+        Some(3) => {
+            tx.execute_batch(
+                "ALTER TABLE data_shapes ADD COLUMN signing_key_id TEXT;
+                 ALTER TABLE data_shapes ADD COLUMN signing_signature TEXT;
+                 ALTER TABLE data_shapes ADD COLUMN signing_algorithm TEXT;",
+            )
+            .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+            tx.execute("UPDATE store_meta SET version = ?1", params![SCHEMA_VERSION])
+                .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
         }
         Some(value) if value == SCHEMA_VERSION => {}
         Some(value) => {
@@ -840,6 +891,12 @@ struct SchemaRow {
     hash_algorithm: String,
     /// Optional schema description.
     description: Option<String>,
+    /// Optional signing key id.
+    signing_key_id: Option<String>,
+    /// Optional signing signature.
+    signing_signature: Option<String>,
+    /// Optional signing algorithm.
+    signing_algorithm: Option<String>,
     /// JSON-encoded creation timestamp.
     created_at_json: String,
 }
@@ -853,13 +910,36 @@ fn map_schema_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SchemaRow> {
         schema_hash: row.get(3)?,
         hash_algorithm: row.get(4)?,
         description: row.get(5)?,
-        created_at_json: row.get(6)?,
+        signing_key_id: row.get(6)?,
+        signing_signature: row.get(7)?,
+        signing_algorithm: row.get(8)?,
+        created_at_json: row.get(9)?,
     })
 }
 
 /// Maps `SQLite` errors to registry errors.
 fn map_registry_error(err: &rusqlite::Error) -> DataShapeRegistryError {
     DataShapeRegistryError::Io(err.to_string())
+}
+
+/// Builds a `DataShapeSignature` when required fields are present and non-empty.
+fn build_signing(
+    key_id: Option<String>,
+    signature: Option<String>,
+    algorithm: Option<String>,
+) -> Option<DataShapeSignature> {
+    match (key_id, signature) {
+        (Some(key_id), Some(signature))
+            if !key_id.trim().is_empty() && !signature.trim().is_empty() =>
+        {
+            Some(DataShapeSignature {
+                key_id,
+                signature,
+                algorithm,
+            })
+        }
+        _ => None,
+    }
 }
 
 /// Queries schema rows for the provided tenant and namespace.
@@ -874,9 +954,10 @@ fn query_schema_rows(
         let mut stmt = tx
             .prepare(
                 "SELECT schema_id, version, schema_json, schema_hash, hash_algorithm, \
-                 description, created_at_json FROM data_shapes WHERE tenant_id = ?1 AND \
-                 namespace_id = ?2 AND (schema_id > ?3 OR (schema_id = ?3 AND version > ?4)) \
-                 ORDER BY schema_id, version LIMIT ?5",
+                 description, signing_key_id, signing_signature, signing_algorithm, \
+                 created_at_json FROM data_shapes WHERE tenant_id = ?1 AND namespace_id = ?2 AND \
+                 (schema_id > ?3 OR (schema_id = ?3 AND version > ?4)) ORDER BY schema_id, \
+                 version LIMIT ?5",
             )
             .map_err(|err| map_registry_error(&err))?;
         let rows = stmt
@@ -896,8 +977,9 @@ fn query_schema_rows(
         let mut stmt = tx
             .prepare(
                 "SELECT schema_id, version, schema_json, schema_hash, hash_algorithm, \
-                 description, created_at_json FROM data_shapes WHERE tenant_id = ?1 AND \
-                 namespace_id = ?2 ORDER BY schema_id, version LIMIT ?3",
+                 description, signing_key_id, signing_signature, signing_algorithm, \
+                 created_at_json FROM data_shapes WHERE tenant_id = ?1 AND namespace_id = ?2 \
+                 ORDER BY schema_id, version LIMIT ?3",
             )
             .map_err(|err| map_registry_error(&err))?;
         let rows = stmt
@@ -920,6 +1002,9 @@ fn build_schema_record(
         schema_hash,
         hash_algorithm,
         description,
+        signing_key_id,
+        signing_signature,
+        signing_algorithm,
         created_at_json,
     } = row;
     let algorithm = parse_hash_algorithm(&hash_algorithm)
@@ -932,6 +1017,7 @@ fn build_schema_record(
         .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
     let created_at: Timestamp = serde_json::from_str(&created_at_json)
         .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
+    let signing = build_signing(signing_key_id, signing_signature, signing_algorithm);
     Ok(DataShapeRecord {
         tenant_id: tenant_id.clone(),
         namespace_id: namespace_id.clone(),
@@ -940,5 +1026,6 @@ fn build_schema_record(
         schema,
         description,
         created_at,
+        signing,
     })
 }

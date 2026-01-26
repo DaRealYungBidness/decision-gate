@@ -22,6 +22,7 @@ pub mod config;
 pub mod evidence;
 pub mod namespace_authority;
 pub mod policy;
+pub mod registry_acl;
 pub mod runpack;
 pub mod server;
 pub mod telemetry;

@@ -50,7 +50,6 @@ use helpers::harness::spawn_mcp_server;
 use helpers::provider_stub::ProviderFixture;
 use helpers::provider_stub::spawn_provider_fixture_stub;
 use helpers::readiness::wait_for_server_ready;
-use ret_logic;
 use serde::Serialize;
 use serde_json::json;
 
@@ -124,7 +123,7 @@ async fn anchor_validation_fuzz_cases_fail_closed() -> Result<(), Box<dyn std::e
             .into());
         }
         transcripts.push(CaseTranscript {
-            case: case.label.to_string(),
+            case: case.label.clone(),
             transcript: outcome.transcript,
         });
     }
@@ -250,8 +249,7 @@ async fn run_case(
         .first()
         .and_then(|record| record.evidence.first())
         .and_then(|record| record.error.as_ref())
-        .map(|error| error.code.clone())
-        .unwrap_or_else(|| "missing_error".to_string());
+        .map_or_else(|| "missing_error".to_string(), |error| error.code.clone());
 
     Ok(CaseOutcome {
         error_code,
@@ -331,7 +329,7 @@ fn assetcore_fixture(scenario: &str, run: &str) -> AssetcoreFixture {
         namespace_id: namespace_id.clone(),
         spec_version: SpecVersion::new("1"),
         stages: vec![decision_gate_core::StageSpec {
-            stage_id: stage_id.clone(),
+            stage_id,
             entry_packets: Vec::new(),
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-1"),

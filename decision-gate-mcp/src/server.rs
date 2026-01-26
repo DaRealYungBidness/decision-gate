@@ -17,6 +17,7 @@
 // ============================================================================
 
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::fs::File;
@@ -44,8 +45,10 @@ use axum::routing::post;
 use decision_gate_contract::ToolName;
 use decision_gate_core::InMemoryDataShapeRegistry;
 use decision_gate_core::InMemoryRunStateStore;
+use decision_gate_core::RunpackSecurityContext;
 use decision_gate_core::SharedDataShapeRegistry;
 use decision_gate_core::SharedRunStateStore;
+use decision_gate_core::TrustRequirement;
 use decision_gate_core::hashing::HashAlgorithm;
 use decision_gate_core::hashing::hash_bytes;
 use decision_gate_store_sqlite::SqliteRunStateStore;
@@ -69,6 +72,8 @@ use crate::audit::McpAuditSink;
 use crate::audit::McpFileAuditSink;
 use crate::audit::McpNoopAuditSink;
 use crate::audit::McpStderrAuditSink;
+use crate::audit::SecurityAuditEvent;
+use crate::audit::SecurityAuditEventParams;
 use crate::auth::DefaultToolAuthz;
 use crate::auth::RequestContext;
 use crate::auth::StderrAuditSink;
@@ -88,6 +93,8 @@ use crate::namespace_authority::AssetCoreNamespaceAuthority;
 use crate::namespace_authority::NamespaceAuthority;
 use crate::namespace_authority::NamespaceAuthorityError;
 use crate::namespace_authority::NoopNamespaceAuthority;
+use crate::registry_acl::PrincipalResolver;
+use crate::registry_acl::RegistryAcl;
 use crate::telemetry::McpMethod;
 use crate::telemetry::McpMetricEvent;
 use crate::telemetry::McpMetrics;
@@ -158,14 +165,24 @@ impl McpServer {
         let schema_registry = build_schema_registry(&config)?;
         let provider_transports = build_provider_transports(&config);
         let schema_registry_limits = build_schema_registry_limits(&config)?;
+        let default_namespace_tenants = config
+            .namespace
+            .default_tenants
+            .iter()
+            .map(ToString::to_string)
+            .collect::<BTreeSet<_>>();
         let namespace_authority = build_namespace_authority(&config)
             .map_err(|err| McpServerError::Init(err.to_string()))?;
         let authz = Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
         let auth_audit = Arc::new(StderrAuditSink);
+        let principal_resolver = PrincipalResolver::from_config(config.server.auth.as_ref());
+        let registry_acl = RegistryAcl::new(&config.schema_registry.acl);
         let dispatch_policy = config
             .policy
             .dispatch_policy()
             .map_err(|err| McpServerError::Config(err.to_string()))?;
+        let provider_trust_overrides = build_provider_trust_overrides(&config);
+        let runpack_security_context = Some(build_runpack_security_context(&config));
         let router = ToolRouter::new(ToolRouterConfig {
             evidence,
             evidence_policy: config.evidence.clone(),
@@ -180,13 +197,19 @@ impl McpServer {
             audit: auth_audit,
             trust_requirement: config.effective_trust_requirement(),
             anchor_policy: config.anchors.to_policy(),
+            provider_trust_overrides,
+            runpack_security_context,
             precheck_audit: Arc::clone(&audit),
             precheck_audit_payloads: config.server.audit.log_precheck_payloads,
+            registry_acl,
+            principal_resolver,
             allow_default_namespace: config.allow_default_namespace(),
+            default_namespace_tenants,
             namespace_authority,
         });
         emit_local_only_warning(&config.server);
-        emit_dev_permissive_warning(&config.server);
+        emit_dev_permissive_warning(&config);
+        emit_security_audit(&audit, &config);
         Ok(Self {
             config,
             router,
@@ -319,6 +342,44 @@ fn build_schema_registry_limits(
     })
 }
 
+/// Builds per-provider trust overrides (used for dev-permissive scopes).
+fn build_provider_trust_overrides(
+    config: &DecisionGateConfig,
+) -> BTreeMap<String, TrustRequirement> {
+    let mut overrides = BTreeMap::new();
+    if !config.is_dev_permissive() {
+        return overrides;
+    }
+    let strict_requirement = TrustRequirement {
+        min_lane: config.trust.min_lane,
+    };
+    for provider_id in &config.dev.permissive_exempt_providers {
+        overrides.insert(provider_id.clone(), strict_requirement);
+    }
+    overrides
+}
+
+/// Builds runpack security context metadata for exports.
+fn build_runpack_security_context(config: &DecisionGateConfig) -> RunpackSecurityContext {
+    let namespace_authority = match config.namespace.authority.mode {
+        crate::config::NamespaceAuthorityMode::None => "dg_registry".to_string(),
+        crate::config::NamespaceAuthorityMode::AssetcoreHttp => "assetcore_catalog".to_string(),
+    };
+    let mapping_mode =
+        config.namespace.authority.assetcore.as_ref().map(|assetcore| {
+            match assetcore.mapping_mode {
+                crate::config::NamespaceMappingMode::None => "none".to_string(),
+                crate::config::NamespaceMappingMode::ExplicitMap => "explicit_map".to_string(),
+                crate::config::NamespaceMappingMode::NumericParse => "numeric_parse".to_string(),
+            }
+        });
+    RunpackSecurityContext {
+        dev_permissive: config.is_dev_permissive(),
+        namespace_authority,
+        namespace_mapping_mode: mapping_mode,
+    }
+}
+
 /// Builds the namespace authority implementation from config.
 fn build_namespace_authority(
     config: &DecisionGateConfig,
@@ -337,6 +398,7 @@ fn build_namespace_authority(
                 Duration::from_millis(assetcore.connect_timeout_ms),
                 Duration::from_millis(assetcore.request_timeout_ms),
                 assetcore.mapping.clone(),
+                assetcore.mapping_mode,
             )?;
             Ok(Arc::new(authority))
         }
@@ -1140,14 +1202,58 @@ fn emit_local_only_warning(server: &crate::config::ServerConfig) {
 }
 
 /// Emits a warning when dev-permissive mode is enabled.
-fn emit_dev_permissive_warning(server: &crate::config::ServerConfig) {
-    if server.mode == ServerMode::DevPermissive {
-        let _ = writeln!(
-            std::io::stderr(),
-            "decision-gate-mcp: WARNING: dev-permissive mode enabled; asserted evidence and \
-             default namespace are allowed"
-        );
+fn emit_dev_permissive_warning(config: &DecisionGateConfig) {
+    let permissive = config.is_dev_permissive();
+    if !permissive || !config.dev.permissive_warn {
+        return;
     }
+    let source = if config.server.mode == ServerMode::DevPermissive {
+        "server.mode=dev_permissive (legacy)"
+    } else {
+        "dev.permissive=true"
+    };
+    let mut ttl_note = String::new();
+    if let (Some(ttl_days), Some(modified_at)) =
+        (config.dev.permissive_ttl_days, config.source_modified_at)
+        && let Ok(elapsed) = modified_at.elapsed()
+    {
+        let elapsed_days = elapsed.as_secs() / 86_400;
+        if elapsed_days >= ttl_days {
+            ttl_note = format!(" (TTL exceeded: {elapsed_days}d elapsed >= {ttl_days}d)");
+        }
+    }
+    let _ = writeln!(
+        std::io::stderr(),
+        "decision-gate-mcp: WARNING: dev-permissive enabled via {source}; asserted evidence \
+         allowed for non-exempt providers only; namespace defaults remain strict{ttl_note}"
+    );
+}
+
+/// Emits a security posture audit record on startup.
+fn emit_security_audit(audit: &Arc<dyn McpAuditSink>, config: &DecisionGateConfig) {
+    if !config.is_dev_permissive() {
+        return;
+    }
+    let namespace_authority = match config.namespace.authority.mode {
+        crate::config::NamespaceAuthorityMode::None => "dg_registry".to_string(),
+        crate::config::NamespaceAuthorityMode::AssetcoreHttp => "assetcore_catalog".to_string(),
+    };
+    let mapping_mode =
+        config.namespace.authority.assetcore.as_ref().map(|assetcore| {
+            match assetcore.mapping_mode {
+                crate::config::NamespaceMappingMode::None => "none".to_string(),
+                crate::config::NamespaceMappingMode::ExplicitMap => "explicit_map".to_string(),
+                crate::config::NamespaceMappingMode::NumericParse => "numeric_parse".to_string(),
+            }
+        });
+    let event = SecurityAuditEvent::new(SecurityAuditEventParams {
+        kind: "dev_permissive_enabled".to_string(),
+        message: Some("dev-permissive mode enabled".to_string()),
+        dev_permissive: true,
+        namespace_authority,
+        namespace_mapping_mode: mapping_mode,
+    });
+    audit.record_security(&event);
 }
 
 /// Emits metrics events for a request.

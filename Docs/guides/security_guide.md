@@ -27,14 +27,20 @@ When signature enforcement is enabled, unsigned or untrusted evidence is
 rejected and the gate remains held.
 
 ## Server Mode and Namespace Policy
-Decision Gate runs in one of two explicit modes:
+Decision Gate defaults to strict mode and explicit namespace allowlists:
 
-- `server.mode = "strict"` (default): only verified evidence is accepted, and
-  the literal `default` namespace is rejected unless
-  `namespace.allow_default = true`.
-- `server.mode = "dev_permissive"`: asserted evidence is allowed (effective
-  trust lane forced to `asserted`) and the default namespace is permitted.
-  Startup emits a warning so operators can detect non-production posture.
+- `server.mode = "strict"` (default): only verified evidence is accepted.
+- `dev.permissive = true`: asserted evidence is allowed for dev use only.
+  Startup emits warnings so operators can detect non-production posture.
+  `server.mode = "dev_permissive"` remains as a legacy alias.
+
+The literal `default` namespace is **never** implicitly allowed. Enable it with:
+
+- `namespace.allow_default = true`
+- `namespace.default_tenants = ["tenant-1", ...]`
+
+Dev-permissive does **not** override namespace authority and is disallowed when
+`namespace.authority.mode = "assetcore_http"`.
 
 Use strict mode for production and high-assurance environments. Use
 dev-permissive only for local development, tests, or controlled sandboxes.
@@ -77,6 +83,12 @@ stdio and loopback HTTP/SSE are permitted, while non-loopback binds require an
 explicit auth policy. Configure `server.auth` to enable bearer-token or mTLS
 subject enforcement, and optionally restrict calls with a tool allowlist.
 Auth decisions are logged as structured JSON events on stderr.
+
+## Schema Registry ACL
+Schema registry operations (`schemas_register`, `schemas_list`, `schemas_get`)
+are protected by `schema_registry.acl`. The default mode is built-in, deny-by-
+default behavior based on roles provided by `server.auth.principals`.
+Custom ACL rules can be configured for finer-grained allow/deny logic.
 
 ## Runpack Integrity
 Runpacks are hashed using RFC 8785 canonical JSON and verified offline with

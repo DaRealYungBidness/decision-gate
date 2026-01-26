@@ -36,3 +36,66 @@ category = "security"
 status = "closed"
 acceptance_criteria = "Add fuzz/property coverage for malformed evidence payloads, oversize anchors, and injection attempts."
 notes = "Implemented deterministic fuzz cases in system-tests/tests/anchor_fuzz.rs (malformed JSON, missing fields, wrong types, oversized responses)."
+
+[[gaps]]
+id = "registry-acl-matrix-system"
+title = "Schema registry ACL matrix coverage (system-tests)"
+priority = "P1"
+category = "security"
+status = "open"
+acceptance_criteria = "System-tests exercise schemas_register/list/get for every built-in role + policy_class combination, including deny-by-default when principals are absent."
+notes = "Missing end-to-end coverage for builtin ACL role matrix."
+
+[[gaps]]
+id = "registry-acl-principal-subject-mapping"
+title = "Principal subject mapping coverage (stdio/loopback/bearer/mTLS)"
+priority = "P1"
+category = "security"
+status = "open"
+acceptance_criteria = "System-tests verify principals resolve correctly for stdio, loopback HTTP, bearer token fingerprint, and mTLS subject headers, and that ACL decisions follow."
+notes = "Required to validate subject-to-role mapping for registry ACL."
+
+[[gaps]]
+id = "registry-acl-signing-required"
+title = "Schema signing requirement enforcement (system-tests)"
+priority = "P1"
+category = "security"
+status = "open"
+acceptance_criteria = "When schema_registry.acl.require_signing = true, schemas_register rejects missing/empty signing, accepts valid signing, and list/get preserves metadata (memory + sqlite)."
+notes = "Only unit coverage exists for metadata presence; no end-to-end enforcement tests."
+
+[[gaps]]
+id = "namespace-default-allowlist-system"
+title = "Default namespace allowlist enforcement (system-tests)"
+priority = "P1"
+category = "security"
+status = "open"
+acceptance_criteria = "System-tests prove default namespace is allowed only for allowlisted tenants and denied otherwise across tool calls."
+notes = "Unit coverage exists; end-to-end coverage is missing."
+
+[[gaps]]
+id = "dev-permissive-assetcore-reject-runtime"
+title = "Dev-permissive rejected with AssetCore authority (system-tests)"
+priority = "P1"
+category = "security"
+status = "open"
+acceptance_criteria = "Server fails to start (or rejects config) when dev.permissive=true and namespace.authority.mode=assetcore_http; verify error path and audit behavior."
+notes = "Config validation test exists; no system-test coverage."
+
+[[gaps]]
+id = "runpack-security-context-export"
+title = "Runpack export includes security context"
+priority = "P2"
+category = "audit"
+status = "open"
+acceptance_criteria = "System-tests verify runpack_export manifest includes security.dev_permissive, security.namespace_authority, and security.namespace_mapping_mode when applicable."
+notes = "Runtime sets security context; runpack manifest not validated in system-tests."
+
+[[gaps]]
+id = "audit-events-registry-security"
+title = "Registry + security audit event validation"
+priority = "P1"
+category = "audit"
+status = "open"
+acceptance_criteria = "System-tests capture audit sinks and assert registry_audit and security_audit events emit required fields and allow/deny decisions."
+notes = "Events are emitted but not validated end-to-end."

@@ -73,7 +73,7 @@ Use the provider protocol doc for full JSON examples and field constraints.
 
 ## Error Handling
 Return JSON-RPC errors for:
-- Unknown predicates
+- Unknown provider checks
 - Missing parameters
 - Upstream fetch failures
 
@@ -87,15 +87,20 @@ return a fast error rather than blocking until completion. Timeout overrides
 can be configured per provider in `decision-gate.toml` and are bounded for
 safety.
 
-## Capability Contracts (Required)
-Decision Gate requires every MCP provider to ship a capability contract that
-declares:
+## Provider Contracts (Required)
+Decision Gate requires every MCP provider to ship a provider contract
+(sometimes called a capability contract) that declares:
 - Provider metadata (`provider_id`, description, transport)
-- Predicate names and descriptions
-- JSON Schemas for `params` and predicate results
+- Provider check names and descriptions (the `predicates` exposed by the provider)
+- JSON Schemas for provider inputs (`params`) and returned values
 - Determinism classification and allowed comparator allow-lists
-- Anchor types and content types emitted by the predicate
-- Example predicate payloads
+- Anchor types and content types emitted by each check
+- Example check payloads
+
+Terminology note: the provider contract uses a `predicates` array, but these
+entries are provider checks (the queryable signals exposed by a provider).
+ScenarioSpec predicates are a separate concept that reference provider checks
+by `EvidenceQuery.predicate`.
 
 The contract is loaded from `capabilities_path` in `decision-gate.toml` and is
 validated before any scenario or evidence query is accepted.
@@ -110,10 +115,10 @@ capabilities_path = "contracts/mongo_provider.json"
 ```
 
 Use `Docs/generated/decision-gate/providers.json` as a reference for the
-canonical contract shape and predicate schema patterns.
+canonical contract shape and provider check schema patterns.
 
-## Predicate Schema Guidance
-Provide precise JSON schemas for both params and results:
+## Provider Check Schema Guidance
+Provide precise JSON schemas for both provider inputs and returned values:
 
 - Params schemas should set `additionalProperties: false` and declare required fields.
 - Result schemas should reflect actual value types returned in EvidenceResult.
@@ -128,7 +133,7 @@ Strict comparator validation is enforced by default:
 - `in_set` requires `expected` to be an array of values that match the result
   schema; `exists`/`not_exists` must omit `expected`.
 
-Include at least one example per predicate (params + result) to help authors
+Include at least one example per check (params + result) to help authors
 build correct ScenarioSpec predicates.
 
 For scenario authors, see `Docs/guides/predicate_authoring.md`.

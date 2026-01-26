@@ -21,7 +21,7 @@
 /// Internationalization helpers and message catalog.
 pub mod i18n;
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "Interop helpers are used by the CLI binary and tests.")]
 pub mod interop;
 
 #[cfg(test)]

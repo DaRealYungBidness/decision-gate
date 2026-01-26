@@ -95,8 +95,8 @@ fn precheck_spec() -> ScenarioSpec {
     let stage_id = StageId::new("stage-1");
     let predicate_key = PredicateKey::new("value");
     ScenarioSpec {
-        scenario_id: scenario_id.clone(),
-        namespace_id: namespace_id.clone(),
+        scenario_id,
+        namespace_id,
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id,
@@ -129,6 +129,10 @@ fn precheck_spec() -> ScenarioSpec {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "Precheck audit setup is clearer as a full integration test."
+)]
 async fn precheck_audit_hash_only() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("precheck_audit_hash_only")?;
     let temp_dir = TempDir::new()?;
@@ -141,8 +145,21 @@ mode = "strict"
 enabled = true
 log_precheck_payloads = false
 
+[server.auth]
+mode = "local_only"
+
+[[server.auth.principals]]
+subject = "stdio"
+policy_class = "prod"
+
+[[server.auth.principals.roles]]
+name = "TenantAdmin"
+tenant_id = "tenant-1"
+namespace_id = "default"
+
 [namespace]
 allow_default = true
+default_tenants = ["tenant-1"]
 
 [[providers]]
 name = "time"
@@ -179,6 +196,7 @@ type = "builtin"
         }),
         description: Some("precheck audit schema".to_string()),
         created_at: Timestamp::Logical(1),
+        signing: None,
     };
     let register_request = SchemasRegisterRequest {
         record: record.clone(),

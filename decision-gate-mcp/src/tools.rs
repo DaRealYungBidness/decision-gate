@@ -17,6 +17,7 @@
 // ============================================================================
 
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -87,20 +88,27 @@ use thiserror::Error;
 use crate::audit::McpAuditSink;
 use crate::audit::PrecheckAuditEvent;
 use crate::audit::PrecheckAuditEventParams;
+use crate::audit::RegistryAuditEvent;
+use crate::audit::RegistryAuditEventParams;
 use crate::auth::AuthAction;
 use crate::auth::AuthAuditEvent;
 use crate::auth::AuthAuditSink;
+use crate::auth::AuthContext;
 use crate::auth::AuthError;
 use crate::auth::RequestContext;
 use crate::auth::ToolAuthz;
 use crate::capabilities::CapabilityError;
 use crate::capabilities::CapabilityRegistry;
 use crate::config::EvidencePolicyConfig;
+use crate::config::RegistryAclAction;
 use crate::config::ValidationConfig;
 use crate::evidence::FederatedEvidenceProvider;
 use crate::namespace_authority::NamespaceAuthority;
 use crate::namespace_authority::NamespaceAuthorityError;
 use crate::policy::DispatchPolicy;
+use crate::registry_acl::PrincipalResolver;
+use crate::registry_acl::RegistryAcl;
+use crate::registry_acl::RegistryAclDecision;
 use crate::runpack::FileArtifactReader;
 use crate::runpack::FileArtifactSink;
 use crate::validation::StrictValidator;
@@ -141,6 +149,10 @@ pub struct ToolRouter {
     trust_requirement: TrustRequirement,
     /// Anchor policy requirements for evidence providers.
     anchor_policy: EvidenceAnchorPolicy,
+    /// Per-provider trust requirement overrides.
+    provider_trust_overrides: BTreeMap<String, TrustRequirement>,
+    /// Runpack security context metadata.
+    runpack_security_context: Option<decision_gate_core::RunpackSecurityContext>,
     /// Capability registry used for preflight validation.
     capabilities: Arc<CapabilityRegistry>,
     /// Authn/authz policy for tool calls.
@@ -149,10 +161,16 @@ pub struct ToolRouter {
     audit: Arc<dyn AuthAuditSink>,
     /// Audit sink for precheck events.
     precheck_audit: Arc<dyn McpAuditSink>,
+    /// Registry ACL evaluator.
+    registry_acl: RegistryAcl,
+    /// Principal resolver for registry ACL.
+    principal_resolver: PrincipalResolver,
     /// Whether to log raw precheck request/response payloads.
     precheck_audit_payloads: bool,
     /// Allow default namespace usage.
     allow_default_namespace: bool,
+    /// Tenant allowlist for default namespace usage.
+    default_namespace_tenants: BTreeSet<String>,
     /// Namespace authority for integrated deployments.
     namespace_authority: Arc<dyn NamespaceAuthority>,
 }
@@ -185,12 +203,22 @@ pub struct ToolRouterConfig {
     pub trust_requirement: TrustRequirement,
     /// Anchor policy requirements for evidence providers.
     pub anchor_policy: EvidenceAnchorPolicy,
+    /// Per-provider trust requirement overrides.
+    pub provider_trust_overrides: BTreeMap<String, TrustRequirement>,
+    /// Runpack security context metadata.
+    pub runpack_security_context: Option<decision_gate_core::RunpackSecurityContext>,
     /// Audit sink for precheck events.
     pub precheck_audit: Arc<dyn McpAuditSink>,
+    /// Registry ACL evaluator.
+    pub registry_acl: RegistryAcl,
+    /// Principal resolver for registry ACL.
+    pub principal_resolver: PrincipalResolver,
     /// Whether to log raw precheck request/response payloads.
     pub precheck_audit_payloads: bool,
     /// Allow default namespace usage.
     pub allow_default_namespace: bool,
+    /// Tenant allowlist for default namespace usage.
+    pub default_namespace_tenants: BTreeSet<String>,
     /// Namespace authority for integrated deployments.
     pub namespace_authority: Arc<dyn NamespaceAuthority>,
 }
@@ -214,9 +242,14 @@ impl ToolRouter {
             audit: config.audit,
             trust_requirement: config.trust_requirement,
             anchor_policy: config.anchor_policy,
+            provider_trust_overrides: config.provider_trust_overrides,
+            runpack_security_context: config.runpack_security_context,
             precheck_audit: config.precheck_audit,
             precheck_audit_payloads: config.precheck_audit_payloads,
+            registry_acl: config.registry_acl,
+            principal_resolver: config.principal_resolver,
             allow_default_namespace: config.allow_default_namespace,
+            default_namespace_tenants: config.default_namespace_tenants,
             namespace_authority: config.namespace_authority,
         }
     }
@@ -227,7 +260,7 @@ impl ToolRouter {
     ///
     /// Returns [`ToolError`] when authorization fails.
     pub fn list_tools(&self, context: &RequestContext) -> Result<Vec<ToolDefinition>, ToolError> {
-        self.authorize(context, AuthAction::ListTools)?;
+        let _ = self.authorize(context, AuthAction::ListTools)?;
         Ok(decision_gate_contract::tooling::tool_definitions())
     }
 
@@ -243,7 +276,7 @@ impl ToolRouter {
         payload: Value,
     ) -> Result<Value, ToolError> {
         let tool = ToolName::parse(name).ok_or(ToolError::UnknownTool)?;
-        self.authorize(context, AuthAction::CallTool(&tool))?;
+        let auth_ctx = self.authorize(context, AuthAction::CallTool(&tool))?;
         match tool {
             ToolName::ScenarioDefine => {
                 let request = decode::<ScenarioDefineRequest>(payload)?;
@@ -297,17 +330,17 @@ impl ToolRouter {
             }
             ToolName::SchemasRegister => {
                 let request = decode::<SchemasRegisterRequest>(payload)?;
-                let response = self.schemas_register(context, &request)?;
+                let response = self.schemas_register(context, &auth_ctx, &request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
             ToolName::SchemasList => {
                 let request = decode::<SchemasListRequest>(payload)?;
-                let response = self.schemas_list(context, &request)?;
+                let response = self.schemas_list(context, &auth_ctx, &request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
             ToolName::SchemasGet => {
                 let request = decode::<SchemasGetRequest>(payload)?;
-                let response = self.schemas_get(context, &request)?;
+                let response = self.schemas_get(context, &auth_ctx, &request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
             ToolName::ScenariosList => {
@@ -698,6 +731,7 @@ impl ToolRouter {
             ControlPlaneConfig {
                 trust_requirement: self.trust_requirement,
                 anchor_policy: self.anchor_policy.clone(),
+                provider_trust_overrides: self.provider_trust_overrides.clone(),
                 ..ControlPlaneConfig::default()
             },
         )
@@ -868,7 +902,10 @@ impl ToolRouter {
             .load(&request.tenant_id, &request.namespace_id, &request.run_id)
             .map_err(|err| ToolError::Runpack(err.to_string()))?
             .ok_or_else(|| ToolError::NotFound("run not found".to_string()))?;
-        let builder = RunpackBuilder::new(self.anchor_policy.clone());
+        let mut builder = RunpackBuilder::new(self.anchor_policy.clone());
+        if let Some(context) = self.runpack_security_context.clone() {
+            builder = builder.with_security_context(context);
+        }
         if request.include_verification {
             let reader = FileArtifactReader::new(PathBuf::from(&request.output_dir))
                 .map_err(|err| ToolError::Runpack(err.to_string()))?;
@@ -939,6 +976,7 @@ impl ToolRouter {
     fn schemas_register(
         &self,
         context: &RequestContext,
+        auth_ctx: &AuthContext,
         request: &SchemasRegisterRequest,
     ) -> Result<SchemasRegisterResponse, ToolError> {
         self.ensure_namespace_allowed(
@@ -946,6 +984,15 @@ impl ToolRouter {
             Some(&request.record.tenant_id),
             &request.record.namespace_id,
         )?;
+        self.ensure_registry_access(
+            context,
+            auth_ctx,
+            RegistryAclAction::Register,
+            &request.record.tenant_id,
+            &request.record.namespace_id,
+            Some((&request.record.schema_id, &request.record.version)),
+        )?;
+        self.validate_schema_signing(&request.record)?;
         self.validate_schema_limits(&request.record)?;
         let _ = compile_json_schema(&request.record.schema)?;
         self.schema_registry.register(request.record.clone())?;
@@ -958,9 +1005,18 @@ impl ToolRouter {
     fn schemas_list(
         &self,
         context: &RequestContext,
+        auth_ctx: &AuthContext,
         request: &SchemasListRequest,
     ) -> Result<SchemasListResponse, ToolError> {
         self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)?;
+        self.ensure_registry_access(
+            context,
+            auth_ctx,
+            RegistryAclAction::List,
+            &request.tenant_id,
+            &request.namespace_id,
+            None,
+        )?;
         let limit = normalize_limit(request.limit)?;
         let page = self.schema_registry.list(
             &request.tenant_id,
@@ -978,9 +1034,18 @@ impl ToolRouter {
     fn schemas_get(
         &self,
         context: &RequestContext,
+        auth_ctx: &AuthContext,
         request: &SchemasGetRequest,
     ) -> Result<SchemasGetResponse, ToolError> {
         self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)?;
+        self.ensure_registry_access(
+            context,
+            auth_ctx,
+            RegistryAclAction::Get,
+            &request.tenant_id,
+            &request.namespace_id,
+            Some((&request.schema_id, &request.version)),
+        )?;
         let record = self
             .schema_registry
             .get(&request.tenant_id, &request.namespace_id, &request.schema_id, &request.version)?
@@ -1208,12 +1273,100 @@ impl ToolRouter {
         tenant_id: Option<&TenantId>,
         namespace_id: &NamespaceId,
     ) -> Result<(), ToolError> {
-        if !self.allow_default_namespace && namespace_id.as_str() == DEFAULT_NAMESPACE_ID {
-            return Err(ToolError::Unauthorized("default namespace is not allowed".to_string()));
+        if namespace_id.as_str() == DEFAULT_NAMESPACE_ID {
+            if !self.allow_default_namespace {
+                return Err(ToolError::Unauthorized(
+                    "default namespace is not allowed".to_string(),
+                ));
+            }
+            let tenant = tenant_id.ok_or_else(|| {
+                ToolError::Unauthorized("default namespace requires tenant_id".to_string())
+            })?;
+            if !self.default_namespace_tenants.contains(tenant.as_str()) {
+                return Err(ToolError::Unauthorized(
+                    "default namespace not allowed for tenant".to_string(),
+                ));
+            }
         }
         self.namespace_authority
             .ensure_namespace(tenant_id, namespace_id, context.request_id.as_deref())
             .map_err(map_namespace_error)
+    }
+
+    /// Enforces registry ACL decisions and emits registry audit events.
+    fn ensure_registry_access(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        action: RegistryAclAction,
+        tenant_id: &TenantId,
+        namespace_id: &NamespaceId,
+        schema: Option<(&DataShapeId, &DataShapeVersion)>,
+    ) -> Result<(), ToolError> {
+        let principal = self.principal_resolver.resolve(auth_ctx);
+        let decision = self.registry_acl.authorize(&principal, action, tenant_id, namespace_id);
+        self.record_registry_audit(
+            context,
+            &principal,
+            action,
+            tenant_id,
+            namespace_id,
+            schema,
+            &decision,
+        );
+        if decision.allowed {
+            Ok(())
+        } else {
+            Err(ToolError::Unauthorized("schema registry access denied".to_string()))
+        }
+    }
+
+    /// Validates schema signing metadata when required by registry ACL.
+    fn validate_schema_signing(&self, record: &DataShapeRecord) -> Result<(), ToolError> {
+        if !self.registry_acl.require_signing() {
+            return Ok(());
+        }
+        let Some(signing) = &record.signing else {
+            return Err(ToolError::Unauthorized("schema signing metadata required".to_string()));
+        };
+        if signing.key_id.trim().is_empty() || signing.signature.trim().is_empty() {
+            return Err(ToolError::Unauthorized("schema signing metadata invalid".to_string()));
+        }
+        Ok(())
+    }
+
+    /// Records a registry audit event.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Audit call collects all fields for a single log entry."
+    )]
+    fn record_registry_audit(
+        &self,
+        context: &RequestContext,
+        principal: &crate::registry_acl::RegistryPrincipal,
+        action: RegistryAclAction,
+        tenant_id: &TenantId,
+        namespace_id: &NamespaceId,
+        schema: Option<(&DataShapeId, &DataShapeVersion)>,
+        decision: &RegistryAclDecision,
+    ) {
+        let (schema_id, schema_version) = schema.map_or((None, None), |(id, version)| {
+            (Some(id.to_string()), Some(version.to_string()))
+        });
+        let event = RegistryAuditEvent::new(RegistryAuditEventParams {
+            request_id: context.request_id.clone(),
+            tenant_id: tenant_id.to_string(),
+            namespace_id: namespace_id.to_string(),
+            action,
+            allowed: decision.allowed,
+            reason: decision.reason.clone(),
+            principal_id: principal.principal_id.clone(),
+            policy_class: principal.policy_class.clone(),
+            roles: principal.roles.iter().map(|role| role.name.clone()).collect(),
+            schema_id,
+            schema_version,
+        });
+        self.precheck_audit.record_registry(&event);
     }
 
     /// Emits a hash-only precheck audit event.
@@ -1264,11 +1417,15 @@ impl ToolRouter {
     }
 
     /// Authorizes a tool action and emits an auth audit record.
-    fn authorize(&self, context: &RequestContext, action: AuthAction<'_>) -> Result<(), ToolError> {
+    fn authorize(
+        &self,
+        context: &RequestContext,
+        action: AuthAction<'_>,
+    ) -> Result<AuthContext, ToolError> {
         match self.authz.authorize(context, action) {
             Ok(auth_ctx) => {
                 self.audit.record(&AuthAuditEvent::allowed(context, action, &auth_ctx));
-                Ok(())
+                Ok(auth_ctx)
             }
             Err(err) => {
                 self.audit.record(&AuthAuditEvent::denied(context, action, &err));

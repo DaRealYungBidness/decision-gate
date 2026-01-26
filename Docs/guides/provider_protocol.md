@@ -13,8 +13,9 @@ Dependencies:
 
 ## Overview
 Decision Gate evidence providers expose a single MCP tool named `evidence_query`.
-The Decision Gate MCP server calls this tool with an `EvidenceQuery` and
-`EvidenceContext`, and expects an `EvidenceResult` inside the MCP tool result.
+The Decision Gate MCP server calls this tool with an `EvidenceQuery` (including
+the provider check name) and `EvidenceContext`, and expects an `EvidenceResult`
+inside the MCP tool result.
 
 Providers can run over stdio (Content-Length framing) or HTTP (JSON-RPC 2.0).
 
@@ -102,6 +103,9 @@ The response must include a `content` array with a JSON EvidenceResult:
 }
 ```
 
+Note: `predicate` here is the provider check name (the entry in the provider
+contract). It is not the ScenarioSpec predicate id.
+
 ## EvidenceContext Schema
 
 ```json
@@ -131,7 +135,7 @@ The response must include a `content` array with a JSON EvidenceResult:
 
 ### Notes
 - `value.kind = "bytes"` encodes `value` as a JSON array of 0-255 integers.
-- `params` may be omitted or `null` when the predicate does not require inputs.
+- `params` may be omitted or `null` when the provider check does not require inputs.
 - `value`/`evidence_hash`/`evidence_ref`/`evidence_anchor`/`signature`/`content_type` may be `null` to signal missing evidence.
 - `evidence_hash` is optional; Decision Gate recomputes it when `value` is present.
 - Use JSON-RPC errors for unsupported predicates or malformed requests.

@@ -145,6 +145,7 @@ async fn smoke_schema_register_precheck() -> Result<(), Box<dyn std::error::Erro
         }),
         description: Some("precheck schema".to_string()),
         created_at: Timestamp::Logical(1),
+        signing: None,
     };
     let register_request = SchemasRegisterRequest {
         record: record.clone(),
@@ -230,6 +231,7 @@ async fn smoke_schema_registry_max_entries_enforced() -> Result<(), Box<dyn std:
         }),
         description: Some("precheck schema".to_string()),
         created_at: Timestamp::Logical(1),
+        signing: None,
     };
     let record_b = DataShapeRecord {
         schema_id: DataShapeId::new("asserted-b"),
@@ -299,6 +301,7 @@ async fn smoke_precheck_rejects_invalid_payload() -> Result<(), Box<dyn std::err
         }),
         description: Some("precheck schema".to_string()),
         created_at: Timestamp::Logical(1),
+        signing: None,
     };
     let register_request = SchemasRegisterRequest {
         record: record.clone(),
@@ -371,6 +374,7 @@ async fn smoke_precheck_respects_trust_lane_default() -> Result<(), Box<dyn std:
         }),
         description: Some("precheck schema".to_string()),
         created_at: Timestamp::Logical(1),
+        signing: None,
     };
     let register_request = SchemasRegisterRequest {
         record: record.clone(),

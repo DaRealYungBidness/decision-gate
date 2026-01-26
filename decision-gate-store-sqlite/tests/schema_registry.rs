@@ -21,6 +21,7 @@ use std::path::PathBuf;
 use decision_gate_core::DataShapeId;
 use decision_gate_core::DataShapeRecord;
 use decision_gate_core::DataShapeRegistry;
+use decision_gate_core::DataShapeSignature;
 use decision_gate_core::DataShapeVersion;
 use decision_gate_core::NamespaceId;
 use decision_gate_core::TenantId;
@@ -41,6 +42,7 @@ fn sample_record(schema_id: &str, version: &str) -> DataShapeRecord {
         schema: json!({"type": "object"}),
         description: Some("sample schema".to_string()),
         created_at: Timestamp::Logical(1),
+        signing: None,
     }
 }
 
@@ -79,6 +81,24 @@ fn sqlite_registry_roundtrip() {
         .unwrap()
         .expect("record");
     assert_eq!(fetched.schema_id, record.schema_id);
+}
+
+#[test]
+fn sqlite_registry_preserves_signing_metadata() {
+    let fixture = sqlite_fixture();
+    let store = &fixture.store;
+    let mut record = sample_record("schema-signing", "v1");
+    record.signing = Some(DataShapeSignature {
+        key_id: "key-1".to_string(),
+        signature: "signature-1".to_string(),
+        algorithm: Some("ed25519".to_string()),
+    });
+    store.register(record.clone()).unwrap();
+    let fetched = store
+        .get(&record.tenant_id, &record.namespace_id, &record.schema_id, &record.version)
+        .unwrap()
+        .expect("record present");
+    assert_eq!(fetched.signing, record.signing);
 }
 
 #[test]
@@ -215,6 +235,7 @@ fn sqlite_registry_same_schema_different_tenants_both_persist() {
         schema: json!({"type": "object", "tenant": 1}),
         description: Some("tenant 1".to_string()),
         created_at: Timestamp::Logical(1),
+        signing: None,
     };
     let tenant2_record = DataShapeRecord {
         tenant_id: TenantId::new("tenant-2"),
@@ -224,6 +245,7 @@ fn sqlite_registry_same_schema_different_tenants_both_persist() {
         schema: json!({"type": "object", "tenant": 2}),
         description: Some("tenant 2".to_string()),
         created_at: Timestamp::Logical(1),
+        signing: None,
     };
 
     store.register(tenant1_record.clone()).unwrap();
@@ -265,6 +287,7 @@ fn sqlite_registry_list_filters_by_tenant() {
         schema: json!({"type": "object"}),
         description: None,
         created_at: Timestamp::Logical(1),
+        signing: None,
     };
     let tenant2_record = DataShapeRecord {
         tenant_id: TenantId::new("tenant-2"),
@@ -274,6 +297,7 @@ fn sqlite_registry_list_filters_by_tenant() {
         schema: json!({"type": "object"}),
         description: None,
         created_at: Timestamp::Logical(1),
+        signing: None,
     };
 
     store.register(tenant1_record).unwrap();
@@ -304,6 +328,7 @@ fn sqlite_registry_get_requires_exact_tenant_match() {
         schema: json!({"type": "object"}),
         description: None,
         created_at: Timestamp::Logical(1),
+        signing: None,
     };
     store.register(record).unwrap();
 
@@ -337,6 +362,7 @@ fn sqlite_registry_versions_sorted_lexicographically() {
             schema: json!({"type": "object"}),
             description: None,
             created_at: Timestamp::Logical(1),
+            signing: None,
         })
         .unwrap();
     store
@@ -348,6 +374,7 @@ fn sqlite_registry_versions_sorted_lexicographically() {
             schema: json!({"type": "object"}),
             description: None,
             created_at: Timestamp::Logical(2),
+            signing: None,
         })
         .unwrap();
     store
@@ -359,6 +386,7 @@ fn sqlite_registry_versions_sorted_lexicographically() {
             schema: json!({"type": "object"}),
             description: None,
             created_at: Timestamp::Logical(3),
+            signing: None,
         })
         .unwrap();
 
@@ -403,6 +431,7 @@ fn sqlite_registry_concurrent_writes_different_schemas_no_deadlock() {
                     schema: json!({"type": "object", "thread": i, "index": j}),
                     description: None,
                     created_at: Timestamp::Logical(i * 10 + j),
+                    signing: None,
                 };
                 store.register(record).unwrap();
             }
@@ -440,6 +469,7 @@ fn sqlite_registry_concurrent_read_write_consistent() {
             schema: json!({"type": "object"}),
             description: None,
             created_at: Timestamp::Logical(i),
+            signing: None,
         };
         fixture.store.register(record).unwrap();
     }
@@ -467,6 +497,7 @@ fn sqlite_registry_concurrent_read_write_consistent() {
                     schema: json!({"type": "object"}),
                     description: None,
                     created_at: Timestamp::Logical(100 + i * 10 + j),
+                    signing: None,
                 };
                 let _ = store.register(record); // Ignore conflicts
             }
@@ -576,6 +607,7 @@ fn sqlite_registry_empty_schema_persists() {
         schema: json!({}),
         description: None,
         created_at: Timestamp::Logical(1),
+        signing: None,
     };
     store.register(record.clone()).unwrap();
     let fetched = store
@@ -618,6 +650,7 @@ fn sqlite_registry_deeply_nested_schema_persists() {
         schema: nested.clone(),
         description: None,
         created_at: Timestamp::Logical(1),
+        signing: None,
     };
     store.register(record.clone()).unwrap();
     let fetched = store

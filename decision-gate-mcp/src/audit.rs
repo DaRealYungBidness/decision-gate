@@ -28,6 +28,7 @@ use decision_gate_core::HashDigest;
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::config::RegistryAclAction;
 use crate::config::ServerTransport;
 use crate::telemetry::McpMethod;
 use crate::telemetry::McpOutcome;
@@ -100,6 +101,56 @@ pub struct PrecheckAuditEvent {
     pub redaction: &'static str,
 }
 
+/// Schema registry audit event payload.
+#[derive(Debug, Clone, Serialize)]
+pub struct RegistryAuditEvent {
+    /// Event identifier.
+    pub event: &'static str,
+    /// Event timestamp (milliseconds since epoch).
+    pub timestamp_ms: u128,
+    /// Request identifier when provided.
+    pub request_id: Option<String>,
+    /// Tenant identifier.
+    pub tenant_id: String,
+    /// Namespace identifier.
+    pub namespace_id: String,
+    /// Registry action.
+    pub action: RegistryAclAction,
+    /// Whether access was allowed.
+    pub allowed: bool,
+    /// Decision reason label.
+    pub reason: String,
+    /// Principal identifier.
+    pub principal_id: String,
+    /// Principal roles.
+    pub roles: Vec<String>,
+    /// Policy class label when available.
+    pub policy_class: Option<String>,
+    /// Optional schema id.
+    pub schema_id: Option<String>,
+    /// Optional schema version.
+    pub schema_version: Option<String>,
+}
+
+/// Security posture audit event payload.
+#[derive(Debug, Clone, Serialize)]
+pub struct SecurityAuditEvent {
+    /// Event identifier.
+    pub event: &'static str,
+    /// Event timestamp (milliseconds since epoch).
+    pub timestamp_ms: u128,
+    /// Security event kind.
+    pub kind: String,
+    /// Optional message.
+    pub message: Option<String>,
+    /// Dev-permissive enabled.
+    pub dev_permissive: bool,
+    /// Namespace authority mode label.
+    pub namespace_authority: String,
+    /// Namespace mapping mode label (if applicable).
+    pub namespace_mapping_mode: Option<String>,
+}
+
 /// Inputs required to construct an audit event.
 pub struct McpAuditEventParams {
     /// Request identifier when provided.
@@ -154,6 +205,46 @@ pub struct PrecheckAuditEventParams {
     pub redaction: &'static str,
 }
 
+/// Inputs required to construct a registry audit event.
+pub struct RegistryAuditEventParams {
+    /// Request identifier when provided.
+    pub request_id: Option<String>,
+    /// Tenant identifier.
+    pub tenant_id: String,
+    /// Namespace identifier.
+    pub namespace_id: String,
+    /// Registry action.
+    pub action: RegistryAclAction,
+    /// Whether access was allowed.
+    pub allowed: bool,
+    /// Decision reason label.
+    pub reason: String,
+    /// Principal identifier.
+    pub principal_id: String,
+    /// Principal roles.
+    pub roles: Vec<String>,
+    /// Policy class label when available.
+    pub policy_class: Option<String>,
+    /// Optional schema id.
+    pub schema_id: Option<String>,
+    /// Optional schema version.
+    pub schema_version: Option<String>,
+}
+
+/// Inputs required to construct a security audit event.
+pub struct SecurityAuditEventParams {
+    /// Security event kind.
+    pub kind: String,
+    /// Optional message.
+    pub message: Option<String>,
+    /// Dev-permissive enabled.
+    pub dev_permissive: bool,
+    /// Namespace authority mode label.
+    pub namespace_authority: String,
+    /// Namespace mapping mode label (if applicable).
+    pub namespace_mapping_mode: Option<String>,
+}
+
 impl McpAuditEvent {
     /// Creates a new audit event with a consistent timestamp.
     #[must_use]
@@ -203,6 +294,48 @@ impl PrecheckAuditEvent {
     }
 }
 
+impl RegistryAuditEvent {
+    /// Creates a new registry audit event with a consistent timestamp.
+    #[must_use]
+    pub fn new(params: RegistryAuditEventParams) -> Self {
+        let timestamp_ms =
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis();
+        Self {
+            event: "registry_audit",
+            timestamp_ms,
+            request_id: params.request_id,
+            tenant_id: params.tenant_id,
+            namespace_id: params.namespace_id,
+            action: params.action,
+            allowed: params.allowed,
+            reason: params.reason,
+            principal_id: params.principal_id,
+            roles: params.roles,
+            policy_class: params.policy_class,
+            schema_id: params.schema_id,
+            schema_version: params.schema_version,
+        }
+    }
+}
+
+impl SecurityAuditEvent {
+    /// Creates a new security audit event with a consistent timestamp.
+    #[must_use]
+    pub fn new(params: SecurityAuditEventParams) -> Self {
+        let timestamp_ms =
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis();
+        Self {
+            event: "security_audit",
+            timestamp_ms,
+            kind: params.kind,
+            message: params.message,
+            dev_permissive: params.dev_permissive,
+            namespace_authority: params.namespace_authority,
+            namespace_mapping_mode: params.namespace_mapping_mode,
+        }
+    }
+}
+
 // ============================================================================
 // SECTION: Trait
 // ============================================================================
@@ -214,6 +347,12 @@ pub trait McpAuditSink: Send + Sync {
 
     /// Record a precheck audit event.
     fn record_precheck(&self, _event: &PrecheckAuditEvent) {}
+
+    /// Record a registry audit event.
+    fn record_registry(&self, _event: &RegistryAuditEvent) {}
+
+    /// Record a security posture audit event.
+    fn record_security(&self, _event: &SecurityAuditEvent) {}
 }
 
 /// Audit sink that logs JSON lines to stderr.
@@ -227,6 +366,18 @@ impl McpAuditSink for McpStderrAuditSink {
     }
 
     fn record_precheck(&self, event: &PrecheckAuditEvent) {
+        if let Ok(payload) = serde_json::to_string(event) {
+            let _ = writeln!(std::io::stderr(), "{payload}");
+        }
+    }
+
+    fn record_registry(&self, event: &RegistryAuditEvent) {
+        if let Ok(payload) = serde_json::to_string(event) {
+            let _ = writeln!(std::io::stderr(), "{payload}");
+        }
+    }
+
+    fn record_security(&self, event: &SecurityAuditEvent) {
         if let Ok(payload) = serde_json::to_string(event) {
             let _ = writeln!(std::io::stderr(), "{payload}");
         }
@@ -271,6 +422,24 @@ impl McpAuditSink for McpFileAuditSink {
             let _ = file.flush();
         }
     }
+
+    fn record_registry(&self, event: &RegistryAuditEvent) {
+        if let Ok(payload) = serde_json::to_string(event)
+            && let Ok(mut file) = self.file.lock()
+        {
+            let _ = writeln!(file, "{payload}");
+            let _ = file.flush();
+        }
+    }
+
+    fn record_security(&self, event: &SecurityAuditEvent) {
+        if let Ok(payload) = serde_json::to_string(event)
+            && let Ok(mut file) = self.file.lock()
+        {
+            let _ = writeln!(file, "{payload}");
+            let _ = file.flush();
+        }
+    }
 }
 
 /// No-op audit sink.
@@ -278,4 +447,10 @@ pub struct McpNoopAuditSink;
 
 impl McpAuditSink for McpNoopAuditSink {
     fn record(&self, _event: &McpAuditEvent) {}
+
+    fn record_precheck(&self, _event: &PrecheckAuditEvent) {}
+
+    fn record_registry(&self, _event: &RegistryAuditEvent) {}
+
+    fn record_security(&self, _event: &SecurityAuditEvent) {}
 }

@@ -115,6 +115,16 @@ pub struct ControlPlaneConfig {
     pub trust_requirement: TrustRequirement,
     /// Anchor policy requirements for evidence providers.
     pub anchor_policy: EvidenceAnchorPolicy,
+    /// Optional per-provider trust requirement overrides.
+    pub provider_trust_overrides: BTreeMap<String, TrustRequirement>,
+}
+
+impl ControlPlaneConfig {
+    /// Returns the effective trust requirement for a provider.
+    #[must_use]
+    pub fn trust_requirement_for_provider(&self, provider_id: &str) -> TrustRequirement {
+        self.provider_trust_overrides.get(provider_id).copied().unwrap_or(self.trust_requirement)
+    }
 }
 
 impl Default for ControlPlaneConfig {
@@ -124,6 +134,7 @@ impl Default for ControlPlaneConfig {
             hash_algorithm: DEFAULT_HASH_ALGORITHM,
             trust_requirement: TrustRequirement::default(),
             anchor_policy: EvidenceAnchorPolicy::default(),
+            provider_trust_overrides: BTreeMap::new(),
         }
     }
 }
@@ -494,8 +505,10 @@ where
         let default_requirement = self.config.trust_requirement;
         let mut predicate_requirements = BTreeMap::new();
         for spec in &predicate_specs {
-            let requirement = spec.trust.unwrap_or(default_requirement);
-            let requirement = default_requirement.stricter(requirement);
+            let base_requirement =
+                self.config.trust_requirement_for_provider(spec.query.provider_id.as_str());
+            let requirement = spec.trust.unwrap_or(base_requirement);
+            let requirement = base_requirement.stricter(requirement);
             predicate_requirements.insert(spec.predicate.clone(), requirement);
         }
 
@@ -644,8 +657,10 @@ where
         let default_requirement = self.config.trust_requirement;
         let mut predicate_requirements = BTreeMap::new();
         for spec in &predicate_specs {
-            let requirement = spec.trust.unwrap_or(default_requirement);
-            let requirement = default_requirement.stricter(requirement);
+            let base_requirement =
+                self.config.trust_requirement_for_provider(spec.query.provider_id.as_str());
+            let requirement = spec.trust.unwrap_or(base_requirement);
+            let requirement = base_requirement.stricter(requirement);
             predicate_requirements.insert(spec.predicate.clone(), requirement);
         }
         let evaluator = GateEvaluator::new(self.config.logic_mode);

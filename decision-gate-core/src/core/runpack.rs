@@ -70,10 +70,25 @@ pub struct RunpackManifest {
     /// Anchor policy enforced during evidence evaluation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub anchor_policy: Option<EvidenceAnchorPolicy>,
+    /// Security context metadata for the runpack.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub security: Option<RunpackSecurityContext>,
     /// Integrity metadata for the runpack.
     pub integrity: RunpackIntegrity,
     /// Artifact index entries.
     pub artifacts: Vec<ArtifactRecord>,
+}
+
+/// Security context metadata for runpack exports.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RunpackSecurityContext {
+    /// Whether dev-permissive mode was enabled.
+    pub dev_permissive: bool,
+    /// Namespace authority mode label.
+    pub namespace_authority: String,
+    /// Namespace mapping mode label (if applicable).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub namespace_mapping_mode: Option<String>,
 }
 
 /// Runpack integrity metadata.

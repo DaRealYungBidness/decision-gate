@@ -26,6 +26,7 @@
 // ============================================================================
 
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use decision_gate_core::AdvanceTo;
@@ -61,14 +62,20 @@ use decision_gate_mcp::config::AnchorPolicyConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::config::NamespaceConfig;
 use decision_gate_mcp::config::PolicyConfig;
+use decision_gate_mcp::config::PrincipalConfig;
+use decision_gate_mcp::config::PrincipalRoleConfig;
 use decision_gate_mcp::config::ProviderConfig;
 use decision_gate_mcp::config::ProviderTimeoutConfig;
 use decision_gate_mcp::config::ProviderType;
 use decision_gate_mcp::config::RunStateStoreConfig;
+use decision_gate_mcp::config::ServerAuthConfig;
+use decision_gate_mcp::config::ServerAuthMode;
 use decision_gate_mcp::config::ServerConfig;
 use decision_gate_mcp::config::TrustConfig;
 use decision_gate_mcp::config::ValidationConfig;
 use decision_gate_mcp::namespace_authority::NoopNamespaceAuthority;
+use decision_gate_mcp::registry_acl::PrincipalResolver;
+use decision_gate_mcp::registry_acl::RegistryAcl;
 use decision_gate_mcp::tools::ProviderTransport;
 use decision_gate_mcp::tools::SchemaRegistryLimits;
 use decision_gate_mcp::tools::ToolRouterConfig;
@@ -82,9 +89,44 @@ use serde_json::json;
 #[must_use]
 pub fn sample_config() -> DecisionGateConfig {
     DecisionGateConfig {
-        server: ServerConfig::default(),
+        server: ServerConfig {
+            auth: Some(ServerAuthConfig {
+                mode: ServerAuthMode::LocalOnly,
+                bearer_tokens: Vec::new(),
+                mtls_subjects: Vec::new(),
+                allowed_tools: Vec::new(),
+                principals: vec![
+                    PrincipalConfig {
+                        subject: "stdio".to_string(),
+                        policy_class: Some("prod".to_string()),
+                        roles: vec![PrincipalRoleConfig {
+                            name: "TenantAdmin".to_string(),
+                            tenant_id: None,
+                            namespace_id: None,
+                        }],
+                    },
+                    PrincipalConfig {
+                        subject: "loopback".to_string(),
+                        policy_class: Some("prod".to_string()),
+                        roles: vec![PrincipalRoleConfig {
+                            name: "TenantAdmin".to_string(),
+                            tenant_id: None,
+                            namespace_id: None,
+                        }],
+                    },
+                ],
+            }),
+            ..ServerConfig::default()
+        },
         namespace: NamespaceConfig {
             allow_default: true,
+            default_tenants: vec![
+                TenantId::new("test-tenant"),
+                TenantId::new("tenant-1"),
+                TenantId::new("tenant-a"),
+                TenantId::new("tenant-b"),
+                TenantId::new("tenant"),
+            ],
             ..NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
@@ -95,6 +137,8 @@ pub fn sample_config() -> DecisionGateConfig {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: builtin_providers(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
+        source_modified_at: None,
     }
 }
 
@@ -107,14 +151,15 @@ pub fn sample_evidence() -> FederatedEvidenceProvider {
 /// Creates a tool router using sample configuration.
 #[must_use]
 pub fn sample_router() -> ToolRouter {
-    router_with_config(sample_config())
+    let config = sample_config();
+    router_with_config(&config)
 }
 
 /// Creates a tool router using a custom configuration.
 #[must_use]
-pub fn router_with_config(config: DecisionGateConfig) -> ToolRouter {
-    let evidence = FederatedEvidenceProvider::from_config(&config).unwrap();
-    let capabilities = CapabilityRegistry::from_config(&config).unwrap();
+pub fn router_with_config(config: &DecisionGateConfig) -> ToolRouter {
+    let evidence = FederatedEvidenceProvider::from_config(config).unwrap();
+    let capabilities = CapabilityRegistry::from_config(config).unwrap();
     let store = decision_gate_core::SharedRunStateStore::from_store(
         decision_gate_core::InMemoryRunStateStore::new(),
     );
@@ -141,11 +186,37 @@ pub fn router_with_config(config: DecisionGateConfig) -> ToolRouter {
     };
     let trust_requirement = config.effective_trust_requirement();
     let allow_default_namespace = config.allow_default_namespace();
+    let default_namespace_tenants =
+        config.namespace.default_tenants.iter().map(ToString::to_string).collect::<BTreeSet<_>>();
     let evidence_policy = config.evidence.clone();
     let validation = config.validation.clone();
     let anchor_policy = config.anchors.to_policy();
+    let provider_trust_overrides = if config.is_dev_permissive() {
+        config
+            .dev
+            .permissive_exempt_providers
+            .iter()
+            .map(|id| {
+                (
+                    id.clone(),
+                    decision_gate_core::TrustRequirement {
+                        min_lane: config.trust.min_lane,
+                    },
+                )
+            })
+            .collect()
+    } else {
+        BTreeMap::new()
+    };
+    let runpack_security_context = Some(decision_gate_core::RunpackSecurityContext {
+        dev_permissive: config.is_dev_permissive(),
+        namespace_authority: "dg_registry".to_string(),
+        namespace_mapping_mode: None,
+    });
     let precheck_audit_payloads = config.server.audit.log_precheck_payloads;
     let authz = Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
+    let principal_resolver = PrincipalResolver::from_config(config.server.auth.as_ref());
+    let registry_acl = RegistryAcl::new(&config.schema_registry.acl);
     let audit = Arc::new(NoopAuditSink);
     let dispatch_policy = config.policy.dispatch_policy().expect("dispatch policy");
     ToolRouter::new(ToolRouterConfig {
@@ -162,9 +233,14 @@ pub fn router_with_config(config: DecisionGateConfig) -> ToolRouter {
         audit,
         trust_requirement,
         anchor_policy,
+        provider_trust_overrides,
+        runpack_security_context,
         precheck_audit: Arc::new(McpNoopAuditSink),
         precheck_audit_payloads,
+        registry_acl,
+        principal_resolver,
         allow_default_namespace,
+        default_namespace_tenants,
         namespace_authority: Arc::new(NoopNamespaceAuthority),
     })
 }
@@ -233,7 +309,7 @@ pub fn sample_spec_with_id(id: &str) -> ScenarioSpec {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: None,
+        default_tenant_id: Some(TenantId::new("test-tenant")),
     }
 }
 

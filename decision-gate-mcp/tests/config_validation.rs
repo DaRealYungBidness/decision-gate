@@ -28,6 +28,7 @@
 
 use std::path::PathBuf;
 
+use decision_gate_core::TenantId;
 use decision_gate_core::TrustLane;
 use decision_gate_mcp::DecisionGateConfig;
 use decision_gate_mcp::config::AnchorPolicyConfig;
@@ -38,6 +39,7 @@ use decision_gate_mcp::config::PolicyConfig;
 use decision_gate_mcp::config::ProviderConfig;
 use decision_gate_mcp::config::ProviderTimeoutConfig;
 use decision_gate_mcp::config::ProviderType;
+use decision_gate_mcp::config::RegistryAclConfig;
 use decision_gate_mcp::config::RunStateStoreConfig;
 use decision_gate_mcp::config::SchemaRegistryConfig;
 use decision_gate_mcp::config::ServerAuditConfig;
@@ -65,6 +67,7 @@ fn validate_server_config(
     let mut config = DecisionGateConfig {
         server,
         namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
@@ -73,6 +76,7 @@ fn validate_server_config(
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        source_modified_at: None,
     };
     config.validate()
 }
@@ -84,6 +88,7 @@ fn validate_provider_config(
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
@@ -92,6 +97,7 @@ fn validate_provider_config(
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: vec![provider],
+        source_modified_at: None,
     };
     config.validate()
 }
@@ -102,6 +108,7 @@ fn policy_static_requires_config() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
@@ -113,6 +120,7 @@ fn policy_static_requires_config() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        source_modified_at: None,
     };
     let result = config.validate();
     assert!(result.is_err());
@@ -126,6 +134,7 @@ fn policy_static_rejects_empty_rule() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
@@ -154,6 +163,7 @@ fn policy_static_rejects_empty_rule() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        source_modified_at: None,
     };
     let result = config.validate();
     assert!(result.is_err());
@@ -167,6 +177,7 @@ fn policy_static_error_requires_message() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
@@ -195,6 +206,7 @@ fn policy_static_error_requires_message() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        source_modified_at: None,
     };
     let result = config.validate();
     assert!(result.is_err());
@@ -202,12 +214,13 @@ fn policy_static_error_requires_message() {
     assert!(error.to_string().contains("error_message"));
 }
 
-/// Verifies external targets cannot set target_id.
+/// Verifies external targets cannot set `target_id`.
 #[test]
 fn policy_static_rejects_external_target_id() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
@@ -241,6 +254,7 @@ fn policy_static_rejects_external_target_id() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        source_modified_at: None,
     };
     let result = config.validate();
     assert!(result.is_err());
@@ -254,6 +268,7 @@ fn policy_static_rejects_agent_with_system() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
@@ -287,6 +302,7 @@ fn policy_static_rejects_agent_with_system() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        source_modified_at: None,
     };
     let result = config.validate();
     assert!(result.is_err());
@@ -489,6 +505,7 @@ fn server_http_non_loopback_allowed_with_bearer_auth() {
             bearer_tokens: vec!["token-1".to_string()],
             mtls_subjects: Vec::new(),
             allowed_tools: Vec::new(),
+            principals: Vec::new(),
         }),
         tls: None,
         audit: ServerAuditConfig::default(),
@@ -510,6 +527,7 @@ fn server_stdio_rejects_bearer_auth() {
             bearer_tokens: vec!["token-1".to_string()],
             mtls_subjects: Vec::new(),
             allowed_tools: Vec::new(),
+            principals: Vec::new(),
         }),
         tls: None,
         audit: ServerAuditConfig::default(),
@@ -532,6 +550,7 @@ fn server_auth_bearer_requires_token() {
             bearer_tokens: Vec::new(),
             mtls_subjects: Vec::new(),
             allowed_tools: Vec::new(),
+            principals: Vec::new(),
         }),
         tls: None,
         audit: ServerAuditConfig::default(),
@@ -554,6 +573,7 @@ fn server_auth_rejects_unknown_tool_in_allowlist() {
             bearer_tokens: vec!["token-1".to_string()],
             mtls_subjects: Vec::new(),
             allowed_tools: vec!["invalid_tool".to_string()],
+            principals: Vec::new(),
         }),
         tls: None,
         audit: ServerAuditConfig::default(),
@@ -576,6 +596,7 @@ fn server_auth_mtls_requires_subjects() {
             bearer_tokens: Vec::new(),
             mtls_subjects: Vec::new(),
             allowed_tools: Vec::new(),
+            principals: Vec::new(),
         }),
         tls: None,
         audit: ServerAuditConfig::default(),
@@ -878,6 +899,7 @@ fn schema_registry_memory_rejects_path() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
@@ -892,8 +914,10 @@ fn schema_registry_memory_rejects_path() {
             sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
             max_schema_bytes: SchemaRegistryConfig::default().max_schema_bytes,
             max_entries: None,
+            acl: RegistryAclConfig::default(),
         },
         providers: Vec::new(),
+        source_modified_at: None,
     };
     let result = config.validate();
     assert!(result.is_err());
@@ -905,6 +929,7 @@ fn schema_registry_sqlite_requires_path() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
@@ -919,8 +944,10 @@ fn schema_registry_sqlite_requires_path() {
             sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
             max_schema_bytes: SchemaRegistryConfig::default().max_schema_bytes,
             max_entries: None,
+            acl: RegistryAclConfig::default(),
         },
         providers: Vec::new(),
+        source_modified_at: None,
     };
     let result = config.validate();
     assert!(result.is_err());
@@ -937,6 +964,7 @@ fn validation_strict_disabled_requires_allow_permissive() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
@@ -949,6 +977,7 @@ fn validation_strict_disabled_requires_allow_permissive() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        source_modified_at: None,
     };
     let result = config.validate();
     assert!(result.is_err());
@@ -968,6 +997,7 @@ fn dev_permissive_forces_asserted_trust_lane() {
             ..ServerConfig::default()
         },
         namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig {
             min_lane: TrustLane::Verified,
             ..TrustConfig::default()
@@ -979,6 +1009,7 @@ fn dev_permissive_forces_asserted_trust_lane() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        source_modified_at: None,
     };
     assert_eq!(config.effective_trust_requirement().min_lane, TrustLane::Asserted);
 }
@@ -991,6 +1022,7 @@ fn strict_mode_uses_configured_trust_lane() {
             ..ServerConfig::default()
         },
         namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig {
             min_lane: TrustLane::Asserted,
             ..TrustConfig::default()
@@ -1002,12 +1034,13 @@ fn strict_mode_uses_configured_trust_lane() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        source_modified_at: None,
     };
     assert_eq!(config.effective_trust_requirement().min_lane, TrustLane::Asserted);
 }
 
 #[test]
-fn dev_permissive_allows_default_namespace() {
+fn dev_permissive_does_not_override_default_namespace() {
     let config = DecisionGateConfig {
         server: ServerConfig {
             mode: ServerMode::DevPermissive,
@@ -1017,6 +1050,7 @@ fn dev_permissive_allows_default_namespace() {
             allow_default: false,
             ..NamespaceConfig::default()
         },
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
@@ -1025,8 +1059,9 @@ fn dev_permissive_allows_default_namespace() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        source_modified_at: None,
     };
-    assert!(config.allow_default_namespace());
+    assert!(!config.allow_default_namespace());
 }
 
 #[test]
@@ -1040,6 +1075,7 @@ fn strict_mode_requires_explicit_default_namespace_allow() {
             allow_default: false,
             ..NamespaceConfig::default()
         },
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
@@ -1048,10 +1084,37 @@ fn strict_mode_requires_explicit_default_namespace_allow() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        source_modified_at: None,
     };
     assert!(!config.allow_default_namespace());
     config.namespace.allow_default = true;
+    config.namespace.default_tenants = vec![TenantId::new("test-tenant")];
     assert!(config.allow_default_namespace());
+}
+
+#[test]
+fn allow_default_namespace_requires_default_tenants() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        namespace: NamespaceConfig {
+            allow_default: true,
+            ..NamespaceConfig::default()
+        },
+        dev: decision_gate_mcp::config::DevConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+        source_modified_at: None,
+    };
+    let error = config.validate().unwrap_err();
+    assert!(
+        error.to_string().contains("namespace.allow_default requires namespace.default_tenants")
+    );
 }
 
 /// Verifies `schema_registry` rejects zero `max_schema_bytes`.
@@ -1060,6 +1123,7 @@ fn schema_registry_rejects_zero_max_schema_bytes() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
@@ -1071,6 +1135,7 @@ fn schema_registry_rejects_zero_max_schema_bytes() {
             ..SchemaRegistryConfig::default()
         },
         providers: Vec::new(),
+        source_modified_at: None,
     };
     let result = config.validate();
     assert!(result.is_err());
@@ -1082,6 +1147,7 @@ fn schema_registry_rejects_zero_max_entries() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
@@ -1093,6 +1159,7 @@ fn schema_registry_rejects_zero_max_entries() {
             ..SchemaRegistryConfig::default()
         },
         providers: Vec::new(),
+        source_modified_at: None,
     };
     let result = config.validate();
     assert!(result.is_err());
@@ -1108,6 +1175,7 @@ fn run_state_store_sqlite_requires_path() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
@@ -1123,6 +1191,7 @@ fn run_state_store_sqlite_requires_path() {
         },
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        source_modified_at: None,
     };
     let result = config.validate();
     assert!(result.is_err());
@@ -1136,6 +1205,7 @@ fn run_state_store_memory_rejects_path() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
@@ -1151,6 +1221,7 @@ fn run_state_store_memory_rejects_path() {
         },
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        source_modified_at: None,
     };
     let result = config.validate();
     assert!(result.is_err());
@@ -1162,6 +1233,7 @@ fn run_state_store_sqlite_accepts_path() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
@@ -1177,6 +1249,7 @@ fn run_state_store_sqlite_accepts_path() {
         },
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        source_modified_at: None,
     };
     let result = config.validate();
     assert!(result.is_ok());
@@ -1188,6 +1261,7 @@ fn run_state_store_sqlite_rejects_zero_retention() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
@@ -1203,6 +1277,7 @@ fn run_state_store_sqlite_rejects_zero_retention() {
         },
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        source_modified_at: None,
     };
     let result = config.validate();
     assert!(result.is_err());
@@ -1336,6 +1411,7 @@ fn namespace_authority_assetcore_requires_config() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
@@ -1344,6 +1420,7 @@ fn namespace_authority_assetcore_requires_config() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        source_modified_at: None,
     };
     config.namespace.authority.mode =
         decision_gate_mcp::config::NamespaceAuthorityMode::AssetcoreHttp;
@@ -1360,6 +1437,7 @@ fn namespace_authority_none_rejects_assetcore_config() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
@@ -1368,6 +1446,7 @@ fn namespace_authority_none_rejects_assetcore_config() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        source_modified_at: None,
     };
     config.namespace.authority.mode = decision_gate_mcp::config::NamespaceAuthorityMode::None;
     config.namespace.authority.assetcore =
@@ -1377,11 +1456,87 @@ fn namespace_authority_none_rejects_assetcore_config() {
             connect_timeout_ms: 500,
             request_timeout_ms: 1_000,
             mapping: std::collections::BTreeMap::new(),
+            mapping_mode: decision_gate_mcp::config::NamespaceMappingMode::NumericParse,
         });
     let result = config.validate();
     assert!(result.is_err());
     let error = result.unwrap_err();
     assert!(error.to_string().contains("namespace.authority.assetcore"));
+}
+
+/// Verifies assetcore mapping mode cannot be none.
+#[test]
+fn namespace_authority_rejects_mapping_mode_none() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+        source_modified_at: None,
+    };
+    config.namespace.authority.mode =
+        decision_gate_mcp::config::NamespaceAuthorityMode::AssetcoreHttp;
+    config.namespace.authority.assetcore =
+        Some(decision_gate_mcp::config::AssetCoreNamespaceAuthorityConfig {
+            base_url: "http://127.0.0.1:9000".to_string(),
+            auth_token: None,
+            connect_timeout_ms: 500,
+            request_timeout_ms: 1_000,
+            mapping: std::collections::BTreeMap::new(),
+            mapping_mode: decision_gate_mcp::config::NamespaceMappingMode::None,
+        });
+    let result = config.validate();
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("mapping_mode cannot be none"));
+}
+
+/// Verifies dev-permissive is rejected when using assetcore namespace authority.
+#[test]
+fn dev_permissive_rejected_with_assetcore_authority() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig {
+            permissive: true,
+            ..decision_gate_mcp::config::DevConfig::default()
+        },
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+        source_modified_at: None,
+    };
+    config.namespace.authority.mode =
+        decision_gate_mcp::config::NamespaceAuthorityMode::AssetcoreHttp;
+    config.namespace.authority.assetcore =
+        Some(decision_gate_mcp::config::AssetCoreNamespaceAuthorityConfig {
+            base_url: "http://127.0.0.1:9000".to_string(),
+            auth_token: None,
+            connect_timeout_ms: 500,
+            request_timeout_ms: 1_000,
+            mapping: std::collections::BTreeMap::new(),
+            mapping_mode: decision_gate_mcp::config::NamespaceMappingMode::NumericParse,
+        });
+    let result = config.validate();
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("dev.permissive not allowed when namespace.authority.mode=assetcore_http")
+    );
 }
 
 // ============================================================================
@@ -1394,6 +1549,7 @@ fn anchors_require_required_fields() {
     let mut config = DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig {
@@ -1408,6 +1564,7 @@ fn anchors_require_required_fields() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        source_modified_at: None,
     };
     let result = config.validate();
     assert!(result.is_err());

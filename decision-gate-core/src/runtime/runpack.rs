@@ -42,6 +42,7 @@ use crate::core::runpack::ArtifactRecord;
 use crate::core::runpack::FileHashEntry;
 use crate::core::runpack::RunpackIntegrity;
 use crate::core::runpack::RunpackManifest;
+use crate::core::runpack::RunpackSecurityContext;
 use crate::core::runpack::RunpackVersion;
 use crate::core::runpack::VerifierMode;
 use crate::interfaces::Artifact;
@@ -87,6 +88,8 @@ pub struct RunpackBuilder {
     pub verifier_mode: VerifierMode,
     /// Anchor policy enforced by the control plane.
     pub anchor_policy: EvidenceAnchorPolicy,
+    /// Optional security context metadata.
+    pub security_context: Option<RunpackSecurityContext>,
 }
 
 impl Default for RunpackBuilder {
@@ -96,6 +99,7 @@ impl Default for RunpackBuilder {
             hash_algorithm: DEFAULT_HASH_ALGORITHM,
             verifier_mode: VerifierMode::OfflineStrict,
             anchor_policy: EvidenceAnchorPolicy::default(),
+            security_context: None,
         }
     }
 }
@@ -108,6 +112,13 @@ impl RunpackBuilder {
             anchor_policy,
             ..Self::default()
         }
+    }
+
+    /// Sets the security context metadata for the runpack.
+    #[must_use]
+    pub fn with_security_context(mut self, context: RunpackSecurityContext) -> Self {
+        self.security_context = Some(context);
+        self
     }
 
     /// Builds a runpack and writes artifacts to the provided sink.
@@ -215,6 +226,7 @@ impl RunpackBuilder {
             hash_algorithm: self.hash_algorithm,
             verifier_mode: self.verifier_mode,
             anchor_policy,
+            security: self.security_context.clone(),
             integrity,
             artifacts,
         };

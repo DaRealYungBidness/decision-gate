@@ -343,11 +343,13 @@ pub fn config_schema() -> Value {
         "properties": {
             "server": server_config_schema(),
             "namespace": namespace_config_schema(),
+            "dev": dev_config_schema(),
             "trust": trust_config_schema(),
             "evidence": evidence_policy_schema(),
             "anchors": anchor_policy_schema(),
             "policy": policy_config_schema(),
             "run_state_store": run_state_store_schema(),
+            "schema_registry": schema_registry_config_schema(),
             "providers": {
                 "type": "array",
                 "items": provider_config_schema(),
@@ -497,7 +499,29 @@ pub fn data_shape_record_schema() -> Value {
                     schema_for_string("Optional schema description.")
                 ]
             },
-            "created_at": timestamp_schema()
+            "created_at": timestamp_schema(),
+            "signing": data_shape_signature_schema()
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for `DataShapeSignature`.
+#[must_use]
+fn data_shape_signature_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": ["key_id", "signature"],
+        "properties": {
+            "key_id": schema_for_string("Signing key identifier."),
+            "signature": schema_for_string("Schema signature string."),
+            "algorithm": {
+                "oneOf": [
+                    { "type": "null" },
+                    schema_for_string("Signature algorithm label.")
+                ],
+                "default": null
+            }
         },
         "additionalProperties": false
     })
@@ -813,11 +837,29 @@ pub fn runpack_manifest_schema() -> Value {
             "spec_hash": hash_digest_schema(),
             "hash_algorithm": hash_algorithm_schema(),
             "verifier_mode": verifier_mode_schema(),
+            "security": runpack_security_context_schema(),
             "integrity": runpack_integrity_schema(),
             "artifacts": {
                 "type": "array",
                 "items": artifact_record_schema()
             }
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for runpack security context.
+#[must_use]
+fn runpack_security_context_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": ["dev_permissive", "namespace_authority"],
+        "properties": {
+            "dev_permissive": {
+                "type": "boolean"
+            },
+            "namespace_authority": schema_for_string("Namespace authority mode label."),
+            "namespace_mapping_mode": schema_for_string("Namespace mapping mode label.")
         },
         "additionalProperties": false
     })
@@ -1344,6 +1386,147 @@ fn run_state_store_schema() -> Value {
     })
 }
 
+/// Returns the JSON schema for schema registry configuration.
+#[must_use]
+fn schema_registry_config_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "type": {
+                "type": "string",
+                "enum": ["memory", "sqlite"],
+                "default": "memory"
+            },
+            "path": {
+                "oneOf": [
+                    { "type": "null" },
+                    schema_for_string("Path to the SQLite schema registry database.")
+                ],
+                "default": null
+            },
+            "busy_timeout_ms": {
+                "type": "integer",
+                "minimum": 0,
+                "default": 5000
+            },
+            "journal_mode": {
+                "type": "string",
+                "enum": ["wal", "delete"],
+                "default": "wal"
+            },
+            "sync_mode": {
+                "type": "string",
+                "enum": ["full", "normal"],
+                "default": "full"
+            },
+            "max_schema_bytes": {
+                "type": "integer",
+                "minimum": 1,
+                "default": 1_048_576
+            },
+            "max_entries": {
+                "oneOf": [
+                    { "type": "null" },
+                    { "type": "integer", "minimum": 1 }
+                ],
+                "default": null
+            },
+            "acl": registry_acl_schema()
+        },
+        "allOf": [
+            {
+                "if": {
+                    "properties": { "type": { "const": "sqlite" } }
+                },
+                "then": { "required": ["path"] }
+            },
+            {
+                "if": {
+                    "properties": { "type": { "const": "memory" } }
+                },
+                "then": { "properties": { "path": { "type": "null" } } }
+            }
+        ],
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for registry ACL configuration.
+#[must_use]
+fn registry_acl_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["builtin", "custom"],
+                "default": "builtin"
+            },
+            "default": {
+                "type": "string",
+                "enum": ["deny", "allow"],
+                "default": "deny"
+            },
+            "require_signing": {
+                "type": "boolean",
+                "default": false
+            },
+            "rules": {
+                "type": "array",
+                "items": registry_acl_rule_schema(),
+                "default": []
+            }
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for registry ACL rules.
+#[must_use]
+fn registry_acl_rule_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": ["effect"],
+        "properties": {
+            "effect": {
+                "type": "string",
+                "enum": ["allow", "deny"]
+            },
+            "actions": {
+                "type": "array",
+                "items": { "type": "string", "enum": ["register", "list", "get"] },
+                "default": []
+            },
+            "tenants": {
+                "type": "array",
+                "items": schema_for_identifier("Tenant identifier."),
+                "default": []
+            },
+            "namespaces": {
+                "type": "array",
+                "items": schema_for_identifier("Namespace identifier."),
+                "default": []
+            },
+            "subjects": {
+                "type": "array",
+                "items": { "type": "string" },
+                "default": []
+            },
+            "roles": {
+                "type": "array",
+                "items": { "type": "string" },
+                "default": []
+            },
+            "policy_classes": {
+                "type": "array",
+                "items": { "type": "string" },
+                "default": []
+            }
+        },
+        "additionalProperties": false
+    })
+}
+
 /// Returns the JSON schema for provider auth config.
 #[must_use]
 fn provider_auth_schema() -> Value {
@@ -1389,6 +1572,9 @@ fn server_config_schema() -> Value {
                 "minimum": 0,
                 "default": 1_048_576
             },
+            "limits": server_limits_schema(),
+            "auth": server_auth_schema(),
+            "tls": server_tls_schema(),
             "audit": server_audit_schema()
         },
         "allOf": [
@@ -1436,6 +1622,167 @@ fn server_audit_schema() -> Value {
     })
 }
 
+/// Returns the JSON schema for server auth configuration.
+#[must_use]
+fn server_auth_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["local_only", "bearer_token", "mtls"],
+                "default": "local_only"
+            },
+            "bearer_tokens": {
+                "type": "array",
+                "items": { "type": "string" },
+                "default": []
+            },
+            "mtls_subjects": {
+                "type": "array",
+                "items": { "type": "string" },
+                "default": []
+            },
+            "allowed_tools": {
+                "type": "array",
+                "items": { "type": "string" },
+                "default": []
+            },
+            "principals": {
+                "type": "array",
+                "items": principal_schema(),
+                "default": []
+            }
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for principal mappings.
+#[must_use]
+fn principal_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": ["subject"],
+        "properties": {
+            "subject": schema_for_string("Principal identifier (subject or token fingerprint)."),
+            "policy_class": {
+                "oneOf": [
+                    { "type": "null" },
+                    schema_for_string("Policy class label.")
+                ],
+                "default": null
+            },
+            "roles": {
+                "type": "array",
+                "items": principal_role_schema(),
+                "default": []
+            }
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for principal role bindings.
+#[must_use]
+fn principal_role_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+            "name": schema_for_string("Role name."),
+            "tenant_id": {
+                "oneOf": [
+                    { "type": "null" },
+                    schema_for_identifier("Tenant identifier scope.")
+                ],
+                "default": null
+            },
+            "namespace_id": {
+                "oneOf": [
+                    { "type": "null" },
+                    schema_for_identifier("Namespace identifier scope.")
+                ],
+                "default": null
+            }
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for server limits configuration.
+#[must_use]
+fn server_limits_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "max_inflight": {
+                "type": "integer",
+                "minimum": 1,
+                "default": 256
+            },
+            "rate_limit": {
+                "oneOf": [
+                    { "type": "null" },
+                    rate_limit_schema()
+                ],
+                "default": null
+            }
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for rate limit configuration.
+#[must_use]
+fn rate_limit_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "max_requests": {
+                "type": "integer",
+                "minimum": 1,
+                "default": 1000
+            },
+            "window_ms": {
+                "type": "integer",
+                "minimum": 100,
+                "default": 1000
+            },
+            "max_entries": {
+                "type": "integer",
+                "minimum": 1,
+                "default": 4096
+            }
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for TLS configuration.
+#[must_use]
+fn server_tls_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "cert_path": schema_for_string("Server TLS certificate (PEM)."),
+            "key_path": schema_for_string("Server TLS private key (PEM)."),
+            "client_ca_path": {
+                "oneOf": [
+                    { "type": "null" },
+                    schema_for_string("Optional client CA bundle for mTLS.")
+                ],
+                "default": null
+            },
+            "require_client_cert": {
+                "type": "boolean",
+                "default": true
+            }
+        },
+        "additionalProperties": false
+    })
+}
+
 /// Returns the JSON schema for trust configuration.
 #[must_use]
 fn trust_config_schema() -> Value {
@@ -1458,6 +1805,11 @@ fn namespace_config_schema() -> Value {
             "allow_default": {
                 "type": "boolean",
                 "default": false
+            },
+            "default_tenants": {
+                "type": "array",
+                "items": schema_for_identifier("Tenant identifier allowed for default namespace."),
+                "default": []
             },
             "authority": namespace_authority_schema()
         },
@@ -1497,6 +1849,42 @@ fn namespace_authority_schema() -> Value {
     })
 }
 
+/// Returns the JSON schema for dev configuration.
+#[must_use]
+fn dev_config_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "permissive": {
+                "type": "boolean",
+                "default": false
+            },
+            "permissive_scope": {
+                "type": "string",
+                "enum": ["asserted_evidence_only"],
+                "default": "asserted_evidence_only"
+            },
+            "permissive_ttl_days": {
+                "oneOf": [
+                    { "type": "null" },
+                    { "type": "integer", "minimum": 1 }
+                ],
+                "default": null
+            },
+            "permissive_warn": {
+                "type": "boolean",
+                "default": true
+            },
+            "permissive_exempt_providers": {
+                "type": "array",
+                "items": { "type": "string" },
+                "default": ["assetcore_read", "assetcore"]
+            }
+        },
+        "additionalProperties": false
+    })
+}
+
 /// Returns the JSON schema for Asset Core namespace authority settings.
 #[must_use]
 fn assetcore_authority_schema() -> Value {
@@ -1508,6 +1896,11 @@ fn assetcore_authority_schema() -> Value {
             "auth_token": schema_for_string("Optional bearer token for namespace lookup."),
             "connect_timeout_ms": schema_for_int("Connect timeout in milliseconds."),
             "request_timeout_ms": schema_for_int("Request timeout in milliseconds."),
+            "mapping_mode": {
+                "type": "string",
+                "enum": ["none", "explicit_map", "numeric_parse"],
+                "default": "numeric_parse"
+            },
             "mapping": {
                 "type": "object",
                 "additionalProperties": {

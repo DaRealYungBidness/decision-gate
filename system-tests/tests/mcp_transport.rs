@@ -71,8 +71,21 @@ async fn stdio_transport_end_to_end() -> Result<(), Box<dyn std::error::Error>> 
 transport = "stdio"
 mode = "strict"
 
+[server.auth]
+mode = "local_only"
+
+[[server.auth.principals]]
+subject = "stdio"
+policy_class = "prod"
+
+[[server.auth.principals.roles]]
+name = "TenantAdmin"
+tenant_id = "tenant-1"
+namespace_id = "default"
+
 [namespace]
 allow_default = true
+default_tenants = ["tenant-1"]
 
 [[providers]]
 name = "time"

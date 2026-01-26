@@ -12,12 +12,18 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use decision_gate_core::HashAlgorithm;
+use decision_gate_core::NamespaceId;
+use decision_gate_core::TenantId;
+use decision_gate_core::core::hashing::hash_bytes;
 use decision_gate_mcp::McpServer;
 use decision_gate_mcp::config::AnchorPolicyConfig;
 use decision_gate_mcp::config::DecisionGateConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::config::NamespaceConfig;
 use decision_gate_mcp::config::PolicyConfig;
+use decision_gate_mcp::config::PrincipalConfig;
+use decision_gate_mcp::config::PrincipalRoleConfig;
 use decision_gate_mcp::config::ProviderConfig;
 use decision_gate_mcp::config::ProviderTimeoutConfig;
 use decision_gate_mcp::config::ProviderType;
@@ -83,12 +89,22 @@ pub fn base_http_config(bind: &str) -> DecisionGateConfig {
             bind: Some(bind.to_string()),
             max_body_bytes: 1024 * 1024,
             limits: ServerLimitsConfig::default(),
-            auth: None,
+            auth: Some(ServerAuthConfig {
+                mode: ServerAuthMode::LocalOnly,
+                bearer_tokens: Vec::new(),
+                mtls_subjects: Vec::new(),
+                allowed_tools: Vec::new(),
+                principals: vec![
+                    tenant_admin_principal("loopback", "tenant-1", "default"),
+                    tenant_admin_principal("stdio", "tenant-1", "default"),
+                ],
+            }),
             tls: None,
             audit: ServerAuditConfig::default(),
         },
         namespace: NamespaceConfig {
             allow_default: true,
+            default_tenants: vec![TenantId::new("tenant-1")],
             ..NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
@@ -99,6 +115,8 @@ pub fn base_http_config(bind: &str) -> DecisionGateConfig {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: builtin_providers(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
+        source_modified_at: None,
     }
 }
 
@@ -110,6 +128,7 @@ pub fn base_http_config_with_bearer(bind: &str, token: &str) -> DecisionGateConf
         bearer_tokens: vec![token.to_string()],
         mtls_subjects: Vec::new(),
         allowed_tools: Vec::new(),
+        principals: vec![tenant_admin_principal(token_principal(token), "tenant-1", "default")],
     });
     config
 }
@@ -156,6 +175,7 @@ pub fn base_http_config_with_mtls(bind: &str, subject: &str) -> DecisionGateConf
         bearer_tokens: Vec::new(),
         mtls_subjects: vec![subject.to_string()],
         allowed_tools: Vec::new(),
+        principals: vec![tenant_admin_principal(subject, "tenant-1", "default")],
     });
     config
 }
@@ -169,12 +189,22 @@ pub fn base_sse_config(bind: &str) -> DecisionGateConfig {
             bind: Some(bind.to_string()),
             max_body_bytes: 1024 * 1024,
             limits: ServerLimitsConfig::default(),
-            auth: None,
+            auth: Some(ServerAuthConfig {
+                mode: ServerAuthMode::LocalOnly,
+                bearer_tokens: Vec::new(),
+                mtls_subjects: Vec::new(),
+                allowed_tools: Vec::new(),
+                principals: vec![
+                    tenant_admin_principal("loopback", "tenant-1", "default"),
+                    tenant_admin_principal("stdio", "tenant-1", "default"),
+                ],
+            }),
             tls: None,
             audit: ServerAuditConfig::default(),
         },
         namespace: NamespaceConfig {
             allow_default: true,
+            default_tenants: vec![TenantId::new("tenant-1")],
             ..NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
@@ -185,6 +215,8 @@ pub fn base_sse_config(bind: &str) -> DecisionGateConfig {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: builtin_providers(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
+        source_modified_at: None,
     }
 }
 
@@ -196,6 +228,7 @@ pub fn base_sse_config_with_bearer(bind: &str, token: &str) -> DecisionGateConfi
         bearer_tokens: vec![token.to_string()],
         mtls_subjects: Vec::new(),
         allowed_tools: Vec::new(),
+        principals: vec![tenant_admin_principal(token_principal(token), "tenant-1", "default")],
     });
     config
 }
@@ -271,6 +304,27 @@ fn builtin_provider(name: &str) -> ProviderConfig {
         allow_raw: false,
         timeouts: ProviderTimeoutConfig::default(),
         config: None,
+    }
+}
+
+fn token_principal(token: &str) -> String {
+    let digest = hash_bytes(HashAlgorithm::Sha256, token.as_bytes());
+    format!("token:{}", digest.value)
+}
+
+fn tenant_admin_principal(
+    subject: impl Into<String>,
+    tenant_id: &str,
+    namespace_id: &str,
+) -> PrincipalConfig {
+    PrincipalConfig {
+        subject: subject.into(),
+        policy_class: Some("prod".to_string()),
+        roles: vec![PrincipalRoleConfig {
+            name: "TenantAdmin".to_string(),
+            tenant_id: Some(TenantId::new(tenant_id)),
+            namespace_id: Some(NamespaceId::new(namespace_id)),
+        }],
     }
 }
 

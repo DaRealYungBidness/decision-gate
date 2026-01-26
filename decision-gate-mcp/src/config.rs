@@ -21,12 +21,15 @@ use std::fs;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::path::PathBuf;
+use std::time::SystemTime;
 
 use decision_gate_contract::ToolName;
 use decision_gate_core::AnchorRequirement;
 use decision_gate_core::EvidenceAnchorPolicy;
+use decision_gate_core::NamespaceId;
 use decision_gate_core::ProviderAnchorPolicy;
 use decision_gate_core::ProviderId;
+use decision_gate_core::TenantId;
 use decision_gate_core::TrustLane;
 use decision_gate_core::TrustRequirement;
 use decision_gate_store_sqlite::SqliteStoreMode;
@@ -60,6 +63,10 @@ const MAX_AUTH_TOKEN_LENGTH: usize = 256;
 const MAX_AUTH_TOOL_RULES: usize = 128;
 /// Maximum length of an mTLS subject string.
 const MAX_AUTH_SUBJECT_LENGTH: usize = 512;
+/// Maximum number of principal role bindings.
+const MAX_PRINCIPAL_ROLES: usize = 128;
+/// Maximum number of registry ACL rules.
+const MAX_REGISTRY_ACL_RULES: usize = 256;
 /// Default maximum inflight requests for MCP servers.
 const DEFAULT_MAX_INFLIGHT: usize = 256;
 /// Minimum allowed rate limit window in milliseconds.
@@ -116,6 +123,9 @@ pub struct DecisionGateConfig {
     /// Namespace policy configuration.
     #[serde(default)]
     pub namespace: NamespaceConfig,
+    /// Development-mode overrides (explicit opt-in only).
+    #[serde(default)]
+    pub dev: DevConfig,
     /// Trust and policy configuration.
     #[serde(default)]
     pub trust: TrustConfig,
@@ -140,6 +150,9 @@ pub struct DecisionGateConfig {
     /// Evidence provider configuration entries.
     #[serde(default)]
     pub providers: Vec<ProviderConfig>,
+    /// Optional config source metadata (not serialized).
+    #[serde(skip)]
+    pub source_modified_at: Option<SystemTime>,
 }
 
 impl DecisionGateConfig {
@@ -159,6 +172,7 @@ impl DecisionGateConfig {
             .map_err(|_| ConfigError::Invalid("config file must be utf-8".to_string()))?;
         let mut config: Self =
             toml::from_str(content).map_err(|err| ConfigError::Parse(err.to_string()))?;
+        config.source_modified_at = fs::metadata(&resolved).and_then(|meta| meta.modified()).ok();
         config.validate()?;
         Ok(config)
     }
@@ -171,6 +185,7 @@ impl DecisionGateConfig {
     pub fn validate(&mut self) -> Result<(), ConfigError> {
         self.server.validate()?;
         self.namespace.validate()?;
+        self.dev.validate(self.server.mode, self.namespace.authority.mode)?;
         self.validation.validate()?;
         self.policy.validate()?;
         self.run_state_store.validate()?;
@@ -184,24 +199,28 @@ impl DecisionGateConfig {
 
     /// Returns the effective trust requirement for the configured mode.
     #[must_use]
-    pub const fn effective_trust_requirement(&self) -> TrustRequirement {
-        match self.server.mode {
-            ServerMode::DevPermissive => TrustRequirement {
+    pub fn effective_trust_requirement(&self) -> TrustRequirement {
+        if self.is_dev_permissive() {
+            TrustRequirement {
                 min_lane: TrustLane::Asserted,
-            },
-            ServerMode::Strict => TrustRequirement {
+            }
+        } else {
+            TrustRequirement {
                 min_lane: self.trust.min_lane,
-            },
+            }
         }
     }
 
     /// Returns whether the default namespace is allowed.
     #[must_use]
     pub const fn allow_default_namespace(&self) -> bool {
-        match self.server.mode {
-            ServerMode::DevPermissive => true,
-            ServerMode::Strict => self.namespace.allow_default,
-        }
+        self.namespace.allow_default
+    }
+
+    /// Returns true when dev-permissive mode is enabled (explicit or legacy).
+    #[must_use]
+    pub fn is_dev_permissive(&self) -> bool {
+        self.dev.permissive || self.server.mode == ServerMode::DevPermissive
     }
 }
 
@@ -298,6 +317,75 @@ impl ServerConfig {
         }
         Ok(())
     }
+}
+
+/// Development-mode configuration (explicit opt-in only).
+#[derive(Debug, Clone, Deserialize)]
+pub struct DevConfig {
+    /// Enable dev-permissive mode (asserted evidence allowed for scoped providers).
+    #[serde(default)]
+    pub permissive: bool,
+    /// Dev-permissive scope selection.
+    #[serde(default)]
+    pub permissive_scope: DevPermissiveScope,
+    /// Optional TTL in days for dev-permissive warnings.
+    #[serde(default)]
+    pub permissive_ttl_days: Option<u64>,
+    /// Emit warnings when dev-permissive is enabled or expired.
+    #[serde(default = "default_dev_permissive_warn")]
+    pub permissive_warn: bool,
+    /// Provider ids exempt from dev-permissive relaxations.
+    #[serde(default = "default_dev_permissive_exempt_providers")]
+    pub permissive_exempt_providers: Vec<String>,
+}
+
+impl Default for DevConfig {
+    fn default() -> Self {
+        Self {
+            permissive: false,
+            permissive_scope: DevPermissiveScope::default(),
+            permissive_ttl_days: None,
+            permissive_warn: default_dev_permissive_warn(),
+            permissive_exempt_providers: default_dev_permissive_exempt_providers(),
+        }
+    }
+}
+
+impl DevConfig {
+    /// Validates dev configuration.
+    fn validate(
+        &mut self,
+        server_mode: ServerMode,
+        namespace_mode: NamespaceAuthorityMode,
+    ) -> Result<(), ConfigError> {
+        if self.permissive_ttl_days == Some(0) {
+            return Err(ConfigError::Invalid(
+                "dev.permissive_ttl_days must be greater than zero".to_string(),
+            ));
+        }
+        if server_mode == ServerMode::DevPermissive && !self.permissive {
+            // Legacy compatibility: treat server.mode=dev_permissive as dev.permissive=true.
+            self.permissive = true;
+        }
+        if (self.permissive || server_mode == ServerMode::DevPermissive)
+            && namespace_mode == NamespaceAuthorityMode::AssetcoreHttp
+        {
+            return Err(ConfigError::Invalid(
+                "dev.permissive not allowed when namespace.authority.mode=assetcore_http"
+                    .to_string(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Dev-permissive scope selection.
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum DevPermissiveScope {
+    /// Allow asserted evidence only (non-exempt providers).
+    #[default]
+    AssertedEvidenceOnly,
 }
 
 /// Request limits for the MCP server.
@@ -489,6 +577,9 @@ pub struct ServerAuthConfig {
     /// Optional tool allowlist (per-tool authorization).
     #[serde(default)]
     pub allowed_tools: Vec<String>,
+    /// Optional principal role mappings for registry ACL.
+    #[serde(default)]
+    pub principals: Vec<PrincipalConfig>,
 }
 
 impl ServerAuthConfig {
@@ -531,6 +622,12 @@ impl ServerAuthConfig {
                 )));
             }
         }
+        if self.principals.len() > MAX_AUTH_TOKENS {
+            return Err(ConfigError::Invalid("too many principal mappings".to_string()));
+        }
+        for principal in &self.principals {
+            principal.validate()?;
+        }
         match self.mode {
             ServerAuthMode::LocalOnly => Ok(()),
             ServerAuthMode::BearerToken => {
@@ -550,6 +647,71 @@ impl ServerAuthConfig {
                 Ok(())
             }
         }
+    }
+}
+
+/// Principal mapping for registry ACL enforcement.
+#[derive(Debug, Clone, Deserialize)]
+pub struct PrincipalConfig {
+    /// Principal identifier (subject or token fingerprint label).
+    pub subject: String,
+    /// Optional policy class label (e.g., prod, scratch).
+    #[serde(default)]
+    pub policy_class: Option<String>,
+    /// Role bindings for this principal.
+    #[serde(default)]
+    pub roles: Vec<PrincipalRoleConfig>,
+}
+
+impl PrincipalConfig {
+    /// Validates principal configuration constraints.
+    fn validate(&self) -> Result<(), ConfigError> {
+        if self.subject.trim().is_empty() {
+            return Err(ConfigError::Invalid(
+                "auth.principals.subject must be non-empty".to_string(),
+            ));
+        }
+        if let Some(policy_class) = &self.policy_class
+            && policy_class.trim().is_empty()
+        {
+            return Err(ConfigError::Invalid(
+                "auth.principals.policy_class must be non-empty".to_string(),
+            ));
+        }
+        if self.roles.len() > MAX_PRINCIPAL_ROLES {
+            return Err(ConfigError::Invalid(
+                "auth.principals.roles exceeds max entries".to_string(),
+            ));
+        }
+        for role in &self.roles {
+            role.validate()?;
+        }
+        Ok(())
+    }
+}
+
+/// Role binding for a principal (optional tenant/namespace scope).
+#[derive(Debug, Clone, Deserialize)]
+pub struct PrincipalRoleConfig {
+    /// Role name (e.g., `NamespaceAdmin`).
+    pub name: String,
+    /// Optional tenant scope.
+    #[serde(default)]
+    pub tenant_id: Option<TenantId>,
+    /// Optional namespace scope.
+    #[serde(default)]
+    pub namespace_id: Option<NamespaceId>,
+}
+
+impl PrincipalRoleConfig {
+    /// Validates role configuration constraints.
+    fn validate(&self) -> Result<(), ConfigError> {
+        if self.name.trim().is_empty() {
+            return Err(ConfigError::Invalid(
+                "auth.principals.roles.name must be non-empty".to_string(),
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -579,6 +741,9 @@ pub struct NamespaceConfig {
     /// Allow the literal `default` namespace identifier.
     #[serde(default)]
     pub allow_default: bool,
+    /// Explicit tenant allowlist for the default namespace.
+    #[serde(default)]
+    pub default_tenants: Vec<TenantId>,
     /// Namespace authority configuration.
     #[serde(default)]
     pub authority: NamespaceAuthorityConfig,
@@ -592,6 +757,11 @@ impl NamespaceConfig {
     /// Returns [`ConfigError`] when the namespace policy is invalid.
     fn validate(&self) -> Result<(), ConfigError> {
         self.authority.validate()?;
+        if self.allow_default && self.default_tenants.is_empty() {
+            return Err(ConfigError::Invalid(
+                "namespace.allow_default requires namespace.default_tenants".to_string(),
+            ));
+        }
         Ok(())
     }
 }
@@ -675,6 +845,9 @@ pub struct AssetCoreNamespaceAuthorityConfig {
     /// Optional DG -> Asset Core namespace mapping.
     #[serde(default)]
     pub mapping: BTreeMap<String, u64>,
+    /// Mapping mode selection.
+    #[serde(default)]
+    pub mapping_mode: NamespaceMappingMode,
 }
 
 impl AssetCoreNamespaceAuthorityConfig {
@@ -706,8 +879,26 @@ impl AssetCoreNamespaceAuthorityConfig {
                 "namespace.authority.assetcore.mapping exceeds max entries".to_string(),
             ));
         }
+        if self.mapping_mode == NamespaceMappingMode::None {
+            return Err(ConfigError::Invalid(
+                "namespace.authority.assetcore.mapping_mode cannot be none".to_string(),
+            ));
+        }
         Ok(())
     }
+}
+
+/// Namespace mapping mode for Asset Core authority.
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum NamespaceMappingMode {
+    /// No mapping and no numeric parsing (disallowed for Asset Core authority).
+    None,
+    /// Require explicit mappings only (numeric parsing disabled).
+    ExplicitMap,
+    /// Allow numeric parsing (mappings may still be provided).
+    #[default]
+    NumericParse,
 }
 
 /// Policy engine configuration.
@@ -1018,6 +1209,9 @@ pub struct SchemaRegistryConfig {
     /// Optional max schemas per tenant + namespace.
     #[serde(default)]
     pub max_entries: Option<u64>,
+    /// Registry ACL configuration.
+    #[serde(default)]
+    pub acl: RegistryAclConfig,
 }
 
 impl Default for SchemaRegistryConfig {
@@ -1030,6 +1224,7 @@ impl Default for SchemaRegistryConfig {
             sync_mode: SqliteSyncMode::default(),
             max_schema_bytes: default_schema_max_bytes(),
             max_entries: None,
+            acl: RegistryAclConfig::default(),
         }
     }
 }
@@ -1054,6 +1249,7 @@ impl SchemaRegistryConfig {
                         "memory schema_registry must not set path".to_string(),
                     ));
                 }
+                self.acl.validate()?;
                 Ok(())
             }
             SchemaRegistryType::Sqlite => {
@@ -1061,9 +1257,133 @@ impl SchemaRegistryConfig {
                     ConfigError::Invalid("sqlite schema_registry requires path".to_string())
                 })?;
                 validate_store_path(path)?;
+                self.acl.validate()?;
                 Ok(())
             }
         }
+    }
+}
+
+/// Registry ACL mode selection.
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum RegistryAclMode {
+    /// Built-in role-based defaults.
+    #[default]
+    Builtin,
+    /// Custom rule set.
+    Custom,
+}
+
+/// Registry ACL default effect.
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum RegistryAclDefault {
+    /// Deny by default.
+    #[default]
+    Deny,
+    /// Allow by default.
+    Allow,
+}
+
+/// Registry ACL rule effect.
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RegistryAclEffect {
+    /// Allow access.
+    Allow,
+    /// Deny access.
+    Deny,
+}
+
+/// Registry ACL action types.
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RegistryAclAction {
+    /// Register schema.
+    Register,
+    /// List schemas.
+    List,
+    /// Get schema.
+    Get,
+}
+
+/// Registry ACL rule definition.
+#[derive(Debug, Clone, Deserialize)]
+pub struct RegistryAclRule {
+    /// Rule effect.
+    pub effect: RegistryAclEffect,
+    /// Actions covered by this rule (empty = any).
+    #[serde(default)]
+    pub actions: Vec<RegistryAclAction>,
+    /// Tenant identifiers (empty = any).
+    #[serde(default)]
+    pub tenants: Vec<TenantId>,
+    /// Namespace identifiers (empty = any).
+    #[serde(default)]
+    pub namespaces: Vec<NamespaceId>,
+    /// Principal subjects (empty = any).
+    #[serde(default)]
+    pub subjects: Vec<String>,
+    /// Role names (empty = any).
+    #[serde(default)]
+    pub roles: Vec<String>,
+    /// Policy classes (empty = any).
+    #[serde(default)]
+    pub policy_classes: Vec<String>,
+}
+
+impl RegistryAclRule {
+    /// Validates ACL rule configuration constraints.
+    fn validate(&self) -> Result<(), ConfigError> {
+        if self.subjects.iter().any(|s| s.trim().is_empty()) {
+            return Err(ConfigError::Invalid(
+                "schema_registry.acl.rules.subjects must be non-empty".to_string(),
+            ));
+        }
+        if self.roles.iter().any(|r| r.trim().is_empty()) {
+            return Err(ConfigError::Invalid(
+                "schema_registry.acl.rules.roles must be non-empty".to_string(),
+            ));
+        }
+        if self.policy_classes.iter().any(|p| p.trim().is_empty()) {
+            return Err(ConfigError::Invalid(
+                "schema_registry.acl.rules.policy_classes must be non-empty".to_string(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Registry ACL configuration.
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct RegistryAclConfig {
+    /// ACL mode selection.
+    #[serde(default)]
+    pub mode: RegistryAclMode,
+    /// Default effect when no rules match.
+    #[serde(default)]
+    pub default: RegistryAclDefault,
+    /// Require schema signing metadata.
+    #[serde(default)]
+    pub require_signing: bool,
+    /// Custom ACL rules.
+    #[serde(default)]
+    pub rules: Vec<RegistryAclRule>,
+}
+
+impl RegistryAclConfig {
+    /// Validates ACL configuration constraints.
+    fn validate(&self) -> Result<(), ConfigError> {
+        if self.rules.len() > MAX_REGISTRY_ACL_RULES {
+            return Err(ConfigError::Invalid(
+                "schema_registry.acl.rules exceeds max entries".to_string(),
+            ));
+        }
+        for rule in &self.rules {
+            rule.validate()?;
+        }
+        Ok(())
     }
 }
 
@@ -1334,6 +1654,16 @@ const fn default_tls_require_client_cert() -> bool {
 /// Default audit logging enabled.
 const fn default_audit_enabled() -> bool {
     true
+}
+
+/// Default dev-permissive warning enabled.
+const fn default_dev_permissive_warn() -> bool {
+    true
+}
+
+/// Default provider ids exempt from dev-permissive relaxations.
+fn default_dev_permissive_exempt_providers() -> Vec<String> {
+    vec!["assetcore_read".to_string(), "assetcore".to_string()]
 }
 
 /// Default value for requiring provider opt-in to raw evidence.

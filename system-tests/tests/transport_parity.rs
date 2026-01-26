@@ -11,6 +11,7 @@
 mod helpers;
 
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -150,8 +151,21 @@ async fn run_stdio_transport(
 transport = "stdio"
 mode = "strict"
 
+[server.auth]
+mode = "local_only"
+
+[[server.auth.principals]]
+subject = "stdio"
+policy_class = "prod"
+
+[[server.auth.principals.roles]]
+name = "TenantAdmin"
+tenant_id = "tenant-1"
+namespace_id = "default"
+
 [namespace]
 allow_default = true
+default_tenants = ["tenant-1"]
 
 [[providers]]
 name = "time"
@@ -364,7 +378,7 @@ async fn export_runpack_stdio(
     read_manifest(runpack_dir)
 }
 
-fn read_manifest(runpack_dir: &PathBuf) -> Result<RunpackManifest, Box<dyn std::error::Error>> {
+fn read_manifest(runpack_dir: &Path) -> Result<RunpackManifest, Box<dyn std::error::Error>> {
     let manifest_path = runpack_dir.join("manifest.json");
     let bytes = fs::read(&manifest_path)?;
     let manifest: RunpackManifest = serde_json::from_slice(&bytes)?;

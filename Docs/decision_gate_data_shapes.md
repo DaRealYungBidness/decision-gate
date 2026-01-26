@@ -24,7 +24,7 @@ enforced against global/scenario/gate/predicate requirements.
 Key code path:
 
 - ScenarioSpec predicates include EvidenceQuery (provider_id/predicate/params),
-  which binds gate requirements to provider queries in the spec.
+  which binds gate requirements to provider checks in the spec.
   `decision-gate-core/src/core/spec.rs`
 - EvidenceQuery, EvidenceResult, TrustLane, and TrustRequirement are the
   canonical data contracts.
@@ -62,12 +62,12 @@ There are now two distinct "shape" concepts:
 
 Verified lane (provider contracts):
 
-- Provider contracts define predicate parameter schemas, result schemas, allowed
-  comparators, determinism class, and examples.
+- Provider contracts define provider check parameter schemas, result schemas,
+  allowed comparators, determinism class, and examples.
   `decision-gate-contract/src/types.rs`
-- External MCP providers must ship capability contracts and reference them via
-  `capabilities_path` in config. This is the explicit, versioned shape for
-  provider-pulled evidence.
+- External MCP providers must ship provider contracts (capability contracts)
+  and reference them via `capabilities_path` in config. This is the explicit,
+  versioned shape for provider-pulled evidence.
   `Docs/guides/provider_development.md`
   `Docs/configuration/decision-gate.toml.md`
 
@@ -95,32 +95,32 @@ Asserted lane (data shape registry):
 
 So for something like ESPN:
 
-- Verified lane: define predicates with param/result schemas in a capability
+- Verified lane: define provider checks with param/result schemas in a provider
   contract JSON, and implement the MCP provider that calls ESPN.
 - Asserted lane: register a data shape schema for the payload you want to
   precheck, then call `precheck` with that payload.
 
-The scenario author works "backwards" from the API by defining provider
-predicates that match the API's input/output. The ScenarioSpec then binds those
-predicates to gates via EvidenceQuery.
+The scenario author works "backwards" from the API by defining provider checks
+(predicate names) that match the API's input/output. The ScenarioSpec then binds
+those checks to gates via EvidenceQuery.
 
 ## How does the agent know the data shape? How does DG MCP validate it?
 
-DG MCP validates in two places: provider capabilities for verified evidence and
+DG MCP validates in two places: provider contracts for verified evidence and
 data shapes for asserted evidence.
 
-Provider capability registry:
+Provider contract registry:
 
 - The server loads provider contracts from built-ins or from
   `capabilities_path` in config, then compiles JSON Schema for params/results.
   `decision-gate-mcp/src/server.rs`
   `decision-gate-mcp/src/capabilities.rs`
-- When a scenario is defined, DG MCP validates all predicate params/expected
-  values against those compiled schemas, checks provider/predicate presence,
+- When a scenario is defined, DG MCP validates all provider check params and
+  expected values against those compiled schemas, checks provider/check presence,
   and enforces strict comparator compatibility.
   `decision-gate-mcp/src/tools.rs`
   `decision-gate-mcp/src/validation.rs`
-- Evidence queries are also validated against predicate param schemas.
+- Evidence queries are also validated against provider check param schemas.
   `decision-gate-mcp/src/tools.rs`
   `decision-gate-mcp/src/capabilities.rs`
 
@@ -137,7 +137,7 @@ Data shape registry (asserted lane):
 
 How the agent learns the shape today:
 
-- `providers_list` returns provider IDs, transports, and predicate names.
+- `providers_list` returns provider IDs, transports, and provider check names.
   `decision-gate-mcp/src/tools.rs`
 - `schemas_list` and `schemas_get` return registered data shapes.
   `decision-gate-mcp/src/tools.rs`
@@ -161,19 +161,19 @@ Current state:
   `decision-gate-mcp/src/tools.rs`
   `decision-gate-core/src/runtime/store.rs`
   `decision-gate-store-sqlite/src/store.rs`
-- Provider capability contracts are still loaded once at startup from config;
-  there is no runtime API to register new provider contracts on demand.
+- Provider contracts are still loaded once at startup from config; there is no
+  runtime API to register new provider contracts on demand.
   `decision-gate-mcp/src/capabilities.rs`
   `decision-gate-mcp/src/config.rs`
 
 If you want LLM-driven provider schema registration, it would require new tools
-and a separate capability registry service (not implemented).
+and a separate provider contract registry service (not implemented).
 
 ## Can agents query DG MCP for available schemas or shapes?
 
 Yes, for registry-backed data shapes and provider summaries:
 
-- `providers_list` returns provider IDs, transports, and predicate names.
+- `providers_list` returns provider IDs, transports, and provider check names.
 - `schemas_list` and `schemas_get` return data shape records.
 - `scenarios_list` returns registered scenarios by tenant+namespace.
   `decision-gate-mcp/src/tools.rs`

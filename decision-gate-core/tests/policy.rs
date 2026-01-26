@@ -41,6 +41,10 @@ use ret_logic::Requirement;
 use serde_json::json;
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "Test keeps the full policy flow in one place for readability."
+)]
 fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Error>> {
     let scenario_id = decision_gate_core::ScenarioId::new("policy-scenario");
     let stage1_id = decision_gate_core::StageId::new("stage-1");

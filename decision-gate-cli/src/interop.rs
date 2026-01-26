@@ -116,6 +116,10 @@ pub struct InteropReport {
 // ============================================================================
 
 /// Validates that the interop inputs are internally consistent.
+///
+/// # Errors
+///
+/// Returns an error when scenario, run, tenant, or namespace identifiers do not match.
 pub fn validate_inputs(
     spec: &ScenarioSpec,
     run_config: &RunConfig,
@@ -153,6 +157,10 @@ pub fn validate_inputs(
 }
 
 /// Executes the interop workflow against the MCP server.
+///
+/// # Errors
+///
+/// Returns an error when request serialization, transport, or server responses fail.
 pub async fn run_interop(config: InteropConfig) -> Result<InteropReport, String> {
     let mut client = McpHttpClient::new(
         config.mcp_url,

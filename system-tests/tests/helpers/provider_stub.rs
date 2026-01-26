@@ -183,7 +183,7 @@ async fn handle_rpc(
     let correlation_id = headers
         .get("x-correlation-id")
         .and_then(|value| value.to_str().ok())
-        .map(|value| value.to_string());
+        .map(ToString::to_string);
     record_request(&state, request_id, correlation_id);
     if state.response_delay > Duration::from_millis(0) {
         sleep(state.response_delay).await;
@@ -222,20 +222,21 @@ fn handle_request(state: &ProviderState, request: JsonRpcRequest) -> JsonRpcResp
             let call: Result<ToolCallParams, _> = serde_json::from_value(params);
             match call {
                 Ok(call) if call.name == "evidence_query" => {
-                    let parsed: Result<EvidenceQueryRequest, _> =
-                        serde_json::from_value(call.arguments);
-                    if parsed.is_err() {
-                        return JsonRpcResponse {
-                            jsonrpc: "2.0",
-                            id: request.id,
-                            result: None,
-                            error: Some(JsonRpcError {
-                                code: -32602,
-                                message: "invalid evidence_query payload".to_string(),
-                            }),
-                        };
-                    }
-                    let parsed = parsed.expect("checked is_err");
+                    let parsed: EvidenceQueryRequest = match serde_json::from_value(call.arguments)
+                    {
+                        Ok(parsed) => parsed,
+                        Err(_) => {
+                            return JsonRpcResponse {
+                                jsonrpc: "2.0",
+                                id: request.id,
+                                result: None,
+                                error: Some(JsonRpcError {
+                                    code: -32602,
+                                    message: "invalid evidence_query payload".to_string(),
+                                }),
+                            };
+                        }
+                    };
                     let (response_value, anchor) = match &state.response {
                         ProviderResponse::Fixed(value) => (value.clone(), None),
                         ProviderResponse::Fixtures(fixtures) => {

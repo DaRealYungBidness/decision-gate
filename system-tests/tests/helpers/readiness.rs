@@ -30,7 +30,7 @@ where
     loop {
         attempts = attempts.saturating_add(1);
         match probe().await {
-            Ok(_) => return Ok(()),
+            Ok(()) => return Ok(()),
             Err(err) => {
                 if start.elapsed() > timeout {
                     return Err(format!(

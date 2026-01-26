@@ -43,8 +43,10 @@ use axum::body::Bytes;
 use axum::http::StatusCode;
 use decision_gate_core::InMemoryDataShapeRegistry;
 use decision_gate_core::InMemoryRunStateStore;
+use decision_gate_core::NamespaceId;
 use decision_gate_core::SharedDataShapeRegistry;
 use decision_gate_core::SharedRunStateStore;
+use decision_gate_core::TenantId;
 use serde_json::json;
 
 use super::build_provider_transports;
@@ -62,6 +64,8 @@ use crate::capabilities::CapabilityRegistry;
 use crate::config::DecisionGateConfig;
 use crate::config::EvidencePolicyConfig;
 use crate::config::PolicyConfig;
+use crate::config::PrincipalConfig;
+use crate::config::PrincipalRoleConfig;
 use crate::config::ProviderConfig;
 use crate::config::ProviderTimeoutConfig;
 use crate::config::ProviderType;
@@ -116,9 +120,27 @@ impl McpAuditSink for TestAudit {
 
 fn sample_config() -> DecisionGateConfig {
     DecisionGateConfig {
-        server: ServerConfig::default(),
+        server: ServerConfig {
+            auth: Some(ServerAuthConfig {
+                mode: ServerAuthMode::LocalOnly,
+                bearer_tokens: Vec::new(),
+                mtls_subjects: Vec::new(),
+                allowed_tools: Vec::new(),
+                principals: vec![PrincipalConfig {
+                    subject: "stdio".to_string(),
+                    policy_class: Some("prod".to_string()),
+                    roles: vec![PrincipalRoleConfig {
+                        name: "TenantAdmin".to_string(),
+                        tenant_id: Some(TenantId::new("test-tenant")),
+                        namespace_id: Some(NamespaceId::new("default")),
+                    }],
+                }],
+            }),
+            ..ServerConfig::default()
+        },
         namespace: crate::config::NamespaceConfig {
             allow_default: true,
+            default_tenants: vec![TenantId::new("test-tenant")],
             ..crate::config::NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
@@ -129,6 +151,8 @@ fn sample_config() -> DecisionGateConfig {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: builtin_providers(),
+        dev: crate::config::DevConfig::default(),
+        source_modified_at: None,
     }
 }
 
@@ -141,7 +165,38 @@ fn sample_router(config: &DecisionGateConfig) -> ToolRouter {
     let schema_registry_limits =
         build_schema_registry_limits(config).expect("schema registry limits");
     let authz = Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
+    let principal_resolver =
+        crate::registry_acl::PrincipalResolver::from_config(config.server.auth.as_ref());
+    let registry_acl = crate::registry_acl::RegistryAcl::new(&config.schema_registry.acl);
     let audit = Arc::new(NoopAuditSink);
+    let default_namespace_tenants = config
+        .namespace
+        .default_tenants
+        .iter()
+        .map(ToString::to_string)
+        .collect::<std::collections::BTreeSet<_>>();
+    let provider_trust_overrides = if config.is_dev_permissive() {
+        config
+            .dev
+            .permissive_exempt_providers
+            .iter()
+            .map(|id| {
+                (
+                    id.clone(),
+                    decision_gate_core::TrustRequirement {
+                        min_lane: config.trust.min_lane,
+                    },
+                )
+            })
+            .collect()
+    } else {
+        std::collections::BTreeMap::new()
+    };
+    let runpack_security_context = Some(decision_gate_core::RunpackSecurityContext {
+        dev_permissive: config.is_dev_permissive(),
+        namespace_authority: "dg_registry".to_string(),
+        namespace_mapping_mode: None,
+    });
     ToolRouter::new(ToolRouterConfig {
         evidence,
         evidence_policy: config.evidence.clone(),
@@ -156,9 +211,14 @@ fn sample_router(config: &DecisionGateConfig) -> ToolRouter {
         audit,
         trust_requirement: config.effective_trust_requirement(),
         anchor_policy: config.anchors.to_policy(),
+        provider_trust_overrides,
+        runpack_security_context,
         precheck_audit: Arc::new(McpNoopAuditSink),
         precheck_audit_payloads: config.server.audit.log_precheck_payloads,
+        registry_acl,
+        principal_resolver,
         allow_default_namespace: config.allow_default_namespace(),
+        default_namespace_tenants,
         namespace_authority: Arc::new(NoopNamespaceAuthority),
     })
 }
@@ -254,6 +314,7 @@ fn metrics_recorded_for_unauthenticated_list() {
         bearer_tokens: vec!["token".to_string()],
         mtls_subjects: Vec::new(),
         allowed_tools: Vec::new(),
+        principals: Vec::new(),
     });
     let metrics = Arc::new(TestMetrics::default());
     let audit = Arc::new(TestAudit::default());

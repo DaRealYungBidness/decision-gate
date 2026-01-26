@@ -56,6 +56,7 @@ fn bearer_auth_requires_token() {
         bearer_tokens: vec!["token-1".to_string()],
         mtls_subjects: Vec::new(),
         allowed_tools: Vec::new(),
+        principals: Vec::new(),
     };
     let authz = DefaultToolAuthz::from_config(Some(&config));
     let context =
@@ -71,6 +72,7 @@ fn bearer_auth_accepts_valid_token() {
         bearer_tokens: vec!["token-1".to_string()],
         mtls_subjects: Vec::new(),
         allowed_tools: Vec::new(),
+        principals: Vec::new(),
     };
     let authz = DefaultToolAuthz::from_config(Some(&config));
     let context = RequestContext::http(
@@ -90,6 +92,7 @@ fn tool_allowlist_denies_disallowed_tool() {
         bearer_tokens: vec!["token-1".to_string()],
         mtls_subjects: Vec::new(),
         allowed_tools: vec!["scenario_define".to_string()],
+        principals: Vec::new(),
     };
     let authz = DefaultToolAuthz::from_config(Some(&config));
     let context = RequestContext::http(
@@ -111,6 +114,7 @@ fn bearer_auth_rejects_invalid_scheme() {
         bearer_tokens: vec!["token-1".to_string()],
         mtls_subjects: Vec::new(),
         allowed_tools: Vec::new(),
+        principals: Vec::new(),
     };
     let authz = DefaultToolAuthz::from_config(Some(&config));
     let context = RequestContext::http(
@@ -130,6 +134,7 @@ fn bearer_auth_rejects_oversized_header() {
         bearer_tokens: vec!["token-1".to_string()],
         mtls_subjects: Vec::new(),
         allowed_tools: Vec::new(),
+        principals: Vec::new(),
     };
     let authz = DefaultToolAuthz::from_config(Some(&config));
     let oversized = format!("Bearer {}", "a".repeat(9000));
@@ -150,6 +155,7 @@ fn mtls_requires_subject_header() {
         bearer_tokens: Vec::new(),
         mtls_subjects: vec!["CN=client".to_string()],
         allowed_tools: Vec::new(),
+        principals: Vec::new(),
     };
     let authz = DefaultToolAuthz::from_config(Some(&config));
     let context =
@@ -165,6 +171,7 @@ fn mtls_rejects_unlisted_subject() {
         bearer_tokens: Vec::new(),
         mtls_subjects: vec!["CN=client".to_string()],
         allowed_tools: Vec::new(),
+        principals: Vec::new(),
     };
     let authz = DefaultToolAuthz::from_config(Some(&config));
     let context = RequestContext::http(

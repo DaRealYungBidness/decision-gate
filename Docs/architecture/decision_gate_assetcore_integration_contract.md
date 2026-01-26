@@ -32,6 +32,7 @@ world-state substrate. Integration is optional and explicit.
 ### Source of Truth
 - **Integrated deployments**: ASC namespace catalog is authoritative.
 - **Standalone DG deployments**: DG registry is authoritative.
+Dev-permissive is **disallowed** when `namespace.authority.mode = "assetcore_http"`.
 
 ### Validation Rules
 - DG must validate `namespace_id` for every tool call and evidence query.
@@ -39,9 +40,10 @@ world-state substrate. Integration is optional and explicit.
 - Catalog unreachable -> **fail closed**.
 
 ### Mapping Rules
-- If a mapping is configured, DG resolves `namespace_id` using the explicit map.
-- If no mapping exists, DG attempts to parse `namespace_id` as a numeric ASC
-  identifier.
+- Mapping behavior is controlled by `namespace.authority.assetcore.mapping_mode`:
+  - `explicit_map`: require an explicit mapping for every namespace ID.
+  - `numeric_parse`: attempt explicit mapping, then parse numeric IDs.
+- `mapping_mode = none` is invalid for Asset Core authority.
 - Mapping is explicit and version-controlled; no implicit fallbacks.
 
 ## Auth/RBAC Mapping
@@ -90,6 +92,22 @@ This mapping is **fail-closed**: missing or unknown roles grant no access.
 
 **Audit note:** `runpack_verify` is safe to allow broadly; `runpack_export`
 should be restricted to admin/owner roles unless explicitly granted.
+
+## Registry ACL (DG Internal)
+Schema registry access is enforced by a **DG-internal ACL layer** that runs
+after the integration-layer tool allowlist. This is intentionally separate:
+
+- **RBAC mapping** (integration) decides which tools are callable.
+- **Registry ACL** (DG) decides who may `schemas_register/list/get` per
+  tenant/namespace, using principals and policy class metadata.
+
+Built-in ACL defaults:
+- Read: NamespaceReader+ within namespace.
+- Write: NamespaceAdmin/TenantAdmin only.
+- SchemaManager may write only when `policy_class` is non-prod.
+
+Integration implementations must not assume tool allowlists imply registry
+write permission; both layers must allow the operation.
 
 ## Evidence Anchors (ASC Canon)
 All ASC-backed evidence **must** include the following anchors:

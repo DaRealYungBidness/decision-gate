@@ -103,6 +103,8 @@ fn minimal_trigger(run_config: &RunConfig) -> TriggerEvent {
     }
 }
 
+type Responder = Arc<Mutex<Box<dyn FnMut(Value) -> Value + Send>>>;
+
 struct TestMcpServer {
     addr: SocketAddr,
     requests: Arc<Mutex<Vec<Value>>>,
@@ -118,8 +120,7 @@ impl TestMcpServer {
         let addr = listener.local_addr().expect("server addr");
         listener.set_nonblocking(true).expect("nonblocking listener");
         let requests = Arc::new(Mutex::new(Vec::new()));
-        let responder: Arc<Mutex<Box<dyn FnMut(Value) -> Value + Send>>> =
-            Arc::new(Mutex::new(Box::new(responder)));
+        let responder: Responder = Arc::new(Mutex::new(Box::new(responder)));
 
         let requests_handle = Arc::clone(&requests);
         let responder_handle = Arc::clone(&responder);
@@ -176,7 +177,7 @@ fn accept_with_timeout(listener: &TcpListener, timeout: Duration) -> Option<TcpS
 fn handle_connection(
     stream: &mut TcpStream,
     requests: &Arc<Mutex<Vec<Value>>>,
-    responder: &Arc<Mutex<Box<dyn FnMut(Value) -> Value + Send>>>,
+    responder: &Responder,
 ) -> Result<(), String> {
     stream
         .set_read_timeout(Some(Duration::from_secs(2)))
@@ -203,11 +204,11 @@ fn read_json_body(stream: &mut TcpStream) -> Result<Value, String> {
             break;
         }
         buffer.extend_from_slice(&chunk[.. read]);
-        if header_end.is_none() {
-            if let Some(end) = find_header_end(&buffer) {
-                header_end = Some(end);
-                content_length = Some(parse_content_length(&buffer[.. end])?);
-            }
+        if header_end.is_none()
+            && let Some(end) = find_header_end(&buffer)
+        {
+            header_end = Some(end);
+            content_length = Some(parse_content_length(&buffer[.. end])?);
         }
         if let (Some(end), Some(length)) = (header_end, content_length) {
             let available = buffer.len().saturating_sub(end);
@@ -316,6 +317,10 @@ fn validate_inputs_rejects_namespace_mismatch() {
 }
 
 #[tokio::test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "End-to-end interop test keeps the full sequence in one place."
+)]
 async fn run_interop_executes_full_sequence() {
     let spec = minimal_spec("scenario-1");
     let run_config = minimal_run_config(&spec.scenario_id);

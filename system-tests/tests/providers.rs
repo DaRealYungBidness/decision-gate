@@ -294,6 +294,7 @@ async fn federated_provider_timeout_enforced() -> Result<(), Box<dyn std::error:
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[allow(clippy::too_many_lines, reason = "Interop fixture test keeps the full flow in one place.")]
 async fn assetcore_interop_fixtures() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("assetcore_interop_fixtures")?;
     let fixture_root_dir = fixture_root("assetcore/interop");

@@ -27,6 +27,8 @@ use reqwest::header::HeaderMap;
 use reqwest::header::HeaderValue;
 use thiserror::Error;
 
+use crate::config::NamespaceMappingMode;
+
 // ============================================================================
 // SECTION: Public Types
 // ============================================================================
@@ -70,6 +72,8 @@ pub struct AssetCoreNamespaceAuthority {
     client: Client,
     /// Optional namespace id mappings for non-numeric IDs.
     mapping: BTreeMap<String, u64>,
+    /// Mapping mode selection.
+    mapping_mode: NamespaceMappingMode,
 }
 
 impl AssetCoreNamespaceAuthority {
@@ -84,6 +88,7 @@ impl AssetCoreNamespaceAuthority {
         connect_timeout: Duration,
         request_timeout: Duration,
         mapping: BTreeMap<String, u64>,
+        mapping_mode: NamespaceMappingMode,
     ) -> Result<Self, NamespaceAuthorityError> {
         let client = Client::builder()
             .connect_timeout(connect_timeout)
@@ -97,6 +102,7 @@ impl AssetCoreNamespaceAuthority {
             auth_token,
             client,
             mapping,
+            mapping_mode,
         })
     }
 
@@ -108,12 +114,22 @@ impl AssetCoreNamespaceAuthority {
         if let Some(mapped) = self.mapping.get(namespace_id.as_str()) {
             return Ok(*mapped);
         }
-        namespace_id.as_str().parse::<u64>().map_err(|_| {
-            NamespaceAuthorityError::InvalidNamespace(format!(
-                "namespace_id must be mapped or numeric for Asset Core: {}",
-                namespace_id.as_str()
-            ))
-        })
+        match self.mapping_mode {
+            NamespaceMappingMode::ExplicitMap => Err(NamespaceAuthorityError::InvalidNamespace(
+                format!("namespace_id must be mapped for Asset Core: {}", namespace_id.as_str()),
+            )),
+            NamespaceMappingMode::NumericParse => {
+                namespace_id.as_str().parse::<u64>().map_err(|_| {
+                    NamespaceAuthorityError::InvalidNamespace(format!(
+                        "namespace_id must be mapped or numeric for Asset Core: {}",
+                        namespace_id.as_str()
+                    ))
+                })
+            }
+            NamespaceMappingMode::None => Err(NamespaceAuthorityError::Unavailable(
+                "namespace mapping mode none is unsupported".to_string(),
+            )),
+        }
     }
 
     /// Builds headers for Asset Core namespace authority requests.

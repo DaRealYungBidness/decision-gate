@@ -176,6 +176,7 @@ async fn http_tool_allowlist_blocks_precheck() -> Result<(), Box<dyn std::error:
         }),
         description: Some("precheck schema".to_string()),
         created_at: Timestamp::Logical(1),
+        signing: None,
     };
     let register_request = SchemasRegisterRequest {
         record: record.clone(),

@@ -126,7 +126,7 @@ async fn execute_fixture_run(
     fixture_map: &FixtureMap,
     reporter: &TestReporter,
 ) -> Result<RunOutcome, Box<dyn std::error::Error>> {
-    let fixtures = build_fixtures(fixture_map)?;
+    let fixtures = build_fixtures(fixture_map);
     let provider = spawn_provider_fixture_stub(fixtures).await?;
     let bind = allocate_bind_addr()?.to_string();
     let provider_contract = fixture_root("assetcore/providers").join("assetcore_read.json");
@@ -208,12 +208,10 @@ async fn execute_fixture_run(
     })
 }
 
-fn build_fixtures(
-    fixture_map: &FixtureMap,
-) -> Result<Vec<ProviderFixture>, Box<dyn std::error::Error>> {
+fn build_fixtures(fixture_map: &FixtureMap) -> Vec<ProviderFixture> {
     let namespace_id = fixture_map.assetcore_namespace_id.unwrap_or(0);
     let commit_id = fixture_map.fixture_version.clone().unwrap_or_else(|| "fixture".to_string());
-    let fixtures = fixture_map
+    fixture_map
         .fixtures
         .iter()
         .enumerate()
@@ -234,8 +232,7 @@ fn build_fixtures(
                 }),
             }
         })
-        .collect();
-    Ok(fixtures)
+        .collect()
 }
 
 fn assetcore_anchor_policy() -> AnchorProviderConfig {

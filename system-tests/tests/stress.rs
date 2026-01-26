@@ -64,6 +64,7 @@ fn schema_record(
         }),
         description: Some("stress schema".to_string()),
         created_at: Timestamp::Logical(1),
+        signing: None,
     }
 }
 

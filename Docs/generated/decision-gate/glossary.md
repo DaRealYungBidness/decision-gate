@@ -12,7 +12,7 @@ Runtime context passed to evidence providers during queries. Includes tenant_id,
 
 ## `EvidenceQuery`
 
-The request sent to an evidence provider. Contains provider_id (which provider to ask), predicate (which check to run), and params (provider-specific arguments). The query is deterministic: same query always returns the same result given the same external state. Queries are logged for audit.
+The request sent to an evidence provider. Contains provider_id (which provider to ask), predicate (which provider check to run), and params (provider-specific arguments). The query is deterministic: same query always returns the same result given the same external state. Queries are logged for audit.
 
 ## `EvidenceRef`
 
@@ -64,7 +64,7 @@ The policy controlling how a run progresses from the current stage. Four modes: 
 
 ## `allow_default`
 
-Permit the literal 'default' namespace in strict mode. Defaults false. Production deployments should use explicit namespaces to avoid accidental cross-tenant collisions.
+Permit the literal 'default' namespace (opt-in). Requires namespace.default_tenants. Production deployments should use explicit namespaces to avoid cross-tenant collisions.
 
 ## `allow_http`
 
@@ -92,7 +92,7 @@ Permits YAML parsing in the JSON evidence provider. YAML is a superset of JSON w
 
 ## `allowed_comparators`
 
-Allow-list of comparators valid for this predicate output.
+Allow-list of comparators valid for this check output.
 
 ## `allowed_hosts`
 
@@ -104,7 +104,7 @@ List of environment variable keys the env provider may read. Queries for keys no
 
 ## `anchor_types`
 
-Anchor type strings that the predicate may emit.
+Anchor type strings that the provider check may emit.
 
 ## `audit_enabled`
 
@@ -120,7 +120,7 @@ Address the MCP server binds to for HTTP or SSE transports. Format: 'host:port' 
 
 ## `capabilities_path`
 
-Filesystem path to a provider's capability contract JSON. The contract declares supported predicates, param schemas, and comparator compatibility. The runtime validates queries against capabilities before dispatch. Distribute contracts alongside provider binaries.
+Filesystem path to a provider contract JSON (capability contract). The contract declares supported checks, param schemas, and comparator compatibility. The runtime validates queries against the contract before dispatch. Distribute contracts alongside provider binaries.
 
 ## `comparator`
 
@@ -140,11 +140,7 @@ Hash metadata for any payload content. Includes the hash algorithm and hash valu
 
 ## `content_types`
 
-MIME types for evidence values returned by the predicate.
-
-## `content_types`
-
-Content types allowed by the rule.
+Allowed MIME content types for evidence values or policy rule checks. Used in provider contracts and policy rules to constrain payload formats.
 
 ## `correlation_id`
 
@@ -174,6 +170,10 @@ Default policy effect applied when no rules match. Defaults to 'deny' for fail-c
 
 Default trust policy for evidence providers. Options: 'audit' or 'require_signature' (with key list). Individual providers can override. Start with 'audit' and tighten per-provider as needed.
 
+## `default_tenants`
+
+Allowlist of tenant IDs permitted to use the literal 'default' namespace. Required when allow_default is true; empty list is rejected.
+
 ## `denylist`
 
 List of environment variable keys the env provider must never read. Queries for denied keys fail immediately. Use denylists for defense-in-depth: block known-sensitive keys (API_KEY, SECRET_*, etc.) even if accidentally queried.
@@ -184,7 +184,7 @@ Short summary describing provider behavior and intent.
 
 ## `determinism`
 
-Predicate output stability: deterministic, time_dependent, or external.
+Provider check output stability: deterministic, time_dependent, or external.
 
 ## `dispatch_targets`
 
@@ -220,7 +220,7 @@ Queries an evidence provider with the configured disclosure policy applied. Retu
 
 ## `examples`
 
-Example predicate invocations with params and results.
+Example check invocations with params and results.
 
 ## `exists`
 
@@ -322,6 +322,10 @@ Override filename for the runpack manifest. Defaults to 'manifest.json'. Customi
 
 Path to the manifest file inside the runpack directory. Used by runpack_verify to locate the manifest. Typically 'manifest.json' at the runpack root. The verifier reads this file first to discover all other artifacts.
 
+## `mapping_mode`
+
+Namespace mapping strategy for Asset Core authority. explicit_map requires a mapping for every namespace; numeric_parse allows parsing numeric IDs when no mapping exists.
+
 ## `max_body_bytes`
 
 Maximum request body size in bytes for JSON-RPC requests. Prevents oversized payloads from exhausting server resources. Requests exceeding this are rejected before processing. Configure based on expected payload sizes.
@@ -344,7 +348,7 @@ Maximum byte length for environment variable values returned by the env provider
 
 ## `mode`
 
-Server operating mode: 'strict' (default) or 'dev_permissive'. Dev-permissive allows asserted evidence and the default namespace; use only for local development or controlled test environments.
+Server operating mode: 'strict' (default) or legacy 'dev_permissive'. Prefer the explicit dev.permissive toggle. Dev-permissive relaxes asserted evidence only and does not auto-allow the default namespace.
 
 ## `name`
 
@@ -384,19 +388,39 @@ Packet identifiers allowed by the rule.
 
 ## `params`
 
-Provider-specific parameters passed to a predicate. Structure varies by provider: env.get needs {key}, time.after needs {timestamp}, http.status needs {url}. Invalid or missing required params cause the provider to fail, yielding an unknown outcome.
+Provider-specific parameters passed to a check. Structure varies by provider: env.get needs {key}, time.after needs {timestamp}, http.status needs {url}. Invalid or missing required params cause the provider to fail, yielding an unknown outcome.
 
 ## `params_required`
 
-Whether EvidenceQuery.params must be supplied for this predicate.
+Whether EvidenceQuery.params must be supplied for this check.
 
 ## `params_schema`
 
-JSON Schema for predicate params payloads.
+JSON Schema for provider check params payloads.
 
 ## `payload`
 
 The content body of a packet, submission, or trigger payload. Encoded as PacketPayload: json, bytes, or external content_ref (uri + content_hash, optional encryption). Payloads are hashed for integrity and may be schema-validated before emission.
+
+## `permissive`
+
+Explicit dev-only toggle for allowing asserted evidence. Use only in local development or controlled test environments; emits warnings and audit metadata.
+
+## `permissive_exempt_providers`
+
+Provider IDs exempt from dev-permissive relaxations (e.g., Asset Core providers).
+
+## `permissive_scope`
+
+Dev-permissive scope selector. Currently fixed to asserted_evidence_only for v1.
+
+## `permissive_ttl_days`
+
+Optional TTL (days) for dev-permissive warnings. Uses config mtime to emit expiry warnings when the TTL is exceeded.
+
+## `permissive_warn`
+
+Emit warnings and security audit events when dev-permissive is enabled or expired.
 
 ## `policy_tags`
 
@@ -408,11 +432,11 @@ Evaluates a scenario against asserted data without mutating run state. Validates
 
 ## `predicate`
 
-The predicate name to evaluate within a provider. Each provider exposes named predicates (e.g., 'get' for env, 'after' for time, 'status' for http). The predicate determines what the provider checks and what params it accepts. See providers.json for the complete predicate catalog per provider.
+The provider check name to evaluate within a provider. Each provider exposes named checks (e.g., 'get' for env, 'after' for time, 'status' for http). The check determines what the provider returns and what params it accepts. See providers.json for the complete check catalog per provider.
 
 ## `predicates`
 
-List of predicate capability contracts exposed by the provider.
+List of provider checks exposed by the provider contract.
 
 ## `provider_id`
 
@@ -420,7 +444,7 @@ Identifier for an evidence provider registered in decision-gate.toml. Providers 
 
 ## `providers_list`
 
-Lists registered evidence providers and their capabilities summary. Returns provider identifiers, transport metadata, and policy-scoped visibility. Use this to discover available providers and supported predicates.
+Lists registered evidence providers and their capabilities summary. Returns provider identifiers, transport metadata, and policy-scoped visibility. Use this to discover available providers and supported checks.
 
 ## `record`
 
@@ -448,11 +472,11 @@ The RET expression that a gate must satisfy. This field contains the root of a R
 
 ## `result`
 
-Example output value for a predicate invocation.
+Example output value for a check invocation.
 
 ## `result_schema`
 
-JSON Schema for predicate output values.
+JSON Schema for provider check output values.
 
 ## `root`
 

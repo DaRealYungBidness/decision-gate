@@ -61,6 +61,10 @@ use serde_json::Value;
 use serde_json::json;
 
 #[tokio::test(flavor = "multi_thread")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "Auth matrix setup is clearer as a single end-to-end test."
+)]
 async fn asc_auth_mapping_matrix() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("asc_auth_mapping_matrix")?;
     let bind = allocate_bind_addr()?.to_string();
@@ -112,6 +116,7 @@ async fn asc_auth_mapping_matrix() -> Result<(), Box<dyn std::error::Error>> {
         }),
         description: Some("auth matrix schema".to_string()),
         created_at: Timestamp::Logical(1),
+        signing: None,
     };
     let schema_request = SchemasRegisterRequest {
         record: schema_record.clone(),
@@ -245,6 +250,10 @@ struct RoleContext {
     role_label: String,
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "Role mapping exercise keeps the sequence in one helper for clarity."
+)]
 async fn exercise_mapping(
     client: &mut ProxyClient,
     context: &RoleContext,
@@ -650,11 +659,11 @@ async fn exercise_mapping(
             .await?;
     }
 
+    let verify_request = RunpackVerifyRequest {
+        runpack_dir: context.runpack_dir.to_string_lossy().to_string(),
+        manifest_path: "manifest.json".to_string(),
+    };
     if allowed.contains(&ToolName::RunpackVerify) {
-        let verify_request = RunpackVerifyRequest {
-            runpack_dir: context.runpack_dir.to_string_lossy().to_string(),
-            manifest_path: "manifest.json".to_string(),
-        };
         client
             .call_tool_typed::<decision_gate_mcp::tools::RunpackVerifyResponse>(
                 "runpack_verify",
@@ -662,10 +671,6 @@ async fn exercise_mapping(
             )
             .await?;
     } else {
-        let verify_request = RunpackVerifyRequest {
-            runpack_dir: context.runpack_dir.to_string_lossy().to_string(),
-            manifest_path: "manifest.json".to_string(),
-        };
         expect_unauthorized(
             client.call_tool("runpack_verify", serde_json::to_value(&verify_request)?).await,
         )?;
@@ -811,7 +816,7 @@ impl ProxyClient {
         self.record_transcript(
             request_value,
             serde_json::to_value(&payload).unwrap_or(Value::Null),
-            error_message.clone(),
+            error_message,
         );
         if let Some(error) = payload.error {
             return Err(error.message);

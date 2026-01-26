@@ -56,8 +56,8 @@ fn time_now_spec(scenario_id: &str) -> ScenarioSpec {
     let stage_id = StageId::new("stage-1");
     let predicate_key = PredicateKey::new("value");
     ScenarioSpec {
-        scenario_id: scenario_id.clone(),
-        namespace_id: namespace_id.clone(),
+        scenario_id,
+        namespace_id,
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id,
@@ -95,8 +95,8 @@ fn time_now_in_set_spec(scenario_id: &str, expected: Value) -> ScenarioSpec {
     let stage_id = StageId::new("stage-1");
     let predicate_key = PredicateKey::new("value");
     ScenarioSpec {
-        scenario_id: scenario_id.clone(),
-        namespace_id: namespace_id.clone(),
+        scenario_id,
+        namespace_id,
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id,
@@ -134,8 +134,8 @@ fn env_contains_spec(scenario_id: &str) -> ScenarioSpec {
     let stage_id = StageId::new("stage-1");
     let predicate_key = PredicateKey::new("value");
     ScenarioSpec {
-        scenario_id: scenario_id.clone(),
-        namespace_id: namespace_id.clone(),
+        scenario_id,
+        namespace_id,
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id,
@@ -174,8 +174,8 @@ fn strict_provider_spec(scenario_id: &str) -> ScenarioSpec {
     let lex_key = PredicateKey::new("lex");
     let deep_key = PredicateKey::new("deep");
     ScenarioSpec {
-        scenario_id: scenario_id.clone(),
-        namespace_id: namespace_id.clone(),
+        scenario_id,
+        namespace_id,
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id,
@@ -263,6 +263,7 @@ async fn strict_validation_precheck_rejects_comparator_mismatch()
         }),
         description: Some("strict mismatch schema".to_string()),
         created_at: Timestamp::Logical(1),
+        signing: None,
     };
     let register_request = SchemasRegisterRequest {
         record: record.clone(),
@@ -340,6 +341,7 @@ async fn strict_validation_precheck_allows_permissive() -> Result<(), Box<dyn st
         }),
         description: Some("permissive mismatch schema".to_string()),
         created_at: Timestamp::Logical(1),
+        signing: None,
     };
     let register_request = SchemasRegisterRequest {
         record: record.clone(),
@@ -455,6 +457,7 @@ async fn strict_validation_precheck_allows_union_contains() -> Result<(), Box<dy
         }),
         description: Some("union schema".to_string()),
         created_at: Timestamp::Logical(1),
+        signing: None,
     };
     let register_request = SchemasRegisterRequest {
         record: record.clone(),

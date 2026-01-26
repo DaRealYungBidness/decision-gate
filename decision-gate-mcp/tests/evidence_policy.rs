@@ -40,6 +40,8 @@ use decision_gate_mcp::auth::NoopAuditSink;
 use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::namespace_authority::NoopNamespaceAuthority;
+use decision_gate_mcp::registry_acl::PrincipalResolver;
+use decision_gate_mcp::registry_acl::RegistryAcl;
 use decision_gate_mcp::tools::EvidenceQueryRequest;
 use decision_gate_mcp::tools::EvidenceQueryResponse;
 use decision_gate_mcp::tools::ToolRouterConfig;
@@ -87,11 +89,41 @@ fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
     };
     let trust_requirement = config.effective_trust_requirement();
     let allow_default_namespace = config.allow_default_namespace();
+    let default_namespace_tenants = config
+        .namespace
+        .default_tenants
+        .iter()
+        .map(ToString::to_string)
+        .collect::<std::collections::BTreeSet<_>>();
     let evidence_policy = config.evidence.clone();
     let validation = config.validation.clone();
     let anchor_policy = config.anchors.to_policy();
+    let provider_trust_overrides = if config.is_dev_permissive() {
+        config
+            .dev
+            .permissive_exempt_providers
+            .iter()
+            .map(|id| {
+                (
+                    id.clone(),
+                    decision_gate_core::TrustRequirement {
+                        min_lane: config.trust.min_lane,
+                    },
+                )
+            })
+            .collect()
+    } else {
+        std::collections::BTreeMap::new()
+    };
+    let runpack_security_context = Some(decision_gate_core::RunpackSecurityContext {
+        dev_permissive: config.is_dev_permissive(),
+        namespace_authority: "dg_registry".to_string(),
+        namespace_mapping_mode: None,
+    });
     let precheck_audit_payloads = config.server.audit.log_precheck_payloads;
     let authz = std::sync::Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
+    let principal_resolver = PrincipalResolver::from_config(config.server.auth.as_ref());
+    let registry_acl = RegistryAcl::new(&config.schema_registry.acl);
     let audit = std::sync::Arc::new(NoopAuditSink);
     ToolRouter::new(ToolRouterConfig {
         evidence,
@@ -107,9 +139,14 @@ fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
         audit,
         trust_requirement,
         anchor_policy,
+        provider_trust_overrides,
+        runpack_security_context,
         precheck_audit: std::sync::Arc::new(McpNoopAuditSink),
         precheck_audit_payloads,
+        registry_acl,
+        principal_resolver,
         allow_default_namespace,
+        default_namespace_tenants,
         namespace_authority: std::sync::Arc::new(NoopNamespaceAuthority),
     })
 }

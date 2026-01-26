@@ -108,7 +108,7 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
         "providers_list",
         "Lists registered evidence providers and their capabilities summary. Returns provider \
          identifiers, transport metadata, and policy-scoped visibility. Use this to discover \
-         available providers and supported predicates.",
+         available providers and supported checks.",
     ),
     (
         "schemas_register",
@@ -244,9 +244,9 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     (
         "EvidenceQuery",
         "The request sent to an evidence provider. Contains provider_id (which provider to ask), \
-         predicate (which check to run), and params (provider-specific arguments). The query is \
-         deterministic: same query always returns the same result given the same external state. \
-         Queries are logged for audit.",
+         predicate (which provider check to run), and params (provider-specific arguments). The \
+         query is deterministic: same query always returns the same result given the same \
+         external state. Queries are logged for audit.",
     ),
     (
         "EvidenceContext",
@@ -283,16 +283,16 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     ),
     (
         "predicate",
-        "The predicate name to evaluate within a provider. Each provider exposes named predicates \
-         (e.g., 'get' for env, 'after' for time, 'status' for http). The predicate determines \
-         what the provider checks and what params it accepts. See providers.json for the complete \
-         predicate catalog per provider.",
+        "The provider check name to evaluate within a provider. Each provider exposes named \
+         checks (e.g., 'get' for env, 'after' for time, 'status' for http). The check determines \
+         what the provider returns and what params it accepts. See providers.json for the \
+         complete check catalog per provider.",
     ),
     (
         "params",
-        "Provider-specific parameters passed to a predicate. Structure varies by provider: \
-         env.get needs {key}, time.after needs {timestamp}, http.status needs {url}. Invalid or \
-         missing required params cause the provider to fail, yielding an unknown outcome.",
+        "Provider-specific parameters passed to a check. Structure varies by provider: env.get \
+         needs {key}, time.after needs {timestamp}, http.status needs {url}. Invalid or missing \
+         required params cause the provider to fail, yielding an unknown outcome.",
     ),
     // =====================================================================
     // FLOW CONTROL - Stages and Advancement
@@ -574,20 +574,20 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     ("description", "Short summary describing provider behavior and intent."),
     ("config_schema", "JSON Schema validating provider configuration entries."),
     ("notes", "Optional notes about provider behavior or determinism."),
-    ("predicates", "List of predicate capability contracts exposed by the provider."),
-    ("determinism", "Predicate output stability: deterministic, time_dependent, or external."),
-    ("params_required", "Whether EvidenceQuery.params must be supplied for this predicate."),
-    ("params_schema", "JSON Schema for predicate params payloads."),
-    ("result_schema", "JSON Schema for predicate output values."),
-    ("allowed_comparators", "Allow-list of comparators valid for this predicate output."),
-    ("anchor_types", "Anchor type strings that the predicate may emit."),
+    ("predicates", "List of provider checks exposed by the provider contract."),
+    ("determinism", "Provider check output stability: deterministic, time_dependent, or external."),
+    ("params_required", "Whether EvidenceQuery.params must be supplied for this check."),
+    ("params_schema", "JSON Schema for provider check params payloads."),
+    ("result_schema", "JSON Schema for provider check output values."),
+    ("allowed_comparators", "Allow-list of comparators valid for this check output."),
+    ("anchor_types", "Anchor type strings that the provider check may emit."),
     (
         "content_types",
-        "Allowed MIME content types for predicate evidence values or policy rule checks. Used in \
-         provider capability contracts and policy rules to constrain payload formats.",
+        "Allowed MIME content types for evidence values or policy rule checks. Used in provider \
+         contracts and policy rules to constrain payload formats.",
     ),
-    ("examples", "Example predicate invocations with params and results."),
-    ("result", "Example output value for a predicate invocation."),
+    ("examples", "Example check invocations with params and results."),
+    ("result", "Example output value for a check invocation."),
     // =====================================================================
     // PROVIDER CONFIGURATION
     // =====================================================================
@@ -621,20 +621,52 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     ),
     (
         "mode",
-        "Server operating mode: 'strict' (default) or 'dev_permissive'. Dev-permissive allows \
-         asserted evidence and the default namespace; use only for local development or \
-         controlled test environments.",
+        "Server operating mode: 'strict' (default) or legacy 'dev_permissive'. Prefer the \
+         explicit dev.permissive toggle. Dev-permissive relaxes asserted evidence only and does \
+         not auto-allow the default namespace.",
     ),
     (
         "allow_default",
-        "Permit the literal 'default' namespace in strict mode. Defaults false. Production \
-         deployments should use explicit namespaces to avoid accidental cross-tenant collisions.",
+        "Permit the literal 'default' namespace (opt-in). Requires namespace.default_tenants. \
+         Production deployments should use explicit namespaces to avoid cross-tenant collisions.",
+    ),
+    (
+        "default_tenants",
+        "Allowlist of tenant IDs permitted to use the literal 'default' namespace. Required when \
+         allow_default is true; empty list is rejected.",
+    ),
+    (
+        "permissive",
+        "Explicit dev-only toggle for allowing asserted evidence. Use only in local development \
+         or controlled test environments; emits warnings and audit metadata.",
+    ),
+    (
+        "permissive_scope",
+        "Dev-permissive scope selector. Currently fixed to asserted_evidence_only for v1.",
+    ),
+    (
+        "permissive_ttl_days",
+        "Optional TTL (days) for dev-permissive warnings. Uses config mtime to emit expiry \
+         warnings when the TTL is exceeded.",
+    ),
+    (
+        "permissive_warn",
+        "Emit warnings and security audit events when dev-permissive is enabled or expired.",
+    ),
+    (
+        "permissive_exempt_providers",
+        "Provider IDs exempt from dev-permissive relaxations (e.g., Asset Core providers).",
+    ),
+    (
+        "mapping_mode",
+        "Namespace mapping strategy for Asset Core authority. explicit_map requires a mapping for \
+         every namespace; numeric_parse allows parsing numeric IDs when no mapping exists.",
     ),
     (
         "capabilities_path",
-        "Filesystem path to a provider's capability contract JSON. The contract declares \
-         supported predicates, param schemas, and comparator compatibility. The runtime validates \
-         queries against capabilities before dispatch. Distribute contracts alongside provider \
+        "Filesystem path to a provider contract JSON (capability contract). The contract declares \
+         supported checks, param schemas, and comparator compatibility. The runtime validates \
+         queries against the contract before dispatch. Distribute contracts alongside provider \
          binaries.",
     ),
     (

@@ -429,7 +429,7 @@ pub fn roles_to_header(roles: &[AscRole]) -> String {
         .join(",")
 }
 
-pub fn policy_class_to_header(policy_class: PolicyClass) -> &'static str {
+pub const fn policy_class_to_header(policy_class: PolicyClass) -> &'static str {
     match policy_class {
         PolicyClass::Scratch => "scratch",
         PolicyClass::Project => "project",

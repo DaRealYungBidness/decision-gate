@@ -95,7 +95,7 @@ async fn handle_namespace(
     let correlation_id = headers
         .get("x-correlation-id")
         .and_then(|value| value.to_str().ok())
-        .map(|value| value.to_string());
+        .map(ToString::to_string);
     record_request(&state, namespace_id, correlation_id);
     if state.allowed.contains(&namespace_id) { StatusCode::OK } else { StatusCode::NOT_FOUND }
 }

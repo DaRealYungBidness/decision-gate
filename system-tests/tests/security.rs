@@ -171,7 +171,9 @@ async fn strict_mode_rejects_default_namespace() -> Result<(), Box<dyn std::erro
         spec: fixture.spec,
     };
     let define_input = serde_json::to_value(&define_request)?;
-    let error = client.call_tool("scenario_define", define_input).await.unwrap_err();
+    let Err(error) = client.call_tool("scenario_define", define_input).await else {
+        return Err("expected scenario_define to be rejected".into());
+    };
     if !error.contains("unauthorized") {
         return Err(format!("unexpected error: {error}").into());
     }
@@ -190,6 +192,10 @@ async fn strict_mode_rejects_default_namespace() -> Result<(), Box<dyn std::erro
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "End-to-end policy denial coverage is clearer in one test."
+)]
 async fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("policy_denies_dispatch_targets")?;
     let bind = allocate_bind_addr()?.to_string();
@@ -379,6 +385,10 @@ async fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Erro
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "End-to-end policy error coverage is clearer in one test."
+)]
 async fn policy_error_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("policy_error_fails_closed")?;
     let bind = allocate_bind_addr()?.to_string();

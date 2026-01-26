@@ -43,6 +43,7 @@ fn sample_record_with(
         schema,
         description: Some("sample schema".to_string()),
         created_at: Timestamp::Logical(1),
+        signing: None,
     }
 }
 
@@ -464,6 +465,7 @@ fn registry_concurrent_registers_to_different_schemas_succeed() {
                 schema: json!({"type": "object", "id": i}),
                 description: Some(format!("schema {i}")),
                 created_at: Timestamp::Logical(i),
+                signing: None,
             };
             registry.register(record)
         });
@@ -505,6 +507,7 @@ fn registry_concurrent_register_same_schema_one_wins_one_conflicts() {
                 schema: json!({"type": "object", "thread": i}),
                 description: Some(format!("from thread {i}")),
                 created_at: Timestamp::Logical(i),
+                signing: None,
             };
             match registry.register(record) {
                 Ok(()) => {
@@ -549,6 +552,7 @@ fn registry_concurrent_list_during_register_consistent() {
                     schema: json!({"type": "object"}),
                     description: None,
                     created_at: Timestamp::Logical(i * 10 + j),
+                    signing: None,
                 };
                 let _ = registry.register(record);
             }

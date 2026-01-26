@@ -40,7 +40,7 @@ agent conversations.
 - Namespace authority configuration and namespace mappings.
 - Dispatch payloads, envelopes, and receipts.
 - Runpack artifacts and manifest.
-- Provider capability contracts and schemas.
+- Provider contracts (capability contracts) and schemas.
 - Configuration files, provider auth tokens, and signature verification keys.
 - Run state store (SQLite) and runpack output directory.
 
@@ -58,7 +58,7 @@ agent conversations.
 - Evidence provider boundary: built-in providers vs external MCP providers.
 - Namespace authority backend (Asset Core or registry): namespace validation is
   external and must fail closed.
-- Provider capability contracts and configuration files on disk.
+- Provider contracts and configuration files on disk.
 - Run state store and runpack artifacts: treat storage as untrusted.
 - Broker sources (http/file/inline) and sinks (external systems).
 - Dispatch targets and downstream systems receiving disclosures.
@@ -75,7 +75,7 @@ agent conversations.
   network).
 - External content references for packet payloads (`http://`, `https://`,
   `file://`, `inline:`).
-- Config paths, capability contracts, provider commands/URLs.
+- Config paths, provider contracts, provider commands/URLs.
 
 ## Security Controls and Invariants
 - Canonical JSON hashing (RFC 8785) for specs, logs, runpack artifacts, and
@@ -83,7 +83,7 @@ agent conversations.
 - Tri-state evaluation with `Unknown` treated as non-passing.
 - Evidence hash normalization; optional signature verification (ed25519) when
   configured.
-- Capability registry validates predicate params and allowed comparators.
+- Provider contract registry validates provider check params and allowed comparators.
 - Strict comparator/type validation rejects invalid predicates before scenario
   registration and precheck evaluation.
 - Namespace authority checks enforce tenant/namespace scoping and fail closed
@@ -143,7 +143,7 @@ agent conversations.
 
 ### Supply Chain and Provider Compromise
 - External providers run with local process privileges; treat as compromised.
-- Capability contracts loaded from disk can be tampered with and must be
+- Provider contracts loaded from disk can be tampered with and must be
   protected.
 
 ### Multi-Tenant and Isolation

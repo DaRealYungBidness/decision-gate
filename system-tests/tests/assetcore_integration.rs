@@ -6,7 +6,7 @@
 // Dependencies: system-tests helpers, decision-gate-core, decision-gate-mcp
 // ============================================================================
 
-//! AssetCore alignment tests for Decision Gate system-tests.
+//! `AssetCore` alignment tests for Decision Gate system-tests.
 
 mod helpers;
 
@@ -191,10 +191,10 @@ async fn assetcore_correlation_id_passthrough() -> Result<(), Box<dyn std::error
 
     wait_for_ready(
         || async {
-            if provider.requests().len() >= 1 {
-                Ok(())
-            } else {
+            if provider.requests().is_empty() {
                 Err("no provider requests captured".to_string())
+            } else {
+                Ok(())
             }
         },
         Duration::from_secs(5),
@@ -299,7 +299,7 @@ async fn namespace_authority_denies_unknown_namespace() -> Result<(), Box<dyn st
     let define_input = serde_json::to_value(&define_request)?;
     let error =
         client.call_tool_typed::<ScenarioDefineResponse>("scenario_define", define_input).await;
-    if let Ok(_) = error {
+    if error.is_ok() {
         return Err("expected namespace authority denial".into());
     }
     let err = error.err().unwrap_or_default();
@@ -355,7 +355,7 @@ async fn namespace_mismatch_rejected() -> Result<(), Box<dyn std::error::Error>>
     let start_input = serde_json::to_value(&start_request)?;
     let error =
         client.call_tool_typed::<decision_gate_core::RunState>("scenario_start", start_input).await;
-    if let Ok(_) = error {
+    if error.is_ok() {
         return Err("expected namespace mismatch rejection".into());
     }
     let err = error.err().unwrap_or_default();
@@ -410,7 +410,7 @@ fn assetcore_fixture(scenario: &str, run: &str) -> AssetcoreFixture {
         namespace_id: namespace_id.clone(),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
-            stage_id: stage_id.clone(),
+            stage_id,
             entry_packets: Vec::new(),
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-1"),
@@ -455,6 +455,7 @@ fn assetcore_authority_config(base_url: &str) -> AssetCoreNamespaceAuthorityConf
         connect_timeout_ms: 500,
         request_timeout_ms: 2000,
         mapping,
+        mapping_mode: decision_gate_mcp::config::NamespaceMappingMode::NumericParse,
     }
 }
 

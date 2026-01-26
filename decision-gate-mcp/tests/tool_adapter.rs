@@ -63,10 +63,14 @@ use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::AnchorPolicyConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::config::PolicyConfig;
+use decision_gate_mcp::config::PrincipalConfig;
+use decision_gate_mcp::config::PrincipalRoleConfig;
 use decision_gate_mcp::config::ProviderConfig;
 use decision_gate_mcp::config::ProviderTimeoutConfig;
 use decision_gate_mcp::config::ProviderType;
 use decision_gate_mcp::config::RunStateStoreConfig;
+use decision_gate_mcp::config::ServerAuthConfig;
+use decision_gate_mcp::config::ServerAuthMode;
 use decision_gate_mcp::config::ServerConfig;
 use decision_gate_mcp::config::TrustConfig;
 use decision_gate_mcp::config::ValidationConfig;
@@ -133,7 +137,7 @@ fn sample_spec() -> ScenarioSpec {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: None,
+        default_tenant_id: Some(TenantId::new("tenant")),
     }
 }
 
@@ -182,7 +186,40 @@ fn build_router(config: &DecisionGateConfig) -> ToolRouter {
             .map(|value| usize::try_from(value).unwrap_or(usize::MAX)),
     };
     let authz = Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
+    let principal_resolver = decision_gate_mcp::registry_acl::PrincipalResolver::from_config(
+        config.server.auth.as_ref(),
+    );
+    let registry_acl =
+        decision_gate_mcp::registry_acl::RegistryAcl::new(&config.schema_registry.acl);
     let audit = Arc::new(NoopAuditSink);
+    let default_namespace_tenants = config
+        .namespace
+        .default_tenants
+        .iter()
+        .map(ToString::to_string)
+        .collect::<std::collections::BTreeSet<_>>();
+    let provider_trust_overrides = if config.is_dev_permissive() {
+        config
+            .dev
+            .permissive_exempt_providers
+            .iter()
+            .map(|id| {
+                (
+                    id.clone(),
+                    decision_gate_core::TrustRequirement {
+                        min_lane: config.trust.min_lane,
+                    },
+                )
+            })
+            .collect()
+    } else {
+        std::collections::BTreeMap::new()
+    };
+    let runpack_security_context = Some(decision_gate_core::RunpackSecurityContext {
+        dev_permissive: config.is_dev_permissive(),
+        namespace_authority: "dg_registry".to_string(),
+        namespace_mapping_mode: None,
+    });
     ToolRouter::new(ToolRouterConfig {
         evidence,
         evidence_policy: config.evidence.clone(),
@@ -197,9 +234,14 @@ fn build_router(config: &DecisionGateConfig) -> ToolRouter {
         audit,
         trust_requirement: config.effective_trust_requirement(),
         anchor_policy: config.anchors.to_policy(),
+        provider_trust_overrides,
+        runpack_security_context,
         precheck_audit: Arc::new(McpNoopAuditSink),
         precheck_audit_payloads: config.server.audit.log_precheck_payloads,
+        registry_acl,
+        principal_resolver,
         allow_default_namespace: config.allow_default_namespace(),
+        default_namespace_tenants,
         namespace_authority: Arc::new(NoopNamespaceAuthority),
     })
 }
@@ -208,11 +250,30 @@ fn build_router(config: &DecisionGateConfig) -> ToolRouter {
 #[test]
 fn mcp_tools_match_core_control_plane() {
     let config = DecisionGateConfig {
-        server: ServerConfig::default(),
+        server: ServerConfig {
+            auth: Some(ServerAuthConfig {
+                mode: ServerAuthMode::LocalOnly,
+                bearer_tokens: Vec::new(),
+                mtls_subjects: Vec::new(),
+                allowed_tools: Vec::new(),
+                principals: vec![PrincipalConfig {
+                    subject: "stdio".to_string(),
+                    policy_class: Some("prod".to_string()),
+                    roles: vec![PrincipalRoleConfig {
+                        name: "TenantAdmin".to_string(),
+                        tenant_id: Some(TenantId::new("tenant")),
+                        namespace_id: Some(NamespaceId::new("default")),
+                    }],
+                }],
+            }),
+            ..ServerConfig::default()
+        },
         namespace: decision_gate_mcp::config::NamespaceConfig {
             allow_default: true,
+            default_tenants: vec![TenantId::new("tenant")],
             ..decision_gate_mcp::config::NamespaceConfig::default()
         },
+        dev: decision_gate_mcp::config::DevConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
@@ -221,6 +282,7 @@ fn mcp_tools_match_core_control_plane() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: vec![builtin_provider("time")],
+        source_modified_at: None,
     };
     let evidence = FederatedEvidenceProvider::from_config(&config).unwrap();
     let router = build_router(&config);
@@ -289,9 +351,27 @@ fn mcp_tools_match_core_control_plane() {
 /// Builds a default config for parity tests.
 fn default_config() -> DecisionGateConfig {
     DecisionGateConfig {
-        server: ServerConfig::default(),
+        server: ServerConfig {
+            auth: Some(ServerAuthConfig {
+                mode: ServerAuthMode::LocalOnly,
+                bearer_tokens: Vec::new(),
+                mtls_subjects: Vec::new(),
+                allowed_tools: Vec::new(),
+                principals: vec![PrincipalConfig {
+                    subject: "stdio".to_string(),
+                    policy_class: Some("prod".to_string()),
+                    roles: vec![PrincipalRoleConfig {
+                        name: "TenantAdmin".to_string(),
+                        tenant_id: Some(TenantId::new("tenant")),
+                        namespace_id: Some(NamespaceId::new("default")),
+                    }],
+                }],
+            }),
+            ..ServerConfig::default()
+        },
         namespace: decision_gate_mcp::config::NamespaceConfig {
             allow_default: true,
+            default_tenants: vec![TenantId::new("tenant")],
             ..decision_gate_mcp::config::NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
@@ -302,10 +382,12 @@ fn default_config() -> DecisionGateConfig {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: vec![builtin_provider("time")],
+        dev: decision_gate_mcp::config::DevConfig::default(),
+        source_modified_at: None,
     }
 }
 
-/// Tests scenario_status tool returns matching status.
+/// Tests `scenario_status` tool returns matching status.
 #[test]
 fn parity_scenario_status() {
     use decision_gate_core::runtime::ScenarioStatus;
@@ -369,7 +451,7 @@ fn parity_scenario_status() {
     );
 }
 
-/// Tests providers_list tool returns configured providers.
+/// Tests `providers_list` tool returns configured providers.
 #[test]
 fn parity_providers_list() {
     use decision_gate_mcp::tools::ProvidersListRequest;
@@ -390,7 +472,7 @@ fn parity_providers_list() {
     assert!(provider_ids.contains(&"time"), "providers should include 'time': {provider_ids:?}");
 }
 
-/// Tests scenarios_list tool returns defined scenarios.
+/// Tests `scenarios_list` tool returns defined scenarios.
 #[test]
 fn parity_scenarios_list() {
     use decision_gate_mcp::tools::ScenariosListRequest;
@@ -410,7 +492,7 @@ fn parity_scenarios_list() {
 
     // List scenarios
     let request = ScenariosListRequest {
-        tenant_id: TenantId::new("any"),
+        tenant_id: TenantId::new("tenant"),
         namespace_id: NamespaceId::new("default"),
         cursor: None,
         limit: None,
@@ -428,7 +510,7 @@ fn parity_scenarios_list() {
     );
 }
 
-/// Tests schemas_register/get roundtrip.
+/// Tests `schemas_register/get` roundtrip.
 #[test]
 fn parity_schemas_register_get() {
     use decision_gate_core::DataShapeId;
@@ -452,6 +534,7 @@ fn parity_schemas_register_get() {
         schema: schema.clone(),
         description: None,
         created_at: Timestamp::Logical(1),
+        signing: None,
     };
 
     // Register schema
@@ -483,7 +566,7 @@ fn parity_schemas_register_get() {
     assert_eq!(get_response.record.schema, schema);
 }
 
-/// Tests schemas_list returns registered schemas.
+/// Tests `schemas_list` returns registered schemas.
 #[test]
 fn parity_schemas_list() {
     use decision_gate_core::DataShapeId;
@@ -506,6 +589,7 @@ fn parity_schemas_list() {
         schema,
         description: None,
         created_at: Timestamp::Logical(1),
+        signing: None,
     };
 
     // Register schema
@@ -539,7 +623,7 @@ fn parity_schemas_list() {
     );
 }
 
-/// Tests evidence_query tool returns evidence from provider.
+/// Tests `evidence_query` tool returns evidence from provider.
 #[test]
 fn parity_evidence_query() {
     use decision_gate_core::EvidenceContext;
@@ -605,7 +689,7 @@ fn parity_precheck() {
 
     // Define the scenario
     let define = decision_gate_mcp::tools::ScenarioDefineRequest {
-        spec: spec.clone(),
+        spec,
     };
     router
         .handle_tool_call(&context, "scenario_define", serde_json::to_value(&define).unwrap())
@@ -621,6 +705,7 @@ fn parity_precheck() {
         schema,
         description: None,
         created_at: Timestamp::Logical(1),
+        signing: None,
     };
     let register_request = SchemasRegisterRequest {
         record,
@@ -656,7 +741,7 @@ fn parity_precheck() {
     assert!(!response.gate_evaluations.is_empty(), "precheck should return gate evaluations");
 }
 
-/// Tests scenario_status fails for non-existent run.
+/// Tests `scenario_status` fails for non-existent run.
 #[test]
 fn parity_scenario_status_not_found() {
     use decision_gate_core::runtime::StatusRequest;
@@ -694,7 +779,7 @@ fn parity_scenario_status_not_found() {
     assert!(result.is_err(), "status for non-existent run should fail");
 }
 
-/// Tests evidence_query fails for unknown provider.
+/// Tests `evidence_query` fails for unknown provider.
 #[test]
 fn parity_evidence_query_unknown_provider() {
     use decision_gate_core::EvidenceContext;
@@ -736,7 +821,7 @@ fn parity_evidence_query_unknown_provider() {
     assert!(result.is_err(), "evidence query for unknown provider should fail");
 }
 
-/// Tests schemas_get fails for non-existent schema.
+/// Tests `schemas_get` fails for non-existent schema.
 #[test]
 fn parity_schemas_get_not_found() {
     use decision_gate_core::DataShapeId;
