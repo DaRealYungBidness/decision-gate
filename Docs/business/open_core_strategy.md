@@ -7,7 +7,7 @@ Description: Business strategy for open core positioning, monetization, and
 Purpose: Define what stays open, what we charge for, and how to achieve
          reference implementation status.
 Dependencies:
-  - Docs/roadmap/decision_gate_mcp_roadmap.md
+  - Docs/roadmap/open_items.md
   - Docs/security/threat_model.md
   - Asset Core integration (external repository)
 ============================================================================

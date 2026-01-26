@@ -8,7 +8,7 @@ Purpose: Single source of truth for the next implementation phase.
 Dependencies:
   - Docs/business/open_core_strategy.md
   - Docs/security/threat_model.md
-  - Docs/roadmap/decision_gate_mcp_roadmap.md
+  - Docs/roadmap/open_items.md
   - Asset Core namespace architecture (external repo)
 ============================================================================
 -->

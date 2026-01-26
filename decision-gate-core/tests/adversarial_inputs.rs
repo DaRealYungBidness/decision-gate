@@ -315,13 +315,13 @@ fn in_set_returns_unknown_on_number_expected() {
 
 #[test]
 fn deep_equals_returns_false_on_type_mismatch() {
-    // Deep equals on different types returns False (not Unknown) as a structural difference
+    // Deep equals on different types returns Unknown to fail closed.
     let result = evaluate_comparator(
         Comparator::DeepEquals,
         Some(&json!({"key": "value"})),
         &empty_result_with_value(EvidenceValue::Json(json!("string"))),
     );
-    assert_eq!(result, TriState::False, "DeepEquals on type mismatch should return False");
+    assert_eq!(result, TriState::Unknown, "DeepEquals on type mismatch should return Unknown");
 }
 
 #[test]
@@ -331,7 +331,7 @@ fn deep_not_equals_returns_true_on_type_mismatch() {
         Some(&json!({"key": "value"})),
         &empty_result_with_value(EvidenceValue::Json(json!(42))),
     );
-    assert_eq!(result, TriState::True, "DeepNotEquals on type mismatch should return True");
+    assert_eq!(result, TriState::Unknown, "DeepNotEquals on type mismatch should return Unknown");
 }
 
 // ============================================================================
