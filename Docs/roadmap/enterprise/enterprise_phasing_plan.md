@@ -54,26 +54,111 @@ Goal: first paid tier with minimal ops overhead.
 - Hosted registry + runpack storage.
 - Minimal UI: list runs, download runpacks, rotate API keys.
 
-### Mechanical Workstreams
-1) **Identity + Tenant Binding**
+### Phase-1 Ordering (Do These In This Order)
+1) **Upfront decisions (lock the invariants)**
+   - Tenant model: `org -> tenant -> namespace` or `tenant -> namespace` only.
+   - Identity binding: what a token/subject maps to (single tenant vs multi-tenant).
+   - Authz source of truth: local config vs external auth service (OIDC/JWT vs opaque tokens).
+   - Quota semantics: what is billable (requests, runs, evidence, storage, runpacks).
+   - Storage boundaries: per-tenant database vs shared DB with strict row-level isolation.
+   - Audit retention policy: immutable log retention and export format.
+   - Threat model scope: rate-limit evasion, tenant-hopping, replay, and log tampering.
+
+2) **Tenant-bound authz (Phase-1 blocker)**
    - Introduce a `TenantResolver` (or equivalent) that maps auth context to allowed
      tenant(s)/namespace(s), not just tool allowlists.
    - Enforce tenant/namespace on all `decision-gate-mcp` tool calls.
    - Wire into `decision-gate-mcp/src/tools.rs` before any state mutation.
+   - Emit audit events for tenant mismatch denials.
 
-2) **Usage Metering + Quotas**
+3) **Usage metering + quota enforcement**
    - Add a `UsageSink` trait (or equivalent) and emit counters per tool action.
    - Add quota checks at the router layer; reject when exceeded.
-   - Persist usage to a multi-tenant store.
+   - Persist usage to a multi-tenant store with strict isolation.
+   - Decide whether rate limiting is per-tenant or per-token (or both).
 
-3) **Durable Stores**
+4) **Durable stores (multi-tenant safe)**
    - Implement enterprise run store + schema registry backends using the existing
      `RunStateStore` and `DataShapeRegistry` traits (`decision-gate-core/src/interfaces/mod.rs`).
-   - Add object storage for runpacks (or blob store abstraction).
+   - Add object storage for runpacks (or blob store abstraction) with per-tenant prefixes.
+   - Add backup/restore and corruption detection hooks for auditability.
 
-4) **Hosted UX + Tenant Ops**
+5) **Tenant lifecycle + minimal UI**
    - Add minimal management API (or admin-only tool surface) for tenant lifecycle.
-   - Build a barebones UI around those APIs.
+   - Build a barebones UI around those APIs (list runs, download runpacks, rotate keys).
+
+### Phase-1 Design Decisions (Make These Upfront)
+These are the “lock early” choices that avoid long-term pain:
+- **Auth model**: JWT/OIDC vs opaque tokens; claim format for tenant/namespace scoping.
+- **Isolation model**: per-tenant DB/schema vs shared DB with hard partition keys.
+- **Rate limiting vs quotas**: rate limit is DOS protection; quotas are billing controls.
+- **Usage counters**: define the canonical counters and make them consistent across tools.
+- **Audit immutability**: whether audit logs are append-only and tamper-evident from day one.
+- **Runpack storage**: object store layout and retention strategy (per-tenant WORM option).
+- **Namespace authority**: stay `none` for DG Cloud or enforce external authority immediately.
+- **Backwards compatibility**: define how API and schema changes are versioned.
+
+### Phase-1 Security Invariants (Non-Negotiable)
+- Fail-closed for all tenant/namespace mismatches.
+- No implicit tenant access via tool allowlists.
+- All authz denials are audited.
+- Usage metering cannot be disabled in production configs.
+
+### Phase-1 Decision Matrix (Recommended Defaults)
+The choices below are optimized for world-class security, long-term scale, and
+clean separation between OSS and enterprise add-ons.
+
+- **Auth model (recommended)**: OIDC/JWT for user sessions + opaque API keys for
+  service access. JWTs are short-lived and verified via JWKS; API keys are hashed
+  and mapped to a principal profile with explicit tenant/namespace scopes.
+  Rationale: best-of-breed identity integration + safe machine access without
+  leaking tenant scope in bearer tokens.
+
+- **Tenant model (recommended)**: `org -> tenant -> namespace`, with tenant as
+  the billing and isolation unit. Default tokens are single-tenant; multi-tenant
+  tokens are explicitly scoped and audited.
+  Rationale: aligns with future org/SSO requirements without breaking Phase 1.
+
+- **Isolation model (recommended)**: shared Postgres with strict partition keys
+  + row-level security (RLS) enforced at the DB layer; optional per-tenant DB for
+  premium tiers later.
+  Rationale: immediate multi-tenant safety with a migration path to stronger
+  physical isolation.
+
+- **Usage counters (recommended)**: append-only usage ledger with idempotent
+  events keyed by request_id/run_id and tool action. Canonical counters:
+  tool_calls, runs_started, evidence_queries, runpack_exports, schemas_written,
+  storage_bytes, registry_entries.
+  Rationale: deterministic billing + audit-friendly reconciliation.
+
+- **Quotas vs rate limits (recommended)**: enforce both. Rate limits per token
+  and per tenant at the edge; quotas enforced via the usage ledger with hard
+  denial when exceeded.
+  Rationale: protects availability and enforces billing/contracts independently.
+
+- **Audit immutability (recommended)**: append-only audit log with hash chaining
+  (Merkle or simple hash chain) and periodic snapshots in object storage.
+  Rationale: tamper-evident by default, enterprise-ready without refactor.
+
+- **Runpack storage (recommended)**: object storage (S3-compatible) with
+  per-tenant prefixing, server-side encryption, and retention policies. Support
+  WORM/immutable buckets when enabled.
+  Rationale: scalable, inexpensive, and compliant storage pattern.
+
+- **Namespace authority (recommended)**: DG Cloud starts with internal authority
+  (no external dependency), but keep the authority interface pluggable for
+  AssetCore or external catalogs.
+  Rationale: minimizes Phase-1 ops risk while preserving enterprise path.
+
+- **API/versioning (recommended)**: explicit versioning of tool schemas and
+  contract artifacts; changes gated by compatibility tests. Avoid breaking
+  changes in tool shapes; add new tools instead.
+  Rationale: prevents tenant breakage and keeps generated docs stable.
+
+- **Secrets + key management (recommended)**: store only hashed API keys; use
+  KMS-backed encryption for stored secrets and audit every key use. Design for
+  HSM integration later without changing interfaces.
+  Rationale: eliminates plaintext risk and enables compliance later.
 
 ### Exit Criteria
 - Tenant isolation enforced for all tool calls.
@@ -162,4 +247,3 @@ Goal: high-stakes deployments with immutable audit and optional on-prem.
 1) Add tenant-bound authz enforcement (Phase 1 blocker).
 2) Define a usage/metering data model and plug it into MCP tool calls.
 3) Create enterprise crate skeletons and wire them behind traits.
-
