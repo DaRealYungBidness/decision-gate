@@ -444,6 +444,8 @@ Do not use `cargo fmt` in this repo.
 
 ## References
 
-The Amity Affliction. (2014). _Pittsburgh_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=vu3xGr-lNVI
-
 Kublai Khan. (2017). _The Hammer_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=8GGMdMo61_o
+
+Paleface Swiss. (2023). _The Gallow_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=ThvEJXMeYOA
+
+The Amity Affliction. (2014). _Pittsburgh_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=vu3xGr-lNVI
