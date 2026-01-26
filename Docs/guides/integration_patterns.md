@@ -37,3 +37,12 @@ This creates a verifiable audit trail of what was released and when.
 
 Example: `examples/data-disclosure`
 
+## Policy Integration
+Dispatch authorization can be routed through a swappable policy engine:
+
+- Use `policy.engine = "static"` for deterministic, local rule evaluation.
+- Add adapters for external engines (OPA, Cedar, OpenFGA/Zanzibar-style) to
+  match existing org policy infrastructure.
+
+Keep policy evaluation deterministic and side-effect free; Decision Gate
+expects policy engines to fail closed on errors.

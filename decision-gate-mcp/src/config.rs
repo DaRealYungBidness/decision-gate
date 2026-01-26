@@ -29,6 +29,9 @@ use serde::Deserialize;
 use serde::Serialize;
 use thiserror::Error;
 
+use crate::policy::DispatchPolicy;
+use crate::policy::PolicyEngine;
+use crate::policy::StaticPolicyConfig;
 // ============================================================================
 // SECTION: Constants
 // ============================================================================
@@ -142,6 +145,7 @@ impl DecisionGateConfig {
     pub fn validate(&mut self) -> Result<(), ConfigError> {
         self.server.validate()?;
         self.validation.validate()?;
+        self.policy.validate()?;
         self.run_state_store.validate()?;
         self.schema_registry.validate()?;
         for provider in &self.providers {
@@ -500,18 +504,60 @@ impl Default for TrustConfig {
     }
 }
 
-/// Dispatch policy configuration.
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+/// Policy engine configuration.
+#[derive(Debug, Clone, Deserialize)]
 pub struct PolicyConfig {
-    /// Dispatch policy mode.
+    /// Policy engine selection.
     #[serde(default)]
-    pub dispatch: DispatchPolicy,
+    pub engine: PolicyEngine,
+    /// Static policy configuration.
+    #[serde(default, rename = "static")]
+    pub static_policy: Option<StaticPolicyConfig>,
 }
 
 impl Default for PolicyConfig {
     fn default() -> Self {
         Self {
-            dispatch: DispatchPolicy::PermitAll,
+            engine: PolicyEngine::default(),
+            static_policy: None,
+        }
+    }
+}
+
+impl PolicyConfig {
+    /// Validates policy configuration for internal consistency.
+    fn validate(&self) -> Result<(), ConfigError> {
+        match self.engine {
+            PolicyEngine::Static => {
+                let Some(static_policy) = &self.static_policy else {
+                    return Err(ConfigError::Invalid(
+                        "policy.engine=static requires policy.static".to_string(),
+                    ));
+                };
+                static_policy.validate().map_err(ConfigError::Invalid)?;
+            }
+            PolicyEngine::PermitAll | PolicyEngine::DenyAll => {
+                if self.static_policy.is_some() {
+                    return Err(ConfigError::Invalid(
+                        "policy.static only allowed when engine=static".to_string(),
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Builds the runtime dispatch policy adapter.
+    pub fn dispatch_policy(&self) -> Result<DispatchPolicy, ConfigError> {
+        match self.engine {
+            PolicyEngine::PermitAll => Ok(DispatchPolicy::PermitAll),
+            PolicyEngine::DenyAll => Ok(DispatchPolicy::DenyAll),
+            PolicyEngine::Static => {
+                let static_policy = self.static_policy.clone().ok_or_else(|| {
+                    ConfigError::Invalid("policy.static is required for static engine".to_string())
+                })?;
+                Ok(DispatchPolicy::Static(static_policy))
+            }
         }
     }
 }
@@ -588,17 +634,6 @@ pub enum ValidationProfile {
     /// Strict comparator validation profile v1.
     #[default]
     StrictCoreV1,
-}
-
-/// Dispatch policy modes for packet disclosure.
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum DispatchPolicy {
-    /// Allow all dispatch targets.
-    #[default]
-    PermitAll,
-    /// Deny all dispatch targets.
-    DenyAll,
 }
 
 /// Run state store configuration.

@@ -330,9 +330,19 @@ estimated_runtime_sec = 8
 name = "policy_denies_dispatch_targets"
 category = "security"
 priority = "P1"
-description = "Dispatch policy denies disclosure and fails the run."
+description = "Static policy engine denies disclosure and fails the run."
 files = ["system-tests/tests/security.rs"]
 run_command = "cargo test -p system-tests --test security -- --exact policy_denies_dispatch_targets"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "policy_state.json"]
+estimated_runtime_sec = 10
+
+[[tests]]
+name = "policy_error_fails_closed"
+category = "security"
+priority = "P1"
+description = "Static policy engine error fails closed with explicit reason."
+files = ["system-tests/tests/security.rs"]
+run_command = "cargo test -p system-tests --test security -- --exact policy_error_fails_closed"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "policy_state.json"]
 estimated_runtime_sec = 10
 

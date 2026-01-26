@@ -1411,19 +1411,127 @@ fn policy_config_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "dispatch": dispatch_policy_schema()
+            "engine": policy_engine_schema(),
+            "static": static_policy_schema()
+        },
+        "allOf": [
+            {
+                "if": { "properties": { "engine": { "const": "static" } } },
+                "then": { "required": ["static"] }
+            },
+            {
+                "if": { "properties": { "engine": { "enum": ["permit_all", "deny_all"] } } },
+                "then": { "properties": { "static": { "type": "null" } } }
+            }
+        ],
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for policy engine selection.
+#[must_use]
+fn policy_engine_schema() -> Value {
+    json!({
+        "type": "string",
+        "enum": ["permit_all", "deny_all", "static"],
+        "default": "permit_all"
+    })
+}
+
+/// Returns the JSON schema for static policy configuration.
+#[must_use]
+fn static_policy_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "default": policy_default_effect_schema(),
+            "rules": {
+                "type": "array",
+                "items": policy_rule_schema()
+            }
         },
         "additionalProperties": false
     })
 }
 
-/// Returns the JSON schema for dispatch policy selection.
+/// Returns the JSON schema for default policy effect.
 #[must_use]
-fn dispatch_policy_schema() -> Value {
+fn policy_default_effect_schema() -> Value {
     json!({
         "type": "string",
-        "enum": ["permit_all", "deny_all"],
-        "default": "permit_all"
+        "enum": ["permit", "deny"],
+        "default": "deny"
+    })
+}
+
+/// Returns the JSON schema for policy rule effect.
+#[must_use]
+fn policy_effect_schema() -> Value {
+    json!({
+        "type": "string",
+        "enum": ["permit", "deny", "error"]
+    })
+}
+
+/// Returns the JSON schema for policy rule definition.
+#[must_use]
+fn policy_rule_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": ["effect"],
+        "properties": {
+            "effect": policy_effect_schema(),
+            "error_message": schema_for_string("Error message when effect is 'error'."),
+            "target_kinds": {
+                "type": "array",
+                "items": dispatch_target_kind_schema()
+            },
+            "targets": {
+                "type": "array",
+                "items": policy_target_schema()
+            },
+            "require_labels": schema_for_string_array("Visibility labels that must be present."),
+            "forbid_labels": schema_for_string_array("Visibility labels that must not be present."),
+            "require_policy_tags": schema_for_string_array("Policy tags that must be present."),
+            "forbid_policy_tags": schema_for_string_array("Policy tags that must not be present."),
+            "content_types": schema_for_string_array("Content types allowed by the rule."),
+            "schema_ids": schema_for_string_array("Schema identifiers allowed by the rule."),
+            "packet_ids": schema_for_string_array("Packet identifiers allowed by the rule."),
+            "stage_ids": schema_for_string_array("Stage identifiers allowed by the rule."),
+            "scenario_ids": schema_for_string_array("Scenario identifiers allowed by the rule.")
+        },
+        "allOf": [
+            {
+                "if": { "properties": { "effect": { "const": "error" } } },
+                "then": { "required": ["error_message"] }
+            }
+        ],
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for dispatch target kinds.
+#[must_use]
+fn dispatch_target_kind_schema() -> Value {
+    json!({
+        "type": "string",
+        "enum": ["agent", "session", "external", "channel"]
+    })
+}
+
+/// Returns the JSON schema for policy target selectors.
+#[must_use]
+fn policy_target_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": ["target_kind"],
+        "properties": {
+            "target_kind": dispatch_target_kind_schema(),
+            "target_id": schema_for_string("Target identifier for agent/session/channel."),
+            "system": schema_for_string("External system name."),
+            "target": schema_for_string("External target identifier.")
+        },
+        "additionalProperties": false
     })
 }
 

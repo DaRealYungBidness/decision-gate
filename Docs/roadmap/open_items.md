@@ -40,17 +40,7 @@ explicitly revised.
 **Status**: None currently open. Security audit is clean and transport hardening
 is complete.
 
-### 1) [P1] Policy Engine Integration
-**What**: Replace `PermitAll` / `DenyAll` with real policy adapters.
-**Why**: Dispatch authorization is critical to disclosure control.
-**Status**: Open.
-**Where**:
-- `decision-gate-core/src/interfaces/mod.rs` (PolicyDecider trait)
-- `decision-gate-mcp/src/tools.rs` (DispatchPolicy implementation)
-**How**: Add policy backends and include their schemas/config in the contract
-bundle.
-
-### 2) [P1] Dev-Permissive Mode + Default Namespace Policy
+### 1) [P1] Dev-Permissive Mode + Default Namespace Policy
 **What**: Add an explicit dev-permissive toggle (asserted evidence allowed)
 and define default namespace behavior for non-Asset-Core deployments.
 **Why**: Trust lanes and namespace isolation need an explicit opt-in for
@@ -61,7 +51,7 @@ single-tenant/dev mode with warnings.
 - `decision-gate-mcp/src/server.rs` (startup warnings)
 **How**: Add config flags, enforce defaults, and emit warnings when enabled.
 
-### 3) [P1] Schema Registry RBAC/ACL + Audit Events
+### 2) [P1] Schema Registry RBAC/ACL + Audit Events
 **What**: Enforce per-tenant/role ACLs for schema registry operations and
 emit registry-specific audit events.
 **Why**: Registry writes are a trust boundary and need explicit access control.
@@ -71,7 +61,7 @@ emit registry-specific audit events.
 - `decision-gate-mcp/src/auth.rs` (auth policy)
 - `decision-gate-mcp/src/audit.rs` (audit sink)
 
-### 4) [P1] Precheck Hash-Only Audit Logging
+### 3) [P1] Precheck Hash-Only Audit Logging
 **What**: Emit hash-only audit records for precheck requests/responses by
 default (no raw payload).
 **Why**: Precheck is read-only but still handles asserted data; audit must be
@@ -81,7 +71,7 @@ privacy-preserving by default.
 - `decision-gate-mcp/src/audit.rs`
 - `decision-gate-mcp/src/tools.rs` (precheck handler)
 
-### 5) [P1] Durable Runpack Storage Beyond Filesystem
+### 4) [P1] Durable Runpack Storage Beyond Filesystem
 **What**: Add production-grade `ArtifactSink` and `ArtifactReader` backends
 for object storage or WORM storage.
 **Why**: Filesystem runpacks are implemented, but cloud-native durability
@@ -93,7 +83,7 @@ requires blob store adapters.
 **How**: Implement object store adapters with strict path validation and
 typed errors.
 
-### 6) [P2] Scenario Examples for Hold/Unknown/Branch Outcomes
+### 5) [P2] Scenario Examples for Hold/Unknown/Branch Outcomes
 **What**: Add canonical scenarios that demonstrate unknown outcomes, hold
 decisions, and branch routing for true/false/unknown.
 **Why**: Scenario authors need precise, audited examples that show how
@@ -101,7 +91,7 @@ tri-state outcomes affect routing and hold behavior.
 **Status**: Partial (only happy-path examples today).
 **Where**: `Docs/generated/decision-gate/examples/`
 
-### 7) [P2] Run Lifecycle Guide
+### 6) [P2] Run Lifecycle Guide
 **What**: Create a single guide that maps tool calls to run state transitions
 and runpack artifacts.
 **Why**: Integrators need a mental model that ties `scenario_define` →
@@ -110,14 +100,14 @@ state mutations and artifacts.
 **Status**: Missing.
 **Where**: `Docs/guides/run_lifecycle.md` (new).
 
-### 8) [P2] Agent Progress vs Plan State Guidance
+### 7) [P2] Agent Progress vs Plan State Guidance
 **What**: Clarify that Decision Gate evaluates evidence and run state, while
 agent planning is external. Progress signals should be modeled as evidence or
 submissions.
 **Why**: Keeps Decision Gate deterministic and avoids embedding agent logic.
 **Status**: Open (guidance).
 
-### 9) [P2] Runpack Verification with Evidence Replay (Optional)
+### 8) [P2] Runpack Verification with Evidence Replay (Optional)
 **What**: Optional CLI/MCP flow to re-query evidence and compare against
 runpack anchors/hashes during verification.
 **Why**: Provides an additional audit mode when evidence sources are stable.
@@ -166,7 +156,16 @@ limits, TLS/mTLS, and audit logging.
 
 ### J) Trust Lanes, Schema Registry, Discovery Tools, Precheck
 **Status**: Implemented. Trust lanes, registry storage, discovery tools, and
-precheck are present; remaining items are policy/audit hardening and docs.
+precheck are present; remaining items are audit hardening and docs.
+
+### K) Policy Engine Integration
+**Status**: Implemented. Swappable policy engine selection with deterministic
+static rules, deny/permit/error effects, and contract schema support.
+**Refs**:
+- `decision-gate-mcp/src/policy.rs`
+- `decision-gate-mcp/src/config.rs`
+- `decision-gate-contract/src/schemas.rs`
+- `decision-gate-contract/src/tooltips.rs`
 
 ## Notes on Structural Readiness
 Evidence, storage, and dispatch interfaces already exist in

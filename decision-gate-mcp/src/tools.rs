@@ -91,10 +91,10 @@ use crate::auth::RequestContext;
 use crate::auth::ToolAuthz;
 use crate::capabilities::CapabilityError;
 use crate::capabilities::CapabilityRegistry;
-use crate::config::DispatchPolicy;
 use crate::config::EvidencePolicyConfig;
 use crate::config::ValidationConfig;
 use crate::evidence::FederatedEvidenceProvider;
+use crate::policy::DispatchPolicy;
 use crate::runpack::FileArtifactReader;
 use crate::runpack::FileArtifactSink;
 use crate::validation::StrictValidator;
@@ -1125,20 +1125,6 @@ impl Dispatcher for McpDispatcher {
             dispatched_at: envelope.issued_at,
             dispatcher: "mcp".to_string(),
         })
-    }
-}
-
-impl decision_gate_core::PolicyDecider for DispatchPolicy {
-    fn authorize(
-        &self,
-        _target: &DispatchTarget,
-        _envelope: &PacketEnvelope,
-        _payload: &PacketPayload,
-    ) -> Result<decision_gate_core::PolicyDecision, decision_gate_core::PolicyError> {
-        match self {
-            Self::PermitAll => Ok(decision_gate_core::PolicyDecision::Permit),
-            Self::DenyAll => Ok(decision_gate_core::PolicyDecision::Deny),
-        }
     }
 }
 

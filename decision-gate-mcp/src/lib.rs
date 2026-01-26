@@ -20,6 +20,7 @@ pub mod auth;
 pub mod capabilities;
 pub mod config;
 pub mod evidence;
+pub mod policy;
 pub mod runpack;
 pub mod server;
 pub mod telemetry;

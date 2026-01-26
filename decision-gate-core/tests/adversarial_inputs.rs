@@ -619,7 +619,11 @@ fn exists_with_null_value() {
         None,
         &empty_result_with_value(EvidenceValue::Json(json!(null))),
     );
-    assert_eq!(result, TriState::True, "Exists should return True for null value (value is present)");
+    assert_eq!(
+        result,
+        TriState::True,
+        "Exists should return True for null value (value is present)"
+    );
 }
 
 #[test]

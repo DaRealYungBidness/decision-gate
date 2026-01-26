@@ -396,7 +396,9 @@ fn allowed_comparators_for_schema(schema: &Value) -> Vec<Comparator> {
         return intersect_comparators(options);
     }
 
-    if let Some(values) = schema.get("enum").and_then(Value::as_array) && !values.is_empty() {
+    if let Some(values) = schema.get("enum").and_then(Value::as_array)
+        && !values.is_empty()
+    {
         return canonicalize_comparators(vec![
             Comparator::Equals,
             Comparator::NotEquals,

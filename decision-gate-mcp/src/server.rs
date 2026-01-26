@@ -156,11 +156,15 @@ impl McpServer {
         let schema_registry_limits = build_schema_registry_limits(&config)?;
         let authz = Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
         let auth_audit = Arc::new(StderrAuditSink);
+        let dispatch_policy = config
+            .policy
+            .dispatch_policy()
+            .map_err(|err| McpServerError::Config(err.to_string()))?;
         let router = ToolRouter::new(ToolRouterConfig {
             evidence,
             evidence_policy: config.evidence.clone(),
             validation: config.validation.clone(),
-            dispatch_policy: config.policy.dispatch.clone(),
+            dispatch_policy,
             store,
             schema_registry,
             provider_transports,
@@ -1439,7 +1443,7 @@ mod tests {
             evidence,
             evidence_policy: config.evidence.clone(),
             validation: config.validation.clone(),
-            dispatch_policy: config.policy.dispatch.clone(),
+            dispatch_policy: config.policy.dispatch_policy().expect("dispatch policy"),
             store,
             schema_registry,
             provider_transports,

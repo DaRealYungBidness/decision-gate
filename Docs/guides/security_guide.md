@@ -34,6 +34,18 @@ Configuration controls:
 - `evidence.require_provider_opt_in = true` requires providers to opt in.
 - Provider config `allow_raw = true` allows raw results for that provider.
 
+## Dispatch Policy Engines
+Dispatch authorization is enforced by a swappable policy engine configured in
+`decision-gate.toml` under `[policy]`. The default engine is `permit_all` for
+ease of adoption, but production deployments should enable a real policy:
+
+- `policy.engine = "static"` enables deterministic rule-based authorization.
+- Rule effects are `permit`, `deny`, or `error` (fail closed).
+
+Policies apply to dispatch targets, packet visibility labels, policy tags, and
+schema/packet identifiers. Use deny-by-default (`static.default = "deny"`) for
+high-assurance deployments.
+
 ## Provider Timeouts
 External MCP providers called over HTTP are guarded by strict connect and
 request timeouts. Overrides are supported per provider but are bounded to

@@ -33,6 +33,8 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `http_transport_end_to_end` | mcp_transport | HTTP JSON-RPC transport works end-to-end. |
 | `federated_provider_echo` | providers | External MCP provider integration works. |
 | `packet_disclosure_visibility` | security | Packet visibility labels and policy tags persist. |
+| `policy_denies_dispatch_targets` | security | Static policy engine denies disclosure and fails the run. |
+| `policy_error_fails_closed` | security | Policy engine errors fail closed with explicit reason. |
 | `runpack_tamper_detection` | runpack | Tampered runpack fails verification. |
 | `strict_validation_precheck_rejects_comparator_mismatch` | functional | Precheck rejects comparator/schema mismatches. |
 | `strict_validation_precheck_allows_permissive` | functional | Permissive mode allows precheck to proceed. |

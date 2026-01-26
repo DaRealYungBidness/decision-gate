@@ -130,6 +130,10 @@ Hash metadata for any payload content. Includes the hash algorithm and hash valu
 
 MIME types for evidence values returned by the predicate.
 
+## `content_types`
+
+Content types allowed by the rule.
+
 ## `correlation_id`
 
 Identifier linking related requests and decisions across systems. Pass a correlation_id with triggers to trace decision flows through logs, metrics, and external services. Propagated in EvidenceContext for provider logging.
@@ -149,6 +153,10 @@ Deep structural equality for JSON objects and arrays.
 ## `deep_not_equals`
 
 Deep structural inequality for JSON objects and arrays.
+
+## `default`
+
+Default policy effect applied when no rules match. Defaults to 'deny' for fail-closed behavior.
 
 ## `default_policy`
 
@@ -170,6 +178,14 @@ Predicate output stability: deterministic, time_dependent, or external.
 
 Destinations where emitted packets are delivered. Configure targets in run_config: agent, session, external, or channel. Multiple targets enable fan-out to different systems.
 
+## `effect`
+
+Policy rule effect: 'permit', 'deny', or 'error' (fail closed with a policy error).
+
+## `engine`
+
+Dispatch policy engine selection. Options: 'permit_all', 'deny_all', or 'static'. Use 'static' to apply rule-based authorization. Additional engines can be added via adapters without changing core.
+
 ## `entry_packets`
 
 Disclosure packets emitted when a run enters a stage. Use entry_packets to release information at specific workflow points: e.g., reveal configuration after approval, emit audit events, or trigger downstream systems. Packets include payload, schema_id, and visibility_labels for access control.
@@ -177,6 +193,10 @@ Disclosure packets emitted when a run enters a stage. Use entry_packets to relea
 ## `equals`
 
 True when evidence equals expected (numbers, strings, booleans, or JSON values).
+
+## `error_message`
+
+Error message to report when effect is 'error'. Required for error rules.
 
 ## `evidence_hash`
 
@@ -197,6 +217,14 @@ True when evidence value is present. Expected is ignored.
 ## `expected`
 
 The target value compared against evidence output. Type must match the evidence type: JSON values for equals/in_set, numbers for greater_than, arrays for in_set (evidence matches any element). If expected is missing or mismatched, the comparator returns unknown (fail-closed). Not required for exists/not_exists.
+
+## `forbid_labels`
+
+Visibility labels that must not be present for the rule to match.
+
+## `forbid_policy_tags`
+
+Policy tags that must not be present for the rule to match.
 
 ## `gate_id`
 
@@ -330,6 +358,10 @@ Deterministic override map for environment values during testing. Keys in overri
 
 Identifier for a disclosure packet. Must be unique within the scenario. Used to track emissions, filter by packet type, and correlate with dispatch_targets. Referenced in entry_packets and disclosure logs.
 
+## `packet_ids`
+
+Packet identifiers allowed by the rule.
+
 ## `params`
 
 Provider-specific parameters passed to a predicate. Structure varies by provider: env.get needs {key}, time.after needs {timestamp}, http.status needs {url}. Invalid or missing required params cause the provider to fail, yielding an unknown outcome.
@@ -378,6 +410,14 @@ Wrapper for submission responses. Contains submission_id, run_id, payload, conte
 
 Wrapper for tool request payloads. Used in MCP protocol messages. Contains the tool name, parameters, and request metadata. Internal structure; most users interact via higher-level scenario_* tools.
 
+## `require_labels`
+
+Visibility labels that must be present for the rule to match.
+
+## `require_policy_tags`
+
+Policy tags that must be present for the rule to match.
+
 ## `require_provider_opt_in`
 
 Requires providers to explicitly opt into raw disclosure via allow_raw in their config. Even if allow_raw_values is true globally, providers without opt-in return hashes. Defense-in-depth for sensitive evidence.
@@ -397,6 +437,10 @@ JSON Schema for predicate output values.
 ## `root`
 
 Base directory for JSON provider file resolution. File paths in queries are resolved relative to root. Prevents directory traversal: paths escaping root fail with a security error. Set to the config directory or a dedicated data folder.
+
+## `rules`
+
+Ordered list of policy rules. The first rule that matches the dispatch request wins.
 
 ## `run_config`
 
@@ -430,6 +474,10 @@ Registers a ScenarioSpec with the runtime and returns its canonical spec_hash. T
 
 Stable identifier for a scenario across its lifecycle: registration, runs, and audits. Choose descriptive, versioned IDs (e.g., 'deployment-gate-v2'). The scenario_id plus spec_hash together identify exactly which workflow definition was used.
 
+## `scenario_ids`
+
+Scenario identifiers allowed by the rule.
+
 ## `scenario_next`
 
 Evaluates gates for the current stage and advances or holds the run. This is the primary driver for agent-controlled workflows. All gates must be true to advance; otherwise the run holds. Branch stages use gate outcomes to select the next_stage_id once gates pass. Timeout policies may synthesize outcomes for alternate_branch routing. Returns the decision and new stage.
@@ -457,6 +505,10 @@ Lists registered scenarios for a tenant and namespace. Returns scenario identifi
 ## `schema_id`
 
 Identifier for a schema attached to packets. Schemas validate payload structure before emission. Register schemas in the ScenarioSpec's schemas array. Packets reference schemas by schema_id for type safety and documentation.
+
+## `schema_ids`
+
+Schema identifiers allowed by the rule.
 
 ## `schemas_get`
 
@@ -486,6 +538,10 @@ Timestamp recorded when the run entered the current stage. Used to evaluate stag
 
 Identifier for a stage within a scenario. Must be unique within the ScenarioSpec. Referenced by advance_to policies and branch targets. Stage IDs appear in run status, decisions, and entry_packet emissions. Use descriptive names: 'approval', 'verification', 'release'.
 
+## `stage_ids`
+
+Stage identifiers allowed by the rule.
+
 ## `stages`
 
 An ordered list of decision phases in a ScenarioSpec. Each stage contains gates to evaluate and an advance_to policy. Runs progress through stages sequentially unless branching redirects them. Stages isolate concerns: early stages might check prerequisites, middle stages verify conditions, final stages authorize actions.
@@ -494,6 +550,10 @@ An ordered list of decision phases in a ScenarioSpec. Each stage contains gates 
 
 Caller-supplied timestamp marking when the run began. Required at scenario_start and used for timing calculations, stage_entered_at, and audit records. Prefer explicit timestamps for deterministic replay.
 
+## `static`
+
+Static dispatch policy configuration. Applies when policy.engine = 'static'.
+
 ## `status`
 
 Current state indicator for a run or verification. Run statuses: 'active', 'completed', 'failed'. Verification statuses: 'pass', 'fail'. Check status to determine next actions or surface issues.
@@ -501,6 +561,30 @@ Current state indicator for a run or verification. Run statuses: 'active', 'comp
 ## `submission_id`
 
 Identifier for an external artifact submitted via scenario_submit. Must be unique within the run. Enables idempotent submissions: repeated calls with the same payload return the existing record, while conflicting payloads return an error.
+
+## `system`
+
+External system name for dispatch targets.
+
+## `target`
+
+External target identifier for dispatch targets.
+
+## `target_id`
+
+Target identifier for agent/session/channel selectors.
+
+## `target_kind`
+
+Target kind for an explicit selector. Options: 'agent', 'session', 'external', 'channel'.
+
+## `target_kinds`
+
+Target kinds allowed by the rule. Options: 'agent', 'session', 'external', 'channel'.
+
+## `targets`
+
+Explicit target selectors for dispatch authorization.
 
 ## `tenant_id`
 

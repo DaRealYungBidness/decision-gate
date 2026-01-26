@@ -32,7 +32,10 @@ use decision_gate_core::StageSpec;
 use decision_gate_core::Timestamp;
 use decision_gate_core::TriggerEvent;
 use decision_gate_core::TriggerKind;
-use decision_gate_mcp::config::DispatchPolicy;
+use decision_gate_mcp::policy::PolicyEffect;
+use decision_gate_mcp::policy::PolicyEngine;
+use decision_gate_mcp::policy::PolicyRule;
+use decision_gate_mcp::policy::StaticPolicyConfig;
 use decision_gate_mcp::tools::EvidenceQueryRequest;
 use decision_gate_mcp::tools::EvidenceQueryResponse;
 use decision_gate_mcp::tools::ScenarioDefineRequest;
@@ -156,7 +159,25 @@ async fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Erro
     let mut reporter = TestReporter::new("policy_denies_dispatch_targets")?;
     let bind = allocate_bind_addr()?.to_string();
     let mut config = base_http_config(&bind);
-    config.policy.dispatch = DispatchPolicy::DenyAll;
+    config.policy.engine = PolicyEngine::Static;
+    config.policy.static_policy = Some(StaticPolicyConfig {
+        default: PolicyEffect::Permit,
+        rules: vec![PolicyRule {
+            effect: PolicyEffect::Deny,
+            error_message: None,
+            target_kinds: Vec::new(),
+            targets: Vec::new(),
+            require_labels: vec!["internal".to_string()],
+            forbid_labels: Vec::new(),
+            require_policy_tags: Vec::new(),
+            forbid_policy_tags: Vec::new(),
+            content_types: Vec::new(),
+            schema_ids: Vec::new(),
+            packet_ids: Vec::new(),
+            stage_ids: Vec::new(),
+            scenario_ids: Vec::new(),
+        }],
+    });
     let server = spawn_mcp_server(config).await?;
     let client = server.client(std::time::Duration::from_secs(5))?;
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
@@ -312,6 +333,177 @@ async fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Erro
     reporter.finish(
         "pass",
         vec!["policy denial blocks dispatch targets".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+            "policy_state.json".to_string(),
+        ],
+    )?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn policy_error_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("policy_error_fails_closed")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let mut config = base_http_config(&bind);
+    config.policy.engine = PolicyEngine::Static;
+    config.policy.static_policy = Some(StaticPolicyConfig {
+        default: PolicyEffect::Permit,
+        rules: vec![PolicyRule {
+            effect: PolicyEffect::Error,
+            error_message: Some("policy error".to_string()),
+            target_kinds: Vec::new(),
+            targets: Vec::new(),
+            require_labels: vec!["internal".to_string()],
+            forbid_labels: Vec::new(),
+            require_policy_tags: Vec::new(),
+            forbid_policy_tags: Vec::new(),
+            content_types: Vec::new(),
+            schema_ids: Vec::new(),
+            packet_ids: Vec::new(),
+            stage_ids: Vec::new(),
+            scenario_ids: Vec::new(),
+        }],
+    });
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(std::time::Duration::from_secs(5))?;
+    wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
+
+    let scenario_id = ScenarioId::new("policy-error-scenario");
+    let namespace_id = NamespaceId::new("default");
+    let stage1_id = StageId::new("stage-1");
+    let stage2_id = StageId::new("stage-2");
+    let predicate_key = PredicateKey::new("after");
+    let spec = ScenarioSpec {
+        scenario_id: scenario_id.clone(),
+        namespace_id: namespace_id.clone(),
+        spec_version: SpecVersion::new("1"),
+        stages: vec![
+            StageSpec {
+                stage_id: stage1_id.clone(),
+                entry_packets: Vec::new(),
+                gates: vec![GateSpec {
+                    gate_id: GateId::new("gate-allow"),
+                    requirement: Requirement::predicate(predicate_key.clone()),
+                    trust: None,
+                }],
+                advance_to: AdvanceTo::Fixed {
+                    stage_id: stage2_id.clone(),
+                },
+                timeout: None,
+                on_timeout: decision_gate_core::TimeoutPolicy::Fail,
+            },
+            StageSpec {
+                stage_id: stage2_id.clone(),
+                entry_packets: vec![PacketSpec {
+                    packet_id: PacketId::new("packet-1"),
+                    schema_id: decision_gate_core::SchemaId::new("schema-1"),
+                    content_type: "application/json".to_string(),
+                    visibility_labels: vec!["internal".to_string()],
+                    policy_tags: Vec::new(),
+                    expiry: None,
+                    payload: PacketPayload::Json {
+                        value: json!({"hello": "world"}),
+                    },
+                }],
+                gates: Vec::new(),
+                advance_to: AdvanceTo::Terminal,
+                timeout: None,
+                on_timeout: decision_gate_core::TimeoutPolicy::Fail,
+            },
+        ],
+        predicates: vec![PredicateSpec {
+            predicate: predicate_key,
+            query: decision_gate_core::EvidenceQuery {
+                provider_id: ProviderId::new("time"),
+                predicate: "after".to_string(),
+                params: Some(json!({"timestamp": 0})),
+            },
+            comparator: Comparator::Equals,
+            expected: Some(json!(true)),
+            policy_tags: Vec::new(),
+            trust: None,
+        }],
+        policies: Vec::new(),
+        schemas: Vec::new(),
+        default_tenant_id: None,
+    };
+
+    let define_request = ScenarioDefineRequest {
+        spec,
+    };
+    let define_input = serde_json::to_value(&define_request)?;
+    let define_output: ScenarioDefineResponse =
+        client.call_tool_typed("scenario_define", define_input).await?;
+
+    let mut run_config = decision_gate_core::RunConfig {
+        tenant_id: decision_gate_core::TenantId::new("tenant-1"),
+        namespace_id,
+        run_id: decision_gate_core::RunId::new("run-1"),
+        scenario_id: define_output.scenario_id.clone(),
+        dispatch_targets: Vec::new(),
+        policy_tags: Vec::new(),
+    };
+    run_config.dispatch_targets = vec![DispatchTarget::Agent {
+        agent_id: "agent-1".to_string(),
+    }];
+
+    let start_request = ScenarioStartRequest {
+        scenario_id: define_output.scenario_id.clone(),
+        run_config,
+        started_at: Timestamp::Logical(1),
+        issue_entry_packets: false,
+    };
+    let start_input = serde_json::to_value(&start_request)?;
+    let _state: decision_gate_core::RunState =
+        client.call_tool_typed("scenario_start", start_input).await?;
+
+    let trigger_request = ScenarioTriggerRequest {
+        scenario_id: define_output.scenario_id.clone(),
+        trigger: TriggerEvent {
+            run_id: decision_gate_core::RunId::new("run-1"),
+            tenant_id: decision_gate_core::TenantId::new("tenant-1"),
+            namespace_id: NamespaceId::new("default"),
+            trigger_id: decision_gate_core::TriggerId::new("trigger-1"),
+            kind: TriggerKind::ExternalEvent,
+            time: Timestamp::Logical(2),
+            source_id: "policy".to_string(),
+            payload: None,
+            correlation_id: None,
+        },
+    };
+    let trigger_input = serde_json::to_value(&trigger_request)?;
+    let trigger_result: decision_gate_core::runtime::TriggerResult =
+        client.call_tool_typed("scenario_trigger", trigger_input).await?;
+
+    match &trigger_result.decision.outcome {
+        DecisionOutcome::Fail {
+            reason,
+        } => {
+            if !reason.contains("policy decision error") {
+                return Err(format!("expected policy error reason, got {reason}").into());
+            }
+        }
+        other => return Err(format!("unexpected decision outcome: {other:?}").into()),
+    }
+    if trigger_result.status != RunStatus::Failed {
+        return Err(format!("expected failed status, got {:?}", trigger_result.status).into());
+    }
+    if !trigger_result.packets.is_empty() {
+        return Err("expected no packets after policy error".into());
+    }
+
+    let policy_state = serde_json::json!({
+        "trigger_result": trigger_result,
+    });
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.artifacts().write_json("policy_state.json", &policy_state)?;
+    reporter.finish(
+        "pass",
+        vec!["policy error fails closed".to_string()],
         vec![
             "summary.json".to_string(),
             "summary.md".to_string(),

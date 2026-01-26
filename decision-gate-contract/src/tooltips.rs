@@ -212,70 +212,28 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          and return unknown on type mismatch. Numeric comparators return unknown for non-numbers. \
          exists/not_exists ignore expected.",
     ),
-    (
-        "equals",
-        "True when evidence equals expected (numbers, strings, booleans, or JSON values).",
-    ),
-    (
-        "not_equals",
-        "True when evidence does not equal expected.",
-    ),
-    (
-        "greater_than",
-        "True when numeric evidence is greater than expected.",
-    ),
-    (
-        "greater_than_or_equal",
-        "True when numeric evidence is greater than or equal to expected.",
-    ),
-    (
-        "less_than",
-        "True when numeric evidence is less than expected.",
-    ),
-    (
-        "less_than_or_equal",
-        "True when numeric evidence is less than or equal to expected.",
-    ),
-    (
-        "lex_greater_than",
-        "Lexicographic string compare: true when evidence sorts after expected.",
-    ),
+    ("equals", "True when evidence equals expected (numbers, strings, booleans, or JSON values)."),
+    ("not_equals", "True when evidence does not equal expected."),
+    ("greater_than", "True when numeric evidence is greater than expected."),
+    ("greater_than_or_equal", "True when numeric evidence is greater than or equal to expected."),
+    ("less_than", "True when numeric evidence is less than expected."),
+    ("less_than_or_equal", "True when numeric evidence is less than or equal to expected."),
+    ("lex_greater_than", "Lexicographic string compare: true when evidence sorts after expected."),
     (
         "lex_greater_than_or_equal",
         "Lexicographic string compare: true when evidence sorts after or equals expected.",
     ),
-    (
-        "lex_less_than",
-        "Lexicographic string compare: true when evidence sorts before expected.",
-    ),
+    ("lex_less_than", "Lexicographic string compare: true when evidence sorts before expected."),
     (
         "lex_less_than_or_equal",
         "Lexicographic string compare: true when evidence sorts before or equals expected.",
     ),
-    (
-        "contains",
-        "True when evidence (array or string) contains the expected value.",
-    ),
-    (
-        "in_set",
-        "True when evidence is contained in the expected array.",
-    ),
-    (
-        "deep_equals",
-        "Deep structural equality for JSON objects and arrays.",
-    ),
-    (
-        "deep_not_equals",
-        "Deep structural inequality for JSON objects and arrays.",
-    ),
-    (
-        "exists",
-        "True when evidence value is present. Expected is ignored.",
-    ),
-    (
-        "not_exists",
-        "True when evidence value is missing. Expected is ignored.",
-    ),
+    ("contains", "True when evidence (array or string) contains the expected value."),
+    ("in_set", "True when evidence is contained in the expected array."),
+    ("deep_equals", "Deep structural equality for JSON objects and arrays."),
+    ("deep_not_equals", "Deep structural inequality for JSON objects and arrays."),
+    ("exists", "True when evidence value is present. Expected is ignored."),
+    ("not_exists", "True when evidence value is missing. Expected is ignored."),
     (
         "expected",
         "The target value compared against evidence output. Type must match the evidence type: \
@@ -612,62 +570,20 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     // =====================================================================
     // CAPABILITY CONTRACTS
     // =====================================================================
-    (
-        "name",
-        "Human-readable provider name shown in docs and UIs.",
-    ),
-    (
-        "description",
-        "Short summary describing provider behavior and intent.",
-    ),
-    (
-        "config_schema",
-        "JSON Schema validating provider configuration entries.",
-    ),
-    (
-        "notes",
-        "Optional notes about provider behavior or determinism.",
-    ),
-    (
-        "predicates",
-        "List of predicate capability contracts exposed by the provider.",
-    ),
-    (
-        "determinism",
-        "Predicate output stability: deterministic, time_dependent, or external.",
-    ),
-    (
-        "params_required",
-        "Whether EvidenceQuery.params must be supplied for this predicate.",
-    ),
-    (
-        "params_schema",
-        "JSON Schema for predicate params payloads.",
-    ),
-    (
-        "result_schema",
-        "JSON Schema for predicate output values.",
-    ),
-    (
-        "allowed_comparators",
-        "Allow-list of comparators valid for this predicate output.",
-    ),
-    (
-        "anchor_types",
-        "Anchor type strings that the predicate may emit.",
-    ),
-    (
-        "content_types",
-        "MIME types for evidence values returned by the predicate.",
-    ),
-    (
-        "examples",
-        "Example predicate invocations with params and results.",
-    ),
-    (
-        "result",
-        "Example output value for a predicate invocation.",
-    ),
+    ("name", "Human-readable provider name shown in docs and UIs."),
+    ("description", "Short summary describing provider behavior and intent."),
+    ("config_schema", "JSON Schema validating provider configuration entries."),
+    ("notes", "Optional notes about provider behavior or determinism."),
+    ("predicates", "List of predicate capability contracts exposed by the provider."),
+    ("determinism", "Predicate output stability: deterministic, time_dependent, or external."),
+    ("params_required", "Whether EvidenceQuery.params must be supplied for this predicate."),
+    ("params_schema", "JSON Schema for predicate params payloads."),
+    ("result_schema", "JSON Schema for predicate output values."),
+    ("allowed_comparators", "Allow-list of comparators valid for this predicate output."),
+    ("anchor_types", "Anchor type strings that the predicate may emit."),
+    ("content_types", "MIME types for evidence values returned by the predicate."),
+    ("examples", "Example predicate invocations with params and results."),
+    ("result", "Example output value for a predicate invocation."),
     // =====================================================================
     // PROVIDER CONFIGURATION
     // =====================================================================
@@ -754,6 +670,51 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          additional syntax. Enable when config files use YAML format. Disable to restrict to pure \
          JSON for stricter validation.",
     ),
+    // =====================================================================
+    // DISPATCH POLICY
+    // =====================================================================
+    (
+        "engine",
+        "Dispatch policy engine selection. Options: 'permit_all', 'deny_all', or 'static'. Use \
+         'static' to apply rule-based authorization. Additional engines can be added via adapters \
+         without changing core.",
+    ),
+    ("static", "Static dispatch policy configuration. Applies when policy.engine = 'static'."),
+    (
+        "default",
+        "Default policy effect applied when no rules match. Defaults to 'deny' for fail-closed \
+         behavior.",
+    ),
+    (
+        "rules",
+        "Ordered list of policy rules. The first rule that matches the dispatch request wins.",
+    ),
+    (
+        "effect",
+        "Policy rule effect: 'permit', 'deny', or 'error' (fail closed with a policy error).",
+    ),
+    ("error_message", "Error message to report when effect is 'error'. Required for error rules."),
+    (
+        "target_kinds",
+        "Target kinds allowed by the rule. Options: 'agent', 'session', 'external', 'channel'.",
+    ),
+    ("targets", "Explicit target selectors for dispatch authorization."),
+    (
+        "target_kind",
+        "Target kind for an explicit selector. Options: 'agent', 'session', 'external', 'channel'.",
+    ),
+    ("target_id", "Target identifier for agent/session/channel selectors."),
+    ("system", "External system name for dispatch targets."),
+    ("target", "External target identifier for dispatch targets."),
+    ("require_labels", "Visibility labels that must be present for the rule to match."),
+    ("forbid_labels", "Visibility labels that must not be present for the rule to match."),
+    ("require_policy_tags", "Policy tags that must be present for the rule to match."),
+    ("forbid_policy_tags", "Policy tags that must not be present for the rule to match."),
+    ("content_types", "Content types allowed by the rule."),
+    ("schema_ids", "Schema identifiers allowed by the rule."),
+    ("packet_ids", "Packet identifiers allowed by the rule."),
+    ("stage_ids", "Stage identifiers allowed by the rule."),
+    ("scenario_ids", "Scenario identifiers allowed by the rule."),
     // =====================================================================
     // PROVIDER-SPECIFIC: ENV
     // =====================================================================

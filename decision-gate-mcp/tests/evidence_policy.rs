@@ -90,7 +90,7 @@ fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
         evidence,
         evidence_policy: config.evidence,
         validation: config.validation,
-        dispatch_policy: config.policy.dispatch,
+        dispatch_policy: config.policy.dispatch_policy().expect("dispatch policy"),
         store,
         schema_registry,
         provider_transports,

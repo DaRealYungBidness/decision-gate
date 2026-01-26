@@ -133,11 +133,12 @@ pub fn router_with_config(config: DecisionGateConfig) -> ToolRouter {
     };
     let authz = Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
     let audit = Arc::new(NoopAuditSink);
+    let dispatch_policy = config.policy.dispatch_policy().expect("dispatch policy");
     ToolRouter::new(ToolRouterConfig {
         evidence,
         evidence_policy: config.evidence,
         validation: config.validation,
-        dispatch_policy: config.policy.dispatch,
+        dispatch_policy,
         store,
         schema_registry,
         provider_transports,

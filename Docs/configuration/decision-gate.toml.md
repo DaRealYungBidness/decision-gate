@@ -68,6 +68,51 @@ default_policy = { require_signature = { keys = ["key1.pub"] } }
 | `allow_raw_values` | bool | `false` | Enables raw evidence disclosure. |
 | `require_provider_opt_in` | bool | `true` | Providers must opt in via `allow_raw`. |
 
+### `[policy]`
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `engine` | `"permit_all" | "deny_all" | "static"` | `permit_all` | Dispatch policy engine selection. |
+| `static` | table | `null` | Static rule config (required when `engine = "static"`). |
+
+Static policy example:
+```toml
+[policy]
+engine = "static"
+
+[policy.static]
+default = "deny"
+
+[[policy.static.rules]]
+effect = "permit"
+target_kinds = ["agent"]
+require_labels = ["public"]
+```
+
+Static policy rule fields:
+| Field | Type | Notes |
+| --- | --- | --- |
+| `effect` | `"permit" | "deny" | "error"` | Rule effect; `error` fails closed. |
+| `error_message` | string | Required when `effect = "error"`. |
+| `target_kinds` | array | Any of `agent`, `session`, `external`, `channel`. |
+| `targets` | array | Explicit target selectors (see below). |
+| `require_labels` | array | Visibility labels required to match. |
+| `forbid_labels` | array | Visibility labels that block the match. |
+| `require_policy_tags` | array | Policy tags required to match. |
+| `forbid_policy_tags` | array | Policy tags that block the match. |
+| `content_types` | array | Allowed content types. |
+| `schema_ids` | array | Allowed schema IDs. |
+| `packet_ids` | array | Allowed packet IDs. |
+| `stage_ids` | array | Allowed stage IDs. |
+| `scenario_ids` | array | Allowed scenario IDs. |
+
+Target selector fields (`policy.static.rules.targets`):
+| Field | Type | Notes |
+| --- | --- | --- |
+| `target_kind` | `"agent" | "session" | "external" | "channel"` | Target kind. |
+| `target_id` | string | Agent/session/channel identifier. |
+| `system` | string | External system name (external only). |
+| `target` | string | External target identifier (external only). |
+
 ### `[validation]`
 | Field | Type | Default | Notes |
 | --- | --- | --- | --- |

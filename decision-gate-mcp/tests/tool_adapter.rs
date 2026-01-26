@@ -185,7 +185,7 @@ fn build_router(config: &DecisionGateConfig) -> ToolRouter {
         evidence,
         evidence_policy: config.evidence.clone(),
         validation: config.validation.clone(),
-        dispatch_policy: config.policy.dispatch.clone(),
+        dispatch_policy: config.policy.dispatch_policy().expect("dispatch policy"),
         store,
         schema_registry,
         provider_transports,
@@ -339,7 +339,11 @@ fn parity_scenario_status() {
         },
     };
     let mcp_result = router
-        .handle_tool_call(&context, "scenario_status", serde_json::to_value(&status_request).unwrap())
+        .handle_tool_call(
+            &context,
+            "scenario_status",
+            serde_json::to_value(&status_request).unwrap(),
+        )
         .unwrap();
     let mcp_status: ScenarioStatus = serde_json::from_value(mcp_result).unwrap();
 
@@ -368,10 +372,7 @@ fn parity_providers_list() {
 
     // Should include the "time" provider from config
     let provider_ids: Vec<_> = response.providers.iter().map(|p| p.provider_id.as_str()).collect();
-    assert!(
-        provider_ids.contains(&"time"),
-        "providers should include 'time': {provider_ids:?}"
-    );
+    assert!(provider_ids.contains(&"time"), "providers should include 'time': {provider_ids:?}");
 }
 
 /// Tests scenarios_list tool returns defined scenarios.
@@ -449,7 +450,8 @@ fn parity_schemas_register_get() {
             serde_json::to_value(&register_request).unwrap(),
         )
         .unwrap();
-    let register_response: SchemasRegisterResponse = serde_json::from_value(register_result).unwrap();
+    let register_response: SchemasRegisterResponse =
+        serde_json::from_value(register_result).unwrap();
     assert_eq!(register_response.record.schema_id, record.schema_id);
 
     // Get schema back
@@ -492,7 +494,9 @@ fn parity_schemas_list() {
     };
 
     // Register schema
-    let register_request = SchemasRegisterRequest { record };
+    let register_request = SchemasRegisterRequest {
+        record,
+    };
     router
         .handle_tool_call(
             &context,
@@ -585,7 +589,9 @@ fn parity_precheck() {
     let spec = sample_spec();
 
     // Define the scenario
-    let define = decision_gate_mcp::tools::ScenarioDefineRequest { spec: spec.clone() };
+    let define = decision_gate_mcp::tools::ScenarioDefineRequest {
+        spec: spec.clone(),
+    };
     router
         .handle_tool_call(&context, "scenario_define", serde_json::to_value(&define).unwrap())
         .unwrap();
@@ -601,7 +607,9 @@ fn parity_precheck() {
         description: None,
         created_at: Timestamp::Logical(1),
     };
-    let register_request = SchemasRegisterRequest { record };
+    let register_request = SchemasRegisterRequest {
+        record,
+    };
     router
         .handle_tool_call(
             &context,
@@ -630,10 +638,7 @@ fn parity_precheck() {
 
     // Precheck should return a decision (even if Hold) and gate evaluations
     // The important thing is that precheck executes without error and returns structured data
-    assert!(
-        !response.gate_evaluations.is_empty(),
-        "precheck should return gate evaluations"
-    );
+    assert!(!response.gate_evaluations.is_empty(), "precheck should return gate evaluations");
 }
 
 /// Tests scenario_status fails for non-existent run.
@@ -707,12 +712,13 @@ fn parity_evidence_query_unknown_provider() {
         query,
         context: evidence_context,
     };
-    let result = router.handle_tool_call(&context, "evidence_query", serde_json::to_value(&request).unwrap());
-
-    assert!(
-        result.is_err(),
-        "evidence query for unknown provider should fail"
+    let result = router.handle_tool_call(
+        &context,
+        "evidence_query",
+        serde_json::to_value(&request).unwrap(),
     );
+
+    assert!(result.is_err(), "evidence query for unknown provider should fail");
 }
 
 /// Tests schemas_get fails for non-existent schema.
@@ -732,8 +738,11 @@ fn parity_schemas_get_not_found() {
         schema_id: DataShapeId::new("non-existent-schema"),
         version: DataShapeVersion::new("1"),
     };
-    let result =
-        router.handle_tool_call(&context, "schemas_get", serde_json::to_value(&get_request).unwrap());
+    let result = router.handle_tool_call(
+        &context,
+        "schemas_get",
+        serde_json::to_value(&get_request).unwrap(),
+    );
 
     assert!(result.is_err(), "schemas_get for non-existent should fail");
 }

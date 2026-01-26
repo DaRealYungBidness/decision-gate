@@ -108,6 +108,9 @@ min_lane = "verified"
 allow_raw_values = false
 require_provider_opt_in = true
 
+[policy]
+engine = "permit_all"
+
 [run_state_store]
 type = "sqlite"
 path = "decision-gate.db"

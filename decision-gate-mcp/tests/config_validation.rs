@@ -45,6 +45,12 @@ use decision_gate_mcp::config::ServerTlsConfig;
 use decision_gate_mcp::config::ServerTransport;
 use decision_gate_mcp::config::TrustConfig;
 use decision_gate_mcp::config::ValidationConfig;
+use decision_gate_mcp::policy::DispatchTargetKind;
+use decision_gate_mcp::policy::PolicyEffect;
+use decision_gate_mcp::policy::PolicyEngine;
+use decision_gate_mcp::policy::PolicyRule;
+use decision_gate_mcp::policy::PolicyTargetSelector;
+use decision_gate_mcp::policy::StaticPolicyConfig;
 use tempfile::TempDir;
 
 /// Validates a standalone server config via the public config validator.
@@ -79,6 +85,194 @@ fn validate_provider_config(
         providers: vec![provider],
     };
     config.validate()
+}
+
+/// Verifies static policy requires a static config block.
+#[test]
+fn policy_static_requires_config() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig {
+            engine: PolicyEngine::Static,
+            static_policy: None,
+        },
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+    };
+    let result = config.validate();
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("policy.engine=static"));
+}
+
+/// Verifies static policy rules must include match criteria.
+#[test]
+fn policy_static_rejects_empty_rule() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig {
+            engine: PolicyEngine::Static,
+            static_policy: Some(StaticPolicyConfig {
+                default: PolicyEffect::Permit,
+                rules: vec![PolicyRule {
+                    effect: PolicyEffect::Deny,
+                    error_message: None,
+                    target_kinds: Vec::new(),
+                    targets: Vec::new(),
+                    require_labels: Vec::new(),
+                    forbid_labels: Vec::new(),
+                    require_policy_tags: Vec::new(),
+                    forbid_policy_tags: Vec::new(),
+                    content_types: Vec::new(),
+                    schema_ids: Vec::new(),
+                    packet_ids: Vec::new(),
+                    stage_ids: Vec::new(),
+                    scenario_ids: Vec::new(),
+                }],
+            }),
+        },
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+    };
+    let result = config.validate();
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("policy.rules"));
+}
+
+/// Verifies error rules require an error message.
+#[test]
+fn policy_static_error_requires_message() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig {
+            engine: PolicyEngine::Static,
+            static_policy: Some(StaticPolicyConfig {
+                default: PolicyEffect::Permit,
+                rules: vec![PolicyRule {
+                    effect: PolicyEffect::Error,
+                    error_message: None,
+                    target_kinds: Vec::new(),
+                    targets: Vec::new(),
+                    require_labels: vec!["internal".to_string()],
+                    forbid_labels: Vec::new(),
+                    require_policy_tags: Vec::new(),
+                    forbid_policy_tags: Vec::new(),
+                    content_types: Vec::new(),
+                    schema_ids: Vec::new(),
+                    packet_ids: Vec::new(),
+                    stage_ids: Vec::new(),
+                    scenario_ids: Vec::new(),
+                }],
+            }),
+        },
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+    };
+    let result = config.validate();
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("error_message"));
+}
+
+/// Verifies external targets cannot set target_id.
+#[test]
+fn policy_static_rejects_external_target_id() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig {
+            engine: PolicyEngine::Static,
+            static_policy: Some(StaticPolicyConfig {
+                default: PolicyEffect::Deny,
+                rules: vec![PolicyRule {
+                    effect: PolicyEffect::Permit,
+                    error_message: None,
+                    target_kinds: Vec::new(),
+                    targets: vec![PolicyTargetSelector {
+                        target_kind: DispatchTargetKind::External,
+                        target_id: Some("bad-target".to_string()),
+                        system: Some("system-a".to_string()),
+                        target: None,
+                    }],
+                    require_labels: Vec::new(),
+                    forbid_labels: Vec::new(),
+                    require_policy_tags: Vec::new(),
+                    forbid_policy_tags: Vec::new(),
+                    content_types: Vec::new(),
+                    schema_ids: Vec::new(),
+                    packet_ids: Vec::new(),
+                    stage_ids: Vec::new(),
+                    scenario_ids: Vec::new(),
+                }],
+            }),
+        },
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+    };
+    let result = config.validate();
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("target_id"));
+}
+
+/// Verifies non-external targets cannot set external selector fields.
+#[test]
+fn policy_static_rejects_agent_with_system() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig {
+            engine: PolicyEngine::Static,
+            static_policy: Some(StaticPolicyConfig {
+                default: PolicyEffect::Deny,
+                rules: vec![PolicyRule {
+                    effect: PolicyEffect::Permit,
+                    error_message: None,
+                    target_kinds: Vec::new(),
+                    targets: vec![PolicyTargetSelector {
+                        target_kind: DispatchTargetKind::Agent,
+                        target_id: Some("agent-1".to_string()),
+                        system: Some("system-a".to_string()),
+                        target: None,
+                    }],
+                    require_labels: Vec::new(),
+                    forbid_labels: Vec::new(),
+                    require_policy_tags: Vec::new(),
+                    forbid_policy_tags: Vec::new(),
+                    content_types: Vec::new(),
+                    schema_ids: Vec::new(),
+                    packet_ids: Vec::new(),
+                    stage_ids: Vec::new(),
+                    scenario_ids: Vec::new(),
+                }],
+            }),
+        },
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+    };
+    let result = config.validate();
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("non-external"));
 }
 
 // ============================================================================

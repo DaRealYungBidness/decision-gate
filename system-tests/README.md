@@ -79,6 +79,6 @@ Runpack tests additionally write:
 
 ## References
 - `system-tests/AGENTS.md`
-- `Docs/roadmap/system_tests_world_class_plan.md`
+- `Docs/roadmap/world_class_implementation_roadmap.md`
 - `Docs/testing/decision_gate_test_coverage.md`
 - `Docs/testing/test_infrastructure_guide.md`
