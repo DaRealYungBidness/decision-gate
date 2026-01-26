@@ -36,7 +36,19 @@
 use std::io::BufReader;
 use std::io::Cursor;
 
+use decision_gate_core::CorrelationId;
+use decision_gate_core::EvidenceContext;
+use decision_gate_core::NamespaceId;
+use decision_gate_core::RunId;
+use decision_gate_core::ScenarioId;
+use decision_gate_core::StageId;
+use decision_gate_core::TenantId;
+use decision_gate_core::Timestamp;
+use decision_gate_core::TriggerId;
+
 use super::read_framed;
+use super::request_id_for_context;
+use super::sanitize_header_value;
 
 // ============================================================================
 // SECTION: Tests
@@ -62,4 +74,46 @@ fn read_framed_accepts_payload_at_limit() {
     assert!(result.is_ok());
     let bytes = result.expect("payload read");
     assert_eq!(bytes, payload);
+}
+
+#[test]
+fn request_id_uses_correlation_id_when_present() {
+    let context = EvidenceContext {
+        tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("namespace"),
+        run_id: RunId::new("run"),
+        scenario_id: ScenarioId::new("scenario"),
+        stage_id: StageId::new("stage"),
+        trigger_id: TriggerId::new("trigger"),
+        trigger_time: Timestamp::Logical(1),
+        correlation_id: Some(CorrelationId::new("corr-1")),
+    };
+    let first = request_id_for_context(&context);
+    let second = request_id_for_context(&context);
+    assert_eq!(first, second);
+    assert_eq!(first, serde_json::Value::String("corr-1".to_string()));
+}
+
+#[test]
+fn request_id_increments_without_correlation_id() {
+    let context = EvidenceContext {
+        tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("namespace"),
+        run_id: RunId::new("run"),
+        scenario_id: ScenarioId::new("scenario"),
+        stage_id: StageId::new("stage"),
+        trigger_id: TriggerId::new("trigger"),
+        trigger_time: Timestamp::Logical(1),
+        correlation_id: None,
+    };
+    let first = request_id_for_context(&context);
+    let second = request_id_for_context(&context);
+    assert_ne!(first, second);
+    assert!(matches!(first, serde_json::Value::Number(_)));
+}
+
+#[test]
+fn sanitize_header_value_rejects_invalid_chars() {
+    assert!(sanitize_header_value(Some("valid-123")).is_some());
+    assert!(sanitize_header_value(Some("bad\nvalue")).is_none());
 }

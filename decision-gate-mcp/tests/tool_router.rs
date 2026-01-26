@@ -54,6 +54,8 @@ use decision_gate_core::runtime::SubmitResult;
 use decision_gate_core::runtime::TriggerResult;
 use decision_gate_mcp::SchemaRegistryConfig;
 use decision_gate_mcp::config::ServerMode;
+use decision_gate_mcp::namespace_authority::NamespaceAuthority;
+use decision_gate_mcp::namespace_authority::NamespaceAuthorityError;
 use decision_gate_mcp::tools::EvidenceQueryRequest;
 use decision_gate_mcp::tools::EvidenceQueryResponse;
 use decision_gate_mcp::tools::PrecheckToolRequest;
@@ -90,6 +92,19 @@ use crate::common::sample_spec_with_id;
 use crate::common::sample_spec_with_two_predicates;
 use crate::common::setup_scenario_with_run;
 use crate::common::start_run;
+
+struct DenyNamespaceAuthority;
+
+impl NamespaceAuthority for DenyNamespaceAuthority {
+    fn ensure_namespace(
+        &self,
+        _tenant_id: Option<&TenantId>,
+        _namespace_id: &NamespaceId,
+        _request_id: Option<&str>,
+    ) -> Result<(), NamespaceAuthorityError> {
+        Err(NamespaceAuthorityError::Denied("namespace denied".to_string()))
+    }
+}
 
 // ============================================================================
 // SECTION: Tool Listing Tests
@@ -194,6 +209,84 @@ fn dev_permissive_allows_default_namespace() {
         serde_json::to_value(&request).unwrap(),
     );
     assert!(result.is_ok());
+}
+
+/// Verifies namespace authority failures deny tool calls.
+#[test]
+fn namespace_authority_denies_tool_call() {
+    let config = sample_config();
+    let evidence = decision_gate_mcp::FederatedEvidenceProvider::from_config(&config).unwrap();
+    let capabilities =
+        decision_gate_mcp::capabilities::CapabilityRegistry::from_config(&config).unwrap();
+    let store = decision_gate_core::SharedRunStateStore::from_store(
+        decision_gate_core::InMemoryRunStateStore::new(),
+    );
+    let schema_registry = decision_gate_core::SharedDataShapeRegistry::from_registry(
+        decision_gate_core::InMemoryDataShapeRegistry::new(),
+    );
+    let provider_transports = config
+        .providers
+        .iter()
+        .map(|provider| {
+            let transport = match provider.provider_type {
+                decision_gate_mcp::config::ProviderType::Builtin => {
+                    decision_gate_mcp::tools::ProviderTransport::Builtin
+                }
+                decision_gate_mcp::config::ProviderType::Mcp => {
+                    decision_gate_mcp::tools::ProviderTransport::Mcp
+                }
+            };
+            (provider.name.clone(), transport)
+        })
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let schema_registry_limits = decision_gate_mcp::tools::SchemaRegistryLimits {
+        max_schema_bytes: config.schema_registry.max_schema_bytes,
+        max_entries: config
+            .schema_registry
+            .max_entries
+            .map(|value| usize::try_from(value).unwrap_or(usize::MAX)),
+    };
+    let evidence_policy = config.evidence.clone();
+    let validation = config.validation.clone();
+    let dispatch_policy = config.policy.dispatch_policy().expect("dispatch policy");
+    let trust_requirement = config.effective_trust_requirement();
+    let anchor_policy = config.anchors.to_policy();
+    let allow_default_namespace = config.allow_default_namespace();
+    let precheck_audit_payloads = config.server.audit.log_precheck_payloads;
+    let authz = std::sync::Arc::new(decision_gate_mcp::auth::DefaultToolAuthz::from_config(
+        config.server.auth.as_ref(),
+    ));
+    let audit = std::sync::Arc::new(decision_gate_mcp::auth::NoopAuditSink);
+    let router = decision_gate_mcp::ToolRouter::new(decision_gate_mcp::tools::ToolRouterConfig {
+        evidence,
+        evidence_policy,
+        validation,
+        dispatch_policy,
+        store,
+        schema_registry,
+        provider_transports,
+        schema_registry_limits,
+        capabilities: std::sync::Arc::new(capabilities),
+        authz,
+        audit,
+        trust_requirement,
+        anchor_policy,
+        precheck_audit: std::sync::Arc::new(decision_gate_mcp::McpNoopAuditSink),
+        precheck_audit_payloads,
+        allow_default_namespace,
+        namespace_authority: std::sync::Arc::new(DenyNamespaceAuthority),
+    });
+    let request = ScenarioDefineRequest {
+        spec: sample_spec(),
+    };
+    let error = router
+        .handle_tool_call(
+            &local_request_context(),
+            "scenario_define",
+            serde_json::to_value(&request).unwrap(),
+        )
+        .unwrap_err();
+    assert!(error.to_string().contains("namespace denied"));
 }
 
 // ============================================================================

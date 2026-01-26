@@ -30,6 +30,8 @@ use std::path::PathBuf;
 
 use decision_gate_core::TrustLane;
 use decision_gate_mcp::DecisionGateConfig;
+use decision_gate_mcp::config::AnchorPolicyConfig;
+use decision_gate_mcp::config::AnchorProviderConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::config::NamespaceConfig;
 use decision_gate_mcp::config::PolicyConfig;
@@ -65,6 +67,7 @@ fn validate_server_config(
         namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -83,6 +86,7 @@ fn validate_provider_config(
         namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -100,6 +104,7 @@ fn policy_static_requires_config() {
         namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig {
             engine: PolicyEngine::Static,
@@ -123,6 +128,7 @@ fn policy_static_rejects_empty_rule() {
         namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig {
             engine: PolicyEngine::Static,
@@ -163,6 +169,7 @@ fn policy_static_error_requires_message() {
         namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig {
             engine: PolicyEngine::Static,
@@ -203,6 +210,7 @@ fn policy_static_rejects_external_target_id() {
         namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig {
             engine: PolicyEngine::Static,
@@ -248,6 +256,7 @@ fn policy_static_rejects_agent_with_system() {
         namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig {
             engine: PolicyEngine::Static,
@@ -871,6 +880,7 @@ fn schema_registry_memory_rejects_path() {
         namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -897,6 +907,7 @@ fn schema_registry_sqlite_requires_path() {
         namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -928,6 +939,7 @@ fn validation_strict_disabled_requires_allow_permissive() {
         namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig {
             strict: false,
             allow_permissive: false,
@@ -961,6 +973,7 @@ fn dev_permissive_forces_asserted_trust_lane() {
             ..TrustConfig::default()
         },
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -983,6 +996,7 @@ fn strict_mode_uses_configured_trust_lane() {
             ..TrustConfig::default()
         },
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -1001,9 +1015,11 @@ fn dev_permissive_allows_default_namespace() {
         },
         namespace: NamespaceConfig {
             allow_default: false,
+            ..NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -1022,9 +1038,11 @@ fn strict_mode_requires_explicit_default_namespace_allow() {
         },
         namespace: NamespaceConfig {
             allow_default: false,
+            ..NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -1044,6 +1062,7 @@ fn schema_registry_rejects_zero_max_schema_bytes() {
         namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -1065,6 +1084,7 @@ fn schema_registry_rejects_zero_max_entries() {
         namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -1090,6 +1110,7 @@ fn run_state_store_sqlite_requires_path() {
         namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig {
@@ -1117,6 +1138,7 @@ fn run_state_store_memory_rejects_path() {
         namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig {
@@ -1142,6 +1164,7 @@ fn run_state_store_sqlite_accepts_path() {
         namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig {
@@ -1167,6 +1190,7 @@ fn run_state_store_sqlite_rejects_zero_retention() {
         namespace: NamespaceConfig::default(),
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig {
@@ -1300,4 +1324,93 @@ fn default_evidence_policy_redacts() {
     let config = EvidencePolicyConfig::default();
     assert!(!config.allow_raw_values);
     assert!(config.require_provider_opt_in);
+}
+
+// ============================================================================
+// SECTION: Namespace Authority Validation Tests
+// ============================================================================
+
+/// Verifies assetcore authority mode requires an assetcore config block.
+#[test]
+fn namespace_authority_assetcore_requires_config() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+    };
+    config.namespace.authority.mode =
+        decision_gate_mcp::config::NamespaceAuthorityMode::AssetcoreHttp;
+    config.namespace.authority.assetcore = None;
+    let result = config.validate();
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("namespace.authority.mode=assetcore_http"));
+}
+
+/// Verifies assetcore config is rejected when authority mode is none.
+#[test]
+fn namespace_authority_none_rejects_assetcore_config() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+    };
+    config.namespace.authority.mode = decision_gate_mcp::config::NamespaceAuthorityMode::None;
+    config.namespace.authority.assetcore =
+        Some(decision_gate_mcp::config::AssetCoreNamespaceAuthorityConfig {
+            base_url: "http://127.0.0.1:9000".to_string(),
+            auth_token: None,
+            connect_timeout_ms: 500,
+            request_timeout_ms: 1_000,
+            mapping: std::collections::BTreeMap::new(),
+        });
+    let result = config.validate();
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("namespace.authority.assetcore"));
+}
+
+// ============================================================================
+// SECTION: Anchor Policy Validation Tests
+// ============================================================================
+
+/// Verifies anchor policy requires at least one required field per provider.
+#[test]
+fn anchors_require_required_fields() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig {
+            providers: vec![AnchorProviderConfig {
+                provider_id: "assetcore_read".to_string(),
+                anchor_type: "assetcore.anchor_set".to_string(),
+                required_fields: Vec::new(),
+            }],
+        },
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+    };
+    let result = config.validate();
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("anchors.providers.required_fields"));
 }

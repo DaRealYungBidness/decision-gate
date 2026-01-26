@@ -12,11 +12,13 @@ Dependencies:
 
 # Decision Gate
 
-Decision Gate is a deterministic, replayable requirement-evaluation system for
-gated steps and controlled disclosure. It evaluates evidence-backed gates (or
-asserted data in precheck) to decide whether a plan can advance, emits auditable
-decisions, and supports offline verification via runpacks. It is backend-agnostic
-and integrates via explicit interfaces rather than embedding into agent frameworks.
+Decision Gate is a deterministic checkpoint and requirement-evaluation system
+for gated steps and controlled disclosure. It evaluates evidence-backed gates
+(or asserted data in precheck) to decide whether a plan can advance, emits
+auditable decisions, and supports offline verification via runpacks. In that
+operational sense, it is LLM/task evaluation (not benchmark tooling). It is
+backend-agnostic and integrates via explicit interfaces rather than embedding
+into agent frameworks.
 
 RET stands for **Requirement Evaluation Tree** and refers to the universal
 predicate algebra used by the engine.
@@ -26,6 +28,7 @@ predicate algebra used by the engine.
 - [Overview](#overview)
 - [Current Status (Accuracy Notes)](#current-status-accuracy-notes)
 - [Architecture at a Glance](#architecture-at-a-glance)
+- [AssetCore Integration](#assetcore-integration)
 - [Repository Layout](#repository-layout)
 - [Core Concepts](#core-concepts)
 - [How Predicates Are Defined](#how-predicates-are-defined)
@@ -50,6 +53,17 @@ predicates, and emits auditable decisions and disclosures. Evidence can be
 provider-pulled (verified) or asserted for precheck; asserted data never mutates
 run state. In the operational sense, this is LLM/task evaluation: progress is
 gated until explicit requirements are satisfied.
+
+## AssetCore Integration
+**Tagline**: DG evaluates requirements. ASC provides the world-state substrate
+for deterministic evidence.
+
+**Compatibility**: Compatible with AssetCore.
+
+Decision Gate runs independently. When a workflow requires deterministic
+evidence, replay, and audit-grade world-state proofs, DG integrates with
+AssetCore through explicit interfaces (no code coupling). The canonical
+integration hub lives at `Docs/integrations/assetcore/`.
 
 ## Current Status (Accuracy Notes)
 Implemented:
@@ -418,6 +432,7 @@ enables offline verification of integrity and tamper detection.
 - Provider development: `Docs/guides/provider_development.md`
 - Security guide: `Docs/guides/security_guide.md`
 - Integration patterns: `Docs/guides/integration_patterns.md`
+- AssetCore integration hub: `Docs/integrations/assetcore/`
 
 ## Security
 Decision Gate assumes hostile inputs and fails closed on missing or invalid

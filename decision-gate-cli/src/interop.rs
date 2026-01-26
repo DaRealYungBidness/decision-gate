@@ -50,65 +50,65 @@ use serde_json::Value;
 
 /// Inputs required to run an interop evaluation.
 #[derive(Debug, Clone)]
-pub(crate) struct InteropConfig {
+pub struct InteropConfig {
     /// Base URL for the MCP HTTP JSON-RPC endpoint.
-    pub(crate) mcp_url: String,
+    pub mcp_url: String,
     /// Scenario specification payload.
-    pub(crate) spec: ScenarioSpec,
+    pub spec: ScenarioSpec,
     /// Run configuration payload.
-    pub(crate) run_config: RunConfig,
+    pub run_config: RunConfig,
     /// Trigger event payload.
-    pub(crate) trigger: TriggerEvent,
+    pub trigger: TriggerEvent,
     /// Timestamp used for the scenario start request.
-    pub(crate) started_at: Timestamp,
+    pub started_at: Timestamp,
     /// Timestamp used for the status request.
-    pub(crate) status_requested_at: Timestamp,
+    pub status_requested_at: Timestamp,
     /// Whether to issue entry packets on scenario start.
-    pub(crate) issue_entry_packets: bool,
+    pub issue_entry_packets: bool,
     /// Optional bearer token for MCP authentication.
-    pub(crate) bearer_token: Option<String>,
+    pub bearer_token: Option<String>,
     /// Optional client subject header for mTLS proxy auth.
-    pub(crate) client_subject: Option<String>,
+    pub client_subject: Option<String>,
     /// MCP request timeout.
-    pub(crate) timeout: Duration,
+    pub timeout: Duration,
 }
 
 /// Transcript entry for each MCP JSON-RPC request/response pair.
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct TranscriptEntry {
+pub struct TranscriptEntry {
     /// Monotonic sequence number for this entry.
-    pub(crate) sequence: u64,
+    pub sequence: u64,
     /// JSON-RPC method invoked.
-    pub(crate) method: String,
+    pub method: String,
     /// Serialized request payload.
-    pub(crate) request: Value,
+    pub request: Value,
     /// Serialized response payload.
-    pub(crate) response: Value,
+    pub response: Value,
     /// Optional error string captured by the client.
-    pub(crate) error: Option<String>,
+    pub error: Option<String>,
 }
 
 /// Report emitted by the interop runner.
 #[derive(Debug, Serialize)]
-pub(crate) struct InteropReport {
+pub struct InteropReport {
     /// Scenario specification payload.
-    pub(crate) spec: ScenarioSpec,
+    pub spec: ScenarioSpec,
     /// Spec hash returned by the MCP server.
-    pub(crate) spec_hash: HashDigest,
+    pub spec_hash: HashDigest,
     /// Run configuration used to start the scenario.
-    pub(crate) run_config: RunConfig,
+    pub run_config: RunConfig,
     /// Timestamp used for scenario start.
-    pub(crate) started_at: Timestamp,
+    pub started_at: Timestamp,
     /// Trigger event used for evaluation.
-    pub(crate) trigger: TriggerEvent,
+    pub trigger: TriggerEvent,
     /// Timestamp used for status lookup.
-    pub(crate) status_requested_at: Timestamp,
+    pub status_requested_at: Timestamp,
     /// Trigger evaluation result.
-    pub(crate) trigger_result: TriggerResult,
+    pub trigger_result: TriggerResult,
     /// Final scenario status snapshot.
-    pub(crate) status: ScenarioStatus,
+    pub status: ScenarioStatus,
     /// Captured MCP transcript.
-    pub(crate) transcript: Vec<TranscriptEntry>,
+    pub transcript: Vec<TranscriptEntry>,
 }
 
 // ============================================================================
@@ -116,7 +116,7 @@ pub(crate) struct InteropReport {
 // ============================================================================
 
 /// Validates that the interop inputs are internally consistent.
-pub(crate) fn validate_inputs(
+pub fn validate_inputs(
     spec: &ScenarioSpec,
     run_config: &RunConfig,
     trigger: &TriggerEvent,
@@ -153,7 +153,7 @@ pub(crate) fn validate_inputs(
 }
 
 /// Executes the interop workflow against the MCP server.
-pub(crate) async fn run_interop(config: InteropConfig) -> Result<InteropReport, String> {
+pub async fn run_interop(config: InteropConfig) -> Result<InteropReport, String> {
     let mut client = McpHttpClient::new(
         config.mcp_url,
         config.timeout,
@@ -161,7 +161,9 @@ pub(crate) async fn run_interop(config: InteropConfig) -> Result<InteropReport, 
         config.client_subject,
     )?;
 
-    let define_input = ScenarioDefineRequest { spec: config.spec.clone() };
+    let define_input = ScenarioDefineRequest {
+        spec: config.spec.clone(),
+    };
     let define_value =
         serde_json::to_value(&define_input).map_err(|err| format!("define payload: {err}"))?;
     let define_response: ScenarioDefineResponse =
@@ -233,50 +235,76 @@ pub(crate) async fn run_interop(config: InteropConfig) -> Result<InteropReport, 
 // SECTION: MCP HTTP Client
 // ============================================================================
 
+/// JSON-RPC request envelope for tool calls.
 #[derive(Debug, Serialize)]
 struct JsonRpcRequest {
+    /// JSON-RPC protocol version.
     jsonrpc: &'static str,
+    /// Monotonic request identifier.
     id: u64,
+    /// Remote method name.
     method: String,
+    /// Optional request parameters.
     params: Option<Value>,
 }
 
+/// JSON-RPC response envelope for tool calls.
 #[derive(Debug, Deserialize, Serialize)]
 struct JsonRpcResponse {
+    /// Successful response payload.
     result: Option<Value>,
+    /// Error payload if the request failed.
     error: Option<JsonRpcError>,
 }
 
+/// JSON-RPC error payload.
 #[derive(Debug, Deserialize, Serialize)]
 struct JsonRpcError {
+    /// JSON-RPC error code.
     code: i64,
+    /// Error message describing the failure.
     message: String,
     #[serde(default)]
+    /// Optional error data payload.
     data: Option<Value>,
 }
 
+/// Tool call response wrapper for MCP.
 #[derive(Debug, Deserialize)]
 struct ToolCallResult {
+    /// Content blocks returned by the tool.
     content: Vec<ToolContent>,
 }
 
+/// Tool content payload variants.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ToolContent {
-    Json { json: Value },
+    /// JSON payload content.
+    Json {
+        /// JSON value returned by the tool.
+        json: Value,
+    },
 }
 
 /// Minimal MCP HTTP client with transcript capture.
 struct McpHttpClient {
+    /// MCP base URL for JSON-RPC.
     base_url: String,
+    /// HTTP client instance.
     client: Client,
+    /// Recorded transcript entries.
     transcript: Vec<TranscriptEntry>,
+    /// Next JSON-RPC request id.
     next_id: u64,
+    /// Optional bearer token.
     bearer_token: Option<String>,
+    /// Optional client subject for downstream auth.
     client_subject: Option<String>,
 }
 
 impl McpHttpClient {
+    /// Builds a new HTTP client for MCP tool calls.
     fn new(
         base_url: String,
         timeout: Duration,
@@ -297,10 +325,12 @@ impl McpHttpClient {
         })
     }
 
+    /// Returns the recorded request/response transcript.
     fn transcript(&self) -> Vec<TranscriptEntry> {
         self.transcript.clone()
     }
 
+    /// Calls a tool and decodes the typed JSON response.
     async fn call_tool_typed<T: for<'de> Deserialize<'de>>(
         &mut self,
         name: &str,
@@ -310,6 +340,7 @@ impl McpHttpClient {
         serde_json::from_value(json).map_err(|err| format!("decode {name} response: {err}"))
     }
 
+    /// Calls a tool and returns the raw JSON response content.
     async fn call_tool(&mut self, name: &str, arguments: Value) -> Result<Value, String> {
         let params = serde_json::json!({
             "name": name,
@@ -326,13 +357,16 @@ impl McpHttpClient {
         let parsed: ToolCallResult = serde_json::from_value(result)
             .map_err(|err| format!("invalid tools/call payload for {name}: {err}"))?;
         let mut iter = parsed.content.into_iter();
-        let json = match iter.next() {
-            Some(ToolContent::Json { json }) => json,
-            _ => return Err(format!("tool {name} returned no json content")),
+        let Some(ToolContent::Json {
+            json,
+        }) = iter.next()
+        else {
+            return Err(format!("tool {name} returned no json content"));
         };
         Ok(json)
     }
 
+    /// Sends a JSON-RPC request and returns the parsed response.
     async fn send_request(&mut self, request: &JsonRpcRequest) -> Result<JsonRpcResponse, String> {
         let request_value = serde_json::to_value(request)
             .map_err(|err| format!("serialize json-rpc request: {err}"))?;
@@ -415,12 +449,14 @@ impl McpHttpClient {
         Ok(parsed)
     }
 
-    fn next_id(&mut self) -> u64 {
+    /// Returns the next JSON-RPC request identifier.
+    const fn next_id(&mut self) -> u64 {
         let id = self.next_id;
         self.next_id = self.next_id.saturating_add(1);
         id
     }
 
+    /// Appends a request/response pair to the transcript.
     fn push_transcript(
         &mut self,
         method: &str,

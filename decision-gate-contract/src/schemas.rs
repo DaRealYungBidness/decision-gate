@@ -345,6 +345,7 @@ pub fn config_schema() -> Value {
             "namespace": namespace_config_schema(),
             "trust": trust_config_schema(),
             "evidence": evidence_policy_schema(),
+            "anchors": anchor_policy_schema(),
             "policy": policy_config_schema(),
             "run_state_store": run_state_store_schema(),
             "providers": {
@@ -1002,6 +1003,16 @@ fn schema_for_string(description: &str) -> Value {
     })
 }
 
+/// Returns a JSON schema for non-negative integers.
+#[must_use]
+fn schema_for_int(description: &str) -> Value {
+    json!({
+        "type": "integer",
+        "minimum": 0,
+        "description": description
+    })
+}
+
 /// Returns a JSON schema for string arrays.
 #[must_use]
 fn schema_for_string_array(description: &str) -> Value {
@@ -1447,6 +1458,63 @@ fn namespace_config_schema() -> Value {
             "allow_default": {
                 "type": "boolean",
                 "default": false
+            },
+            "authority": namespace_authority_schema()
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for namespace authority configuration.
+#[must_use]
+fn namespace_authority_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["none", "assetcore_http"],
+                "default": "none"
+            },
+            "assetcore": {
+                "oneOf": [
+                    { "type": "null" },
+                    assetcore_authority_schema()
+                ]
+            }
+        },
+        "allOf": [
+            {
+                "if": { "properties": { "mode": { "const": "assetcore_http" } } },
+                "then": { "required": ["assetcore"] }
+            },
+            {
+                "if": { "properties": { "mode": { "const": "none" } } },
+                "then": { "properties": { "assetcore": { "type": "null" } } }
+            }
+        ],
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for Asset Core namespace authority settings.
+#[must_use]
+fn assetcore_authority_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": ["base_url"],
+        "properties": {
+            "base_url": schema_for_string("Asset Core write-daemon base URL."),
+            "auth_token": schema_for_string("Optional bearer token for namespace lookup."),
+            "connect_timeout_ms": schema_for_int("Connect timeout in milliseconds."),
+            "request_timeout_ms": schema_for_int("Request timeout in milliseconds."),
+            "mapping": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "default": {}
             }
         },
         "additionalProperties": false
@@ -1616,6 +1684,42 @@ fn evidence_policy_schema() -> Value {
         "properties": {
             "allow_raw_values": { "type": "boolean", "default": false },
             "require_provider_opt_in": { "type": "boolean", "default": true }
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for evidence anchor policy configuration.
+#[must_use]
+fn anchor_policy_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "providers": {
+                "type": "array",
+                "items": anchor_provider_schema(),
+                "default": []
+            }
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for provider anchor requirements.
+#[must_use]
+fn anchor_provider_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": ["provider_id", "anchor_type", "required_fields"],
+        "properties": {
+            "provider_id": schema_for_identifier("Provider identifier requiring anchors."),
+            "anchor_type": schema_for_string("Anchor type identifier expected in evidence results."),
+            "required_fields": {
+                "type": "array",
+                "items": { "type": "string" },
+                "minItems": 1,
+                "description": "Required fields inside anchor payload."
+            }
         },
         "additionalProperties": false
     })

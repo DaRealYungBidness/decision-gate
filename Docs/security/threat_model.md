@@ -37,6 +37,7 @@ agent conversations.
 - Run state logs: triggers, gate evaluations, decisions, packets, submissions,
   tool calls.
 - Evidence values, hashes, anchors, and signatures.
+- Namespace authority configuration and namespace mappings.
 - Dispatch payloads, envelopes, and receipts.
 - Runpack artifacts and manifest.
 - Provider capability contracts and schemas.
@@ -55,6 +56,8 @@ agent conversations.
 - MCP server transports (stdio, HTTP, SSE): all JSON-RPC inputs are untrusted.
 - Scenario definition input: specs can encode disclosure logic and data access.
 - Evidence provider boundary: built-in providers vs external MCP providers.
+- Namespace authority backend (Asset Core or registry): namespace validation is
+  external and must fail closed.
 - Provider capability contracts and configuration files on disk.
 - Run state store and runpack artifacts: treat storage as untrusted.
 - Broker sources (http/file/inline) and sinks (external systems).
@@ -83,6 +86,10 @@ agent conversations.
 - Capability registry validates predicate params and allowed comparators.
 - Strict comparator/type validation rejects invalid predicates before scenario
   registration and precheck evaluation.
+- Namespace authority checks enforce tenant/namespace scoping and fail closed
+  on unknown or unavailable catalogs.
+- Anchor policy enforcement rejects evidence missing required anchors and
+  propagates anchor requirements into runpack verification.
 - Size and path limits for config files, provider contracts, runpack artifacts.
 - HTTP/SSE request body limits; provider-specific response size limits.
 - MCP tool calls require explicit authn/authz (local-only by default; bearer or

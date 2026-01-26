@@ -65,6 +65,34 @@ When using `mtls` mode, the server expects the
 | --- | --- | --- | --- |
 | `allow_default` | bool | `false` | Allow the literal `default` namespace in strict mode. |
 
+### `[namespace.authority]`
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `mode` | `"none" | "assetcore_http"` | `none` | Namespace authority backend selection. |
+| `assetcore` | table | `null` | Asset Core authority settings (required for `assetcore_http`). |
+
+### `[namespace.authority.assetcore]`
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `base_url` | string | — | Asset Core write-daemon base URL. |
+| `auth_token` | string | `null` | Optional bearer token for namespace lookup. |
+| `connect_timeout_ms` | integer | `500` | HTTP connect timeout (ms). |
+| `request_timeout_ms` | integer | `2000` | HTTP request timeout (ms). |
+| `mapping` | table | `{}` | Optional DG namespace -> ASC numeric mapping. |
+
+Asset Core authority example:
+```toml
+[namespace.authority]
+mode = "assetcore_http"
+
+[namespace.authority.assetcore]
+base_url = "http://127.0.0.1:9001"
+auth_token = "token"
+connect_timeout_ms = 500
+request_timeout_ms = 2000
+mapping = { default = 42 }
+```
+
 ### `[trust]`
 | Field | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -82,6 +110,27 @@ default_policy = { require_signature = { keys = ["key1.pub"] } }
 | --- | --- | --- | --- |
 | `allow_raw_values` | bool | `false` | Enables raw evidence disclosure. |
 | `require_provider_opt_in` | bool | `true` | Providers must opt in via `allow_raw`. |
+
+### `[anchors]`
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `providers` | array | `[]` | Provider-specific anchor requirements. |
+
+### `[[anchors.providers]]`
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `provider_id` | string | yes | Provider identifier requiring anchors. |
+| `anchor_type` | string | yes | Anchor type identifier expected in results. |
+| `required_fields` | array | yes | Required fields in `anchor_value`. |
+
+Anchor policy example (Asset Core):
+```toml
+[anchors]
+[[anchors.providers]]
+provider_id = "assetcore_read"
+anchor_type = "assetcore.anchor_set"
+required_fields = ["assetcore.namespace_id", "assetcore.commit_id", "assetcore.world_seq"]
+```
 
 ### `[policy]`
 | Field | Type | Default | Notes |

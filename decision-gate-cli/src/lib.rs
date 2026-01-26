@@ -21,9 +21,8 @@
 /// Internationalization helpers and message catalog.
 pub mod i18n;
 
-#[cfg(test)]
 #[allow(dead_code)]
-mod interop;
+pub mod interop;
 
 #[cfg(test)]
 mod tests;

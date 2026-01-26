@@ -28,6 +28,8 @@ use std::process::ChildStdout;
 use std::process::Command;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use base64::Engine;
@@ -64,6 +66,8 @@ use crate::config::TrustPolicy;
 
 /// Maximum size of MCP provider responses (bytes).
 const MAX_MCP_PROVIDER_RESPONSE_BYTES: usize = 1024 * 1024;
+/// JSON-RPC request id counter for MCP provider calls.
+static JSON_RPC_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 // ============================================================================
 // SECTION: Public Types
@@ -306,12 +310,19 @@ impl EvidenceProvider for McpProviderClient {
                 "context": ctx,
             }
         });
-        let request = JsonRpcRequest::new("tools/call", params);
+        let request_id = request_id_for_context(ctx);
+        let request = JsonRpcRequest::new("tools/call", params, request_id);
         let response = match &self.transport {
             McpTransport::Http {
                 url,
                 client,
-            } => call_http(client, url, self.bearer_token.as_deref(), &request)?,
+            } => call_http(
+                client,
+                url,
+                self.bearer_token.as_deref(),
+                &request,
+                ctx.correlation_id.as_ref().map(decision_gate_core::CorrelationId::as_str),
+            )?,
             McpTransport::Stdio {
                 process,
             } => call_stdio(process, &request)?,
@@ -335,7 +346,7 @@ struct JsonRpcRequest {
     /// JSON-RPC protocol version.
     jsonrpc: &'static str,
     /// Request identifier.
-    id: u64,
+    id: Value,
     /// Remote method name.
     method: String,
     /// Request parameters payload.
@@ -343,11 +354,11 @@ struct JsonRpcRequest {
 }
 
 impl JsonRpcRequest {
-    /// Builds a JSON-RPC request with a fixed identifier.
-    fn new(method: &str, params: Value) -> Self {
+    /// Builds a JSON-RPC request with the provided identifier.
+    fn new(method: &str, params: Value, id: Value) -> Self {
         Self {
             jsonrpc: "2.0",
-            id: 1,
+            id,
             method: method.to_string(),
             params,
         }
@@ -393,16 +404,27 @@ enum ToolContent {
     },
 }
 
+fn request_id_for_context(ctx: &EvidenceContext) -> Value {
+    if let Some(correlation_id) = ctx.correlation_id.as_ref() {
+        return Value::String(correlation_id.as_str().to_string());
+    }
+    Value::Number(serde_json::Number::from(JSON_RPC_ID_COUNTER.fetch_add(1, Ordering::Relaxed)))
+}
+
 /// Executes a JSON-RPC tool call over HTTP.
 fn call_http(
     client: &Client,
     url: &str,
     bearer: Option<&str>,
     request: &JsonRpcRequest,
+    correlation_id: Option<&str>,
 ) -> Result<JsonRpcResponse, EvidenceError> {
     let mut builder = client.post(url).json(request);
     if let Some(token) = bearer {
         builder = builder.bearer_auth(token);
+    }
+    if let Some(value) = sanitize_header_value(correlation_id) {
+        builder = builder.header("x-correlation-id", value);
     }
     let mut response = builder.send().map_err(|err| map_http_send_error(&err))?;
     if !response.status().is_success() {
@@ -514,6 +536,40 @@ fn read_http_body(
         return Err(EvidenceError::Provider("http response too large".to_string()));
     }
     Ok(buf)
+}
+
+/// Sanitizes a header value by enforcing ASCII tchars and length bounds.
+fn sanitize_header_value(value: Option<&str>) -> Option<String> {
+    let value = value?.trim();
+    if value.is_empty() || value.len() > 128 {
+        return None;
+    }
+    if !value.chars().all(|ch| ch.is_ascii() && is_tchar(ch)) {
+        return None;
+    }
+    Some(value.to_string())
+}
+
+/// Returns true when the character is a valid HTTP token character.
+const fn is_tchar(ch: char) -> bool {
+    ch.is_ascii_alphanumeric()
+        || matches!(
+            ch,
+            '!' | '#'
+                | '$'
+                | '%'
+                | '&'
+                | '\''
+                | '*'
+                | '+'
+                | '-'
+                | '.'
+                | '^'
+                | '_'
+                | '`'
+                | '|'
+                | '~'
+        )
 }
 
 /// Maps reqwest send errors to stable provider error messages.

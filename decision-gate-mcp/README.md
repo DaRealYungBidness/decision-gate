@@ -11,11 +11,19 @@ Purpose: Expose the Decision Gate control plane over JSON-RPC 2.0.
 
 ## Overview
 `decision-gate-mcp` exposes Decision Gate as an MCP JSON-RPC 2.0 server over
-stdio, HTTP, or SSE. It is the canonical tool surface for scenario operations,
-provider-backed evidence queries, schema registry access, and precheck.
+stdio, HTTP, or SSE. Decision Gate is a deterministic checkpoint and
+requirement-evaluation system for gating plan progression, and this crate is
+its canonical tool surface for scenario operations, provider-backed evidence
+queries, schema registry access, and precheck.
 
 This crate is a thin transport and policy layer over the control plane in
 `decision-gate-core`. It must never implement divergent behavior.
+
+## AssetCore Integration
+DG integrates with AssetCore for deterministic evidence and replay without
+coupling the codebases. See `Docs/integrations/assetcore/` for the canonical
+integration hub and `Docs/architecture/decision_gate_assetcore_integration_contract.md`
+for the contract.
 
 ## Capabilities
 - MCP tools: scenario lifecycle, evidence_query, runpack export/verify.

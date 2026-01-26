@@ -187,7 +187,7 @@ enum ExpectedRunStatusArg {
 /// Arguments for interop evaluation.
 #[derive(Args, Debug)]
 struct InteropEvalCommand {
-    /// MCP HTTP JSON-RPC base URL (e.g., http://127.0.0.1:8088/rpc).
+    /// MCP HTTP JSON-RPC base URL (e.g., <http://127.0.0.1:8088/rpc>).
     #[arg(long, value_name = "URL")]
     mcp_url: String,
     /// Path to the scenario spec JSON file.
@@ -921,7 +921,7 @@ fn resolve_interop_timestamp(
 }
 
 /// Maps CLI run status selections to core run status values.
-fn run_status_from_arg(status: ExpectedRunStatusArg) -> RunStatus {
+const fn run_status_from_arg(status: ExpectedRunStatusArg) -> RunStatus {
     match status {
         ExpectedRunStatusArg::Active => RunStatus::Active,
         ExpectedRunStatusArg::Completed => RunStatus::Completed,

@@ -18,6 +18,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::core::evidence::EvidenceAnchorPolicy;
 use crate::core::hashing::HashAlgorithm;
 use crate::core::hashing::HashDigest;
 use crate::core::identifiers::NamespaceId;
@@ -66,6 +67,9 @@ pub struct RunpackManifest {
     pub hash_algorithm: HashAlgorithm,
     /// Verifier mode for offline verification.
     pub verifier_mode: VerifierMode,
+    /// Anchor policy enforced during evidence evaluation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor_policy: Option<EvidenceAnchorPolicy>,
     /// Integrity metadata for the runpack.
     pub integrity: RunpackIntegrity,
     /// Artifact index entries.

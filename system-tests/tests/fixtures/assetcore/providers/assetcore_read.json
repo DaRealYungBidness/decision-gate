@@ -36,7 +36,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],
@@ -90,7 +90,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],
@@ -136,7 +136,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],
@@ -192,7 +192,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],
@@ -234,7 +234,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],
@@ -282,7 +282,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],
@@ -340,7 +340,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],
@@ -386,7 +386,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],
@@ -444,7 +444,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],
@@ -492,7 +492,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],
@@ -550,7 +550,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],
@@ -596,7 +596,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],
@@ -660,7 +660,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],
@@ -714,7 +714,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],
@@ -778,7 +778,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],
@@ -824,7 +824,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],
@@ -870,7 +870,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],
@@ -928,7 +928,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],
@@ -974,7 +974,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],
@@ -1020,7 +1020,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],
@@ -1066,7 +1066,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],
@@ -1112,7 +1112,7 @@
         "exists",
         "not_exists"
       ],
-      "anchor_types": [],
+      "anchor_types": ["assetcore.anchor_set"],
       "content_types": [
         "application/json"
       ],

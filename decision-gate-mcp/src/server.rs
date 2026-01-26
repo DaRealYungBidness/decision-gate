@@ -84,6 +84,10 @@ use crate::config::ServerMode;
 use crate::config::ServerTlsConfig;
 use crate::config::ServerTransport;
 use crate::evidence::FederatedEvidenceProvider;
+use crate::namespace_authority::AssetCoreNamespaceAuthority;
+use crate::namespace_authority::NamespaceAuthority;
+use crate::namespace_authority::NamespaceAuthorityError;
+use crate::namespace_authority::NoopNamespaceAuthority;
 use crate::telemetry::McpMethod;
 use crate::telemetry::McpMetricEvent;
 use crate::telemetry::McpMetrics;
@@ -154,6 +158,8 @@ impl McpServer {
         let schema_registry = build_schema_registry(&config)?;
         let provider_transports = build_provider_transports(&config);
         let schema_registry_limits = build_schema_registry_limits(&config)?;
+        let namespace_authority = build_namespace_authority(&config)
+            .map_err(|err| McpServerError::Init(err.to_string()))?;
         let authz = Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
         let auth_audit = Arc::new(StderrAuditSink);
         let dispatch_policy = config
@@ -173,9 +179,11 @@ impl McpServer {
             authz,
             audit: auth_audit,
             trust_requirement: config.effective_trust_requirement(),
+            anchor_policy: config.anchors.to_policy(),
             precheck_audit: Arc::clone(&audit),
             precheck_audit_payloads: config.server.audit.log_precheck_payloads,
             allow_default_namespace: config.allow_default_namespace(),
+            namespace_authority,
         });
         emit_local_only_warning(&config.server);
         emit_dev_permissive_warning(&config.server);
@@ -309,6 +317,30 @@ fn build_schema_registry_limits(
         max_schema_bytes: config.schema_registry.max_schema_bytes,
         max_entries,
     })
+}
+
+/// Builds the namespace authority implementation from config.
+fn build_namespace_authority(
+    config: &DecisionGateConfig,
+) -> Result<Arc<dyn NamespaceAuthority>, NamespaceAuthorityError> {
+    match config.namespace.authority.mode {
+        crate::config::NamespaceAuthorityMode::None => Ok(Arc::new(NoopNamespaceAuthority)),
+        crate::config::NamespaceAuthorityMode::AssetcoreHttp => {
+            let assetcore = config.namespace.authority.assetcore.as_ref().ok_or_else(|| {
+                NamespaceAuthorityError::Unavailable(
+                    "assetcore namespace authority config missing".to_string(),
+                )
+            })?;
+            let authority = AssetCoreNamespaceAuthority::new(
+                assetcore.base_url.clone(),
+                assetcore.auth_token.clone(),
+                Duration::from_millis(assetcore.connect_timeout_ms),
+                Duration::from_millis(assetcore.request_timeout_ms),
+                assetcore.mapping.clone(),
+            )?;
+            Ok(Arc::new(authority))
+        }
+    }
 }
 
 /// Builds an audit sink from server configuration.

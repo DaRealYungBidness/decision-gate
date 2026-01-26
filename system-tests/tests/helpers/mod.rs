@@ -9,8 +9,10 @@
 #![allow(dead_code, reason = "Shared helpers are reused across multiple test suites.")]
 
 pub mod artifacts;
+pub mod auth_proxy;
 pub mod harness;
 pub mod mcp_client;
+pub mod namespace_authority_stub;
 pub mod provider_stub;
 pub mod readiness;
 pub mod scenarios;

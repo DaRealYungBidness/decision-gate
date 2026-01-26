@@ -21,12 +21,15 @@ use ret_logic::LogicMode;
 use ret_logic::TriState;
 use serde::Deserialize;
 use serde::Serialize;
+use serde_json::Value;
 use thiserror::Error;
 
 use crate::core::AdvanceTo;
+use crate::core::AnchorRequirement;
 use crate::core::DecisionId;
 use crate::core::DecisionOutcome;
 use crate::core::DecisionRecord;
+use crate::core::EvidenceAnchorPolicy;
 use crate::core::EvidenceRecord;
 use crate::core::EvidenceResult;
 use crate::core::EvidenceValue;
@@ -102,7 +105,7 @@ pub const MAX_PAYLOAD_BYTES: usize = 2 * 1024 * 1024;
 // ============================================================================
 
 /// Configuration for the Decision Gate control plane engine.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ControlPlaneConfig {
     /// Tri-state logic mode used for gate evaluation.
     pub logic_mode: LogicMode,
@@ -110,6 +113,8 @@ pub struct ControlPlaneConfig {
     pub hash_algorithm: HashAlgorithm,
     /// Minimum trust requirement for evidence.
     pub trust_requirement: TrustRequirement,
+    /// Anchor policy requirements for evidence providers.
+    pub anchor_policy: EvidenceAnchorPolicy,
 }
 
 impl Default for ControlPlaneConfig {
@@ -118,6 +123,7 @@ impl Default for ControlPlaneConfig {
             logic_mode: LogicMode::Kleene,
             hash_algorithm: DEFAULT_HASH_ALGORITHM,
             trust_requirement: TrustRequirement::default(),
+            anchor_policy: EvidenceAnchorPolicy::default(),
         }
     }
 }
@@ -905,24 +911,27 @@ where
     ) -> Result<Vec<EvidenceRecord>, ControlPlaneError> {
         let mut records = Vec::with_capacity(predicate_specs.len());
         for spec in predicate_specs {
-            let (result, error) = match self.evidence.query(&spec.query, context) {
+            let (mut result, mut error) = match self.evidence.query(&spec.query, context) {
                 Ok(result) => (result, None),
                 Err(err) => (
-                    EvidenceResult {
-                        value: None,
-                        lane: TrustLane::Verified,
-                        evidence_hash: None,
-                        evidence_ref: None,
-                        evidence_anchor: None,
-                        signature: None,
-                        content_type: None,
-                    },
+                    Self::empty_verified_result(),
                     Some(crate::core::EvidenceProviderError {
                         code: "provider_error".to_string(),
                         message: err.to_string(),
                     }),
                 ),
             };
+            if error.is_none()
+                && let Some(requirement) =
+                    self.config.anchor_policy.requirement_for(&spec.query.provider_id)
+                && let Err(message) = Self::validate_anchor_requirement(requirement, &result)
+            {
+                result = Self::empty_verified_result();
+                error = Some(crate::core::EvidenceProviderError {
+                    code: "anchor_invalid".to_string(),
+                    message,
+                });
+            }
             let normalized = normalize_evidence_result(&result, self.config.hash_algorithm)?;
             let status = if error.is_some() {
                 TriState::Unknown
@@ -937,6 +946,54 @@ where
             });
         }
         Ok(records)
+    }
+
+    /// Returns an empty verified evidence result for error paths.
+    const fn empty_verified_result() -> EvidenceResult {
+        EvidenceResult {
+            value: None,
+            lane: TrustLane::Verified,
+            evidence_hash: None,
+            evidence_ref: None,
+            evidence_anchor: None,
+            signature: None,
+            content_type: None,
+        }
+    }
+
+    /// Validates anchor metadata against the configured requirement.
+    fn validate_anchor_requirement(
+        requirement: &AnchorRequirement,
+        result: &EvidenceResult,
+    ) -> Result<(), String> {
+        let anchor =
+            result.evidence_anchor.as_ref().ok_or_else(|| "missing evidence_anchor".to_string())?;
+        if anchor.anchor_type != requirement.anchor_type {
+            return Err(format!(
+                "anchor_type mismatch: expected {} got {}",
+                requirement.anchor_type, anchor.anchor_type
+            ));
+        }
+        let value: Value = serde_json::from_str(&anchor.anchor_value)
+            .map_err(|_| "anchor_value must be canonical JSON".to_string())?;
+        let object =
+            value.as_object().ok_or_else(|| "anchor_value must be a JSON object".to_string())?;
+        for field in &requirement.required_fields {
+            match object.get(field) {
+                Some(Value::String(_) | Value::Number(_)) => {}
+                Some(Value::Bool(_)) => {
+                    return Err(format!("anchor field {field} must be string or number"));
+                }
+                Some(Value::Null) => {
+                    return Err(format!("anchor field {field} must be set"));
+                }
+                Some(Value::Array(_) | Value::Object(_)) => {
+                    return Err(format!("anchor field {field} must be scalar"));
+                }
+                None => return Err(format!("anchor field {field} missing")),
+            }
+        }
+        Ok(())
     }
 
     /// Issues disclosure packets for a stage decision.

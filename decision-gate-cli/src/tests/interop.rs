@@ -124,8 +124,9 @@ impl TestMcpServer {
         let requests_handle = Arc::clone(&requests);
         let responder_handle = Arc::clone(&responder);
         let handle = thread::spawn(move || {
-            for _ in 0..expected_calls {
-                let Some(mut stream) = accept_with_timeout(&listener, Duration::from_secs(5)) else {
+            for _ in 0 .. expected_calls {
+                let Some(mut stream) = accept_with_timeout(&listener, Duration::from_secs(5))
+                else {
                     break;
                 };
                 let _ = handle_connection(&mut stream, &requests_handle, &responder_handle);
@@ -201,17 +202,17 @@ fn read_json_body(stream: &mut TcpStream) -> Result<Value, String> {
         if read == 0 {
             break;
         }
-        buffer.extend_from_slice(&chunk[..read]);
+        buffer.extend_from_slice(&chunk[.. read]);
         if header_end.is_none() {
             if let Some(end) = find_header_end(&buffer) {
                 header_end = Some(end);
-                content_length = Some(parse_content_length(&buffer[..end])?);
+                content_length = Some(parse_content_length(&buffer[.. end])?);
             }
         }
         if let (Some(end), Some(length)) = (header_end, content_length) {
             let available = buffer.len().saturating_sub(end);
             if available >= length {
-                let body = &buffer[end..end + length];
+                let body = &buffer[end .. end + length];
                 return serde_json::from_slice(body).map_err(|err| format!("parse json: {err}"));
             }
         }
@@ -220,10 +221,7 @@ fn read_json_body(stream: &mut TcpStream) -> Result<Value, String> {
 }
 
 fn find_header_end(buffer: &[u8]) -> Option<usize> {
-    buffer
-        .windows(4)
-        .position(|window| window == b"\r\n\r\n")
-        .map(|pos| pos + 4)
+    buffer.windows(4).position(|window| window == b"\r\n\r\n").map(|pos| pos + 4)
 }
 
 fn parse_content_length(header: &[u8]) -> Result<usize, String> {
@@ -238,10 +236,10 @@ fn parse_content_length(header: &[u8]) -> Result<usize, String> {
 }
 
 fn write_json_response(stream: &mut TcpStream, response: &Value) -> Result<(), String> {
-    let body =
-        serde_json::to_vec(response).map_err(|err| format!("serialize response: {err}"))?;
+    let body = serde_json::to_vec(response).map_err(|err| format!("serialize response: {err}"))?;
     let header = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: \
+         close\r\n\r\n",
         body.len()
     );
     stream.write_all(header.as_bytes()).map_err(|err| format!("write header: {err}"))?;
@@ -429,16 +427,13 @@ async fn run_interop_executes_full_sequence() {
         .collect();
     assert_eq!(
         names,
-        vec![
-            "scenario_define",
-            "scenario_start",
-            "scenario_trigger",
-            "scenario_status"
-        ]
+        vec!["scenario_define", "scenario_start", "scenario_trigger", "scenario_status"]
     );
 
-    let define_args = serde_json::to_value(ScenarioDefineRequest { spec: spec.clone() })
-        .expect("serialize define");
+    let define_args = serde_json::to_value(ScenarioDefineRequest {
+        spec: spec.clone(),
+    })
+    .expect("serialize define");
     let start_args = serde_json::to_value(ScenarioStartRequest {
         scenario_id: spec.scenario_id.clone(),
         run_config: run_config.clone(),
@@ -480,9 +475,8 @@ async fn run_interop_rejects_define_scenario_mismatch() {
         spec_hash,
     };
 
-    let server = TestMcpServer::start(1, move |request| {
-        jsonrpc_response(&request, &define_response)
-    });
+    let server =
+        TestMcpServer::start(1, move |request| jsonrpc_response(&request, &define_response));
 
     let config = InteropConfig {
         mcp_url: server.url(),

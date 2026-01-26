@@ -22,6 +22,7 @@ use decision_gate_contract::types::ProviderContract;
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
 use decision_gate_core::DecisionOutcome;
+use decision_gate_core::EvidenceAnchor;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::GateId;
 use decision_gate_core::GateSpec;
@@ -41,6 +42,7 @@ use decision_gate_core::Timestamp;
 use decision_gate_core::TriggerId;
 use decision_gate_core::TriggerKind;
 use decision_gate_core::runtime::TriggerResult;
+use decision_gate_mcp::config::AnchorProviderConfig;
 use decision_gate_mcp::config::ProviderTimeoutConfig;
 use decision_gate_mcp::tools::ScenarioDefineRequest;
 use decision_gate_mcp::tools::ScenarioDefineResponse;
@@ -303,21 +305,45 @@ async fn assetcore_interop_fixtures() -> Result<(), Box<dyn std::error::Error>> 
         load_fixture(&fixture_root_dir.join("triggers/assetcore-interop-full.json"))?;
     let fixture_map: FixtureMap = load_fixture(&fixture_root_dir.join("fixture_map.json"))?;
 
+    let namespace_id = fixture_map.assetcore_namespace_id.unwrap_or(0);
+    let commit_id = fixture_map.fixture_version.clone().unwrap_or_else(|| "fixture".to_string());
     let fixtures = fixture_map
         .fixtures
         .iter()
-        .map(|fixture| ProviderFixture {
-            predicate: fixture.predicate.clone(),
-            params: fixture.params.clone(),
-            result: fixture.expected.clone(),
+        .enumerate()
+        .map(|(index, fixture)| {
+            let anchor_value = json!({
+                "assetcore.namespace_id": namespace_id,
+                "assetcore.commit_id": commit_id,
+                "assetcore.world_seq": index as u64 + 1
+            });
+            ProviderFixture {
+                predicate: fixture.predicate.clone(),
+                params: fixture.params.clone(),
+                result: fixture.expected.clone(),
+                anchor: Some(EvidenceAnchor {
+                    anchor_type: "assetcore.anchor_set".to_string(),
+                    anchor_value: serde_json::to_string(&anchor_value)
+                        .unwrap_or_else(|_| "{}".to_string()),
+                }),
+            }
         })
         .collect();
 
     let provider = spawn_provider_fixture_stub(fixtures).await?;
     let bind = allocate_bind_addr()?.to_string();
     let provider_contract = fixture_root("assetcore/providers").join("assetcore_read.json");
-    let config =
+    let mut config =
         config_with_provider(&bind, "assetcore_read", provider.base_url(), &provider_contract);
+    config.anchors.providers.push(AnchorProviderConfig {
+        provider_id: "assetcore_read".to_string(),
+        anchor_type: "assetcore.anchor_set".to_string(),
+        required_fields: vec![
+            "assetcore.namespace_id".to_string(),
+            "assetcore.commit_id".to_string(),
+            "assetcore.world_seq".to_string(),
+        ],
+    });
     let server = spawn_mcp_server(config).await?;
     let client = server.client(Duration::from_secs(5))?;
     wait_for_server_ready(&client, Duration::from_secs(5)).await?;
@@ -458,6 +484,10 @@ fn load_fixture<T: DeserializeOwned>(path: &Path) -> Result<T, Box<dyn std::erro
 
 #[derive(Debug, Deserialize, serde::Serialize)]
 struct FixtureMap {
+    #[serde(default)]
+    assetcore_namespace_id: Option<u64>,
+    #[serde(default)]
+    fixture_version: Option<String>,
     fixtures: Vec<FixtureEntry>,
 }
 

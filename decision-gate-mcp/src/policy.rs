@@ -20,21 +20,16 @@ use serde::Deserialize;
 use serde::Serialize;
 
 /// Policy engine selection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum PolicyEngine {
     /// Permit all dispatches.
+    #[default]
     PermitAll,
     /// Deny all dispatches.
     DenyAll,
     /// Evaluate deterministic static rules.
     Static,
-}
-
-impl Default for PolicyEngine {
-    fn default() -> Self {
-        Self::PermitAll
-    }
 }
 
 /// Static policy configuration.
@@ -59,6 +54,10 @@ impl Default for StaticPolicyConfig {
 
 impl StaticPolicyConfig {
     /// Validates static policy configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when defaults or rules are invalid.
     pub fn validate(&self) -> Result<(), String> {
         if self.default == PolicyEffect::Error {
             return Err("static policy default must be permit or deny".to_string());
@@ -97,6 +96,11 @@ pub enum PolicyEffect {
 }
 
 impl PolicyEffect {
+    /// Converts the policy effect into a concrete decision.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolicyError`] when the effect is `error`.
     fn to_decision(self, error_message: Option<&str>) -> Result<PolicyDecision, PolicyError> {
         match self {
             Self::Permit => Ok(PolicyDecision::Permit),
@@ -152,9 +156,9 @@ pub struct PolicyRule {
 }
 
 impl PolicyRule {
+    /// Validates rule configuration for internal consistency.
     fn validate(&self) -> Result<(), String> {
-        let mut has_selector = false;
-        if !self.target_kinds.is_empty()
+        let has_selector = !self.target_kinds.is_empty()
             || !self.targets.is_empty()
             || !self.require_labels.is_empty()
             || !self.forbid_labels.is_empty()
@@ -164,10 +168,7 @@ impl PolicyRule {
             || !self.schema_ids.is_empty()
             || !self.packet_ids.is_empty()
             || !self.stage_ids.is_empty()
-            || !self.scenario_ids.is_empty()
-        {
-            has_selector = true;
-        }
+            || !self.scenario_ids.is_empty();
         if !has_selector {
             return Err("rule must include at least one match criterion".to_string());
         }
@@ -182,6 +183,7 @@ impl PolicyRule {
         Ok(())
     }
 
+    /// Returns true when the rule matches the dispatch target and envelope.
     fn matches(&self, target: &DispatchTarget, envelope: &PacketEnvelope) -> bool {
         if !self.target_kinds.is_empty()
             && !self.target_kinds.iter().any(|kind| kind.matches(target))
@@ -266,34 +268,15 @@ pub enum DispatchTargetKind {
 }
 
 impl DispatchTargetKind {
-    fn matches(&self, target: &DispatchTarget) -> bool {
-        match (self, target) {
-            (
-                Self::Agent,
-                DispatchTarget::Agent {
-                    ..
-                },
-            ) => true,
-            (
-                Self::Session,
-                DispatchTarget::Session {
-                    ..
-                },
-            ) => true,
-            (
-                Self::External,
-                DispatchTarget::External {
-                    ..
-                },
-            ) => true,
-            (
-                Self::Channel,
-                DispatchTarget::Channel {
-                    ..
-                },
-            ) => true,
-            _ => false,
-        }
+    /// Returns true when the target matches this kind.
+    const fn matches(self, target: &DispatchTarget) -> bool {
+        matches!(
+            (self, target),
+            (Self::Agent, DispatchTarget::Agent { .. })
+                | (Self::Session, DispatchTarget::Session { .. })
+                | (Self::External, DispatchTarget::External { .. })
+                | (Self::Channel, DispatchTarget::Channel { .. })
+        )
     }
 }
 
@@ -315,6 +298,7 @@ pub struct PolicyTargetSelector {
 }
 
 impl PolicyTargetSelector {
+    /// Validates target selector fields for the target kind.
     fn validate(&self) -> Result<(), String> {
         match self.target_kind {
             DispatchTargetKind::External => {
@@ -336,25 +320,26 @@ impl PolicyTargetSelector {
         Ok(())
     }
 
+    /// Returns true when the selector matches the target.
     fn matches(&self, target: &DispatchTarget) -> bool {
         match target {
             DispatchTarget::Agent {
                 agent_id,
             } => {
                 self.target_kind == DispatchTargetKind::Agent
-                    && self.target_id.as_deref().map_or(true, |id| id == agent_id)
+                    && self.target_id.as_deref().is_none_or(|id| id == agent_id)
             }
             DispatchTarget::Session {
                 session_id,
             } => {
                 self.target_kind == DispatchTargetKind::Session
-                    && self.target_id.as_deref().map_or(true, |id| id == session_id)
+                    && self.target_id.as_deref().is_none_or(|id| id == session_id)
             }
             DispatchTarget::Channel {
                 channel,
             } => {
                 self.target_kind == DispatchTargetKind::Channel
-                    && self.target_id.as_deref().map_or(true, |id| id == channel)
+                    && self.target_id.as_deref().is_none_or(|id| id == channel)
             }
             DispatchTarget::External {
                 system,
@@ -405,6 +390,7 @@ impl PolicyDecider for DispatchPolicy {
     }
 }
 
-fn default_static_effect() -> PolicyEffect {
+/// Returns the default static policy effect.
+const fn default_static_effect() -> PolicyEffect {
     PolicyEffect::Deny
 }

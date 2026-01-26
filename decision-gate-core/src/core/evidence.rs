@@ -214,6 +214,47 @@ pub struct EvidenceResult {
 }
 
 // ============================================================================
+// SECTION: Anchor Policy
+// ============================================================================
+
+/// Anchor requirements for evidence providers.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AnchorRequirement {
+    /// Anchor type identifier expected on evidence results.
+    pub anchor_type: String,
+    /// Required fields inside the anchor payload.
+    pub required_fields: Vec<String>,
+}
+
+/// Provider-specific anchor policy.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProviderAnchorPolicy {
+    /// Provider identifier enforced by this policy.
+    pub provider_id: ProviderId,
+    /// Anchor requirements for the provider.
+    pub requirement: AnchorRequirement,
+}
+
+/// Evidence anchor policy applied by the control plane and runpack verifier.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct EvidenceAnchorPolicy {
+    /// Provider-specific anchor requirements.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub providers: Vec<ProviderAnchorPolicy>,
+}
+
+impl EvidenceAnchorPolicy {
+    /// Returns the anchor requirement for a provider, if configured.
+    #[must_use]
+    pub fn requirement_for(&self, provider_id: &ProviderId) -> Option<&AnchorRequirement> {
+        self.providers
+            .iter()
+            .find(|policy| policy.provider_id == *provider_id)
+            .map(|policy| &policy.requirement)
+    }
+}
+
+// ============================================================================
 // SECTION: Provider Validation
 // ============================================================================
 

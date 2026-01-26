@@ -75,6 +75,7 @@ use crate::config::ServerTransport;
 use crate::config::TrustConfig;
 use crate::config::ValidationConfig;
 use crate::evidence::FederatedEvidenceProvider;
+use crate::namespace_authority::NoopNamespaceAuthority;
 use crate::telemetry::McpMethod;
 use crate::telemetry::McpMetricEvent;
 use crate::telemetry::McpMetrics;
@@ -118,9 +119,11 @@ fn sample_config() -> DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: crate::config::NamespaceConfig {
             allow_default: true,
+            ..crate::config::NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: crate::config::AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -152,9 +155,11 @@ fn sample_router(config: &DecisionGateConfig) -> ToolRouter {
         authz,
         audit,
         trust_requirement: config.effective_trust_requirement(),
+        anchor_policy: config.anchors.to_policy(),
         precheck_audit: Arc::new(McpNoopAuditSink),
         precheck_audit_payloads: config.server.audit.log_precheck_payloads,
         allow_default_namespace: config.allow_default_namespace(),
+        namespace_authority: Arc::new(NoopNamespaceAuthority),
     })
 }
 

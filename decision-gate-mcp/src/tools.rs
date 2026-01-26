@@ -34,6 +34,7 @@ use decision_gate_core::DecisionOutcome;
 use decision_gate_core::DispatchReceipt;
 use decision_gate_core::DispatchTarget;
 use decision_gate_core::Dispatcher;
+use decision_gate_core::EvidenceAnchorPolicy;
 use decision_gate_core::EvidenceContext;
 use decision_gate_core::EvidenceProvider;
 use decision_gate_core::EvidenceQuery;
@@ -97,6 +98,8 @@ use crate::capabilities::CapabilityRegistry;
 use crate::config::EvidencePolicyConfig;
 use crate::config::ValidationConfig;
 use crate::evidence::FederatedEvidenceProvider;
+use crate::namespace_authority::NamespaceAuthority;
+use crate::namespace_authority::NamespaceAuthorityError;
 use crate::policy::DispatchPolicy;
 use crate::runpack::FileArtifactReader;
 use crate::runpack::FileArtifactSink;
@@ -136,6 +139,8 @@ pub struct ToolRouter {
     schema_registry_limits: SchemaRegistryLimits,
     /// Minimum trust requirement for evidence evaluation.
     trust_requirement: TrustRequirement,
+    /// Anchor policy requirements for evidence providers.
+    anchor_policy: EvidenceAnchorPolicy,
     /// Capability registry used for preflight validation.
     capabilities: Arc<CapabilityRegistry>,
     /// Authn/authz policy for tool calls.
@@ -148,6 +153,8 @@ pub struct ToolRouter {
     precheck_audit_payloads: bool,
     /// Allow default namespace usage.
     allow_default_namespace: bool,
+    /// Namespace authority for integrated deployments.
+    namespace_authority: Arc<dyn NamespaceAuthority>,
 }
 
 /// Configuration inputs for building a tool router.
@@ -176,12 +183,16 @@ pub struct ToolRouterConfig {
     pub audit: Arc<dyn AuthAuditSink>,
     /// Minimum trust requirement for evidence evaluation.
     pub trust_requirement: TrustRequirement,
+    /// Anchor policy requirements for evidence providers.
+    pub anchor_policy: EvidenceAnchorPolicy,
     /// Audit sink for precheck events.
     pub precheck_audit: Arc<dyn McpAuditSink>,
     /// Whether to log raw precheck request/response payloads.
     pub precheck_audit_payloads: bool,
     /// Allow default namespace usage.
     pub allow_default_namespace: bool,
+    /// Namespace authority for integrated deployments.
+    pub namespace_authority: Arc<dyn NamespaceAuthority>,
 }
 
 impl ToolRouter {
@@ -202,9 +213,11 @@ impl ToolRouter {
             authz: config.authz,
             audit: config.audit,
             trust_requirement: config.trust_requirement,
+            anchor_policy: config.anchor_policy,
             precheck_audit: config.precheck_audit,
             precheck_audit_payloads: config.precheck_audit_payloads,
             allow_default_namespace: config.allow_default_namespace,
+            namespace_authority: config.namespace_authority,
         }
     }
 
@@ -234,42 +247,42 @@ impl ToolRouter {
         match tool {
             ToolName::ScenarioDefine => {
                 let request = decode::<ScenarioDefineRequest>(payload)?;
-                let response = self.define_scenario(request)?;
+                let response = self.define_scenario(context, request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
             ToolName::ScenarioStart => {
                 let request = decode::<ScenarioStartRequest>(payload)?;
-                let response = self.start_run(request)?;
+                let response = self.start_run(context, request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
             ToolName::ScenarioStatus => {
                 let request = decode::<ScenarioStatusRequest>(payload)?;
-                let response = self.status(&request)?;
+                let response = self.status(context, &request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
             ToolName::ScenarioNext => {
                 let request = decode::<ScenarioNextRequest>(payload)?;
-                let response = self.next(&request)?;
+                let response = self.next(context, &request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
             ToolName::ScenarioSubmit => {
                 let request = decode::<ScenarioSubmitRequest>(payload)?;
-                let response = self.submit(&request)?;
+                let response = self.submit(context, &request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
             ToolName::ScenarioTrigger => {
                 let request = decode::<ScenarioTriggerRequest>(payload)?;
-                let response = self.trigger(&request)?;
+                let response = self.trigger(context, &request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
             ToolName::EvidenceQuery => {
                 let request = decode::<EvidenceQueryRequest>(payload)?;
-                let response = self.query_evidence(&request)?;
+                let response = self.query_evidence(context, &request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
             ToolName::RunpackExport => {
                 let request = decode::<RunpackExportRequest>(payload)?;
-                let response = self.export_runpack(&request)?;
+                let response = self.export_runpack(context, &request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
             ToolName::RunpackVerify => {
@@ -284,27 +297,27 @@ impl ToolRouter {
             }
             ToolName::SchemasRegister => {
                 let request = decode::<SchemasRegisterRequest>(payload)?;
-                let response = self.schemas_register(&request)?;
+                let response = self.schemas_register(context, &request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
             ToolName::SchemasList => {
                 let request = decode::<SchemasListRequest>(payload)?;
-                let response = self.schemas_list(&request)?;
+                let response = self.schemas_list(context, &request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
             ToolName::SchemasGet => {
                 let request = decode::<SchemasGetRequest>(payload)?;
-                let response = self.schemas_get(&request)?;
+                let response = self.schemas_get(context, &request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
             ToolName::ScenariosList => {
                 let request = decode::<ScenariosListRequest>(payload)?;
-                let response = self.scenarios_list(&request)?;
+                let response = self.scenarios_list(context, &request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
             ToolName::Precheck => {
                 let request = decode::<PrecheckToolRequest>(payload)?;
-                let response = self.precheck(&request)?;
+                let response = self.precheck(context, &request)?;
                 serde_json::to_value(response).map_err(|_| ToolError::Serialization)
             }
         }
@@ -649,10 +662,15 @@ impl ToolRouter {
     /// Defines and registers a scenario specification.
     fn define_scenario(
         &self,
+        context: &RequestContext,
         request: ScenarioDefineRequest,
     ) -> Result<ScenarioDefineResponse, ToolError> {
         let scenario_id = request.spec.scenario_id.to_string();
-        self.ensure_namespace_allowed(&request.spec.namespace_id)?;
+        self.ensure_namespace_allowed(
+            context,
+            request.spec.default_tenant_id.as_ref(),
+            &request.spec.namespace_id,
+        )?;
         {
             let guard = self
                 .state
@@ -679,6 +697,7 @@ impl ToolRouter {
             Some(policy),
             ControlPlaneConfig {
                 trust_requirement: self.trust_requirement,
+                anchor_policy: self.anchor_policy.clone(),
                 ..ControlPlaneConfig::default()
             },
         )
@@ -712,8 +731,16 @@ impl ToolRouter {
     }
 
     /// Starts a new run for a scenario.
-    fn start_run(&self, request: ScenarioStartRequest) -> Result<RunState, ToolError> {
-        self.ensure_namespace_allowed(&request.run_config.namespace_id)?;
+    fn start_run(
+        &self,
+        context: &RequestContext,
+        request: ScenarioStartRequest,
+    ) -> Result<RunState, ToolError> {
+        self.ensure_namespace_allowed(
+            context,
+            Some(&request.run_config.tenant_id),
+            &request.run_config.namespace_id,
+        )?;
         let runtime = self.runtime_for(&request.scenario_id)?;
         let state = runtime
             .control
@@ -723,8 +750,16 @@ impl ToolRouter {
     }
 
     /// Returns the current status for a scenario run.
-    fn status(&self, request: &ScenarioStatusRequest) -> Result<ScenarioStatus, ToolError> {
-        self.ensure_namespace_allowed(&request.request.namespace_id)?;
+    fn status(
+        &self,
+        context: &RequestContext,
+        request: &ScenarioStatusRequest,
+    ) -> Result<ScenarioStatus, ToolError> {
+        self.ensure_namespace_allowed(
+            context,
+            Some(&request.request.tenant_id),
+            &request.request.namespace_id,
+        )?;
         let runtime = self.runtime_for(&request.scenario_id)?;
         let status =
             runtime.control.scenario_status(&request.request).map_err(ToolError::ControlPlane)?;
@@ -732,8 +767,16 @@ impl ToolRouter {
     }
 
     /// Advances a scenario evaluation.
-    fn next(&self, request: &ScenarioNextRequest) -> Result<NextResult, ToolError> {
-        self.ensure_namespace_allowed(&request.request.namespace_id)?;
+    fn next(
+        &self,
+        context: &RequestContext,
+        request: &ScenarioNextRequest,
+    ) -> Result<NextResult, ToolError> {
+        self.ensure_namespace_allowed(
+            context,
+            Some(&request.request.tenant_id),
+            &request.request.namespace_id,
+        )?;
         let runtime = self.runtime_for(&request.scenario_id)?;
         let result =
             runtime.control.scenario_next(&request.request).map_err(ToolError::ControlPlane)?;
@@ -741,8 +784,16 @@ impl ToolRouter {
     }
 
     /// Submits external artifacts to a scenario run.
-    fn submit(&self, request: &ScenarioSubmitRequest) -> Result<SubmitResult, ToolError> {
-        self.ensure_namespace_allowed(&request.request.namespace_id)?;
+    fn submit(
+        &self,
+        context: &RequestContext,
+        request: &ScenarioSubmitRequest,
+    ) -> Result<SubmitResult, ToolError> {
+        self.ensure_namespace_allowed(
+            context,
+            Some(&request.request.tenant_id),
+            &request.request.namespace_id,
+        )?;
         let runtime = self.runtime_for(&request.scenario_id)?;
         let result =
             runtime.control.scenario_submit(&request.request).map_err(|err| match err {
@@ -755,8 +806,16 @@ impl ToolRouter {
     }
 
     /// Submits a trigger event to a scenario run.
-    fn trigger(&self, request: &ScenarioTriggerRequest) -> Result<TriggerResult, ToolError> {
-        self.ensure_namespace_allowed(&request.trigger.namespace_id)?;
+    fn trigger(
+        &self,
+        context: &RequestContext,
+        request: &ScenarioTriggerRequest,
+    ) -> Result<TriggerResult, ToolError> {
+        self.ensure_namespace_allowed(
+            context,
+            Some(&request.trigger.tenant_id),
+            &request.trigger.namespace_id,
+        )?;
         let runtime = self.runtime_for(&request.scenario_id)?;
         let result = runtime.control.trigger(&request.trigger).map_err(ToolError::ControlPlane)?;
         Ok(result)
@@ -765,9 +824,14 @@ impl ToolRouter {
     /// Queries evidence providers with disclosure policy enforcement.
     fn query_evidence(
         &self,
+        context: &RequestContext,
         request: &EvidenceQueryRequest,
     ) -> Result<EvidenceQueryResponse, ToolError> {
-        self.ensure_namespace_allowed(&request.context.namespace_id)?;
+        self.ensure_namespace_allowed(
+            context,
+            Some(&request.context.tenant_id),
+            &request.context.namespace_id,
+        )?;
         self.capabilities.validate_query(&request.query).map_err(ToolError::from)?;
         let mut result = self
             .evidence
@@ -790,9 +854,10 @@ impl ToolRouter {
     /// Exports a runpack for the specified run.
     fn export_runpack(
         &self,
+        context: &RequestContext,
         request: &RunpackExportRequest,
     ) -> Result<RunpackExportResponse, ToolError> {
-        self.ensure_namespace_allowed(&request.namespace_id)?;
+        self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)?;
         let runtime = self.runtime_for(&request.scenario_id)?;
         let manifest_name = request.manifest_name.as_deref().unwrap_or("manifest.json");
         let output_dir = PathBuf::from(&request.output_dir);
@@ -803,7 +868,7 @@ impl ToolRouter {
             .load(&request.tenant_id, &request.namespace_id, &request.run_id)
             .map_err(|err| ToolError::Runpack(err.to_string()))?
             .ok_or_else(|| ToolError::NotFound("run not found".to_string()))?;
-        let builder = RunpackBuilder::default();
+        let builder = RunpackBuilder::new(self.anchor_policy.clone());
         if request.include_verification {
             let reader = FileArtifactReader::new(PathBuf::from(&request.output_dir))
                 .map_err(|err| ToolError::Runpack(err.to_string()))?;
@@ -873,9 +938,14 @@ impl ToolRouter {
     /// Registers a data shape schema.
     fn schemas_register(
         &self,
+        context: &RequestContext,
         request: &SchemasRegisterRequest,
     ) -> Result<SchemasRegisterResponse, ToolError> {
-        self.ensure_namespace_allowed(&request.record.namespace_id)?;
+        self.ensure_namespace_allowed(
+            context,
+            Some(&request.record.tenant_id),
+            &request.record.namespace_id,
+        )?;
         self.validate_schema_limits(&request.record)?;
         let _ = compile_json_schema(&request.record.schema)?;
         self.schema_registry.register(request.record.clone())?;
@@ -885,8 +955,12 @@ impl ToolRouter {
     }
 
     /// Lists data shape schemas.
-    fn schemas_list(&self, request: &SchemasListRequest) -> Result<SchemasListResponse, ToolError> {
-        self.ensure_namespace_allowed(&request.namespace_id)?;
+    fn schemas_list(
+        &self,
+        context: &RequestContext,
+        request: &SchemasListRequest,
+    ) -> Result<SchemasListResponse, ToolError> {
+        self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)?;
         let limit = normalize_limit(request.limit)?;
         let page = self.schema_registry.list(
             &request.tenant_id,
@@ -901,8 +975,12 @@ impl ToolRouter {
     }
 
     /// Fetches a data shape schema by id and version.
-    fn schemas_get(&self, request: &SchemasGetRequest) -> Result<SchemasGetResponse, ToolError> {
-        self.ensure_namespace_allowed(&request.namespace_id)?;
+    fn schemas_get(
+        &self,
+        context: &RequestContext,
+        request: &SchemasGetRequest,
+    ) -> Result<SchemasGetResponse, ToolError> {
+        self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)?;
         let record = self
             .schema_registry
             .get(&request.tenant_id, &request.namespace_id, &request.schema_id, &request.version)?
@@ -915,9 +993,10 @@ impl ToolRouter {
     /// Lists registered scenarios for a tenant and namespace.
     fn scenarios_list(
         &self,
+        context: &RequestContext,
         request: &ScenariosListRequest,
     ) -> Result<ScenariosListResponse, ToolError> {
-        self.ensure_namespace_allowed(&request.namespace_id)?;
+        self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)?;
         let limit = normalize_limit(request.limit)?;
         let mut items: Vec<ScenarioSummary> = {
             let guard = self
@@ -964,8 +1043,12 @@ impl ToolRouter {
     }
 
     /// Evaluates a scenario stage using asserted data without mutating state.
-    fn precheck(&self, request: &PrecheckToolRequest) -> Result<PrecheckToolResponse, ToolError> {
-        self.ensure_namespace_allowed(&request.namespace_id)?;
+    fn precheck(
+        &self,
+        context: &RequestContext,
+        request: &PrecheckToolRequest,
+    ) -> Result<PrecheckToolResponse, ToolError> {
+        self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)?;
         let record = self
             .schema_registry
             .get(
@@ -978,69 +1061,7 @@ impl ToolRouter {
         let schema = compile_json_schema(&record.schema)?;
         validate_payload(&schema, &request.payload)?;
 
-        let (spec, control) = match (&request.scenario_id, &request.spec) {
-            (Some(scenario_id), Some(spec)) => {
-                if &spec.scenario_id != scenario_id {
-                    return Err(ToolError::InvalidParams(
-                        "scenario_id does not match spec".to_string(),
-                    ));
-                }
-                if spec.namespace_id != request.namespace_id {
-                    return Err(ToolError::InvalidParams(
-                        "namespace_id does not match spec".to_string(),
-                    ));
-                }
-                self.capabilities.validate_spec(spec)?;
-                let dispatcher = McpDispatcher::new(DEFAULT_HASH_ALGORITHM);
-                let policy = self.dispatch_policy.clone();
-                let control = ControlPlane::new(
-                    spec.clone(),
-                    self.evidence.clone(),
-                    dispatcher,
-                    self.store.clone(),
-                    Some(policy),
-                    ControlPlaneConfig {
-                        trust_requirement: self.trust_requirement,
-                        ..ControlPlaneConfig::default()
-                    },
-                )?;
-                (spec.clone(), ControlPlaneWrapper::Owned(Box::new(control)))
-            }
-            (Some(scenario_id), None) => {
-                let runtime = self.runtime_for(scenario_id)?;
-                if runtime.spec.namespace_id != request.namespace_id {
-                    return Err(ToolError::NotFound("scenario not in namespace".to_string()));
-                }
-                (runtime.spec.clone(), ControlPlaneWrapper::Borrowed(runtime))
-            }
-            (None, Some(spec)) => {
-                if spec.namespace_id != request.namespace_id {
-                    return Err(ToolError::InvalidParams(
-                        "namespace_id does not match spec".to_string(),
-                    ));
-                }
-                self.capabilities.validate_spec(spec)?;
-                let dispatcher = McpDispatcher::new(DEFAULT_HASH_ALGORITHM);
-                let policy = self.dispatch_policy.clone();
-                let control = ControlPlane::new(
-                    spec.clone(),
-                    self.evidence.clone(),
-                    dispatcher,
-                    self.store.clone(),
-                    Some(policy),
-                    ControlPlaneConfig {
-                        trust_requirement: self.trust_requirement,
-                        ..ControlPlaneConfig::default()
-                    },
-                )?;
-                (spec.clone(), ControlPlaneWrapper::Owned(Box::new(control)))
-            }
-            (None, None) => {
-                return Err(ToolError::InvalidParams(
-                    "scenario_id or spec is required".to_string(),
-                ));
-            }
-        };
+        let (spec, control) = self.resolve_precheck_control(request)?;
         if let Some(default_tenant) = &spec.default_tenant_id
             && default_tenant != &request.tenant_id
         {
@@ -1068,6 +1089,76 @@ impl ToolRouter {
         };
         self.record_precheck_audit(request, &response)?;
         Ok(response)
+    }
+
+    /// Resolves the scenario spec and control plane used for precheck requests.
+    fn resolve_precheck_control(
+        &self,
+        request: &PrecheckToolRequest,
+    ) -> Result<(ScenarioSpec, ControlPlaneWrapper), ToolError> {
+        match (&request.scenario_id, &request.spec) {
+            (Some(scenario_id), Some(spec)) => {
+                if &spec.scenario_id != scenario_id {
+                    return Err(ToolError::InvalidParams(
+                        "scenario_id does not match spec".to_string(),
+                    ));
+                }
+                if spec.namespace_id != request.namespace_id {
+                    return Err(ToolError::InvalidParams(
+                        "namespace_id does not match spec".to_string(),
+                    ));
+                }
+                self.capabilities.validate_spec(spec)?;
+                let dispatcher = McpDispatcher::new(DEFAULT_HASH_ALGORITHM);
+                let policy = self.dispatch_policy.clone();
+                let control = ControlPlane::new(
+                    spec.clone(),
+                    self.evidence.clone(),
+                    dispatcher,
+                    self.store.clone(),
+                    Some(policy),
+                    ControlPlaneConfig {
+                        trust_requirement: self.trust_requirement,
+                        anchor_policy: self.anchor_policy.clone(),
+                        ..ControlPlaneConfig::default()
+                    },
+                )?;
+                Ok((spec.clone(), ControlPlaneWrapper::Owned(Box::new(control))))
+            }
+            (Some(scenario_id), None) => {
+                let runtime = self.runtime_for(scenario_id)?;
+                if runtime.spec.namespace_id != request.namespace_id {
+                    return Err(ToolError::NotFound("scenario not in namespace".to_string()));
+                }
+                Ok((runtime.spec.clone(), ControlPlaneWrapper::Borrowed(runtime)))
+            }
+            (None, Some(spec)) => {
+                if spec.namespace_id != request.namespace_id {
+                    return Err(ToolError::InvalidParams(
+                        "namespace_id does not match spec".to_string(),
+                    ));
+                }
+                self.capabilities.validate_spec(spec)?;
+                let dispatcher = McpDispatcher::new(DEFAULT_HASH_ALGORITHM);
+                let policy = self.dispatch_policy.clone();
+                let control = ControlPlane::new(
+                    spec.clone(),
+                    self.evidence.clone(),
+                    dispatcher,
+                    self.store.clone(),
+                    Some(policy),
+                    ControlPlaneConfig {
+                        trust_requirement: self.trust_requirement,
+                        anchor_policy: self.anchor_policy.clone(),
+                        ..ControlPlaneConfig::default()
+                    },
+                )?;
+                Ok((spec.clone(), ControlPlaneWrapper::Owned(Box::new(control))))
+            }
+            (None, None) => {
+                Err(ToolError::InvalidParams("scenario_id or spec is required".to_string()))
+            }
+        }
     }
 
     /// Returns the runtime for a scenario ID.
@@ -1111,11 +1202,18 @@ impl ToolRouter {
     }
 
     /// Enforces the default namespace policy.
-    fn ensure_namespace_allowed(&self, namespace_id: &NamespaceId) -> Result<(), ToolError> {
-        if self.allow_default_namespace || namespace_id.as_str() != DEFAULT_NAMESPACE_ID {
-            return Ok(());
+    fn ensure_namespace_allowed(
+        &self,
+        context: &RequestContext,
+        tenant_id: Option<&TenantId>,
+        namespace_id: &NamespaceId,
+    ) -> Result<(), ToolError> {
+        if !self.allow_default_namespace && namespace_id.as_str() == DEFAULT_NAMESPACE_ID {
+            return Err(ToolError::Unauthorized("default namespace is not allowed".to_string()));
         }
-        Err(ToolError::Unauthorized("default namespace is not allowed".to_string()))
+        self.namespace_authority
+            .ensure_namespace(tenant_id, namespace_id, context.request_id.as_deref())
+            .map_err(map_namespace_error)
     }
 
     /// Emits a hash-only precheck audit event.
@@ -1152,7 +1250,7 @@ impl ToolRouter {
             tenant_id: request.tenant_id.to_string(),
             namespace_id: request.namespace_id.to_string(),
             scenario_id,
-            stage_id: request.stage_id.as_ref().map(|id| id.to_string()),
+            stage_id: request.stage_id.as_ref().map(ToString::to_string),
             schema_id: request.data_shape.schema_id.to_string(),
             schema_version: request.data_shape.version.to_string(),
             request_hash,
@@ -1239,6 +1337,15 @@ fn ensure_evidence_hash(result: &mut EvidenceResult) -> Result<(), ToolError> {
     };
     result.evidence_hash = Some(hash);
     Ok(())
+}
+
+/// Maps namespace authority errors into tool errors.
+fn map_namespace_error(error: NamespaceAuthorityError) -> ToolError {
+    match error {
+        NamespaceAuthorityError::InvalidNamespace(message) => ToolError::InvalidParams(message),
+        NamespaceAuthorityError::Denied(message)
+        | NamespaceAuthorityError::Unavailable(message) => ToolError::Unauthorized(message),
+    }
 }
 
 // ============================================================================

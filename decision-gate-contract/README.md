@@ -11,8 +11,15 @@ Purpose: Single source of truth for MCP tool contracts and JSON schemas.
 
 ## Overview
 `decision-gate-contract` defines the canonical JSON schemas and tool contracts
-for Decision Gate. It is the source of truth for MCP tooling schemas, provider
-capabilities, and example payloads.
+for Decision Gate's deterministic checkpoint and requirement-evaluation system.
+It is the source of truth for MCP tooling schemas, provider capabilities, and
+example payloads.
+
+## AssetCore Integration
+AssetCore interoperability is defined by explicit contracts (anchors, namespace
+authority, auth mapping). See `Docs/integrations/assetcore/` and
+`Docs/architecture/decision_gate_assetcore_integration_contract.md` for the
+canonical integration framing.
 
 ## Responsibilities
 - Define MCP tool contracts and JSON schema generation.

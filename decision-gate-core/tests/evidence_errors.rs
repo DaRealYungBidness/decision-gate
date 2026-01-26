@@ -24,10 +24,13 @@ use decision_gate_core::Comparator;
 use decision_gate_core::DispatchReceipt;
 use decision_gate_core::DispatchTarget;
 use decision_gate_core::Dispatcher;
+use decision_gate_core::EvidenceAnchorPolicy;
 use decision_gate_core::EvidenceContext;
 use decision_gate_core::EvidenceError;
 use decision_gate_core::EvidenceProvider;
 use decision_gate_core::EvidenceQuery;
+use decision_gate_core::EvidenceResult;
+use decision_gate_core::EvidenceValue;
 use decision_gate_core::GateId;
 use decision_gate_core::GateSpec;
 use decision_gate_core::NamespaceId;
@@ -35,6 +38,7 @@ use decision_gate_core::PacketPayload;
 use decision_gate_core::PolicyDecider;
 use decision_gate_core::PolicyDecision;
 use decision_gate_core::PredicateSpec;
+use decision_gate_core::ProviderAnchorPolicy;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::RunStateStore;
@@ -46,6 +50,7 @@ use decision_gate_core::StageSpec;
 use decision_gate_core::TenantId;
 use decision_gate_core::Timestamp;
 use decision_gate_core::TriggerId;
+use decision_gate_core::TrustLane;
 use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
 use decision_gate_core::hashing::hash_bytes;
 use decision_gate_core::runtime::ControlPlane;
@@ -67,6 +72,33 @@ impl EvidenceProvider for ErroringEvidenceProvider {
         _ctx: &EvidenceContext,
     ) -> Result<decision_gate_core::EvidenceResult, EvidenceError> {
         Err(EvidenceError::Provider("provider unavailable".to_string()))
+    }
+
+    fn validate_providers(
+        &self,
+        _spec: &ScenarioSpec,
+    ) -> Result<(), decision_gate_core::ProviderMissingError> {
+        Ok(())
+    }
+}
+
+struct AnchorlessEvidenceProvider;
+
+impl EvidenceProvider for AnchorlessEvidenceProvider {
+    fn query(
+        &self,
+        _query: &EvidenceQuery,
+        _ctx: &EvidenceContext,
+    ) -> Result<EvidenceResult, EvidenceError> {
+        Ok(EvidenceResult {
+            value: Some(EvidenceValue::Json(json!(true))),
+            lane: TrustLane::Verified,
+            evidence_hash: None,
+            evidence_ref: None,
+            evidence_anchor: None,
+            signature: None,
+            content_type: Some("application/json".to_string()),
+        })
     }
 
     fn validate_providers(
@@ -199,4 +231,68 @@ fn provider_errors_are_recorded_in_run_state() {
     let error = evidence.error.as_ref().expect("missing error");
     assert_eq!(error.code, "provider_error");
     assert!(error.message.contains("provider unavailable"));
+}
+
+#[test]
+fn missing_anchors_are_recorded_as_errors() {
+    let store = InMemoryRunStateStore::new();
+    let store_clone = store.clone();
+    let anchor_policy = EvidenceAnchorPolicy {
+        providers: vec![ProviderAnchorPolicy {
+            provider_id: ProviderId::new("test"),
+            requirement: decision_gate_core::AnchorRequirement {
+                anchor_type: "assetcore.anchor_set".to_string(),
+                required_fields: vec!["assetcore.namespace_id".to_string()],
+            },
+        }],
+    };
+    let engine = ControlPlane::new(
+        minimal_spec(),
+        AnchorlessEvidenceProvider,
+        NoopDispatcher,
+        store,
+        Some(PermitAllPolicy),
+        ControlPlaneConfig {
+            anchor_policy,
+            ..ControlPlaneConfig::default()
+        },
+    )
+    .expect("control plane");
+
+    let run_config = RunConfig {
+        tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
+        run_id: decision_gate_core::RunId::new("run-anchor"),
+        scenario_id: ScenarioId::new("scenario"),
+        dispatch_targets: vec![],
+        policy_tags: Vec::new(),
+    };
+
+    engine.start_run(run_config, Timestamp::Logical(0), false).expect("start run");
+
+    let request = decision_gate_core::runtime::NextRequest {
+        run_id: decision_gate_core::RunId::new("run-anchor"),
+        tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
+        trigger_id: TriggerId::new("trigger-anchor"),
+        agent_id: "agent-1".to_string(),
+        time: Timestamp::Logical(1),
+        correlation_id: None,
+    };
+
+    let _result = engine.scenario_next(&request).expect("scenario next");
+
+    let state = store_clone
+        .load(
+            &TenantId::new("tenant"),
+            &NamespaceId::new("default"),
+            &decision_gate_core::RunId::new("run-anchor"),
+        )
+        .expect("load state")
+        .expect("missing state");
+    let evidence = &state.gate_evals[0].evidence[0];
+    assert_eq!(evidence.status, TriState::Unknown);
+    let error = evidence.error.as_ref().expect("missing error");
+    assert_eq!(error.code, "anchor_invalid");
+    assert!(error.message.contains("missing evidence_anchor"));
 }

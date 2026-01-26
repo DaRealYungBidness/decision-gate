@@ -6,13 +6,17 @@
 // Dependencies: axum, decision-gate-core
 // ============================================================================
 
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use axum::Router;
 use axum::body::Bytes;
 use axum::extract::State;
+use axum::http::HeaderMap;
 use axum::response::IntoResponse;
 use axum::routing::post;
+use decision_gate_core::EvidenceAnchor;
 use decision_gate_core::EvidenceResult;
 use decision_gate_core::EvidenceValue;
 use decision_gate_core::TrustLane;
@@ -30,6 +34,7 @@ use super::harness::allocate_bind_addr;
 struct ProviderState {
     response: ProviderResponse,
     response_delay: Duration,
+    requests: Arc<Mutex<Vec<ProviderRequest>>>,
 }
 
 #[derive(Clone)]
@@ -44,18 +49,32 @@ pub struct ProviderFixture {
     pub predicate: String,
     pub params: Value,
     pub result: Value,
+    pub anchor: Option<EvidenceAnchor>,
+}
+
+/// Recorded request metadata for provider stub calls.
+#[derive(Clone, Debug, Serialize)]
+pub struct ProviderRequest {
+    pub request_id: Value,
+    pub correlation_id: Option<String>,
 }
 
 /// Handle for the stub MCP provider server.
 pub struct ProviderStubHandle {
     base_url: String,
     join: JoinHandle<()>,
+    requests: Arc<Mutex<Vec<ProviderRequest>>>,
 }
 
 impl ProviderStubHandle {
     /// Returns the provider URL.
     pub fn base_url(&self) -> &str {
         &self.base_url
+    }
+
+    /// Returns captured provider requests.
+    pub fn requests(&self) -> Vec<ProviderRequest> {
+        self.requests.lock().map_or_else(|_| Vec::new(), |entries| entries.clone())
     }
 }
 
@@ -94,9 +113,11 @@ async fn spawn_provider_stub_with_response(
     response_delay: Duration,
 ) -> Result<ProviderStubHandle, String> {
     let addr = allocate_bind_addr()?;
+    let requests = Arc::new(Mutex::new(Vec::new()));
     let state = ProviderState {
         response,
         response_delay,
+        requests: Arc::clone(&requests),
     };
     let app = Router::new().route("/rpc", post(handle_rpc)).with_state(state);
     let listener = tokio::net::TcpListener::bind(addr)
@@ -109,6 +130,7 @@ async fn spawn_provider_stub_with_response(
     Ok(ProviderStubHandle {
         base_url,
         join,
+        requests,
     })
 }
 
@@ -151,8 +173,18 @@ enum ToolContent {
     Json { json: EvidenceResult },
 }
 
-async fn handle_rpc(State(state): State<ProviderState>, bytes: Bytes) -> impl IntoResponse {
+async fn handle_rpc(
+    State(state): State<ProviderState>,
+    headers: HeaderMap,
+    bytes: Bytes,
+) -> impl IntoResponse {
     let request: Result<JsonRpcRequest, _> = serde_json::from_slice(bytes.as_ref());
+    let request_id = request.as_ref().map(|req| req.id.clone()).unwrap_or(Value::Null);
+    let correlation_id = headers
+        .get("x-correlation-id")
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.to_string());
+    record_request(&state, request_id, correlation_id);
     if state.response_delay > Duration::from_millis(0) {
         sleep(state.response_delay).await;
     }
@@ -204,8 +236,8 @@ fn handle_request(state: &ProviderState, request: JsonRpcRequest) -> JsonRpcResp
                         };
                     }
                     let parsed = parsed.expect("checked is_err");
-                    let response_value = match &state.response {
-                        ProviderResponse::Fixed(value) => value.clone(),
+                    let (response_value, anchor) = match &state.response {
+                        ProviderResponse::Fixed(value) => (value.clone(), None),
                         ProviderResponse::Fixtures(fixtures) => {
                             let predicate = &parsed.query.predicate;
                             let params = normalize_params(parsed.query.params.clone());
@@ -213,7 +245,7 @@ fn handle_request(state: &ProviderState, request: JsonRpcRequest) -> JsonRpcResp
                                 fixture.predicate == *predicate && fixture.params == params
                             });
                             match fixture {
-                                Some(fixture) => fixture.result.clone(),
+                                Some(fixture) => (fixture.result.clone(), fixture.anchor.clone()),
                                 None => {
                                     return JsonRpcResponse {
                                         jsonrpc: "2.0",
@@ -233,7 +265,7 @@ fn handle_request(state: &ProviderState, request: JsonRpcRequest) -> JsonRpcResp
                         lane: TrustLane::Verified,
                         evidence_hash: None,
                         evidence_ref: None,
-                        evidence_anchor: None,
+                        evidence_anchor: anchor,
                         signature: None,
                         content_type: Some("application/json".to_string()),
                     };
@@ -276,4 +308,14 @@ fn handle_request(state: &ProviderState, request: JsonRpcRequest) -> JsonRpcResp
 
 fn normalize_params(params: Option<Value>) -> Value {
     params.unwrap_or_else(|| Value::Object(Map::new()))
+}
+
+fn record_request(state: &ProviderState, request_id: Value, correlation_id: Option<String>) {
+    let Ok(mut guard) = state.requests.lock() else {
+        return;
+    };
+    guard.push(ProviderRequest {
+        request_id,
+        correlation_id,
+    });
 }

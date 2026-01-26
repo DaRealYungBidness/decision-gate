@@ -15,12 +15,21 @@
 // SECTION: Imports
 // ============================================================================
 
+use std::collections::BTreeMap;
+
 use serde::Deserialize;
 use serde::Serialize;
+use serde_json::Value;
 use thiserror::Error;
 
+use crate::core::AnchorRequirement;
 use crate::core::DecisionOutcome;
 use crate::core::DecisionRecord;
+use crate::core::EvidenceAnchorPolicy;
+use crate::core::EvidenceResult;
+use crate::core::GateEvalRecord;
+use crate::core::PredicateKey;
+use crate::core::ProviderId;
 use crate::core::RunState;
 use crate::core::ScenarioSpec;
 use crate::core::Timestamp;
@@ -76,6 +85,8 @@ pub struct RunpackBuilder {
     pub hash_algorithm: HashAlgorithm,
     /// Verifier mode used by the runpack.
     pub verifier_mode: VerifierMode,
+    /// Anchor policy enforced by the control plane.
+    pub anchor_policy: EvidenceAnchorPolicy,
 }
 
 impl Default for RunpackBuilder {
@@ -84,11 +95,21 @@ impl Default for RunpackBuilder {
             manifest_version: RunpackVersion("v1".to_string()),
             hash_algorithm: DEFAULT_HASH_ALGORITHM,
             verifier_mode: VerifierMode::OfflineStrict,
+            anchor_policy: EvidenceAnchorPolicy::default(),
         }
     }
 }
 
 impl RunpackBuilder {
+    /// Creates a new builder with an explicit anchor policy.
+    #[must_use]
+    pub fn new(anchor_policy: EvidenceAnchorPolicy) -> Self {
+        Self {
+            anchor_policy,
+            ..Self::default()
+        }
+    }
+
     /// Builds a runpack and writes artifacts to the provided sink.
     ///
     /// # Errors
@@ -177,6 +198,12 @@ impl RunpackBuilder {
 
         let integrity = build_integrity(&file_hashes, self.hash_algorithm)?;
 
+        let anchor_policy = if self.anchor_policy.providers.is_empty() {
+            None
+        } else {
+            Some(self.anchor_policy.clone())
+        };
+
         let manifest = RunpackManifest {
             manifest_version: self.manifest_version.clone(),
             generated_at,
@@ -187,6 +214,7 @@ impl RunpackBuilder {
             spec_hash,
             hash_algorithm: self.hash_algorithm,
             verifier_mode: self.verifier_mode,
+            anchor_policy,
             integrity,
             artifacts,
         };
@@ -306,6 +334,12 @@ impl RunpackVerifier {
 
         if let Err(err) = verify_decisions(reader) {
             errors.push(err);
+        }
+        if let Some(anchor_policy) = &manifest.anchor_policy {
+            match verify_anchor_policy(reader, manifest, anchor_policy) {
+                Ok(anchor_errors) => errors.extend(anchor_errors),
+                Err(err) => errors.push(err),
+            }
         }
 
         let status =
@@ -449,5 +483,100 @@ fn verify_decisions<R: ArtifactReader>(reader: &R) -> Result<(), String> {
         }
     }
 
+    Ok(())
+}
+
+/// Validates evidence anchors in the runpack against the policy.
+fn verify_anchor_policy<R: ArtifactReader>(
+    reader: &R,
+    _manifest: &RunpackManifest,
+    anchor_policy: &EvidenceAnchorPolicy,
+) -> Result<Vec<String>, String> {
+    if anchor_policy.providers.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let spec_bytes = reader
+        .read_with_limit(SCENARIO_SPEC_PATH, MAX_RUNPACK_ARTIFACT_BYTES)
+        .map_err(|err| format!("scenario spec read failed: {err}"))?;
+    let spec: ScenarioSpec = serde_json::from_slice(&spec_bytes)
+        .map_err(|err| format!("invalid scenario spec: {err}"))?;
+
+    let predicate_map = predicate_provider_map(&spec);
+    let eval_bytes = reader
+        .read_with_limit(GATE_EVAL_LOG_PATH, MAX_RUNPACK_ARTIFACT_BYTES)
+        .map_err(|err| format!("gate eval log read failed: {err}"))?;
+    let gate_evals: Vec<GateEvalRecord> = serde_json::from_slice(&eval_bytes)
+        .map_err(|err| format!("invalid gate eval log: {err}"))?;
+
+    let mut errors = Vec::new();
+    for record in gate_evals {
+        for evidence in &record.evidence {
+            if evidence.error.is_some() {
+                continue;
+            }
+            let Some(provider_id) = predicate_map.get(&evidence.predicate) else {
+                errors.push(format!(
+                    "predicate {} missing from scenario spec (trigger {}, stage {})",
+                    evidence.predicate, record.trigger_id, record.stage_id
+                ));
+                continue;
+            };
+            let Some(requirement) = anchor_policy.requirement_for(provider_id) else {
+                continue;
+            };
+            if let Err(message) = validate_anchor_requirement(requirement, &evidence.result) {
+                errors.push(format!(
+                    "anchor invalid for predicate {} (trigger {}, stage {}): {}",
+                    evidence.predicate, record.trigger_id, record.stage_id, message
+                ));
+            }
+        }
+    }
+
+    Ok(errors)
+}
+
+/// Builds a predicate-to-provider lookup from a scenario spec.
+fn predicate_provider_map(spec: &ScenarioSpec) -> BTreeMap<PredicateKey, ProviderId> {
+    let mut map = BTreeMap::new();
+    for predicate in &spec.predicates {
+        map.insert(predicate.predicate.clone(), predicate.query.provider_id.clone());
+    }
+    map
+}
+
+/// Ensures a single evidence result satisfies an anchor requirement.
+fn validate_anchor_requirement(
+    requirement: &AnchorRequirement,
+    result: &EvidenceResult,
+) -> Result<(), String> {
+    let anchor =
+        result.evidence_anchor.as_ref().ok_or_else(|| "missing evidence_anchor".to_string())?;
+    if anchor.anchor_type != requirement.anchor_type {
+        return Err(format!(
+            "anchor_type mismatch: expected {} got {}",
+            requirement.anchor_type, anchor.anchor_type
+        ));
+    }
+    let value: Value = serde_json::from_str(&anchor.anchor_value)
+        .map_err(|_| "anchor_value must be canonical JSON".to_string())?;
+    let object =
+        value.as_object().ok_or_else(|| "anchor_value must be a JSON object".to_string())?;
+    for field in &requirement.required_fields {
+        match object.get(field) {
+            Some(Value::String(_) | Value::Number(_)) => {}
+            Some(Value::Bool(_)) => {
+                return Err(format!("anchor field {field} must be string or number"));
+            }
+            Some(Value::Null) => {
+                return Err(format!("anchor field {field} must be set"));
+            }
+            Some(Value::Array(_) | Value::Object(_)) => {
+                return Err(format!("anchor field {field} must be scalar"));
+            }
+            None => return Err(format!("anchor field {field} missing")),
+        }
+    }
     Ok(())
 }

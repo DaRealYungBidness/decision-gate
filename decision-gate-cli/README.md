@@ -11,7 +11,13 @@ Purpose: Provide operational entry points for Decision Gate.
 
 ## Overview
 `decision-gate-cli` is the command-line entry point for running the MCP server
-and managing runpacks and authoring utilities.
+and managing runpacks and authoring utilities for Decision Gate's deterministic
+checkpoint and requirement-evaluation workflows.
+
+## AssetCore Integration
+DG integrates with AssetCore via explicit interop workflows. The canonical
+integration hub lives at `Docs/integrations/assetcore/`, with implementation
+details in `Docs/guides/assetcore_interop_runbook.md`.
 
 ## Commands
 - `serve`: run the MCP server (stdio, HTTP, or SSE).

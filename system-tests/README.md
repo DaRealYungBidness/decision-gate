@@ -20,6 +20,13 @@ New in this phase:
   and precheck request storms (`system-tests/tests/stress.rs`).
 - Explicit TODOs to add fuzz/property and long-running soak/perf tests.
 
+## AssetCore Integration Note
+By default, AssetCore-related system-tests use local stub servers that implement
+the ASC read/namespace HTTP contract surface. This keeps DG tests deterministic
+and end-to-end at the integration boundary without requiring a live ASC service.
+To validate against a real ASC deployment, swap the stub endpoints for live URLs
+in the test configs or harnesses.
+
 ## Scenario Guardrails (No Hacks)
 System-tests must mirror production behavior end-to-end.
 - No fail-open logic; assert required behavior explicitly.

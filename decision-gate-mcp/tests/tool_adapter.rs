@@ -60,6 +60,7 @@ use decision_gate_mcp::RequestContext;
 use decision_gate_mcp::SchemaRegistryConfig;
 use decision_gate_mcp::ToolRouter;
 use decision_gate_mcp::capabilities::CapabilityRegistry;
+use decision_gate_mcp::config::AnchorPolicyConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::config::PolicyConfig;
 use decision_gate_mcp::config::ProviderConfig;
@@ -69,6 +70,7 @@ use decision_gate_mcp::config::RunStateStoreConfig;
 use decision_gate_mcp::config::ServerConfig;
 use decision_gate_mcp::config::TrustConfig;
 use decision_gate_mcp::config::ValidationConfig;
+use decision_gate_mcp::namespace_authority::NoopNamespaceAuthority;
 use decision_gate_mcp::tools::ToolRouterConfig;
 use serde_json::json;
 
@@ -194,9 +196,11 @@ fn build_router(config: &DecisionGateConfig) -> ToolRouter {
         authz,
         audit,
         trust_requirement: config.effective_trust_requirement(),
+        anchor_policy: config.anchors.to_policy(),
         precheck_audit: Arc::new(McpNoopAuditSink),
         precheck_audit_payloads: config.server.audit.log_precheck_payloads,
         allow_default_namespace: config.allow_default_namespace(),
+        namespace_authority: Arc::new(NoopNamespaceAuthority),
     })
 }
 
@@ -207,9 +211,11 @@ fn mcp_tools_match_core_control_plane() {
         server: ServerConfig::default(),
         namespace: decision_gate_mcp::config::NamespaceConfig {
             allow_default: true,
+            ..decision_gate_mcp::config::NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -286,9 +292,11 @@ fn default_config() -> DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: decision_gate_mcp::config::NamespaceConfig {
             allow_default: true,
+            ..decision_gate_mcp::config::NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),

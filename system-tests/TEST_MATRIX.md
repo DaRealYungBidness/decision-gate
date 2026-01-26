@@ -33,6 +33,11 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `http_transport_end_to_end` | mcp_transport | HTTP JSON-RPC transport works end-to-end. |
 | `federated_provider_echo` | providers | External MCP provider integration works. |
 | `assetcore_interop_fixtures` | providers | AssetCore interop fixture map executes via provider stub. |
+| `assetcore_anchor_missing_fails_closed` | providers | Missing AssetCore anchors fail closed for evidence queries. |
+| `assetcore_correlation_id_passthrough` | providers | Correlation IDs are preserved for AssetCore evidence queries. |
+| `namespace_authority_allows_known_namespace` | security | AssetCore namespace authority allows known namespaces. |
+| `namespace_authority_denies_unknown_namespace` | security | AssetCore namespace authority denies unknown namespaces. |
+| `namespace_mismatch_rejected` | security | Namespace mismatch between spec and run config is rejected. |
 | `packet_disclosure_visibility` | security | Packet visibility labels and policy tags persist. |
 | `strict_mode_rejects_default_namespace` | security | Strict mode rejects default namespace. |
 | `dev_permissive_emits_warning` | operations | Dev-permissive mode emits explicit warning. |
@@ -46,3 +51,16 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `strict_validation_allows_enabled_comparators` | functional | Enabled comparator families are accepted. |
 | `strict_validation_rejects_in_set_non_array` | functional | in_set requires expected array values. |
 | `strict_validation_precheck_allows_union_contains` | functional | Union string/null schema permits contains. |
+| `asc_auth_mapping_matrix` | security | ASC role/policy mapping enforced via auth proxy. |
+| `assetcore_determinism_replay` | reliability | Identical AssetCore fixtures yield identical runpacks. |
+
+## P2 (Non-Gated / Extended Coverage)
+| Test | Category | Purpose |
+| --- | --- | --- |
+| `stdio_transport_end_to_end` | mcp_transport | Stdio JSON-RPC transport handles tools/list and tools/call. |
+| `multi_transport_parity` | mcp_transport | HTTP, stdio, and CLI interop parity for decisions/runpacks. |
+| `anchor_validation_fuzz_cases_fail_closed` | security | Malformed/oversized anchors fail closed with explicit errors. |
+| `performance_smoke` | performance | Non-gated MCP workflow throughput smoke test. |
+| `stress_registry_concurrent_writes` | reliability | Concurrent schema registry writes remain stable and ordered. |
+| `stress_schema_list_paging_concurrent_reads` | reliability | Schemas list paging stays deterministic under concurrent reads. |
+| `stress_precheck_request_storm` | reliability | Precheck request storms fail closed and remain stable. |

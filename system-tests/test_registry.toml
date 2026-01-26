@@ -337,6 +337,80 @@ artifacts = [
 estimated_runtime_sec = 15
 
 [[tests]]
+name = "assetcore_anchor_missing_fails_closed"
+category = "providers"
+priority = "P1"
+description = "Missing AssetCore anchors fail closed for federated provider evidence."
+files = ["system-tests/tests/assetcore_integration.rs"]
+run_command = "cargo test -p system-tests --test assetcore_integration -- --exact assetcore_anchor_missing_fails_closed"
+artifacts = [
+  "summary.json",
+  "summary.md",
+  "assetcore_spec.json",
+  "tool_transcript.json",
+]
+estimated_runtime_sec = 12
+
+[[tests]]
+name = "assetcore_correlation_id_passthrough"
+category = "providers"
+priority = "P1"
+description = "Correlation IDs are preserved for AssetCore evidence queries."
+files = ["system-tests/tests/assetcore_integration.rs"]
+run_command = "cargo test -p system-tests --test assetcore_integration -- --exact assetcore_correlation_id_passthrough"
+artifacts = [
+  "summary.json",
+  "summary.md",
+  "provider_requests.json",
+  "tool_transcript.json",
+]
+estimated_runtime_sec = 12
+
+[[tests]]
+name = "namespace_authority_allows_known_namespace"
+category = "security"
+priority = "P1"
+description = "AssetCore namespace authority allows known namespaces."
+files = ["system-tests/tests/assetcore_integration.rs"]
+run_command = "cargo test -p system-tests --test assetcore_integration -- --exact namespace_authority_allows_known_namespace"
+artifacts = [
+  "summary.json",
+  "summary.md",
+  "namespace_requests.json",
+  "tool_transcript.json",
+]
+estimated_runtime_sec = 10
+
+[[tests]]
+name = "namespace_authority_denies_unknown_namespace"
+category = "security"
+priority = "P1"
+description = "AssetCore namespace authority denies unknown namespaces."
+files = ["system-tests/tests/assetcore_integration.rs"]
+run_command = "cargo test -p system-tests --test assetcore_integration -- --exact namespace_authority_denies_unknown_namespace"
+artifacts = [
+  "summary.json",
+  "summary.md",
+  "namespace_requests.json",
+  "tool_transcript.json",
+]
+estimated_runtime_sec = 10
+
+[[tests]]
+name = "namespace_mismatch_rejected"
+category = "security"
+priority = "P1"
+description = "Namespace mismatch between scenario spec and run config is rejected."
+files = ["system-tests/tests/assetcore_integration.rs"]
+run_command = "cargo test -p system-tests --test assetcore_integration -- --exact namespace_mismatch_rejected"
+artifacts = [
+  "summary.json",
+  "summary.md",
+  "tool_transcript.json",
+]
+estimated_runtime_sec = 8
+
+[[tests]]
 name = "packet_disclosure_visibility"
 category = "security"
 priority = "P1"
@@ -436,6 +510,33 @@ run_command = "cargo test -p system-tests --test runpack -- --exact runpack_tamp
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runpack/"]
 estimated_runtime_sec = 15
 
+[[tests]]
+name = "asc_auth_mapping_matrix"
+category = "security"
+priority = "P1"
+description = "ASC role/policy_class auth mapping is enforced via the integration proxy."
+files = ["system-tests/tests/auth_matrix.rs"]
+run_command = "cargo test -p system-tests --test auth_matrix -- --exact asc_auth_mapping_matrix"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runpack/"]
+estimated_runtime_sec = 20
+
+[[tests]]
+name = "assetcore_determinism_replay"
+category = "reliability"
+priority = "P1"
+description = "Identical AssetCore fixtures yield identical decisions and runpack hashes."
+files = ["system-tests/tests/determinism.rs"]
+run_command = "cargo test -p system-tests --test determinism -- --exact assetcore_determinism_replay"
+artifacts = [
+  "summary.json",
+  "summary.md",
+  "tool_transcript.json",
+  "run_a_manifest.json",
+  "run_b_manifest.json",
+  "runpack/",
+]
+estimated_runtime_sec = 20
+
 # =============================================================================
 # P2: Non-Gated / Extended Coverage
 # =============================================================================
@@ -449,6 +550,35 @@ files = ["system-tests/tests/mcp_transport.rs"]
 run_command = "cargo test -p system-tests --test mcp_transport -- --exact stdio_transport_end_to_end"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "mcp.stderr.log"]
 estimated_runtime_sec = 12
+
+[[tests]]
+name = "multi_transport_parity"
+category = "mcp_transport"
+priority = "P2"
+description = "HTTP, stdio, and CLI interop produce identical decisions/runpacks."
+files = ["system-tests/tests/transport_parity.rs"]
+run_command = "cargo test -p system-tests --test transport_parity -- --exact multi_transport_parity"
+artifacts = [
+  "summary.json",
+  "summary.md",
+  "tool_transcript.json",
+  "http_manifest.json",
+  "stdio_manifest.json",
+  "cli_manifest.json",
+  "runpack/",
+  "mcp.stderr.log",
+]
+estimated_runtime_sec = 25
+
+[[tests]]
+name = "anchor_validation_fuzz_cases_fail_closed"
+category = "security"
+priority = "P2"
+description = "Malformed/oversized anchors fail closed with explicit errors."
+files = ["system-tests/tests/anchor_fuzz.rs"]
+run_command = "cargo test -p system-tests --test anchor_fuzz -- --exact anchor_validation_fuzz_cases_fail_closed"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runpack/"]
+estimated_runtime_sec = 20
 
 [[tests]]
 name = "performance_smoke"

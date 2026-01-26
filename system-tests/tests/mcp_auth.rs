@@ -224,6 +224,11 @@ async fn http_mtls_subject_required() -> Result<(), Box<dyn std::error::Error>> 
     let config = base_http_config_with_mtls(&bind, "CN=decision-gate-client,O=Example");
     let server = spawn_mcp_server(config).await?;
 
+    let authorized = server
+        .client(Duration::from_secs(5))?
+        .with_client_subject("CN=decision-gate-client,O=Example".to_string());
+    wait_for_server_ready(&authorized, Duration::from_secs(5)).await?;
+
     let unauthorized = server.client(Duration::from_secs(5))?;
     let Err(err) = unauthorized.list_tools().await else {
         return Err("expected auth failure".into());
@@ -232,10 +237,6 @@ async fn http_mtls_subject_required() -> Result<(), Box<dyn std::error::Error>> 
         return Err(format!("expected unauthenticated error, got: {err}").into());
     }
 
-    let authorized = server
-        .client(Duration::from_secs(5))?
-        .with_client_subject("CN=decision-gate-client,O=Example".to_string());
-    wait_for_server_ready(&authorized, Duration::from_secs(5)).await?;
     let tools = authorized.list_tools().await?;
     if tools.is_empty() {
         return Err("expected non-empty tools list".into());

@@ -581,7 +581,11 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     ("result_schema", "JSON Schema for predicate output values."),
     ("allowed_comparators", "Allow-list of comparators valid for this predicate output."),
     ("anchor_types", "Anchor type strings that the predicate may emit."),
-    ("content_types", "MIME types for evidence values returned by the predicate."),
+    (
+        "content_types",
+        "Allowed MIME content types for predicate evidence values or policy rule checks. Used in \
+         provider capability contracts and policy rules to constrain payload formats.",
+    ),
     ("examples", "Example predicate invocations with params and results."),
     ("result", "Example output value for a predicate invocation."),
     // =====================================================================
@@ -736,7 +740,6 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     ("forbid_labels", "Visibility labels that must not be present for the rule to match."),
     ("require_policy_tags", "Policy tags that must be present for the rule to match."),
     ("forbid_policy_tags", "Policy tags that must not be present for the rule to match."),
-    ("content_types", "Content types allowed by the rule."),
     ("schema_ids", "Schema identifiers allowed by the rule."),
     ("packet_ids", "Packet identifiers allowed by the rule."),
     ("stage_ids", "Stage identifiers allowed by the rule."),

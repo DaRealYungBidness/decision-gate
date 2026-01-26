@@ -43,6 +43,7 @@ use decision_gate_mcp::ToolRouter;
 use decision_gate_mcp::auth::DefaultToolAuthz;
 use decision_gate_mcp::auth::NoopAuditSink;
 use decision_gate_mcp::capabilities::CapabilityRegistry;
+use decision_gate_mcp::namespace_authority::NoopNamespaceAuthority;
 use decision_gate_mcp::tools::PrecheckToolRequest;
 use decision_gate_mcp::tools::PrecheckToolResponse;
 use decision_gate_mcp::tools::ScenarioDefineRequest;
@@ -102,10 +103,14 @@ fn build_router(mut config: DecisionGateConfig, audit: Arc<TestAuditSink>) -> To
     let auth_audit = Arc::new(NoopAuditSink);
     let trust_requirement = config.effective_trust_requirement();
     let allow_default_namespace = config.allow_default_namespace();
+    let evidence_policy = config.evidence.clone();
+    let validation = config.validation.clone();
+    let anchor_policy = config.anchors.to_policy();
+    let precheck_audit_payloads = config.server.audit.log_precheck_payloads;
     ToolRouter::new(ToolRouterConfig {
         evidence,
-        evidence_policy: config.evidence,
-        validation: config.validation,
+        evidence_policy,
+        validation,
         dispatch_policy: config.policy.dispatch_policy().expect("dispatch policy"),
         store,
         schema_registry,
@@ -115,9 +120,11 @@ fn build_router(mut config: DecisionGateConfig, audit: Arc<TestAuditSink>) -> To
         authz,
         audit: auth_audit,
         trust_requirement,
+        anchor_policy,
         precheck_audit: audit,
-        precheck_audit_payloads: config.server.audit.log_precheck_payloads,
+        precheck_audit_payloads,
         allow_default_namespace,
+        namespace_authority: Arc::new(NoopNamespaceAuthority),
     })
 }
 

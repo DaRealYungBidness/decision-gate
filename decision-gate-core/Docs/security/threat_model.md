@@ -26,6 +26,7 @@ disclosure decisions.
 ## Trust Boundaries
 - Trigger ingestion is a boundary; all triggers are untrusted until authenticated.
 - Evidence providers are untrusted; evidence must be anchored and hash-verified.
+- Anchor policy enforcement is a boundary: missing or malformed anchors fail closed.
 - Dispatch targets are untrusted; disclosure decisions must be auditable.
 - Artifact sinks/readers are untrusted; runpack outputs must be hash-verified.
 - Tool-call APIs are untrusted; inputs must be validated and logged deterministically.
@@ -35,4 +36,4 @@ disclosure decisions.
 - Do not disclose data on `Unknown` or ambiguous outcomes.
 
 ## Threat Model Delta
-- Updated to include tool-call and runpack boundaries.
+- Updated to include tool-call, anchor policy, and runpack boundaries.

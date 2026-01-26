@@ -57,6 +57,7 @@ use decision_gate_mcp::auth::DefaultToolAuthz;
 use decision_gate_mcp::auth::NoopAuditSink;
 use decision_gate_mcp::auth::RequestContext;
 use decision_gate_mcp::capabilities::CapabilityRegistry;
+use decision_gate_mcp::config::AnchorPolicyConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::config::NamespaceConfig;
 use decision_gate_mcp::config::PolicyConfig;
@@ -67,6 +68,7 @@ use decision_gate_mcp::config::RunStateStoreConfig;
 use decision_gate_mcp::config::ServerConfig;
 use decision_gate_mcp::config::TrustConfig;
 use decision_gate_mcp::config::ValidationConfig;
+use decision_gate_mcp::namespace_authority::NoopNamespaceAuthority;
 use decision_gate_mcp::tools::ProviderTransport;
 use decision_gate_mcp::tools::SchemaRegistryLimits;
 use decision_gate_mcp::tools::ToolRouterConfig;
@@ -83,9 +85,11 @@ pub fn sample_config() -> DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: NamespaceConfig {
             allow_default: true,
+            ..NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -137,13 +141,17 @@ pub fn router_with_config(config: DecisionGateConfig) -> ToolRouter {
     };
     let trust_requirement = config.effective_trust_requirement();
     let allow_default_namespace = config.allow_default_namespace();
+    let evidence_policy = config.evidence.clone();
+    let validation = config.validation.clone();
+    let anchor_policy = config.anchors.to_policy();
+    let precheck_audit_payloads = config.server.audit.log_precheck_payloads;
     let authz = Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
     let audit = Arc::new(NoopAuditSink);
     let dispatch_policy = config.policy.dispatch_policy().expect("dispatch policy");
     ToolRouter::new(ToolRouterConfig {
         evidence,
-        evidence_policy: config.evidence,
-        validation: config.validation,
+        evidence_policy,
+        validation,
         dispatch_policy,
         store,
         schema_registry,
@@ -153,9 +161,11 @@ pub fn router_with_config(config: DecisionGateConfig) -> ToolRouter {
         authz,
         audit,
         trust_requirement,
+        anchor_policy,
         precheck_audit: Arc::new(McpNoopAuditSink),
-        precheck_audit_payloads: config.server.audit.log_precheck_payloads,
+        precheck_audit_payloads,
         allow_default_namespace,
+        namespace_authority: Arc::new(NoopNamespaceAuthority),
     })
 }
 

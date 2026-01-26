@@ -23,6 +23,11 @@ paths:
 
 The fixture map and provider contract are generated in Asset-Core and synced
 into this repository under `system-tests/tests/fixtures/assetcore`.
+Anchor policy enforcement is enabled in the AssetCore test config; evidence
+must include the canonical ASC anchor set.
+
+For integration framing and architecture context, see
+`Docs/integrations/assetcore/`.
 
 ## Prerequisites
 - Docker installed and running.
@@ -35,6 +40,9 @@ Run the deterministic fixture suite against the provider stub:
 ```bash
 cargo test -p system-tests --test providers -- --exact assetcore_interop_fixtures
 ```
+
+The provider stub emits `assetcore.anchor_set` anchors derived from the fixture
+map and must satisfy the configured anchor policy.
 
 Artifacts are written under the system-tests run root:
 - `interop_spec.json`
@@ -63,6 +71,9 @@ docker compose --env-file starter-pack/docker/images.env -f starter-pack/docker/
 ```bash
 cargo run -p decision-gate-cli -- serve --config system-tests/tests/fixtures/assetcore/decision-gate.toml
 ```
+
+The config includes anchor policy requirements for AssetCore evidence and can
+optionally enable `namespace.authority` if the ASC write daemon is available.
 
 4) Run the Decision Gate interop evaluation:
 

@@ -1,3 +1,38 @@
 # Decision Gate System-Test Gaps
 # Tracks missing coverage and acceptance criteria.
 
+[[gaps]]
+id = "asc-auth-mapping-matrix"
+title = "AssetCore auth mapping matrix coverage"
+priority = "P1"
+category = "security"
+status = "closed"
+acceptance_criteria = "Define the ASC role/policy_class mapping and add system-tests that validate each permission pathway."
+notes = "Implemented in system-tests/tests/auth_matrix.rs with auth proxy mapping; integration contract updated."
+
+[[gaps]]
+id = "asc-determinism-replay"
+title = "Determinism across identical AssetCore state and replay"
+priority = "P1"
+category = "reliability"
+status = "closed"
+acceptance_criteria = "Execute identical ASC fixture runs and assert identical decisions plus runpack hashes."
+notes = "Implemented in system-tests/tests/determinism.rs using AssetCore fixture map runs."
+
+[[gaps]]
+id = "multi-transport-parity"
+title = "Multi-transport parity across MCP/CLI/HTTP"
+priority = "P2"
+category = "mcp_transport"
+status = "closed"
+acceptance_criteria = "Run a single scenario via HTTP, stdio, and CLI and compare decisions/runpack artifacts."
+notes = "Implemented in system-tests/tests/transport_parity.rs using HTTP, stdio, and CLI interop."
+
+[[gaps]]
+id = "security-fuzzing-anchors"
+title = "Fuzz/property tests for malformed inputs and anchor injection"
+priority = "P2"
+category = "security"
+status = "closed"
+acceptance_criteria = "Add fuzz/property coverage for malformed evidence payloads, oversize anchors, and injection attempts."
+notes = "Implemented deterministic fuzz cases in system-tests/tests/anchor_fuzz.rs (malformed JSON, missing fields, wrong types, oversized responses)."

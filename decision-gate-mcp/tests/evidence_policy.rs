@@ -39,6 +39,7 @@ use decision_gate_mcp::auth::DefaultToolAuthz;
 use decision_gate_mcp::auth::NoopAuditSink;
 use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::EvidencePolicyConfig;
+use decision_gate_mcp::namespace_authority::NoopNamespaceAuthority;
 use decision_gate_mcp::tools::EvidenceQueryRequest;
 use decision_gate_mcp::tools::EvidenceQueryResponse;
 use decision_gate_mcp::tools::ToolRouterConfig;
@@ -86,12 +87,16 @@ fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
     };
     let trust_requirement = config.effective_trust_requirement();
     let allow_default_namespace = config.allow_default_namespace();
+    let evidence_policy = config.evidence.clone();
+    let validation = config.validation.clone();
+    let anchor_policy = config.anchors.to_policy();
+    let precheck_audit_payloads = config.server.audit.log_precheck_payloads;
     let authz = std::sync::Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
     let audit = std::sync::Arc::new(NoopAuditSink);
     ToolRouter::new(ToolRouterConfig {
         evidence,
-        evidence_policy: config.evidence,
-        validation: config.validation,
+        evidence_policy,
+        validation,
         dispatch_policy: config.policy.dispatch_policy().expect("dispatch policy"),
         store,
         schema_registry,
@@ -101,9 +106,11 @@ fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
         authz,
         audit,
         trust_requirement,
+        anchor_policy,
         precheck_audit: std::sync::Arc::new(McpNoopAuditSink),
-        precheck_audit_payloads: config.server.audit.log_precheck_payloads,
+        precheck_audit_payloads,
         allow_default_namespace,
+        namespace_authority: std::sync::Arc::new(NoopNamespaceAuthority),
     })
 }
 

@@ -29,6 +29,7 @@ use decision_gate_core::EvidenceQuery;
 use decision_gate_core::ProviderId;
 use decision_gate_mcp::capabilities::CapabilityError;
 use decision_gate_mcp::capabilities::CapabilityRegistry;
+use decision_gate_mcp::config::AnchorPolicyConfig;
 use decision_gate_mcp::config::DecisionGateConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::config::PolicyConfig;
@@ -48,9 +49,11 @@ fn base_config() -> DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: decision_gate_mcp::config::NamespaceConfig {
             allow_default: true,
+            ..decision_gate_mcp::config::NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),

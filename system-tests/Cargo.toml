@@ -14,6 +14,7 @@ publish = false
 axum = { version = "0.7", features = ["json"] }
 decision-gate-contract = { path = "../decision-gate-contract" }
 decision-gate-core = { path = "../decision-gate-core" }
+decision-gate-cli = { path = "../decision-gate-cli" }
 decision-gate-mcp = { path = "../decision-gate-mcp" }
 decision-gate-store-sqlite = { path = "../decision-gate-store-sqlite" }
 jsonschema = { version = "0.18", features = ["draft202012"] }

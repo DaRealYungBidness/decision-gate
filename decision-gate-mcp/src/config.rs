@@ -15,6 +15,7 @@
 // SECTION: Imports
 // ============================================================================
 
+use std::collections::BTreeMap;
 use std::env;
 use std::fs;
 use std::net::SocketAddr;
@@ -22,6 +23,10 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use decision_gate_contract::ToolName;
+use decision_gate_core::AnchorRequirement;
+use decision_gate_core::EvidenceAnchorPolicy;
+use decision_gate_core::ProviderAnchorPolicy;
+use decision_gate_core::ProviderId;
 use decision_gate_core::TrustLane;
 use decision_gate_core::TrustRequirement;
 use decision_gate_store_sqlite::SqliteStoreMode;
@@ -83,6 +88,20 @@ const MAX_PROVIDER_REQUEST_TIMEOUT_MS: u64 = 30_000;
 const DEFAULT_SCHEMA_MAX_BYTES: usize = 1024 * 1024;
 /// Maximum allowed schema size in bytes.
 const MAX_SCHEMA_MAX_BYTES: usize = 10 * 1024 * 1024;
+/// Default namespace authority connect timeout in milliseconds.
+const DEFAULT_NAMESPACE_AUTH_CONNECT_TIMEOUT_MS: u64 = 500;
+/// Default namespace authority request timeout in milliseconds.
+const DEFAULT_NAMESPACE_AUTH_REQUEST_TIMEOUT_MS: u64 = 2_000;
+/// Minimum namespace authority connect timeout in milliseconds.
+const MIN_NAMESPACE_AUTH_CONNECT_TIMEOUT_MS: u64 = 100;
+/// Maximum namespace authority connect timeout in milliseconds.
+const MAX_NAMESPACE_AUTH_CONNECT_TIMEOUT_MS: u64 = 10_000;
+/// Minimum namespace authority request timeout in milliseconds.
+const MIN_NAMESPACE_AUTH_REQUEST_TIMEOUT_MS: u64 = 500;
+/// Maximum namespace authority request timeout in milliseconds.
+const MAX_NAMESPACE_AUTH_REQUEST_TIMEOUT_MS: u64 = 30_000;
+/// Maximum number of namespace mapping entries.
+const MAX_NAMESPACE_AUTH_MAPPINGS: usize = 10_000;
 
 // ============================================================================
 // SECTION: Configuration Types
@@ -103,6 +122,9 @@ pub struct DecisionGateConfig {
     /// Evidence disclosure policy configuration.
     #[serde(default)]
     pub evidence: EvidencePolicyConfig,
+    /// Evidence anchor policy configuration.
+    #[serde(default)]
+    pub anchors: AnchorPolicyConfig,
     /// Validation configuration for scenario and precheck inputs.
     #[serde(default)]
     pub validation: ValidationConfig,
@@ -153,6 +175,7 @@ impl DecisionGateConfig {
         self.policy.validate()?;
         self.run_state_store.validate()?;
         self.schema_registry.validate()?;
+        self.anchors.validate()?;
         for provider in &self.providers {
             provider.validate()?;
         }
@@ -161,7 +184,7 @@ impl DecisionGateConfig {
 
     /// Returns the effective trust requirement for the configured mode.
     #[must_use]
-    pub fn effective_trust_requirement(&self) -> TrustRequirement {
+    pub const fn effective_trust_requirement(&self) -> TrustRequirement {
         match self.server.mode {
             ServerMode::DevPermissive => TrustRequirement {
                 min_lane: TrustLane::Asserted,
@@ -174,7 +197,7 @@ impl DecisionGateConfig {
 
     /// Returns whether the default namespace is allowed.
     #[must_use]
-    pub fn allow_default_namespace(&self) -> bool {
+    pub const fn allow_default_namespace(&self) -> bool {
         match self.server.mode {
             ServerMode::DevPermissive => true,
             ServerMode::Strict => self.namespace.allow_default,
@@ -551,30 +574,144 @@ impl Default for TrustConfig {
 }
 
 /// Namespace policy configuration.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct NamespaceConfig {
     /// Allow the literal `default` namespace identifier.
     #[serde(default)]
     pub allow_default: bool,
-}
-
-impl Default for NamespaceConfig {
-    fn default() -> Self {
-        Self {
-            allow_default: false,
-        }
-    }
+    /// Namespace authority configuration.
+    #[serde(default)]
+    pub authority: NamespaceAuthorityConfig,
 }
 
 impl NamespaceConfig {
     /// Validates namespace policy configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError`] when the namespace policy is invalid.
     fn validate(&self) -> Result<(), ConfigError> {
+        self.authority.validate()?;
+        Ok(())
+    }
+}
+
+/// Namespace authority selection.
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum NamespaceAuthorityMode {
+    /// No external namespace authority.
+    #[default]
+    None,
+    /// Asset Core namespace authority via HTTP.
+    AssetcoreHttp,
+}
+
+/// Namespace authority configuration.
+#[derive(Debug, Clone, Deserialize)]
+pub struct NamespaceAuthorityConfig {
+    /// Authority mode selection.
+    #[serde(default)]
+    pub mode: NamespaceAuthorityMode,
+    /// Asset Core authority configuration.
+    #[serde(default)]
+    pub assetcore: Option<AssetCoreNamespaceAuthorityConfig>,
+}
+
+impl Default for NamespaceAuthorityConfig {
+    fn default() -> Self {
+        Self {
+            mode: NamespaceAuthorityMode::None,
+            assetcore: None,
+        }
+    }
+}
+
+impl NamespaceAuthorityConfig {
+    /// Validates namespace authority configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError`] when the authority configuration is invalid.
+    fn validate(&self) -> Result<(), ConfigError> {
+        match self.mode {
+            NamespaceAuthorityMode::None => {
+                if self.assetcore.is_some() {
+                    return Err(ConfigError::Invalid(
+                        "namespace.authority.assetcore only allowed when mode=assetcore_http"
+                            .to_string(),
+                    ));
+                }
+            }
+            NamespaceAuthorityMode::AssetcoreHttp => {
+                let Some(assetcore) = &self.assetcore else {
+                    return Err(ConfigError::Invalid(
+                        "namespace.authority.mode=assetcore_http requires \
+                         namespace.authority.assetcore"
+                            .to_string(),
+                    ));
+                };
+                assetcore.validate()?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Asset Core namespace authority configuration.
+#[derive(Debug, Clone, Deserialize)]
+pub struct AssetCoreNamespaceAuthorityConfig {
+    /// Base URL for Asset Core write daemon.
+    pub base_url: String,
+    /// Optional bearer token for namespace queries.
+    #[serde(default)]
+    pub auth_token: Option<String>,
+    /// Connect timeout in milliseconds.
+    #[serde(default = "default_namespace_auth_connect_timeout_ms")]
+    pub connect_timeout_ms: u64,
+    /// Request timeout in milliseconds.
+    #[serde(default = "default_namespace_auth_request_timeout_ms")]
+    pub request_timeout_ms: u64,
+    /// Optional DG -> Asset Core namespace mapping.
+    #[serde(default)]
+    pub mapping: BTreeMap<String, u64>,
+}
+
+impl AssetCoreNamespaceAuthorityConfig {
+    /// Validates Asset Core namespace authority configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError`] when the Asset Core settings are invalid.
+    fn validate(&self) -> Result<(), ConfigError> {
+        if self.base_url.trim().is_empty() {
+            return Err(ConfigError::Invalid(
+                "namespace.authority.assetcore.base_url is required".to_string(),
+            ));
+        }
+        validate_timeout_range(
+            "namespace.authority.assetcore.connect_timeout_ms",
+            self.connect_timeout_ms,
+            MIN_NAMESPACE_AUTH_CONNECT_TIMEOUT_MS,
+            MAX_NAMESPACE_AUTH_CONNECT_TIMEOUT_MS,
+        )?;
+        validate_timeout_range(
+            "namespace.authority.assetcore.request_timeout_ms",
+            self.request_timeout_ms,
+            MIN_NAMESPACE_AUTH_REQUEST_TIMEOUT_MS,
+            MAX_NAMESPACE_AUTH_REQUEST_TIMEOUT_MS,
+        )?;
+        if self.mapping.len() > MAX_NAMESPACE_AUTH_MAPPINGS {
+            return Err(ConfigError::Invalid(
+                "namespace.authority.assetcore.mapping exceeds max entries".to_string(),
+            ));
+        }
         Ok(())
     }
 }
 
 /// Policy engine configuration.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct PolicyConfig {
     /// Policy engine selection.
     #[serde(default)]
@@ -584,17 +721,12 @@ pub struct PolicyConfig {
     pub static_policy: Option<StaticPolicyConfig>,
 }
 
-impl Default for PolicyConfig {
-    fn default() -> Self {
-        Self {
-            engine: PolicyEngine::default(),
-            static_policy: None,
-        }
-    }
-}
-
 impl PolicyConfig {
     /// Validates policy configuration for internal consistency.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError`] when policy settings are invalid.
     fn validate(&self) -> Result<(), ConfigError> {
         match self.engine {
             PolicyEngine::Static => {
@@ -617,6 +749,10 @@ impl PolicyConfig {
     }
 
     /// Builds the runtime dispatch policy adapter.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError`] when the configuration is missing static policy data.
     pub fn dispatch_policy(&self) -> Result<DispatchPolicy, ConfigError> {
         match self.engine {
             PolicyEngine::PermitAll => Ok(DispatchPolicy::PermitAll),
@@ -648,6 +784,84 @@ impl Default for EvidencePolicyConfig {
             allow_raw_values: false,
             require_provider_opt_in: true,
         }
+    }
+}
+
+/// Evidence anchor policy configuration.
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct AnchorPolicyConfig {
+    /// Provider-specific anchor requirements.
+    #[serde(default)]
+    pub providers: Vec<AnchorProviderConfig>,
+}
+
+impl AnchorPolicyConfig {
+    /// Validates anchor policy configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError`] when provider entries are invalid.
+    fn validate(&self) -> Result<(), ConfigError> {
+        for provider in &self.providers {
+            provider.validate()?;
+        }
+        Ok(())
+    }
+
+    /// Builds the runtime evidence anchor policy for the control plane.
+    #[must_use]
+    pub fn to_policy(&self) -> EvidenceAnchorPolicy {
+        let mut providers = Vec::new();
+        for provider in &self.providers {
+            providers.push(ProviderAnchorPolicy {
+                provider_id: ProviderId::new(&provider.provider_id),
+                requirement: AnchorRequirement {
+                    anchor_type: provider.anchor_type.clone(),
+                    required_fields: normalize_required_fields(&provider.required_fields),
+                },
+            });
+        }
+        EvidenceAnchorPolicy {
+            providers,
+        }
+    }
+}
+
+/// Provider-specific anchor requirement configuration.
+#[derive(Debug, Clone, Deserialize)]
+pub struct AnchorProviderConfig {
+    /// Provider identifier.
+    pub provider_id: String,
+    /// Anchor type required for evidence results.
+    pub anchor_type: String,
+    /// Required fields inside the anchor payload.
+    #[serde(default)]
+    pub required_fields: Vec<String>,
+}
+
+impl AnchorProviderConfig {
+    /// Validates provider-specific anchor configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError`] when the anchor requirement is invalid.
+    fn validate(&self) -> Result<(), ConfigError> {
+        if self.provider_id.trim().is_empty() {
+            return Err(ConfigError::Invalid(
+                "anchors.providers.provider_id must be non-empty".to_string(),
+            ));
+        }
+        if self.anchor_type.trim().is_empty() {
+            return Err(ConfigError::Invalid(
+                "anchors.providers.anchor_type must be non-empty".to_string(),
+            ));
+        }
+        if normalize_required_fields(&self.required_fields).is_empty() {
+            return Err(ConfigError::Invalid(
+                "anchors.providers.required_fields must be non-empty".to_string(),
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -1162,6 +1376,16 @@ const fn default_provider_request_timeout_ms() -> u64 {
     10_000
 }
 
+/// Default namespace authority connect timeout in milliseconds.
+const fn default_namespace_auth_connect_timeout_ms() -> u64 {
+    DEFAULT_NAMESPACE_AUTH_CONNECT_TIMEOUT_MS
+}
+
+/// Default namespace authority request timeout in milliseconds.
+const fn default_namespace_auth_request_timeout_ms() -> u64 {
+    DEFAULT_NAMESPACE_AUTH_REQUEST_TIMEOUT_MS
+}
+
 /// Validates a timeout value against bounds.
 fn validate_timeout_range(
     field: &str,
@@ -1175,6 +1399,18 @@ fn validate_timeout_range(
         )));
     }
     Ok(())
+}
+
+/// Normalizes required field names by trimming and deduplicating.
+fn normalize_required_fields(fields: &[String]) -> Vec<String> {
+    let mut normalized: Vec<String> = fields
+        .iter()
+        .map(|field| field.trim().to_string())
+        .filter(|field| !field.is_empty())
+        .collect();
+    normalized.sort();
+    normalized.dedup();
+    normalized
 }
 
 /// Validates run state store paths against security limits.

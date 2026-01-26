@@ -13,6 +13,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use decision_gate_mcp::McpServer;
+use decision_gate_mcp::config::AnchorPolicyConfig;
 use decision_gate_mcp::config::DecisionGateConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::config::NamespaceConfig;
@@ -88,9 +89,11 @@ pub fn base_http_config(bind: &str) -> DecisionGateConfig {
         },
         namespace: NamespaceConfig {
             allow_default: true,
+            ..NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -172,9 +175,11 @@ pub fn base_sse_config(bind: &str) -> DecisionGateConfig {
         },
         namespace: NamespaceConfig {
             allow_default: true,
+            ..NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
