@@ -15,7 +15,7 @@ cargo nextest run -p enterprise-system-tests --features enterprise-system-tests
 
 # Run a single test
 cargo test -p enterprise-system-tests --features enterprise-system-tests --test security \
-  -- --exact enterprise_tenant_authz_core_matrix
+  -- --exact tenant_authz::enterprise_tenant_authz_core_matrix
 ```
 
 ## Test Contract Standards
@@ -44,7 +44,7 @@ live in `enterprise/enterprise-system-tests/tests/`:
 Run a specific test by targeting the suite:
 ```bash
 cargo test -p enterprise-system-tests --features enterprise-system-tests --test audit \
-  -- --exact audit_chain_immutability
+  -- --exact audit::audit_chain_immutability
 ```
 
 ## Infrastructure Notes

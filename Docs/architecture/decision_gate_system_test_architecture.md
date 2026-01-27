@@ -86,7 +86,7 @@ specifies:
 Suite entrypoints live in `system-tests/tests/` and include test implementations
 under `system-tests/tests/suites/`. This reduces test binary proliferation while
 preserving category-driven inventory in the registry. Each registry
-`run_command` targets the suite binary with `--test <suite> -- --exact <test>`.
+`run_command` targets the suite binary with `--test <suite> -- --exact <module>::<test>`.
 
 ## Enterprise System Tests
 

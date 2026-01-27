@@ -46,7 +46,7 @@ cargo test -p system-tests --features system-tests
 cargo nextest run -p system-tests --features system-tests
 
 # Run a single test
-cargo test -p system-tests --features system-tests --test smoke -- --exact smoke_define_start_next_status
+cargo test -p system-tests --features system-tests --test smoke -- --exact smoke::smoke_define_start_next_status
 ```
 
 ## Suite Layout (Binary Consolidation)
@@ -67,7 +67,7 @@ points live in `system-tests/tests/`:
 
 Run a specific test by targeting the suite:
 ```bash
-cargo test -p system-tests --features system-tests --test security -- --exact evidence_redaction_default
+cargo test -p system-tests --features system-tests --test security -- --exact security::evidence_redaction_default
 ```
 
 ## Test Runner (Registry Driven)

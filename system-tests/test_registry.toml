@@ -28,7 +28,7 @@ category = "smoke"
 priority = "P0"
 description = "Define scenario, start run, advance, and check status over HTTP MCP."
 files = ["system-tests/tests/suites/smoke.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test smoke -- --exact smoke_define_start_next_status"
+run_command = "cargo test -p system-tests --features system-tests --test smoke -- --exact smoke::smoke_define_start_next_status"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 10
 
@@ -38,7 +38,7 @@ category = "runpack"
 priority = "P0"
 description = "Export a runpack and verify integrity over MCP tools."
 files = ["system-tests/tests/suites/runpack.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test runpack -- --exact runpack_export_verify_happy_path"
+run_command = "cargo test -p system-tests --features system-tests --test runpack -- --exact runpack::runpack_export_verify_happy_path"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runpack/"]
 estimated_runtime_sec = 15
 
@@ -48,7 +48,7 @@ category = "contract"
 priority = "P0"
 description = "Validate MCP tool inputs/outputs against contract schemas."
 files = ["system-tests/tests/suites/contract.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test contract -- --exact schema_conformance_all_tools"
+run_command = "cargo test -p system-tests --features system-tests --test contract -- --exact contract::schema_conformance_all_tools"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 20
 
@@ -58,7 +58,7 @@ category = "security"
 priority = "P0"
 description = "Raw evidence values are redacted by default in evidence_query."
 files = ["system-tests/tests/suites/security.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test security -- --exact evidence_redaction_default"
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact security::evidence_redaction_default"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -68,7 +68,7 @@ category = "security"
 priority = "P0"
 description = "HTTP MCP tools require bearer authentication when configured."
 files = ["system-tests/tests/suites/mcp_auth.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test security -- --exact http_bearer_token_required"
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact mcp_auth::http_bearer_token_required"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -78,7 +78,7 @@ category = "security"
 priority = "P0"
 description = "Tool allowlist denies unauthorized MCP tool calls."
 files = ["system-tests/tests/suites/mcp_auth.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test security -- --exact http_tool_allowlist_enforced"
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact mcp_auth::http_tool_allowlist_enforced"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -88,7 +88,7 @@ category = "security"
 priority = "P0"
 description = "HTTP MCP tools require mTLS subject header when configured."
 files = ["system-tests/tests/suites/mcp_auth.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test security -- --exact http_mtls_subject_required"
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact mcp_auth::http_mtls_subject_required"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -98,7 +98,7 @@ category = "security"
 priority = "P0"
 description = "SSE MCP transport enforces bearer authentication."
 files = ["system-tests/tests/suites/mcp_auth.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test security -- --exact sse_bearer_token_required"
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact mcp_auth::sse_bearer_token_required"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -108,7 +108,7 @@ category = "operations"
 priority = "P0"
 description = "HTTP MCP rate limiting rejects excess requests."
 files = ["system-tests/tests/suites/mcp_hardening.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact http_rate_limit_enforced"
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact mcp_hardening::http_rate_limit_enforced"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -118,7 +118,7 @@ category = "operations"
 priority = "P0"
 description = "HTTPS MCP transport succeeds with configured TLS."
 files = ["system-tests/tests/suites/mcp_hardening.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact http_tls_handshake_success"
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact mcp_hardening::http_tls_handshake_success"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -128,7 +128,7 @@ category = "security"
 priority = "P0"
 description = "HTTPS MCP transport enforces client certificates when configured."
 files = ["system-tests/tests/suites/mcp_hardening.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact http_mtls_client_cert_required"
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact mcp_hardening::http_mtls_client_cert_required"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 10
 
@@ -138,7 +138,7 @@ category = "operations"
 priority = "P0"
 description = "HTTP MCP audit logging writes structured JSON lines."
 files = ["system-tests/tests/suites/mcp_hardening.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact http_audit_log_written"
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact mcp_hardening::http_audit_log_written"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "audit.log"]
 estimated_runtime_sec = 8
 
@@ -148,7 +148,7 @@ category = "reliability"
 priority = "P0"
 description = "Duplicate trigger IDs do not create duplicate decisions."
 files = ["system-tests/tests/suites/reliability.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test reliability -- --exact idempotent_trigger"
+run_command = "cargo test -p system-tests --features system-tests --test reliability -- --exact reliability::idempotent_trigger"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runpack/"]
 estimated_runtime_sec = 15
 
@@ -158,7 +158,7 @@ category = "reliability"
 priority = "P0"
 description = "Duplicate submission IDs return the existing record; conflicts fail closed."
 files = ["system-tests/tests/suites/reliability.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test reliability -- --exact idempotent_submission"
+run_command = "cargo test -p system-tests --features system-tests --test reliability -- --exact reliability::idempotent_submission"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runpack/"]
 estimated_runtime_sec = 15
 
@@ -168,7 +168,7 @@ category = "providers"
 priority = "P0"
 description = "Time provider predicate evaluates correctly."
 files = ["system-tests/tests/suites/providers.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact provider_time_after"
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::provider_time_after"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -182,7 +182,7 @@ category = "mcp_transport"
 priority = "P1"
 description = "HTTP JSON-RPC transport handles tools/list and tools/call."
 files = ["system-tests/tests/suites/mcp_transport.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test mcp_transport -- --exact http_transport_end_to_end"
+run_command = "cargo test -p system-tests --features system-tests --test mcp_transport -- --exact mcp_transport::http_transport_end_to_end"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -192,7 +192,7 @@ category = "smoke"
 priority = "P1"
 description = "Register a schema and precheck asserted payloads."
 files = ["system-tests/tests/suites/smoke.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test smoke -- --exact smoke_schema_register_precheck"
+run_command = "cargo test -p system-tests --features system-tests --test smoke -- --exact smoke::smoke_schema_register_precheck"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 10
 
@@ -202,7 +202,7 @@ category = "smoke"
 priority = "P1"
 description = "Schema registry max entries limit is enforced."
 files = ["system-tests/tests/suites/smoke.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test smoke -- --exact smoke_schema_registry_max_entries_enforced"
+run_command = "cargo test -p system-tests --features system-tests --test smoke -- --exact smoke::smoke_schema_registry_max_entries_enforced"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -212,7 +212,7 @@ category = "smoke"
 priority = "P1"
 description = "Precheck rejects payloads that fail schema validation."
 files = ["system-tests/tests/suites/smoke.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test smoke -- --exact smoke_precheck_rejects_invalid_payload"
+run_command = "cargo test -p system-tests --features system-tests --test smoke -- --exact smoke::smoke_precheck_rejects_invalid_payload"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -222,7 +222,7 @@ category = "smoke"
 priority = "P1"
 description = "Precheck respects default trust lane when asserted evidence is missing."
 files = ["system-tests/tests/suites/smoke.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test smoke -- --exact smoke_precheck_respects_trust_lane_default"
+run_command = "cargo test -p system-tests --features system-tests --test smoke -- --exact smoke::smoke_precheck_respects_trust_lane_default"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -232,7 +232,7 @@ category = "functional"
 priority = "P1"
 description = "Precheck rejects comparator/schema mismatches under strict validation."
 files = ["system-tests/tests/suites/validation.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test functional -- --exact strict_validation_precheck_rejects_comparator_mismatch"
+run_command = "cargo test -p system-tests --features system-tests --test functional -- --exact validation::strict_validation_precheck_rejects_comparator_mismatch"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -242,7 +242,7 @@ category = "functional"
 priority = "P1"
 description = "Precheck proceeds when strict validation is disabled with allow_permissive."
 files = ["system-tests/tests/suites/validation.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test functional -- --exact strict_validation_precheck_allows_permissive"
+run_command = "cargo test -p system-tests --features system-tests --test functional -- --exact validation::strict_validation_precheck_allows_permissive"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -252,7 +252,7 @@ category = "functional"
 priority = "P1"
 description = "Scenario define rejects lex/deep comparators when disabled by config."
 files = ["system-tests/tests/suites/validation.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test functional -- --exact strict_validation_rejects_disabled_comparators"
+run_command = "cargo test -p system-tests --features system-tests --test functional -- --exact validation::strict_validation_rejects_disabled_comparators"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -262,7 +262,7 @@ category = "functional"
 priority = "P1"
 description = "Scenario define accepts lex/deep comparators when enabled."
 files = ["system-tests/tests/suites/validation.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test functional -- --exact strict_validation_allows_enabled_comparators"
+run_command = "cargo test -p system-tests --features system-tests --test functional -- --exact validation::strict_validation_allows_enabled_comparators"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -272,7 +272,7 @@ category = "functional"
 priority = "P1"
 description = "Scenario define rejects in_set when expected is not an array."
 files = ["system-tests/tests/suites/validation.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test functional -- --exact strict_validation_rejects_in_set_non_array"
+run_command = "cargo test -p system-tests --features system-tests --test functional -- --exact validation::strict_validation_rejects_in_set_non_array"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -282,7 +282,7 @@ category = "functional"
 priority = "P1"
 description = "Precheck accepts contains comparator with string/null union schemas."
 files = ["system-tests/tests/suites/validation.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test functional -- --exact strict_validation_precheck_allows_union_contains"
+run_command = "cargo test -p system-tests --features system-tests --test functional -- --exact validation::strict_validation_precheck_allows_union_contains"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -312,7 +312,7 @@ category = "security"
 priority = "P1"
 description = "Tool allowlist blocks precheck when not explicitly allowed."
 files = ["system-tests/tests/suites/mcp_auth.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test security -- --exact http_tool_allowlist_blocks_precheck"
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact mcp_auth::http_tool_allowlist_blocks_precheck"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -322,7 +322,7 @@ category = "providers"
 priority = "P1"
 description = "External MCP provider integration via HTTP."
 files = ["system-tests/tests/suites/providers.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact federated_provider_echo"
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::federated_provider_echo"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 12
 
@@ -332,7 +332,7 @@ category = "providers"
 priority = "P1"
 description = "External MCP provider HTTP timeouts fail closed."
 files = ["system-tests/tests/suites/providers.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact federated_provider_timeout_enforced"
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::federated_provider_timeout_enforced"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "echo_provider_contract.json"]
 estimated_runtime_sec = 12
 
@@ -342,7 +342,7 @@ category = "providers"
 priority = "P1"
 description = "JSON provider returns structured error metadata for missing JSONPath."
 files = ["system-tests/tests/suites/providers.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact json_provider_missing_jsonpath_returns_error_metadata"
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::json_provider_missing_jsonpath_returns_error_metadata"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -352,7 +352,7 @@ category = "providers"
 priority = "P1"
 description = "JSON provider path + contains comparator evaluates end-to-end."
 files = ["system-tests/tests/suites/providers.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact json_provider_contains_array_succeeds"
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::json_provider_contains_array_succeeds"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 10
 
@@ -362,7 +362,7 @@ category = "contract"
 priority = "P1"
 description = "HTTP MCP exposes provider contract/schema discovery tools."
 files = ["system-tests/tests/suites/provider_discovery.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test contract -- --exact http_provider_discovery_tools"
+run_command = "cargo test -p system-tests --features system-tests --test contract -- --exact provider_discovery::http_provider_discovery_tools"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 10
 
@@ -372,7 +372,7 @@ category = "contract"
 priority = "P1"
 description = "Stdio MCP exposes provider contract/schema discovery tools."
 files = ["system-tests/tests/suites/provider_discovery.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test contract -- --exact stdio_provider_discovery_tools"
+run_command = "cargo test -p system-tests --features system-tests --test contract -- --exact provider_discovery::stdio_provider_discovery_tools"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "mcp.stderr.log"]
 estimated_runtime_sec = 12
 
@@ -382,7 +382,7 @@ category = "providers"
 priority = "P1"
 description = "AssetCore interop fixture map executes via federated provider."
 files = ["system-tests/tests/suites/providers.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact assetcore_interop_fixtures"
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::assetcore_interop_fixtures"
 artifacts = [
   "summary.json",
   "summary.md",
@@ -402,7 +402,7 @@ category = "providers"
 priority = "P1"
 description = "Missing AssetCore anchors fail closed for federated provider evidence."
 files = ["system-tests/tests/suites/assetcore_integration.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact assetcore_anchor_missing_fails_closed"
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact assetcore_integration::assetcore_anchor_missing_fails_closed"
 artifacts = [
   "summary.json",
   "summary.md",
@@ -417,7 +417,7 @@ category = "providers"
 priority = "P1"
 description = "Correlation IDs are preserved for AssetCore evidence queries."
 files = ["system-tests/tests/suites/assetcore_integration.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact assetcore_correlation_id_passthrough"
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact assetcore_integration::assetcore_correlation_id_passthrough"
 artifacts = [
   "summary.json",
   "summary.md",
@@ -432,7 +432,7 @@ category = "security"
 priority = "P1"
 description = "AssetCore namespace authority allows known namespaces."
 files = ["system-tests/tests/suites/assetcore_integration.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact namespace_authority_allows_known_namespace"
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact assetcore_integration::namespace_authority_allows_known_namespace"
 artifacts = [
   "summary.json",
   "summary.md",
@@ -447,7 +447,7 @@ category = "security"
 priority = "P1"
 description = "AssetCore namespace authority denies unknown namespaces."
 files = ["system-tests/tests/suites/assetcore_integration.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact namespace_authority_denies_unknown_namespace"
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact assetcore_integration::namespace_authority_denies_unknown_namespace"
 artifacts = [
   "summary.json",
   "summary.md",
@@ -462,7 +462,7 @@ category = "security"
 priority = "P1"
 description = "Namespace mismatch between scenario spec and run config is rejected."
 files = ["system-tests/tests/suites/assetcore_integration.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact namespace_mismatch_rejected"
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact assetcore_integration::namespace_mismatch_rejected"
 artifacts = [
   "summary.json",
   "summary.md",
@@ -476,7 +476,7 @@ category = "security"
 priority = "P1"
 description = "Packet visibility labels and policy tags persist into envelopes."
 files = ["system-tests/tests/suites/security.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test security -- --exact packet_disclosure_visibility"
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact security::packet_disclosure_visibility"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -486,7 +486,7 @@ category = "security"
 priority = "P1"
 description = "Strict mode rejects the default namespace without explicit allow."
 files = ["system-tests/tests/suites/security.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test security -- --exact strict_mode_rejects_default_namespace"
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact security::strict_mode_rejects_default_namespace"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -496,7 +496,7 @@ category = "operations"
 priority = "P1"
 description = "Dev-permissive mode emits an explicit startup warning."
 files = ["system-tests/tests/suites/operations.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact dev_permissive_emits_warning"
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact operations::dev_permissive_emits_warning"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "mcp.stderr.log"]
 estimated_runtime_sec = 8
 
@@ -506,7 +506,7 @@ category = "operations"
 priority = "P1"
 description = "Precheck emits hash-only audit events by default."
 files = ["system-tests/tests/suites/operations.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact precheck_audit_hash_only"
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact operations::precheck_audit_hash_only"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "mcp.stderr.log"]
 estimated_runtime_sec = 8
 
@@ -516,7 +516,7 @@ category = "security"
 priority = "P1"
 description = "Static policy engine denies disclosure and fails the run."
 files = ["system-tests/tests/suites/security.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test security -- --exact policy_denies_dispatch_targets"
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact security::policy_denies_dispatch_targets"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "policy_state.json"]
 estimated_runtime_sec = 10
 
@@ -526,7 +526,7 @@ category = "security"
 priority = "P1"
 description = "Static policy engine error fails closed with explicit reason."
 files = ["system-tests/tests/suites/security.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test security -- --exact policy_error_fails_closed"
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact security::policy_error_fails_closed"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "policy_state.json"]
 estimated_runtime_sec = 10
 
@@ -536,7 +536,7 @@ category = "reliability"
 priority = "P1"
 description = "Timeout policies fail, advance_with_flag, and alternate_branch behave as specified."
 files = ["system-tests/tests/suites/reliability.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test reliability -- --exact timeout_policies"
+run_command = "cargo test -p system-tests --features system-tests --test reliability -- --exact reliability::timeout_policies"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 20
 
@@ -546,7 +546,7 @@ category = "reliability"
 priority = "P1"
 description = "SQLite run state persists across MCP server restarts."
 files = ["system-tests/tests/suites/store_persistence.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test reliability -- --exact sqlite_run_state_persists_across_restart"
+run_command = "cargo test -p system-tests --features system-tests --test reliability -- --exact store_persistence::sqlite_run_state_persists_across_restart"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 20
 
@@ -556,7 +556,7 @@ category = "reliability"
 priority = "P1"
 description = "Run state requires scenario re-define after restart before status queries."
 files = ["system-tests/tests/suites/store_persistence.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test reliability -- --exact sqlite_requires_redefine_after_restart"
+run_command = "cargo test -p system-tests --features system-tests --test reliability -- --exact store_persistence::sqlite_requires_redefine_after_restart"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 20
 
@@ -566,7 +566,7 @@ category = "runpack"
 priority = "P1"
 description = "Tampered runpack artifacts fail verification."
 files = ["system-tests/tests/suites/runpack.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test runpack -- --exact runpack_tamper_detection"
+run_command = "cargo test -p system-tests --features system-tests --test runpack -- --exact runpack::runpack_tamper_detection"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runpack/"]
 estimated_runtime_sec = 15
 
@@ -576,7 +576,7 @@ category = "security"
 priority = "P1"
 description = "ASC role/policy_class auth mapping is enforced via the integration proxy."
 files = ["system-tests/tests/suites/auth_matrix.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test security -- --exact asc_auth_mapping_matrix"
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact auth_matrix::asc_auth_mapping_matrix"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runpack/"]
 estimated_runtime_sec = 20
 
@@ -586,7 +586,7 @@ category = "reliability"
 priority = "P1"
 description = "Identical AssetCore fixtures yield identical decisions and runpack hashes."
 files = ["system-tests/tests/suites/determinism.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test reliability -- --exact assetcore_determinism_replay"
+run_command = "cargo test -p system-tests --features system-tests --test reliability -- --exact determinism::assetcore_determinism_replay"
 artifacts = [
   "summary.json",
   "summary.md",
@@ -603,7 +603,7 @@ category = "security"
 priority = "P1"
 description = "Builtin schema registry ACL matrix is enforced across roles."
 files = ["system-tests/tests/suites/registry_acl.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test security -- --exact registry_acl_builtin_matrix"
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact registry_acl::registry_acl_builtin_matrix"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 15
 
@@ -613,7 +613,7 @@ category = "security"
 priority = "P1"
 description = "Registry ACL principal mapping respects stdio/loopback/bearer/mTLS subjects."
 files = ["system-tests/tests/suites/registry_acl.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test security -- --exact registry_acl_principal_subject_mapping"
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact registry_acl::registry_acl_principal_subject_mapping"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "stdio-allowed.stderr.log", "stdio-denied.stderr.log"]
 estimated_runtime_sec = 20
 
@@ -623,7 +623,7 @@ category = "security"
 priority = "P1"
 description = "Schema registry requires signing metadata for memory + sqlite backends."
 files = ["system-tests/tests/suites/registry_acl.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test security -- --exact registry_acl_signing_required_memory_and_sqlite"
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact registry_acl::registry_acl_signing_required_memory_and_sqlite"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 12
 
@@ -633,7 +633,7 @@ category = "security"
 priority = "P1"
 description = "Default namespace allowlist enforces tenant scoping."
 files = ["system-tests/tests/suites/namespace_defaults.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test security -- --exact default_namespace_allowlist_enforced"
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact namespace_defaults::default_namespace_allowlist_enforced"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -643,7 +643,7 @@ category = "security"
 priority = "P1"
 description = "Dev-permissive mode is rejected with AssetCore namespace authority."
 files = ["system-tests/tests/suites/config_validation.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test security -- --exact dev_permissive_assetcore_rejected"
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact config_validation::dev_permissive_assetcore_rejected"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 5
 
@@ -653,7 +653,7 @@ category = "security"
 priority = "P1"
 description = "Registry + security audit events emit required fields for allow/deny."
 files = ["system-tests/tests/suites/audit_registry.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test security -- --exact registry_security_audit_events"
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact audit_registry::registry_security_audit_events"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "audit.log"]
 estimated_runtime_sec = 10
 
@@ -667,7 +667,7 @@ category = "mcp_transport"
 priority = "P2"
 description = "Stdio JSON-RPC transport handles tools/list and tools/call."
 files = ["system-tests/tests/suites/mcp_transport.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test mcp_transport -- --exact stdio_transport_end_to_end"
+run_command = "cargo test -p system-tests --features system-tests --test mcp_transport -- --exact mcp_transport::stdio_transport_end_to_end"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "mcp.stderr.log"]
 estimated_runtime_sec = 12
 
@@ -677,7 +677,7 @@ category = "mcp_transport"
 priority = "P2"
 description = "HTTP, stdio, and CLI interop produce identical decisions/runpacks."
 files = ["system-tests/tests/suites/transport_parity.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test mcp_transport -- --exact multi_transport_parity"
+run_command = "cargo test -p system-tests --features system-tests --test mcp_transport -- --exact transport_parity::multi_transport_parity"
 artifacts = [
   "summary.json",
   "summary.md",
@@ -696,7 +696,7 @@ category = "runpack"
 priority = "P2"
 description = "Runpack manifests include security context metadata for exports."
 files = ["system-tests/tests/suites/runpack.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test runpack -- --exact runpack_export_includes_security_context"
+run_command = "cargo test -p system-tests --features system-tests --test runpack -- --exact runpack::runpack_export_includes_security_context"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runpack/"]
 estimated_runtime_sec = 18
 
@@ -706,7 +706,7 @@ category = "security"
 priority = "P2"
 description = "Malformed/oversized anchors fail closed with explicit errors."
 files = ["system-tests/tests/suites/anchor_fuzz.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test security -- --exact anchor_validation_fuzz_cases_fail_closed"
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact anchor_fuzz::anchor_validation_fuzz_cases_fail_closed"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runpack/"]
 estimated_runtime_sec = 20
 
@@ -726,7 +726,7 @@ category = "reliability"
 priority = "P2"
 description = "Concurrent schema registry writes remain stable and ordered."
 files = ["system-tests/tests/suites/stress.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test reliability -- --exact stress_registry_concurrent_writes"
+run_command = "cargo test -p system-tests --features system-tests --test reliability -- --exact stress::stress_registry_concurrent_writes"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 20
 
@@ -736,7 +736,7 @@ category = "reliability"
 priority = "P2"
 description = "Schemas list paging stays deterministic under concurrent reads."
 files = ["system-tests/tests/suites/stress.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test reliability -- --exact stress_schema_list_paging_concurrent_reads"
+run_command = "cargo test -p system-tests --features system-tests --test reliability -- --exact stress::stress_schema_list_paging_concurrent_reads"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 20
 
@@ -746,6 +746,6 @@ category = "reliability"
 priority = "P2"
 description = "Precheck request storms fail closed and remain stable."
 files = ["system-tests/tests/suites/stress.rs"]
-run_command = "cargo test -p system-tests --features system-tests --test reliability -- --exact stress_precheck_request_storm"
+run_command = "cargo test -p system-tests --features system-tests --test reliability -- --exact stress::stress_precheck_request_storm"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 25

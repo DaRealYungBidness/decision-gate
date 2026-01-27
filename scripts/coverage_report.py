@@ -14,7 +14,7 @@ import sys
 from datetime import datetime
 from datetime import timezone
 from pathlib import Path
-from typing import Any, Dict, List, MutableMapping
+from typing import Any, Dict, List, MutableMapping, cast
 
 try:
     import tomllib as toml  # Python 3.11+
@@ -26,6 +26,9 @@ except ModuleNotFoundError:  # pragma: no cover
         sys.exit(1)
 
 RegistryData = MutableMapping[str, Any]
+TestEntry = Dict[str, Any]
+GapEntry = Dict[str, Any]
+CategoryEntry = Dict[str, Any]
 
 
 def load_toml(path: Path) -> RegistryData:
@@ -44,9 +47,11 @@ def render_table(headers: List[str], rows: List[List[str]]) -> str:
 
 
 def generate_coverage_report(registry: RegistryData, gaps: RegistryData) -> str:
-    tests = list(registry.get("tests", []))
-    categories = registry.get("categories", {})
-    gap_entries = list(gaps.get("gaps", []))
+    tests: List[TestEntry] = list(registry.get("tests", []))
+    categories: Dict[str, CategoryEntry] = cast(
+        Dict[str, CategoryEntry], registry.get("categories", {})
+    )
+    gap_entries: List[GapEntry] = list(gaps.get("gaps", []))
 
     by_category: Dict[str, int] = {}
     for test in tests:
@@ -58,7 +63,7 @@ def generate_coverage_report(registry: RegistryData, gaps: RegistryData) -> str:
 
     gap_open = [gap for gap in gap_entries if gap.get("status") != "closed"]
 
-    rows = []
+    rows: List[List[str]] = []
     for test in p0_tests:
         rows.append([
             test["name"],
@@ -67,9 +72,12 @@ def generate_coverage_report(registry: RegistryData, gaps: RegistryData) -> str:
             f"`{test.get('run_command', '')}`",
         ])
 
-    category_rows = [[cat, str(count), categories.get(cat, {}).get("description", "-")] for cat, count in sorted(by_category.items())]
+    category_rows: List[List[str]] = [
+        [cat, str(count), categories.get(cat, {}).get("description", "-")]
+        for cat, count in sorted(by_category.items())
+    ]
 
-    gap_rows = []
+    gap_rows: List[List[str]] = []
     for gap in gap_open:
         gap_rows.append([
             gap.get("id", ""),
@@ -114,8 +122,10 @@ def generate_coverage_report(registry: RegistryData, gaps: RegistryData) -> str:
 
 
 def generate_infrastructure_guide(registry: RegistryData) -> str:
-    categories = registry.get("categories", {})
-    category_rows = [
+    categories: Dict[str, CategoryEntry] = cast(
+        Dict[str, CategoryEntry], registry.get("categories", {})
+    )
+    category_rows: List[List[str]] = [
         [cat, info.get("description", "-"), "yes" if info.get("quick") else "no"]
         for cat, info in categories.items()
     ]
@@ -172,7 +182,7 @@ Runpack tests also emit `runpack/` with exported artifacts.
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate Decision Gate test coverage docs")
     parser.add_argument("action", choices=["generate"], help="Generate documentation")
-    args = parser.parse_args()
+    parser.parse_args()
 
     workspace_root = Path(__file__).resolve().parents[1]
     registry_path = workspace_root / "system-tests" / "test_registry.toml"
