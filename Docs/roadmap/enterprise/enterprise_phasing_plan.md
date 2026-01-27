@@ -141,18 +141,18 @@ Status: **Implemented (tests added; execution validated for non-container suites
 
 - **Enterprise test registry + gap closure:** `enterprise/enterprise-system-tests/test_registry.toml`,
   `enterprise/enterprise-system-tests/test_gaps.toml`.
-- **Audit integrity + JSONL export:** `enterprise/enterprise-system-tests/tests/audit.rs`
+- **Audit integrity + JSONL export:** `enterprise/enterprise-system-tests/tests/suites/audit.rs`
   (hash-chain immutability, deny-path coverage, JSONL format).
-- **Postgres store integrity:** `enterprise/enterprise-system-tests/tests/postgres_store.rs`
+- **Postgres store integrity:** `enterprise/enterprise-system-tests/tests/suites/postgres_store.rs`
   (roundtrip, corruption detection, concurrency, pagination, signing metadata).
-- **S3 runpack integrity:** `enterprise/enterprise-system-tests/tests/s3_runpack_store.rs`
+- **S3 runpack integrity:** `enterprise/enterprise-system-tests/tests/suites/s3_runpack_store.rs`
   (roundtrip, SSE enforcement, metadata tamper detection, archive hardening).
-- **Runpack export hygiene:** `enterprise/enterprise-system-tests/tests/runpack_hardening.rs`
+- **Runpack export hygiene:** `enterprise/enterprise-system-tests/tests/suites/runpack_hardening.rs`
   (temporary directory cleanup).
-- **Transport parity + TLS/mTLS:** `enterprise/enterprise-system-tests/tests/transport_parity.rs`,
-  `enterprise/enterprise-system-tests/tests/transport_tls.rs`.
-- **Backup/restore validation:** `enterprise/enterprise-system-tests/tests/backup_restore.rs`.
-- **Config hardening:** `enterprise/enterprise-system-tests/tests/config_limits.rs`.
+- **Transport parity + TLS/mTLS:** `enterprise/enterprise-system-tests/tests/suites/transport_parity.rs`,
+  `enterprise/enterprise-system-tests/tests/suites/transport_tls.rs`.
+- **Backup/restore validation:** `enterprise/enterprise-system-tests/tests/suites/backup_restore.rs`.
+- **Config hardening:** `enterprise/enterprise-system-tests/tests/suites/config_limits.rs`.
 
 ### Phase-1 Design Decisions (Make These Upfront)
 These are the “lock early” choices that avoid long-term pain:

@@ -43,12 +43,18 @@ request shapes. The harness provides deterministic server startup, fixtures for
 Postgres + S3-compatible storage (via Docker or external endpoints), and a
 strict artifact contract for audit review.
 
+Suite entrypoints live in `enterprise/enterprise-system-tests/tests/` and load
+test implementations from `enterprise/enterprise-system-tests/tests/suites/`.
+This keeps enterprise test binaries aligned to categories while reducing binary
+proliferation.
+
 ---
 
 ## Test Harness
 
 The harness provides:
 - Loopback server allocation (free ports).
+- Port reservations to reduce parallel bind collisions.
 - Base MCP configuration builders (HTTP, TLS, mTLS).
 - Typed HTTP client for tool calls.
 - Lifecycle management for server tasks.

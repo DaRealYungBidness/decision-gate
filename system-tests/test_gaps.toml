@@ -8,7 +8,7 @@ priority = "P1"
 category = "security"
 status = "closed"
 acceptance_criteria = "Define the ASC role/policy_class mapping and add system-tests that validate each permission pathway."
-notes = "Implemented in system-tests/tests/auth_matrix.rs with auth proxy mapping; integration contract updated."
+notes = "Implemented in system-tests/tests/suites/auth_matrix.rs with auth proxy mapping; integration contract updated."
 
 [[gaps]]
 id = "asc-determinism-replay"
@@ -17,7 +17,7 @@ priority = "P1"
 category = "reliability"
 status = "closed"
 acceptance_criteria = "Execute identical ASC fixture runs and assert identical decisions plus runpack hashes."
-notes = "Implemented in system-tests/tests/determinism.rs using AssetCore fixture map runs."
+notes = "Implemented in system-tests/tests/suites/determinism.rs using AssetCore fixture map runs."
 
 [[gaps]]
 id = "multi-transport-parity"
@@ -26,7 +26,7 @@ priority = "P2"
 category = "mcp_transport"
 status = "closed"
 acceptance_criteria = "Run a single scenario via HTTP, stdio, and CLI and compare decisions/runpack artifacts."
-notes = "Implemented in system-tests/tests/transport_parity.rs using HTTP, stdio, and CLI interop."
+notes = "Implemented in system-tests/tests/suites/transport_parity.rs using HTTP, stdio, and CLI interop."
 
 [[gaps]]
 id = "security-fuzzing-anchors"
@@ -35,7 +35,7 @@ priority = "P2"
 category = "security"
 status = "closed"
 acceptance_criteria = "Add fuzz/property coverage for malformed evidence payloads, oversize anchors, and injection attempts."
-notes = "Implemented deterministic fuzz cases in system-tests/tests/anchor_fuzz.rs (malformed JSON, missing fields, wrong types, oversized responses)."
+notes = "Implemented deterministic fuzz cases in system-tests/tests/suites/anchor_fuzz.rs (malformed JSON, missing fields, wrong types, oversized responses)."
 
 [[gaps]]
 id = "registry-acl-matrix-system"
@@ -44,7 +44,7 @@ priority = "P1"
 category = "security"
 status = "closed"
 acceptance_criteria = "System-tests exercise schemas_register/list/get for every built-in role + policy_class combination, including deny-by-default when principals are absent."
-notes = "Implemented in system-tests/tests/registry_acl.rs (registry_acl_builtin_matrix)."
+notes = "Implemented in system-tests/tests/suites/registry_acl.rs (registry_acl_builtin_matrix)."
 
 [[gaps]]
 id = "registry-acl-principal-subject-mapping"
@@ -53,7 +53,7 @@ priority = "P1"
 category = "security"
 status = "closed"
 acceptance_criteria = "System-tests verify principals resolve correctly for stdio, loopback HTTP, bearer token fingerprint, and mTLS subject headers, and that ACL decisions follow."
-notes = "Implemented in system-tests/tests/registry_acl.rs (registry_acl_principal_subject_mapping)."
+notes = "Implemented in system-tests/tests/suites/registry_acl.rs (registry_acl_principal_subject_mapping)."
 
 [[gaps]]
 id = "registry-acl-signing-required"
@@ -62,7 +62,7 @@ priority = "P1"
 category = "security"
 status = "closed"
 acceptance_criteria = "When schema_registry.acl.require_signing = true, schemas_register rejects missing/empty signing, accepts valid signing, and list/get preserves metadata (memory + sqlite)."
-notes = "Implemented in system-tests/tests/registry_acl.rs (registry_acl_signing_required_memory_and_sqlite)."
+notes = "Implemented in system-tests/tests/suites/registry_acl.rs (registry_acl_signing_required_memory_and_sqlite)."
 
 [[gaps]]
 id = "namespace-default-allowlist-system"
@@ -71,7 +71,7 @@ priority = "P1"
 category = "security"
 status = "closed"
 acceptance_criteria = "System-tests prove default namespace is allowed only for allowlisted tenants and denied otherwise across tool calls."
-notes = "Implemented in system-tests/tests/namespace_defaults.rs (default_namespace_allowlist_enforced)."
+notes = "Implemented in system-tests/tests/suites/namespace_defaults.rs (default_namespace_allowlist_enforced)."
 
 [[gaps]]
 id = "dev-permissive-assetcore-reject-runtime"
@@ -80,7 +80,7 @@ priority = "P1"
 category = "security"
 status = "closed"
 acceptance_criteria = "Server fails to start (or rejects config) when dev.permissive=true and namespace.authority.mode=assetcore_http; verify error path and audit behavior."
-notes = "Implemented in system-tests/tests/config_validation.rs (dev_permissive_assetcore_rejected)."
+notes = "Implemented in system-tests/tests/suites/config_validation.rs (dev_permissive_assetcore_rejected)."
 
 [[gaps]]
 id = "runpack-security-context-export"
@@ -89,7 +89,7 @@ priority = "P2"
 category = "audit"
 status = "closed"
 acceptance_criteria = "System-tests verify runpack_export manifest includes security.dev_permissive, security.namespace_authority, and security.namespace_mapping_mode when applicable."
-notes = "Implemented in system-tests/tests/runpack.rs (runpack_export_includes_security_context)."
+notes = "Implemented in system-tests/tests/suites/runpack.rs (runpack_export_includes_security_context)."
 
 [[gaps]]
 id = "audit-events-registry-security"
@@ -98,4 +98,4 @@ priority = "P1"
 category = "audit"
 status = "closed"
 acceptance_criteria = "System-tests capture audit sinks and assert registry_audit and security_audit events emit required fields and allow/deny decisions."
-notes = "Implemented in system-tests/tests/audit_registry.rs (registry_security_audit_events)."
+notes = "Implemented in system-tests/tests/suites/audit_registry.rs (registry_security_audit_events)."

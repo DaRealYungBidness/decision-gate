@@ -14,7 +14,7 @@ cargo test -p enterprise-system-tests --features enterprise-system-tests
 cargo nextest run -p enterprise-system-tests --features enterprise-system-tests
 
 # Run a single test
-cargo test -p enterprise-system-tests --features enterprise-system-tests --test tenant_authz \
+cargo test -p enterprise-system-tests --features enterprise-system-tests --test security \
   -- --exact enterprise_tenant_authz_core_matrix
 ```
 
@@ -23,6 +23,29 @@ cargo test -p enterprise-system-tests --features enterprise-system-tests --test 
 - No sleeps for correctness; use readiness probes and explicit polling.
 - Use production types from `decision-gate-core` and `decision-gate-mcp`.
 - Record artifacts for every test (`summary.json`, `summary.md`, `tool_transcript.json`).
+
+## Suite Layout (Binary Consolidation)
+Enterprise system-tests are organized into category suites to reduce binary
+proliferation. Test implementations live under
+`enterprise/enterprise-system-tests/tests/suites/`, while suite entry points
+live in `enterprise/enterprise-system-tests/tests/`:
+
+- `config`
+- `security`
+- `tenancy`
+- `usage`
+- `audit`
+- `storage_postgres`
+- `storage_s3`
+- `runpack`
+- `mcp_transport`
+- `recovery`
+
+Run a specific test by targeting the suite:
+```bash
+cargo test -p enterprise-system-tests --features enterprise-system-tests --test audit \
+  -- --exact audit_chain_immutability
+```
 
 ## Infrastructure Notes
 - Postgres + S3 fixtures use Docker when external endpoints are not provided.

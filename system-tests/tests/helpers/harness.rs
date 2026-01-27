@@ -6,10 +6,13 @@
 // Dependencies: decision-gate-mcp, tokio
 // ============================================================================
 
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::net::TcpListener;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Mutex;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use decision_gate_core::HashAlgorithm;
@@ -76,8 +79,37 @@ pub fn allocate_bind_addr() -> Result<SocketAddr, String> {
         .map_err(|err| format!("failed to bind loopback: {err}"))?;
     let addr =
         listener.local_addr().map_err(|err| format!("failed to read listener address: {err}"))?;
-    drop(listener);
+    reserve_port(addr.port(), listener)?;
     Ok(addr)
+}
+
+fn reserve_port(port: u16, listener: TcpListener) -> Result<(), String> {
+    let mut guard =
+        port_reservations().lock().map_err(|_| "port reservation mutex poisoned".to_string())?;
+    guard.insert(port, listener);
+    Ok(())
+}
+
+fn release_reserved_port(bind: &str) {
+    let addr: SocketAddr = match bind.parse() {
+        Ok(addr) => addr,
+        Err(_) => return,
+    };
+    let Ok(mut guard) = port_reservations().lock() else {
+        return;
+    };
+    if let Some(listener) = guard.remove(&addr.port()) {
+        drop(listener);
+        #[cfg(windows)]
+        {
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    }
+}
+
+fn port_reservations() -> &'static Mutex<HashMap<u16, TcpListener>> {
+    static PORT_RESERVATIONS: OnceLock<Mutex<HashMap<u16, TcpListener>>> = OnceLock::new();
+    PORT_RESERVATIONS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 /// Builds a base Decision Gate config for HTTP transport.
@@ -338,8 +370,9 @@ pub async fn spawn_mcp_server(config: DecisionGateConfig) -> Result<McpServerHan
     let base_url = format!("{scheme}://{bind}/rpc");
     let server = tokio::task::spawn_blocking(move || McpServer::from_config(config))
         .await
-        .map_err(|err| format!("mcp server init join failed: {err}"))?
-        .map_err(|err| err.to_string())?;
+        .map_err(|err| format!("mcp server init join failed: {err}"))?;
+    release_reserved_port(&bind);
+    let server = server.map_err(|err| err.to_string())?;
     let join = tokio::spawn(async move { server.serve().await });
     Ok(McpServerHandle {
         base_url,

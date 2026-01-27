@@ -7,7 +7,9 @@
 // ============================================================================
 
 use std::collections::BTreeSet;
+use std::net::TcpListener as StdTcpListener;
 use std::sync::Arc;
+use std::thread;
 
 use axum::Router;
 use axum::body::Bytes;
@@ -20,9 +22,9 @@ use reqwest::Client;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
-use tokio::task::JoinHandle;
+use tokio::runtime::Builder;
+use tokio::sync::oneshot;
 
-use super::harness::allocate_bind_addr;
 
 pub const ROLE_HEADER: &str = "x-asc-roles";
 pub const POLICY_CLASS_HEADER: &str = "x-asc-policy-class";
@@ -36,7 +38,8 @@ struct ProxyState {
 /// Handle for the auth mapping proxy server.
 pub struct AuthProxyHandle {
     base_url: String,
-    join: JoinHandle<()>,
+    shutdown: Option<oneshot::Sender<()>>,
+    join: Option<thread::JoinHandle<()>>,
 }
 
 impl AuthProxyHandle {
@@ -48,28 +51,48 @@ impl AuthProxyHandle {
 
 impl Drop for AuthProxyHandle {
     fn drop(&mut self) {
-        self.join.abort();
+        if let Some(shutdown) = self.shutdown.take() {
+            let _ = shutdown.send(());
+        }
+        if let Some(join) = self.join.take() {
+            let _ = join.join();
+        }
     }
 }
 
 /// Spawn an auth mapping proxy that forwards to a Decision Gate MCP server.
 pub async fn spawn_auth_proxy(target_url: String) -> Result<AuthProxyHandle, String> {
-    let addr = allocate_bind_addr()?;
+    let listener = StdTcpListener::bind("127.0.0.1:0")
+        .map_err(|err| format!("auth proxy bind failed: {err}"))?;
+    listener
+        .set_nonblocking(true)
+        .map_err(|err| format!("auth proxy listener nonblocking failed: {err}"))?;
+    let addr =
+        listener.local_addr().map_err(|err| format!("auth proxy local addr failed: {err}"))?;
+    let base_url = format!("http://{}", addr);
+
     let state = ProxyState {
         target_url,
         client: Client::new(),
     };
     let app = Router::new().route("/rpc", post(handle_rpc)).with_state(Arc::new(state));
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .map_err(|err| format!("auth proxy bind failed: {err}"))?;
-    let base_url = format!("http://{}", listener.local_addr().map_err(|err| err.to_string())?);
-    let join = tokio::spawn(async move {
-        let _ = axum::serve(listener, app).await;
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
+    let join = thread::spawn(move || {
+        let runtime =
+            Builder::new_current_thread().enable_all().build().expect("auth proxy runtime");
+        runtime.block_on(async move {
+            let listener =
+                tokio::net::TcpListener::from_std(listener).expect("auth proxy listener from_std");
+            let server = axum::serve(listener, app).with_graceful_shutdown(async move {
+                let _ = shutdown_rx.await;
+            });
+            let _ = server.await;
+        });
     });
     Ok(AuthProxyHandle {
         base_url,
-        join,
+        shutdown: Some(shutdown_tx),
+        join: Some(join),
     })
 }
 

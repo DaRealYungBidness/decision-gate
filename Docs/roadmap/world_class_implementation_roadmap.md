@@ -45,7 +45,7 @@ contracts, and docs freely to reach the best design.
 - Contract schema validation in `decision-gate-contract/tests/schema_validation.rs`.
 
 **System tests**:
-- `system-tests/tests/contract.rs` (schema conformance across tools).
+- `system-tests/tests/suites/contract.rs` (schema conformance across tools).
 
 ---
 
@@ -76,8 +76,8 @@ contracts, and docs freely to reach the best design.
 - Static policy engine tests in `decision-gate-mcp/tests/policy_engine.rs`.
 
 **System tests**:
-- `policy_denies_dispatch_targets` in `system-tests/tests/security.rs`.
-- `policy_error_fails_closed` in `system-tests/tests/security.rs`.
+- `policy_denies_dispatch_targets` in `system-tests/tests/suites/security.rs`.
+- `policy_error_fails_closed` in `system-tests/tests/suites/security.rs`.
 
 **Roadmap (External Adapters)**:
 - Add pluggable adapters for OPA, Cedar, and OpenFGA/Zanzibar-style engines.
@@ -107,8 +107,8 @@ contracts, and docs freely to reach the best design.
 - Tool namespace checks in `decision-gate-mcp/tests/tool_router.rs`.
 
 **System tests**:
-- `strict_mode_rejects_default_namespace` in `system-tests/tests/security.rs`.
-- `dev_permissive_emits_warning` in `system-tests/tests/operations.rs`.
+- `strict_mode_rejects_default_namespace` in `system-tests/tests/suites/security.rs`.
+- `dev_permissive_emits_warning` in `system-tests/tests/suites/operations.rs`.
 
 ---
 
@@ -132,8 +132,8 @@ contracts, and docs freely to reach the best design.
 - Audit formatting tests in `decision-gate-mcp/tests/mcp_hardening.rs`.
 
 **System tests**:
-- Add `schema_register_denied_by_acl` to `system-tests/tests/security.rs`.
-- Add `schema_register_audited_hash_only` to `system-tests/tests/operations.rs`.
+- Add `schema_register_denied_by_acl` to `system-tests/tests/suites/security.rs`.
+- Add `schema_register_audited_hash_only` to `system-tests/tests/suites/operations.rs`.
 
 ---
 
@@ -154,7 +154,7 @@ contracts, and docs freely to reach the best design.
 - Audit payload redaction tests in `decision-gate-mcp/tests/mcp_hardening.rs`.
 
 **System tests**:
-- `precheck_audit_hash_only` in `system-tests/tests/operations.rs`.
+- `precheck_audit_hash_only` in `system-tests/tests/suites/operations.rs`.
 
 ---
 
@@ -175,7 +175,7 @@ contracts, and docs freely to reach the best design.
 - Adapter-specific tests in a new module under `decision-gate-mcp/tests/`.
 
 **System tests**:
-- Add `runpack_export_object_store` to `system-tests/tests/runpack.rs`.
+- Add `runpack_export_object_store` to `system-tests/tests/suites/runpack.rs`.
 
 ---
 
@@ -190,7 +190,7 @@ contracts, and docs freely to reach the best design.
 - `Docs/guides/predicate_authoring.md` (examples reference)
 
 **System tests**:
-- Add `hold_unknown_examples_valid` to `system-tests/tests/contract.rs`.
+- Add `hold_unknown_examples_valid` to `system-tests/tests/suites/contract.rs`.
 
 ---
 

@@ -37,48 +37,18 @@ workspace = true
 system-tests = []
 
 [[test]]
-name = "anchor_fuzz"
-path = "tests/anchor_fuzz.rs"
+name = "smoke"
+path = "tests/smoke.rs"
 required-features = ["system-tests"]
 
 [[test]]
-name = "assetcore_integration"
-path = "tests/assetcore_integration.rs"
+name = "functional"
+path = "tests/functional.rs"
 required-features = ["system-tests"]
 
 [[test]]
-name = "audit_registry"
-path = "tests/audit_registry.rs"
-required-features = ["system-tests"]
-
-[[test]]
-name = "auth_matrix"
-path = "tests/auth_matrix.rs"
-required-features = ["system-tests"]
-
-[[test]]
-name = "config_validation"
-path = "tests/config_validation.rs"
-required-features = ["system-tests"]
-
-[[test]]
-name = "contract"
-path = "tests/contract.rs"
-required-features = ["system-tests"]
-
-[[test]]
-name = "determinism"
-path = "tests/determinism.rs"
-required-features = ["system-tests"]
-
-[[test]]
-name = "mcp_auth"
-path = "tests/mcp_auth.rs"
-required-features = ["system-tests"]
-
-[[test]]
-name = "mcp_hardening"
-path = "tests/mcp_hardening.rs"
+name = "providers"
+path = "tests/providers.rs"
 required-features = ["system-tests"]
 
 [[test]]
@@ -87,8 +57,23 @@ path = "tests/mcp_transport.rs"
 required-features = ["system-tests"]
 
 [[test]]
-name = "namespace_defaults"
-path = "tests/namespace_defaults.rs"
+name = "runpack"
+path = "tests/runpack.rs"
+required-features = ["system-tests"]
+
+[[test]]
+name = "reliability"
+path = "tests/reliability.rs"
+required-features = ["system-tests"]
+
+[[test]]
+name = "security"
+path = "tests/security.rs"
+required-features = ["system-tests"]
+
+[[test]]
+name = "contract"
+path = "tests/contract.rs"
 required-features = ["system-tests"]
 
 [[test]]
@@ -99,59 +84,4 @@ required-features = ["system-tests"]
 [[test]]
 name = "performance"
 path = "tests/performance.rs"
-required-features = ["system-tests"]
-
-[[test]]
-name = "providers"
-path = "tests/providers.rs"
-required-features = ["system-tests"]
-
-[[test]]
-name = "provider_discovery"
-path = "tests/provider_discovery.rs"
-required-features = ["system-tests"]
-
-[[test]]
-name = "registry_acl"
-path = "tests/registry_acl.rs"
-required-features = ["system-tests"]
-
-[[test]]
-name = "reliability"
-path = "tests/reliability.rs"
-required-features = ["system-tests"]
-
-[[test]]
-name = "runpack"
-path = "tests/runpack.rs"
-required-features = ["system-tests"]
-
-[[test]]
-name = "security"
-path = "tests/security.rs"
-required-features = ["system-tests"]
-
-[[test]]
-name = "smoke"
-path = "tests/smoke.rs"
-required-features = ["system-tests"]
-
-[[test]]
-name = "store_persistence"
-path = "tests/store_persistence.rs"
-required-features = ["system-tests"]
-
-[[test]]
-name = "stress"
-path = "tests/stress.rs"
-required-features = ["system-tests"]
-
-[[test]]
-name = "transport_parity"
-path = "tests/transport_parity.rs"
-required-features = ["system-tests"]
-
-[[test]]
-name = "validation"
-path = "tests/validation.rs"
 required-features = ["system-tests"]

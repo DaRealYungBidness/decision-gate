@@ -55,6 +55,8 @@ When you add, rename, or remove a test:
 - Update `system-tests/README.md` and `system-tests/TEST_MATRIX.md` tables if referenced.
 - Keep tests deterministic (no wall-clock time) and emit required artifacts.
 - Reuse helpers in `system-tests/tests/helpers` rather than building ad-hoc harnesses.
+- Place test implementations under `system-tests/tests/suites/` and wire them
+  into the appropriate suite entrypoint in `system-tests/tests/`.
 
 ## Threat Model Delta
 If a test changes inputs, trust boundaries, or outputs, update

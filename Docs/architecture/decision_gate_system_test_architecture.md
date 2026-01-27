@@ -62,6 +62,8 @@ System-tests must mirror production behavior and remain deterministic:
 
 - No fail-open logic and no sleep-based correctness.
 - Use production types and schemas.
+- Reserve loopback ports via the harness allocator to prevent parallel bind
+  collisions; stub servers bind directly to ephemeral port 0.
 - Always emit required artifacts (`summary.json`, `summary.md`,
   `tool_transcript.json`).
 - Register every test in `test_registry.toml` and gaps in `test_gaps.toml`.
@@ -80,6 +82,11 @@ specifies:
 - required artifacts
 
 [F:system-tests/test_registry.toml L1-L43]
+
+Suite entrypoints live in `system-tests/tests/` and include test implementations
+under `system-tests/tests/suites/`. This reduces test binary proliferation while
+preserving category-driven inventory in the registry. Each registry
+`run_command` targets the suite binary with `--test <suite> -- --exact <test>`.
 
 ## Enterprise System Tests
 

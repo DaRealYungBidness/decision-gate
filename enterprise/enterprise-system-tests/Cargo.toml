@@ -43,61 +43,51 @@ workspace = true
 enterprise-system-tests = []
 
 [[test]]
-name = "audit"
-path = "tests/audit.rs"
+name = "config"
+path = "tests/config.rs"
 required-features = ["enterprise-system-tests"]
 
 [[test]]
-name = "backup_restore"
-path = "tests/backup_restore.rs"
+name = "security"
+path = "tests/security.rs"
 required-features = ["enterprise-system-tests"]
 
 [[test]]
-name = "config_limits"
-path = "tests/config_limits.rs"
-required-features = ["enterprise-system-tests"]
-
-[[test]]
-name = "config_wiring"
-path = "tests/config_wiring.rs"
-required-features = ["enterprise-system-tests"]
-
-[[test]]
-name = "postgres_store"
-path = "tests/postgres_store.rs"
-required-features = ["enterprise-system-tests"]
-
-[[test]]
-name = "runpack_hardening"
-path = "tests/runpack_hardening.rs"
-required-features = ["enterprise-system-tests"]
-
-[[test]]
-name = "s3_runpack_store"
-path = "tests/s3_runpack_store.rs"
-required-features = ["enterprise-system-tests"]
-
-[[test]]
-name = "tenant_authz"
-path = "tests/tenant_authz.rs"
-required-features = ["enterprise-system-tests"]
-
-[[test]]
-name = "tenant_isolation"
-path = "tests/tenant_isolation.rs"
-required-features = ["enterprise-system-tests"]
-
-[[test]]
-name = "transport_parity"
-path = "tests/transport_parity.rs"
-required-features = ["enterprise-system-tests"]
-
-[[test]]
-name = "transport_tls"
-path = "tests/transport_tls.rs"
+name = "tenancy"
+path = "tests/tenancy.rs"
 required-features = ["enterprise-system-tests"]
 
 [[test]]
 name = "usage"
 path = "tests/usage.rs"
+required-features = ["enterprise-system-tests"]
+
+[[test]]
+name = "audit"
+path = "tests/audit.rs"
+required-features = ["enterprise-system-tests"]
+
+[[test]]
+name = "storage_postgres"
+path = "tests/storage_postgres.rs"
+required-features = ["enterprise-system-tests"]
+
+[[test]]
+name = "storage_s3"
+path = "tests/storage_s3.rs"
+required-features = ["enterprise-system-tests"]
+
+[[test]]
+name = "runpack"
+path = "tests/runpack.rs"
+required-features = ["enterprise-system-tests"]
+
+[[test]]
+name = "mcp_transport"
+path = "tests/mcp_transport.rs"
+required-features = ["enterprise-system-tests"]
+
+[[test]]
+name = "recovery"
+path = "tests/recovery.rs"
 required-features = ["enterprise-system-tests"]

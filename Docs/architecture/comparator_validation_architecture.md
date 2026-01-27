@@ -44,7 +44,7 @@ fail-closed behavior.
 | Tooltips/docs | `decision-gate-contract/src/tooltips.rs` | Public-facing comparator and validation behavior. |
 | Generated docs | `Docs/generated/decision-gate/` | Regenerated after schema/tooltip updates. |
 | MCP validation tests | `decision-gate-mcp/tests/validation.rs` | Unit/system coverage for strict mode. |
-| System tests | `system-tests/tests/validation.rs` | End-to-end validation behavior. |
+| System tests | `system-tests/tests/suites/validation.rs` | End-to-end validation behavior. |
 
 ## Validation Pipeline (MCP)
 
@@ -118,4 +118,4 @@ fail-closed behavior.
 5) Regenerate `Docs/generated/decision-gate/` artifacts.
 6) Update unit + system tests:
    - `decision-gate-mcp/tests/validation.rs`
-   - `system-tests/tests/validation.rs`
+   - `system-tests/tests/suites/validation.rs`

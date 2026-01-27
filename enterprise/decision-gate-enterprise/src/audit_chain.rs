@@ -70,10 +70,7 @@ impl HashChainedAuditSink {
             .open(path)
             .map_err(|err| AuditChainError::Io(err.to_string()))?;
         let last_hash = Self::load_last_hash(path)?;
-        Ok(Self {
-            file: Mutex::new(file),
-            last_hash: Mutex::new(last_hash),
-        })
+        Ok(Self { file: Mutex::new(file), last_hash: Mutex::new(last_hash) })
     }
 
     /// Loads the last hash from the audit log file.
@@ -110,11 +107,7 @@ impl HashChainedAuditSink {
         combined.extend_from_slice(&payload_bytes);
         let digest = hash_bytes(HashAlgorithm::Sha256, &combined);
         let hash = digest.value;
-        let envelope = AuditEnvelope {
-            payload: payload.clone(),
-            prev_hash,
-            hash: hash.clone(),
-        };
+        let envelope = AuditEnvelope { payload: payload.clone(), prev_hash, hash: hash.clone() };
         if let Ok(line) = serde_json::to_string(&envelope)
             && let Ok(mut file) = self.file.lock()
         {

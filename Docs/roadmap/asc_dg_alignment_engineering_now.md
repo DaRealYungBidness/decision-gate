@@ -112,7 +112,7 @@ Why: Coupling DG into the write path risks availability and correctness.
   - `system-tests/tests/fixtures/assetcore/providers/assetcore_read.json`
   - `system-tests/tests/fixtures/assetcore/decision-gate.toml`
   - `system-tests/tests/helpers/provider_stub.rs`
-  - `system-tests/tests/providers.rs`
+  - `system-tests/tests/suites/providers.rs`
   - `Docs/guides/assetcore_interop_runbook.md`
 
 ### 4) Runpack Anchor Semantics
@@ -155,12 +155,12 @@ The test suite must be exhaustive (not minimal). Required categories:
   - `decision-gate-mcp/tests/tool_router.rs`
   - `decision-gate-mcp/tests/config_validation.rs`
   - `decision-gate-mcp/src/evidence/tests.rs`
-  - `system-tests/tests/providers.rs`
-  - `system-tests/tests/assetcore_integration.rs`
-  - `system-tests/tests/auth_matrix.rs`
-  - `system-tests/tests/determinism.rs`
-  - `system-tests/tests/transport_parity.rs`
-  - `system-tests/tests/anchor_fuzz.rs`
+  - `system-tests/tests/suites/providers.rs`
+  - `system-tests/tests/suites/assetcore_integration.rs`
+  - `system-tests/tests/suites/auth_matrix.rs`
+  - `system-tests/tests/suites/determinism.rs`
+  - `system-tests/tests/suites/transport_parity.rs`
+  - `system-tests/tests/suites/anchor_fuzz.rs`
   - `system-tests/tests/helpers/namespace_authority_stub.rs`
   - `system-tests/tests/helpers/provider_stub.rs`
 - Coverage gaps tracked for follow-up:
@@ -180,7 +180,7 @@ The test suite must be exhaustive (not minimal). Required categories:
   `assetcore.namespace_id`, `assetcore.commit_id`, `assetcore.world_seq`.
 - **Auth mapping matrix**: Defined in
   `Docs/architecture/decision_gate_assetcore_integration_contract.md` and
-  validated by `system-tests/tests/auth_matrix.rs` using the auth proxy.
+  validated by `system-tests/tests/suites/auth_matrix.rs` using the auth proxy.
 
 ## Remaining Open Questions
 - None for the V1 engineering scope in this document. Future updates should be

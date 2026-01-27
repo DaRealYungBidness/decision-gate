@@ -8,7 +8,7 @@ priority = "P0"
 category = "config"
 status = "closed"
 acceptance_criteria = "Start MCP using decision-gate.toml + decision-gate-enterprise.toml and verify run state + schema registry persist to Postgres and runpack_export stores to S3 with storage_uri returned."
-notes = "Implemented in enterprise-system-tests/tests/config_wiring.rs (enterprise_config_wiring_postgres_s3)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/config_wiring.rs (enterprise_config_wiring_postgres_s3)."
 
 [[gaps]]
 id = "enterprise-runpack-export-storage-uri"
@@ -17,7 +17,7 @@ priority = "P0"
 category = "runpack"
 status = "closed"
 acceptance_criteria = "System-test runpack_export with managed storage and verify storage_uri is returned and accessible."
-notes = "Covered by enterprise-system-tests/tests/config_wiring.rs (enterprise_config_wiring_postgres_s3)."
+notes = "Covered by enterprise/enterprise-system-tests/tests/suites/config_wiring.rs (enterprise_config_wiring_postgres_s3)."
 
 [[gaps]]
 id = "tenant-authz-missing-tenant-namespace"
@@ -26,7 +26,7 @@ priority = "P0"
 category = "security"
 status = "closed"
 acceptance_criteria = "All tenant-scoped tools reject requests that omit tenant_id or namespace_id; audit events include denial reason."
-notes = "Implemented in enterprise-system-tests/tests/tenant_authz.rs (enterprise_tenant_authz_core_matrix) with missing-tenant denial."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/tenant_authz.rs (enterprise_tenant_authz_core_matrix) with missing-tenant denial."
 
 [[gaps]]
 id = "tenant-authz-principal-mapping-jwt"
@@ -35,7 +35,7 @@ priority = "P0"
 category = "security"
 status = "closed"
 acceptance_criteria = "JWT-authenticated principals are mapped to tenant/namespace scopes and denied on mismatch; audit events capture principal and scope."
-notes = "Implemented in enterprise-system-tests/tests/tenant_authz.rs (enterprise_tenant_authz_jwt_subject_mapping)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/tenant_authz.rs (enterprise_tenant_authz_jwt_subject_mapping)."
 
 [[gaps]]
 id = "tenant-authz-api-key-mapping"
@@ -44,7 +44,7 @@ priority = "P0"
 category = "security"
 status = "closed"
 acceptance_criteria = "API keys map to principals and enforce tenant/namespace scopes across all tools; invalid key is denied."
-notes = "Implemented in enterprise-system-tests/tests/tenant_authz.rs (enterprise_tenant_authz_core_matrix) using bearer token principals."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/tenant_authz.rs (enterprise_tenant_authz_core_matrix) using bearer token principals."
 
 [[gaps]]
 id = "tenant-authz-namespace-allowlist"
@@ -53,7 +53,7 @@ priority = "P0"
 category = "security"
 status = "closed"
 acceptance_criteria = "Principal allowed for tenant but not namespace is denied; allowlist grants pass."
-notes = "Implemented in enterprise-system-tests/tests/tenant_authz.rs (enterprise_tenant_authz_core_matrix)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/tenant_authz.rs (enterprise_tenant_authz_core_matrix)."
 
 [[gaps]]
 id = "tenant-authz-multi-tenant-token"
@@ -62,7 +62,7 @@ priority = "P1"
 category = "security"
 status = "closed"
 acceptance_criteria = "Multi-tenant principals can access only explicitly scoped tenants; audit log includes tenant + namespace."
-notes = "Implemented in enterprise-system-tests/tests/tenant_authz.rs (enterprise_tenant_authz_core_matrix) multi-tenant scope checks."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/tenant_authz.rs (enterprise_tenant_authz_core_matrix) multi-tenant scope checks."
 
 [[gaps]]
 id = "tenant-isolation-run-state"
@@ -71,7 +71,7 @@ priority = "P0"
 category = "tenancy"
 status = "closed"
 acceptance_criteria = "Tenant A cannot read or mutate run state for Tenant B; attempts fail with audit entries."
-notes = "Implemented in enterprise-system-tests/tests/tenant_isolation.rs (tenant_isolation_across_components)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/tenant_isolation.rs (tenant_isolation_across_components)."
 
 [[gaps]]
 id = "tenant-isolation-schema-registry"
@@ -80,7 +80,7 @@ priority = "P0"
 category = "tenancy"
 status = "closed"
 acceptance_criteria = "Tenant A cannot list/get schemas from Tenant B; registrations are isolated."
-notes = "Implemented in enterprise-system-tests/tests/tenant_isolation.rs (tenant_isolation_across_components)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/tenant_isolation.rs (tenant_isolation_across_components)."
 
 [[gaps]]
 id = "tenant-isolation-runpack-storage"
@@ -89,7 +89,7 @@ priority = "P0"
 category = "tenancy"
 status = "closed"
 acceptance_criteria = "Runpack objects are stored under per-tenant prefixes; cross-tenant access is denied."
-notes = "Implemented in enterprise-system-tests/tests/tenant_isolation.rs (tenant_isolation_across_components)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/tenant_isolation.rs (tenant_isolation_across_components)."
 
 [[gaps]]
 id = "usage-metering-tool-call-matrix"
@@ -98,7 +98,7 @@ priority = "P0"
 category = "usage"
 status = "closed"
 acceptance_criteria = "System-tests verify UsageMeter records tool_calls, runs_started, evidence_queries, runpack_exports, schemas_written, registry_entries, storage_bytes for corresponding tools."
-notes = "Implemented in enterprise-system-tests/tests/usage.rs (usage_metering_tool_call_matrix)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/usage.rs (usage_metering_tool_call_matrix)."
 
 [[gaps]]
 id = "usage-idempotency-request-id"
@@ -107,7 +107,7 @@ priority = "P0"
 category = "usage"
 status = "closed"
 acceptance_criteria = "Duplicate request_id does not double-count usage; ledger remains consistent."
-notes = "Implemented in enterprise-system-tests/tests/usage.rs (usage_idempotency_request_id)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/usage.rs (usage_idempotency_request_id)."
 
 [[gaps]]
 id = "usage-quota-deny-before-mutation"
@@ -116,7 +116,7 @@ priority = "P0"
 category = "usage"
 status = "closed"
 acceptance_criteria = "When quota exceeded, tool calls are denied and no run state, schema, or runpack artifacts are created."
-notes = "Implemented in enterprise-system-tests/tests/usage.rs (usage_quota_deny_before_mutation)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/usage.rs (usage_quota_deny_before_mutation)."
 
 [[gaps]]
 id = "usage-quota-scope-tenant-namespace"
@@ -125,7 +125,7 @@ priority = "P1"
 category = "usage"
 status = "closed"
 acceptance_criteria = "Tenant-scoped quotas aggregate across namespaces; namespace-scoped quotas only apply within namespace."
-notes = "Implemented in enterprise-system-tests/tests/usage.rs (usage_quota_scope_tenant_namespace)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/usage.rs (usage_quota_scope_tenant_namespace)."
 
 [[gaps]]
 id = "usage-rate-limit-tenant-token"
@@ -134,7 +134,7 @@ priority = "P1"
 category = "security"
 status = "closed"
 acceptance_criteria = "Burst requests enforce both per-tenant and per-token limits; denial is audited."
-notes = "Implemented in enterprise-system-tests/tests/usage.rs (usage_rate_limit_tenant_token)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/usage.rs (usage_rate_limit_tenant_token)."
 
 [[gaps]]
 id = "audit-chain-immutability"
@@ -143,7 +143,7 @@ priority = "P0"
 category = "audit"
 status = "closed"
 acceptance_criteria = "Modify an audit log line and verify hash-chain validation fails or raises corruption event."
-notes = "Implemented in enterprise-system-tests/tests/audit.rs (audit_chain_immutability)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/audit.rs (audit_chain_immutability)."
 
 [[gaps]]
 id = "audit-event-completeness"
@@ -152,7 +152,7 @@ priority = "P0"
 category = "audit"
 status = "closed"
 acceptance_criteria = "System-tests capture audit output and assert required fields for authz denies, usage checks, and registry ACL decisions."
-notes = "Implemented in enterprise-system-tests/tests/audit.rs (audit_event_completeness)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/audit.rs (audit_event_completeness)."
 
 [[gaps]]
 id = "audit-export-jsonl-format"
@@ -161,7 +161,7 @@ priority = "P1"
 category = "audit"
 status = "closed"
 acceptance_criteria = "Audit export is JSONL with stable schema; entries are parseable and ordered."
-notes = "Implemented in enterprise-system-tests/tests/audit.rs (audit_export_jsonl_format)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/audit.rs (audit_export_jsonl_format)."
 
 [[gaps]]
 id = "postgres-store-run-state-roundtrip"
@@ -170,7 +170,7 @@ priority = "P0"
 category = "storage_postgres"
 status = "closed"
 acceptance_criteria = "Save and load run state in Postgres; verify hash integrity and version increment behavior."
-notes = "Implemented in enterprise-system-tests/tests/postgres_store.rs (postgres_store_run_state_roundtrip)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/postgres_store.rs (postgres_store_run_state_roundtrip)."
 
 [[gaps]]
 id = "postgres-store-corruption-detection"
@@ -179,7 +179,7 @@ priority = "P0"
 category = "storage_postgres"
 status = "closed"
 acceptance_criteria = "Corrupt stored run state or schema hash and verify load fails closed."
-notes = "Implemented in enterprise-system-tests/tests/postgres_store.rs (postgres_store_corruption_detection)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/postgres_store.rs (postgres_store_corruption_detection)."
 
 [[gaps]]
 id = "postgres-store-concurrent-writes"
@@ -188,7 +188,7 @@ priority = "P1"
 category = "storage_postgres"
 status = "closed"
 acceptance_criteria = "Concurrent save operations increment versions correctly without lost updates."
-notes = "Implemented in enterprise-system-tests/tests/postgres_store.rs (postgres_store_concurrent_writes)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/postgres_store.rs (postgres_store_concurrent_writes)."
 
 [[gaps]]
 id = "postgres-registry-pagination"
@@ -197,7 +197,7 @@ priority = "P1"
 category = "storage_postgres"
 status = "closed"
 acceptance_criteria = "Schema list cursor ordering is stable and deterministic across pages."
-notes = "Implemented in enterprise-system-tests/tests/postgres_store.rs (postgres_registry_pagination_stability)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/postgres_store.rs (postgres_registry_pagination_stability)."
 
 [[gaps]]
 id = "postgres-registry-signing-metadata"
@@ -206,7 +206,7 @@ priority = "P1"
 category = "storage_postgres"
 status = "closed"
 acceptance_criteria = "Register signed schema and verify key_id/signature/algorithm roundtrip."
-notes = "Implemented in enterprise-system-tests/tests/postgres_store.rs (postgres_registry_signing_metadata)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/postgres_store.rs (postgres_registry_signing_metadata)."
 
 [[gaps]]
 id = "s3-runpack-store-roundtrip"
@@ -215,7 +215,7 @@ priority = "P0"
 category = "storage_s3"
 status = "closed"
 acceptance_criteria = "Export runpack to S3 and retrieve for verification; ensure metadata hash matches."
-notes = "Implemented in enterprise-system-tests/tests/s3_runpack_store.rs (s3_runpack_store_roundtrip)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/s3_runpack_store.rs (s3_runpack_store_roundtrip)."
 
 [[gaps]]
 id = "s3-runpack-encryption-enforced"
@@ -224,7 +224,7 @@ priority = "P1"
 category = "storage_s3"
 status = "closed"
 acceptance_criteria = "Verify SSE-S3 or SSE-KMS headers are set and bucket rejects unencrypted uploads."
-notes = "Implemented in enterprise-system-tests/tests/s3_runpack_store.rs (s3_runpack_encryption_enforced)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/s3_runpack_store.rs (s3_runpack_encryption_enforced)."
 
 [[gaps]]
 id = "s3-runpack-metadata-tamper"
@@ -233,7 +233,7 @@ priority = "P0"
 category = "storage_s3"
 status = "closed"
 acceptance_criteria = "Tamper S3 metadata hash and verify download fails."
-notes = "Implemented in enterprise-system-tests/tests/s3_runpack_store.rs (s3_runpack_metadata_tamper)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/s3_runpack_store.rs (s3_runpack_metadata_tamper)."
 
 [[gaps]]
 id = "runpack-archive-path-traversal"
@@ -242,7 +242,7 @@ priority = "P0"
 category = "runpack"
 status = "closed"
 acceptance_criteria = "Runpack store rejects archives with ../ or absolute paths."
-notes = "Implemented in enterprise-system-tests/tests/s3_runpack_store.rs (runpack_archive_path_traversal)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/s3_runpack_store.rs (runpack_archive_path_traversal)."
 
 [[gaps]]
 id = "runpack-archive-symlink-specials"
@@ -251,7 +251,7 @@ priority = "P0"
 category = "runpack"
 status = "closed"
 acceptance_criteria = "Runpack store rejects symlinks and special file entries."
-notes = "Implemented in enterprise-system-tests/tests/s3_runpack_store.rs (runpack_archive_symlink_specials)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/s3_runpack_store.rs (runpack_archive_symlink_specials)."
 
 [[gaps]]
 id = "runpack-archive-size-limit"
@@ -260,7 +260,7 @@ priority = "P1"
 category = "runpack"
 status = "closed"
 acceptance_criteria = "Archive size limit triggers rejection (prevents archive bombs)."
-notes = "Implemented in enterprise-system-tests/tests/s3_runpack_store.rs (runpack_archive_size_limit)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/s3_runpack_store.rs (runpack_archive_size_limit)."
 
 [[gaps]]
 id = "runpack-export-temporary-cleanup"
@@ -269,7 +269,7 @@ priority = "P2"
 category = "runpack"
 status = "closed"
 acceptance_criteria = "Managed runpack export cleans temporary artifacts on success and failure."
-notes = "Implemented in enterprise-system-tests/tests/runpack_hardening.rs (runpack_export_temporary_cleanup)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/runpack_hardening.rs (runpack_export_temporary_cleanup)."
 
 [[gaps]]
 id = "transport-parity-enterprise"
@@ -278,7 +278,7 @@ priority = "P1"
 category = "mcp_transport"
 status = "closed"
 acceptance_criteria = "HTTP and stdio transport produce identical results under enterprise config."
-notes = "Implemented in enterprise-system-tests/tests/transport_parity.rs (transport_parity_enterprise)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/transport_parity.rs (transport_parity_enterprise)."
 
 [[gaps]]
 id = "tls-mtls-enforcement-enterprise"
@@ -287,7 +287,7 @@ priority = "P1"
 category = "security"
 status = "closed"
 acceptance_criteria = "mTLS subject auth rejects non-matching clients; TLS-only rejects plaintext."
-notes = "Implemented in enterprise-system-tests/tests/transport_tls.rs (enterprise_tls_rejects_plaintext, enterprise_mtls_subject_enforced)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/transport_tls.rs (enterprise_tls_rejects_plaintext, enterprise_mtls_subject_enforced)."
 
 [[gaps]]
 id = "quota-evasion-concurrency"
@@ -296,7 +296,7 @@ priority = "P1"
 category = "usage"
 status = "closed"
 acceptance_criteria = "Concurrent calls do not allow quota overrun beyond configured limits."
-notes = "Implemented in enterprise-system-tests/tests/usage.rs (quota_evasion_concurrency)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/usage.rs (quota_evasion_concurrency)."
 
 [[gaps]]
 id = "usage-ledger-corruption"
@@ -305,7 +305,7 @@ priority = "P1"
 category = "usage"
 status = "closed"
 acceptance_criteria = "Corrupted ledger causes usage checks to fail closed with audit entry."
-notes = "Implemented in enterprise-system-tests/tests/usage.rs (usage_ledger_corruption)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/usage.rs (usage_ledger_corruption)."
 
 [[gaps]]
 id = "enterprise-backup-restore-validation"
@@ -314,7 +314,7 @@ priority = "P1"
 category = "recovery"
 status = "closed"
 acceptance_criteria = "Restore Postgres + S3 data and verify run state, schemas, and runpacks are valid and hash-verified."
-notes = "Implemented in enterprise-system-tests/tests/backup_restore.rs (enterprise_backup_restore_validation)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/backup_restore.rs (enterprise_backup_restore_validation)."
 
 [[gaps]]
 id = "enterprise-config-path-limits"
@@ -323,7 +323,7 @@ priority = "P2"
 category = "config"
 status = "closed"
 acceptance_criteria = "Oversized config or overly long paths are rejected with explicit errors."
-notes = "Implemented in enterprise-system-tests/tests/config_limits.rs (enterprise_config_path_limits)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/config_limits.rs (enterprise_config_path_limits)."
 
 [[gaps]]
 id = "audit-deny-paths-coverage"
@@ -332,7 +332,7 @@ priority = "P1"
 category = "audit"
 status = "closed"
 acceptance_criteria = "Denied tool calls emit tenant_authz and usage audit events with denial reasons."
-notes = "Implemented in enterprise-system-tests/tests/audit.rs (audit_deny_paths_coverage)."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/audit.rs (audit_deny_paths_coverage)."
 
 [[gaps]]
 id = "registry-acl-enforcement-enterprise"
@@ -341,4 +341,4 @@ priority = "P1"
 category = "security"
 status = "closed"
 acceptance_criteria = "Registry ACL decisions respect enterprise principals and deny unauthorized schema writes."
-notes = "Implemented in enterprise-system-tests/tests/tenant_authz.rs (enterprise_tenant_authz_core_matrix) with registry ACL denial."
+notes = "Implemented in enterprise/enterprise-system-tests/tests/suites/tenant_authz.rs (enterprise_tenant_authz_core_matrix) with registry ACL denial."

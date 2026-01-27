@@ -6,8 +6,10 @@
 // Dependencies: axum, decision-gate-core
 // ============================================================================
 
+use std::net::TcpListener as StdTcpListener;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::thread;
 use std::time::Duration;
 
 use axum::Router;
@@ -25,10 +27,10 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Map;
 use serde_json::Value;
-use tokio::task::JoinHandle;
+use tokio::runtime::Builder;
+use tokio::sync::oneshot;
 use tokio::time::sleep;
 
-use super::harness::allocate_bind_addr;
 
 #[derive(Clone)]
 struct ProviderState {
@@ -62,7 +64,8 @@ pub struct ProviderRequest {
 /// Handle for the stub MCP provider server.
 pub struct ProviderStubHandle {
     base_url: String,
-    join: JoinHandle<()>,
+    shutdown: Option<oneshot::Sender<()>>,
+    join: Option<thread::JoinHandle<()>>,
     requests: Arc<Mutex<Vec<ProviderRequest>>>,
 }
 
@@ -80,7 +83,12 @@ impl ProviderStubHandle {
 
 impl Drop for ProviderStubHandle {
     fn drop(&mut self) {
-        self.join.abort();
+        if let Some(shutdown) = self.shutdown.take() {
+            let _ = shutdown.send(());
+        }
+        if let Some(join) = self.join.take() {
+            let _ = join.join();
+        }
     }
 }
 
@@ -112,7 +120,15 @@ async fn spawn_provider_stub_with_response(
     response: ProviderResponse,
     response_delay: Duration,
 ) -> Result<ProviderStubHandle, String> {
-    let addr = allocate_bind_addr()?;
+    let listener = StdTcpListener::bind("127.0.0.1:0")
+        .map_err(|err| format!("provider stub bind failed: {err}"))?;
+    listener
+        .set_nonblocking(true)
+        .map_err(|err| format!("provider stub listener nonblocking failed: {err}"))?;
+    let addr =
+        listener.local_addr().map_err(|err| format!("provider stub local addr failed: {err}"))?;
+    let base_url = format!("http://{}/rpc", addr);
+
     let requests = Arc::new(Mutex::new(Vec::new()));
     let state = ProviderState {
         response,
@@ -120,16 +136,23 @@ async fn spawn_provider_stub_with_response(
         requests: Arc::clone(&requests),
     };
     let app = Router::new().route("/rpc", post(handle_rpc)).with_state(state);
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .map_err(|err| format!("provider stub bind failed: {err}"))?;
-    let base_url = format!("http://{}/rpc", listener.local_addr().map_err(|err| err.to_string())?);
-    let join = tokio::spawn(async move {
-        let _ = axum::serve(listener, app).await;
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
+    let join = thread::spawn(move || {
+        let runtime =
+            Builder::new_current_thread().enable_all().build().expect("provider stub runtime");
+        runtime.block_on(async move {
+            let listener = tokio::net::TcpListener::from_std(listener)
+                .expect("provider stub listener from_std");
+            let server = axum::serve(listener, app).with_graceful_shutdown(async move {
+                let _ = shutdown_rx.await;
+            });
+            let _ = server.await;
+        });
     });
     Ok(ProviderStubHandle {
         base_url,
-        join,
+        shutdown: Some(shutdown_tx),
+        join: Some(join),
         requests,
     })
 }

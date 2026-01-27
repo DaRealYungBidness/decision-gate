@@ -38,6 +38,9 @@ When you add, rename, or remove a test:
 - Add/update gaps in `enterprise/enterprise-system-tests/test_gaps.toml`.
 - Regenerate coverage docs: `python scripts/coverage_report.py generate`.
 - Update `enterprise/enterprise-system-tests/README.md` if referenced.
+- Place test implementations under `enterprise/enterprise-system-tests/tests/suites/`
+  and wire them into the appropriate suite entrypoint in
+  `enterprise/enterprise-system-tests/tests/`.
 
 ## 5) Artifact Contract
 Each test writes artifacts under the run root:

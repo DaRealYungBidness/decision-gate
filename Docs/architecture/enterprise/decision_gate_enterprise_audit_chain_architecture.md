@@ -7,7 +7,7 @@ Description: Current-state reference for hash-chained, tamper-evident audit
 Purpose: Provide an implementation-grade map of audit immutability guarantees.
 Dependencies:
   - enterprise/decision-gate-enterprise/src/audit_chain.rs
-  - enterprise/enterprise-system-tests/tests/audit.rs
+  - enterprise/enterprise-system-tests/tests/suites/audit.rs
 ============================================================================
 Last Updated: 2026-01-27 (UTC)
 ============================================================================
@@ -80,4 +80,4 @@ into SIEM pipelines and offline verification tooling.
 ## File-by-File Cross Reference
 
 - Audit sink implementation: `enterprise/decision-gate-enterprise/src/audit_chain.rs`
-- Audit system tests: `enterprise/enterprise-system-tests/tests/audit.rs`
+- Audit system tests: `enterprise/enterprise-system-tests/tests/suites/audit.rs`

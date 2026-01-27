@@ -7,8 +7,10 @@
 // ============================================================================
 
 use std::collections::BTreeSet;
+use std::net::TcpListener as StdTcpListener;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::thread;
 
 use axum::Router;
 use axum::extract::Path;
@@ -18,9 +20,9 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::get;
 use serde::Serialize;
-use tokio::task::JoinHandle;
+use tokio::runtime::Builder;
+use tokio::sync::oneshot;
 
-use super::harness::allocate_bind_addr;
 
 #[derive(Clone)]
 struct AuthorityState {
@@ -38,7 +40,8 @@ pub struct NamespaceRequest {
 /// Handle for the namespace authority stub server.
 pub struct NamespaceAuthorityStubHandle {
     base_url: String,
-    join: JoinHandle<()>,
+    shutdown: Option<oneshot::Sender<()>>,
+    join: Option<thread::JoinHandle<()>>,
     requests: Arc<Mutex<Vec<NamespaceRequest>>>,
 }
 
@@ -56,7 +59,12 @@ impl NamespaceAuthorityStubHandle {
 
 impl Drop for NamespaceAuthorityStubHandle {
     fn drop(&mut self) {
-        self.join.abort();
+        if let Some(shutdown) = self.shutdown.take() {
+            let _ = shutdown.send(());
+        }
+        if let Some(join) = self.join.take() {
+            let _ = join.join();
+        }
     }
 }
 
@@ -64,7 +72,16 @@ impl Drop for NamespaceAuthorityStubHandle {
 pub async fn spawn_namespace_authority_stub(
     allowed: Vec<u64>,
 ) -> Result<NamespaceAuthorityStubHandle, String> {
-    let addr = allocate_bind_addr()?;
+    let listener = StdTcpListener::bind("127.0.0.1:0")
+        .map_err(|err| format!("namespace authority bind failed: {err}"))?;
+    listener
+        .set_nonblocking(true)
+        .map_err(|err| format!("namespace authority listener nonblocking failed: {err}"))?;
+    let addr = listener
+        .local_addr()
+        .map_err(|err| format!("namespace authority local addr failed: {err}"))?;
+    let base_url = format!("http://{}", addr);
+
     let allowed: BTreeSet<u64> = allowed.into_iter().collect();
     let requests = Arc::new(Mutex::new(Vec::new()));
     let state = AuthorityState {
@@ -73,16 +90,25 @@ pub async fn spawn_namespace_authority_stub(
     };
     let app =
         Router::new().route("/v1/write/namespaces/:id", get(handle_namespace)).with_state(state);
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .map_err(|err| format!("namespace authority bind failed: {err}"))?;
-    let base_url = format!("http://{}", listener.local_addr().map_err(|err| err.to_string())?);
-    let join = tokio::spawn(async move {
-        let _ = axum::serve(listener, app).await;
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
+    let join = thread::spawn(move || {
+        let runtime = Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("namespace authority stub runtime");
+        runtime.block_on(async move {
+            let listener = tokio::net::TcpListener::from_std(listener)
+                .expect("namespace authority listener from_std");
+            let server = axum::serve(listener, app).with_graceful_shutdown(async move {
+                let _ = shutdown_rx.await;
+            });
+            let _ = server.await;
+        });
     });
     Ok(NamespaceAuthorityStubHandle {
         base_url,
-        join,
+        shutdown: Some(shutdown_tx),
+        join: Some(join),
         requests,
     })
 }

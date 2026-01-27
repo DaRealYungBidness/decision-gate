@@ -17,8 +17,10 @@ run root.
 
 New in this phase:
 - Concurrency and burst-load stress tests for registry writes, paging stability,
-  and precheck request storms (`system-tests/tests/stress.rs`).
+  and precheck request storms (`system-tests/tests/suites/stress.rs`).
 - Explicit TODOs to add fuzz/property and long-running soak/perf tests.
+- Category-based suite entrypoints to reduce test binaries while keeping
+  coverage centralized (`system-tests/tests/*.rs`).
 
 ## AssetCore Integration Note
 By default, AssetCore-related system-tests use local stub servers that implement
@@ -47,6 +49,27 @@ cargo nextest run -p system-tests --features system-tests
 cargo test -p system-tests --features system-tests --test smoke -- --exact smoke_define_start_next_status
 ```
 
+## Suite Layout (Binary Consolidation)
+System-tests are organized into category suites to reduce binary proliferation.
+Test implementations live under `system-tests/tests/suites/`, while suite entry
+points live in `system-tests/tests/`:
+
+- `smoke`
+- `functional`
+- `providers`
+- `mcp_transport`
+- `runpack`
+- `reliability`
+- `security`
+- `contract`
+- `operations`
+- `performance`
+
+Run a specific test by targeting the suite:
+```bash
+cargo test -p system-tests --features system-tests --test security -- --exact evidence_redaction_default
+```
+
 ## Test Runner (Registry Driven)
 ```bash
 python scripts/test_runner.py --priority P0
@@ -63,7 +86,7 @@ When you add, rename, or remove a test:
 - Update `Docs/security/threat_model.md` or note "Threat Model Delta: none".
 
 ## Stress Tests
-Stress tests are in `system-tests/tests/stress.rs` and are intended to run under
+Stress tests are in `system-tests/tests/suites/stress.rs` and are intended to run under
 CI timeouts (not load-test infrastructure). They validate concurrency safety
 and fail-closed behavior, not throughput SLAs.
 Planned (not yet implemented): fuzz/property tests and long-running soak/perf.
