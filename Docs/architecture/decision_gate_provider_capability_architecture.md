@@ -113,6 +113,8 @@ Evidence federation combines built-in providers and MCP providers:
 - Built-ins are registered via the provider registry.
 - MCP providers are instantiated with stdio or HTTP transport.
 - Provider policies (trust + allow_raw) are applied per provider.
+- Evidence results may include **structured error metadata** (`code`, `message`,
+  `details`) to support deterministic recovery loops.
 
 [F:decision-gate-mcp/src/evidence.rs L137-L209][F:decision-gate-mcp/src/evidence.rs L220-L244]
 
@@ -129,6 +131,8 @@ Tool behavior enforces capability and disclosure policy:
 - `evidence_query` validates queries and applies raw evidence redaction policy.
 - `provider_contract_get` / `provider_schema_get` apply disclosure policy and
   return canonical provider contracts or predicate schemas.
+- Comparator allow-lists are enforced from provider contracts; `json.path`
+  exposes the full comparator surface area for deterministic JSON evidence.
 
 [F:decision-gate-mcp/src/tools.rs L694-L885]
 

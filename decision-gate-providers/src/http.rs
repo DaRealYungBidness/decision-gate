@@ -127,6 +127,7 @@ impl EvidenceProvider for HttpProvider {
                 Ok(EvidenceResult {
                     value: Some(EvidenceValue::Json(Value::Number(Number::from(status)))),
                     lane: TrustLane::Verified,
+                    error: None,
                     evidence_hash: None,
                     evidence_ref: Some(EvidenceRef {
                         uri: url.to_string(),
@@ -153,6 +154,7 @@ impl EvidenceProvider for HttpProvider {
                 Ok(EvidenceResult {
                     value: Some(EvidenceValue::Json(hash_value)),
                     lane: TrustLane::Verified,
+                    error: None,
                     evidence_hash: None,
                     evidence_ref: Some(EvidenceRef {
                         uri: url.to_string(),

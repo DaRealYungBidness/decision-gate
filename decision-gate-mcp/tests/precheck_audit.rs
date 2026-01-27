@@ -151,7 +151,7 @@ fn build_router(mut config: DecisionGateConfig, audit: Arc<TestAuditSink>) -> To
         provider_transports,
         schema_registry_limits,
         capabilities: Arc::new(capabilities),
-        provider_discovery: config.provider_discovery.clone(),
+        provider_discovery: config.provider_discovery,
         authz,
         tenant_authorizer: Arc::new(NoopTenantAuthorizer),
         usage_meter: Arc::new(NoopUsageMeter),

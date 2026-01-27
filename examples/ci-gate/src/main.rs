@@ -103,6 +103,7 @@ impl EvidenceProvider for CiEvidenceProvider {
                 Ok(EvidenceResult {
                     value: Some(EvidenceValue::Json(json!(status))),
                     lane: TrustLane::Verified,
+                    error: None,
                     evidence_hash: None,
                     evidence_ref: None,
                     evidence_anchor: None,
@@ -116,6 +117,7 @@ impl EvidenceProvider for CiEvidenceProvider {
                 Ok(EvidenceResult {
                     value: Some(EvidenceValue::Json(json!(approvals))),
                     lane: TrustLane::Verified,
+                    error: None,
                     evidence_hash: None,
                     evidence_ref: None,
                     evidence_anchor: None,

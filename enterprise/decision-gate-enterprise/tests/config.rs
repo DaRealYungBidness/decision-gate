@@ -7,12 +7,22 @@
 
 //! Enterprise config unit tests.
 
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    reason = "Test helpers use explicit panics for setup clarity."
+)]
+
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use decision_gate_enterprise::config::EnterpriseConfig;
 use decision_gate_enterprise::config::EnterpriseConfigError;
+use decision_gate_enterprise::config::EnterpriseRunpackConfig;
+use decision_gate_enterprise::config::EnterpriseStorageConfig;
+use decision_gate_enterprise::config::EnterpriseUsageConfig;
 use decision_gate_enterprise::config::UsageLedgerType;
 use decision_gate_mcp::McpNoopAuditSink;
 use decision_gate_mcp::NoopTenantAuthorizer;
@@ -88,9 +98,9 @@ ledger_type = "memory"
 #[test]
 fn config_defaults_to_sqlite_ledger_type() {
     let config = EnterpriseConfig {
-        usage: Default::default(),
-        storage: Default::default(),
-        runpacks: Default::default(),
+        usage: EnterpriseUsageConfig::default(),
+        storage: EnterpriseStorageConfig::default(),
+        runpacks: EnterpriseRunpackConfig::default(),
         source_modified_at: None,
     };
     assert_eq!(config.usage.ledger.ledger_type, UsageLedgerType::Sqlite);
@@ -146,7 +156,7 @@ fn config_rejects_oversize_file() {
 #[test]
 fn config_rejects_non_utf8_content() {
     let file = NamedTempFile::new().expect("temp file");
-    std::fs::write(file.path(), &[0xFF, 0xFE]).expect("write non-utf8");
+    std::fs::write(file.path(), [0xFF, 0xFE]).expect("write non-utf8");
 
     let result = EnterpriseConfig::load(Some(file.path()));
     assert!(result.is_err(), "expected error for non-utf8 content");
@@ -256,10 +266,12 @@ fn config_env_var_overrides_default_path() {
     let path_str = file.path().to_string_lossy().to_string();
 
     // Set the env var. This is process-global so we must be careful.
+    // SAFETY: Test controls the process env in a single-threaded section.
     unsafe {
         std::env::set_var("DECISION_GATE_ENTERPRISE_CONFIG", &path_str);
     }
     let result = EnterpriseConfig::load(None);
+    // SAFETY: Resets the env var set above to avoid cross-test leakage.
     unsafe {
         std::env::remove_var("DECISION_GATE_ENTERPRISE_CONFIG");
     }

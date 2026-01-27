@@ -35,6 +35,7 @@ use crate::core::EvidenceResult;
 use crate::core::EvidenceValue;
 use crate::core::GateEvalRecord;
 use crate::core::GateEvaluation;
+use crate::core::GateId;
 use crate::core::GateOutcome;
 use crate::core::GateSpec;
 use crate::core::NamespaceId;
@@ -503,44 +504,94 @@ where
         let stage_def = stage_spec(&self.spec, &stage_id)?;
         let predicate_specs = predicate_specs(&self.spec, stage_def)?;
         let default_requirement = self.config.trust_requirement;
+        let predicate_requirements = self.build_predicate_requirements(&predicate_specs);
+        let evidence_records =
+            self.build_precheck_evidence_records(&predicate_specs, &request.evidence)?;
+        let (gate_evaluations, gate_outcomes) = self.evaluate_precheck_gates(
+            stage_def,
+            default_requirement,
+            &predicate_requirements,
+            &evidence_records,
+        );
+        let decision =
+            self.precheck_decision(stage_id, stage_def, &gate_outcomes, &gate_evaluations)?;
+
+        Ok(PrecheckResult {
+            decision,
+            gate_evaluations,
+        })
+    }
+
+    /// Resolves trust requirements for predicates in precheck mode.
+    fn build_predicate_requirements(
+        &self,
+        predicate_specs: &[PredicateSpec],
+    ) -> BTreeMap<PredicateKey, TrustRequirement> {
         let mut predicate_requirements = BTreeMap::new();
-        for spec in &predicate_specs {
+        for spec in predicate_specs {
             let base_requirement =
                 self.config.trust_requirement_for_provider(spec.query.provider_id.as_str());
             let requirement = spec.trust.unwrap_or(base_requirement);
             let requirement = base_requirement.stricter(requirement);
             predicate_requirements.insert(spec.predicate.clone(), requirement);
         }
+        predicate_requirements
+    }
 
+    /// Normalizes asserted evidence into records suitable for precheck evaluation.
+    fn build_precheck_evidence_records(
+        &self,
+        predicate_specs: &[PredicateSpec],
+        evidence: &BTreeMap<PredicateKey, EvidenceResult>,
+    ) -> Result<Vec<EvidenceRecord>, ControlPlaneError> {
         let mut evidence_records = Vec::with_capacity(predicate_specs.len());
-        for spec in &predicate_specs {
-            let result =
-                request.evidence.get(&spec.predicate).cloned().unwrap_or_else(|| EvidenceResult {
+        for spec in predicate_specs {
+            let mut result =
+                evidence.get(&spec.predicate).cloned().unwrap_or_else(|| EvidenceResult {
                     value: None,
                     lane: TrustLane::Asserted,
+                    error: None,
                     evidence_hash: None,
                     evidence_ref: None,
                     evidence_anchor: None,
                     signature: None,
                     content_type: None,
                 });
+            if result.error.is_some() {
+                result.value = None;
+                result.evidence_hash = None;
+                result.content_type = None;
+            }
             let normalized = normalize_evidence_result(&result, self.config.hash_algorithm)?;
-            let status = evaluate_comparator(spec.comparator, spec.expected.as_ref(), &normalized);
+            let status = if normalized.error.is_some() {
+                TriState::Unknown
+            } else {
+                evaluate_comparator(spec.comparator, spec.expected.as_ref(), &normalized)
+            };
             evidence_records.push(EvidenceRecord {
                 predicate: spec.predicate.clone(),
                 status,
                 result: normalized,
-                error: None,
             });
         }
+        Ok(evidence_records)
+    }
 
+    /// Evaluates gate outcomes for precheck without mutating run state.
+    fn evaluate_precheck_gates(
+        &self,
+        stage_def: &StageSpec,
+        default_requirement: TrustRequirement,
+        predicate_requirements: &BTreeMap<PredicateKey, TrustRequirement>,
+        evidence_records: &[EvidenceRecord],
+    ) -> (Vec<GateEvaluation>, Vec<(GateId, TriState)>) {
         let evaluator = GateEvaluator::new(self.config.logic_mode);
         let mut gate_evaluations = Vec::new();
         let mut gate_outcomes = Vec::new();
         for gate in &stage_def.gates {
             let gate_requirement =
                 default_requirement.stricter(gate.trust.unwrap_or(default_requirement));
-            let gate_evidence = evidence_for_gate(&evidence_records, gate);
+            let gate_evidence = evidence_for_gate(evidence_records, gate);
             let adjusted_evidence: Vec<EvidenceRecord> = gate_evidence
                 .into_iter()
                 .map(|record| {
@@ -557,41 +608,43 @@ where
             gate_outcomes.push((gate.gate_id.clone(), evaluation.status));
             gate_evaluations.push(evaluation);
         }
+        (gate_evaluations, gate_outcomes)
+    }
 
-        let decision =
-            if gate_evaluations.iter().all(|evaluation| evaluation.status == TriState::True) {
-                if let Some(next_stage) =
-                    resolve_next_stage_precheck(&self.spec, stage_def, &gate_outcomes)?
-                {
-                    DecisionOutcome::Advance {
-                        from_stage: stage_id,
-                        to_stage: next_stage,
-                        timeout: false,
-                    }
-                } else {
-                    DecisionOutcome::Complete {
-                        stage_id,
-                    }
-                }
-            } else {
-                let unmet = gate_evaluations
-                    .iter()
-                    .filter(|evaluation| evaluation.status != TriState::True)
-                    .map(|evaluation| evaluation.gate_id.clone())
-                    .collect();
-                DecisionOutcome::Hold {
-                    summary: SafeSummary {
-                        status: "hold".to_string(),
-                        unmet_gates: unmet,
-                        retry_hint: Some("await_evidence".to_string()),
-                        policy_tags: Vec::new(),
-                    },
-                }
-            };
-
-        Ok(PrecheckResult {
-            decision,
-            gate_evaluations,
+    /// Computes the decision outcome for a precheck evaluation.
+    fn precheck_decision(
+        &self,
+        stage_id: StageId,
+        stage_def: &StageSpec,
+        gate_outcomes: &[(GateId, TriState)],
+        gate_evaluations: &[GateEvaluation],
+    ) -> Result<DecisionOutcome, ControlPlaneError> {
+        if gate_evaluations.iter().all(|evaluation| evaluation.status == TriState::True) {
+            if let Some(next_stage) =
+                resolve_next_stage_precheck(&self.spec, stage_def, gate_outcomes)?
+            {
+                return Ok(DecisionOutcome::Advance {
+                    from_stage: stage_id,
+                    to_stage: next_stage,
+                    timeout: false,
+                });
+            }
+            return Ok(DecisionOutcome::Complete {
+                stage_id,
+            });
+        }
+        let unmet = gate_evaluations
+            .iter()
+            .filter(|evaluation| evaluation.status != TriState::True)
+            .map(|evaluation| evaluation.gate_id.clone())
+            .collect();
+        Ok(DecisionOutcome::Hold {
+            summary: SafeSummary {
+                status: "hold".to_string(),
+                unmet_gates: unmet,
+                retry_hint: Some("await_evidence".to_string()),
+                policy_tags: Vec::new(),
+            },
         })
     }
 
@@ -927,14 +980,16 @@ where
         let mut records = Vec::with_capacity(predicate_specs.len());
         for spec in predicate_specs {
             let (mut result, mut error) = match self.evidence.query(&spec.query, context) {
-                Ok(result) => (result, None),
-                Err(err) => (
-                    Self::empty_verified_result(),
-                    Some(crate::core::EvidenceProviderError {
-                        code: "provider_error".to_string(),
-                        message: err.to_string(),
-                    }),
-                ),
+                Ok(result) => {
+                    let error = result.error.clone();
+                    (result, error)
+                }
+                Err(err) => {
+                    let error = Self::provider_error("provider_error", err.to_string());
+                    let mut result = Self::empty_verified_result();
+                    result.error = Some(error.clone());
+                    (result, Some(error))
+                }
             };
             if error.is_none()
                 && let Some(requirement) =
@@ -942,10 +997,15 @@ where
                 && let Err(message) = Self::validate_anchor_requirement(requirement, &result)
             {
                 result = Self::empty_verified_result();
-                error = Some(crate::core::EvidenceProviderError {
-                    code: "anchor_invalid".to_string(),
-                    message,
-                });
+                let anchor_error = Self::provider_error("anchor_invalid", message);
+                result.error = Some(anchor_error.clone());
+                error = Some(anchor_error);
+            }
+            if let Some(err) = &error {
+                result.error = Some(err.clone());
+                result.value = None;
+                result.evidence_hash = None;
+                result.content_type = None;
             }
             let normalized = normalize_evidence_result(&result, self.config.hash_algorithm)?;
             let status = if error.is_some() {
@@ -957,7 +1017,6 @@ where
                 predicate: spec.predicate.clone(),
                 status,
                 result: normalized,
-                error,
             });
         }
         Ok(records)
@@ -968,11 +1027,21 @@ where
         EvidenceResult {
             value: None,
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
             signature: None,
             content_type: None,
+        }
+    }
+
+    /// Builds provider error metadata with no details payload.
+    fn provider_error(code: &str, message: String) -> crate::core::EvidenceProviderError {
+        crate::core::EvidenceProviderError {
+            code: code.to_string(),
+            message,
+            details: None,
         }
     }
 
@@ -1469,14 +1538,16 @@ fn apply_trust_requirement(
         return record;
     }
     record.status = TriState::Unknown;
-    if record.error.is_none() {
-        record.error = Some(crate::core::EvidenceProviderError {
+    if record.result.error.is_none() {
+        let error = crate::core::EvidenceProviderError {
             code: "trust_lane".to_string(),
             message: format!(
                 "evidence lane {:?} does not satisfy {:?}",
                 record.result.lane, requirement.min_lane
             ),
-        });
+            details: None,
+        };
+        record.result.error = Some(error);
     }
     record
 }

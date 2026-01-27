@@ -78,6 +78,9 @@ fail-closed behavior.
 ### Domain overrides
 - `x-decision-gate.allowed_comparators` restricts allowed comparators to a
   subset of the type-class matrix.
+- `x-decision-gate.dynamic_type = true` treats the schema as dynamic (no
+  declared type) and allows comparator validation to proceed without a type
+  restriction, subject to config toggles.
 - Implemented in `decision-gate-mcp/src/validation.rs`.
 
 ### Union handling
@@ -90,6 +93,7 @@ fail-closed behavior.
 - Numeric comparisons are decimal-aware (no float rounding).
 - RFC 3339 `date`/`date-time` ordering is supported for string values.
 - Unsupported comparisons yield `TriState::Unknown`.
+- `in_set` only applies to scalar evidence values; arrays/objects yield `Unknown`.
 - Implementation: `decision-gate-core/src/runtime/comparator.rs`.
 
 ## Configuration Surface

@@ -32,6 +32,8 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | --- | --- | --- |
 | `http_transport_end_to_end` | mcp_transport | HTTP JSON-RPC transport works end-to-end. |
 | `federated_provider_echo` | providers | External MCP provider integration works. |
+| `json_provider_missing_jsonpath_returns_error_metadata` | providers | JSON provider emits structured error metadata for missing JSONPath. |
+| `json_provider_contains_array_succeeds` | providers | JSON provider path + contains comparator evaluates end-to-end. |
 | `assetcore_interop_fixtures` | providers | AssetCore interop fixture map executes via provider stub. |
 | `assetcore_anchor_missing_fails_closed` | providers | Missing AssetCore anchors fail closed for evidence queries. |
 | `assetcore_correlation_id_passthrough` | providers | Correlation IDs are preserved for AssetCore evidence queries. |
@@ -53,6 +55,8 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `strict_validation_allows_enabled_comparators` | functional | Enabled comparator families are accepted. |
 | `strict_validation_rejects_in_set_non_array` | functional | in_set requires expected array values. |
 | `strict_validation_precheck_allows_union_contains` | functional | Union string/null schema permits contains. |
+| `json_evidence_playbook_templates_pass` | functional | JSON evidence playbook templates pass via JSON provider. |
+| `llm_native_precheck_payload_flow` | functional | LLM-native precheck payload flow succeeds with asserted evidence. |
 | `asc_auth_mapping_matrix` | security | ASC role/policy mapping enforced via auth proxy. |
 | `assetcore_determinism_replay` | reliability | Identical AssetCore fixtures yield identical runpacks. |
 | `registry_acl_builtin_matrix` | security | Builtin registry ACL matrix enforced across roles. |

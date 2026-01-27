@@ -1612,7 +1612,7 @@ fn provider_discovery_rejects_empty_entries() {
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
         provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig {
-            allowlist: vec!["".to_string()],
+            allowlist: vec![String::new()],
             denylist: Vec::new(),
             max_response_bytes: 1024,
         },

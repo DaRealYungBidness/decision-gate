@@ -7,6 +7,8 @@
 
 //! Usage meter unit tests.
 
+#![allow(clippy::expect_used, reason = "Tests use expect for setup clarity.")]
+
 use std::collections::BTreeMap;
 
 use decision_gate_contract::ToolName;
@@ -24,7 +26,7 @@ use decision_gate_mcp::UsageMetric;
 use decision_gate_mcp::UsageRecord;
 use decision_gate_mcp::auth::AuthMethod;
 
-fn auth_context() -> AuthContext {
+const fn auth_context() -> AuthContext {
     AuthContext {
         method: AuthMethod::Local,
         subject: None,
@@ -558,7 +560,7 @@ fn usage_ledger_sum_since_specific_namespace() {
         &ledger,
         decision_gate_enterprise::usage::UsageEvent {
             tenant_id: tenant.clone(),
-            namespace_id: ns_a.clone(),
+            namespace_id: ns_a,
             metric: UsageMetric::ToolCall,
             units: 5,
             timestamp_ms: 1000,
@@ -569,8 +571,8 @@ fn usage_ledger_sum_since_specific_namespace() {
     decision_gate_enterprise::usage::UsageLedger::append(
         &ledger,
         decision_gate_enterprise::usage::UsageEvent {
-            tenant_id: tenant.clone(),
-            namespace_id: ns_b.clone(),
+            tenant_id: tenant,
+            namespace_id: ns_b,
             metric: UsageMetric::ToolCall,
             units: 3,
             timestamp_ms: 1000,

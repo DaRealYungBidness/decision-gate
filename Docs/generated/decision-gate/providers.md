@@ -336,6 +336,7 @@ Reads JSON or YAML files and evaluates JSONPath queries against them.
 
 - File access is constrained by root policy and size limits.
 - JSONPath is optional; omitted means the full document.
+- Missing JSONPath yields a null value with error metadata (jsonpath_not_found).
 
 ### Configuration schema
 
@@ -377,7 +378,7 @@ Select values via JSONPath from a JSON/YAML file.
 
 - Determinism: external
 - Params required: yes
-- Allowed comparators: equals, not_equals, exists, not_exists
+- Allowed comparators: equals, not_equals, greater_than, greater_than_or_equal, less_than, less_than_or_equal, lex_greater_than, lex_greater_than_or_equal, lex_less_than, lex_less_than_or_equal, contains, in_set, deep_equals, deep_not_equals, exists, not_exists
 - Anchor types: file_path
 - Content types: application/json, application/yaml
 
@@ -409,14 +410,10 @@ Params schema:
 Result schema:
 ```json
 {
-  "oneOf": [
-    {
-      "description": "JSONPath result."
-    },
-    {
-      "type": "null"
-    }
-  ]
+  "description": "JSONPath result value (dynamic JSON type).",
+  "x-decision-gate": {
+    "dynamic_type": true
+  }
 }
 ```
 Examples:

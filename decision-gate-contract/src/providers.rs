@@ -271,12 +271,29 @@ fn env_provider_contract() -> ProviderContract {
 #[must_use]
 fn json_provider_contract() -> ProviderContract {
     let result_schema = json!({
-        "oneOf": [
-            { "description": "JSONPath result." },
-            { "type": "null" }
-        ]
+        "description": "JSONPath result value (dynamic JSON type).",
+        "x-decision-gate": {
+            "dynamic_type": true
+        }
     });
-    let allowed_comparators = allowed_comparators_for_schema(&result_schema);
+    let allowed_comparators = canonicalize_comparators(vec![
+        Comparator::Equals,
+        Comparator::NotEquals,
+        Comparator::GreaterThan,
+        Comparator::GreaterThanOrEqual,
+        Comparator::LessThan,
+        Comparator::LessThanOrEqual,
+        Comparator::LexGreaterThan,
+        Comparator::LexGreaterThanOrEqual,
+        Comparator::LexLessThan,
+        Comparator::LexLessThanOrEqual,
+        Comparator::Contains,
+        Comparator::InSet,
+        Comparator::DeepEquals,
+        Comparator::DeepNotEquals,
+        Comparator::Exists,
+        Comparator::NotExists,
+    ]);
     ProviderContract {
         provider_id: String::from("json"),
         name: String::from("JSON Provider"),
@@ -319,6 +336,9 @@ fn json_provider_contract() -> ProviderContract {
         notes: vec![
             String::from("File access is constrained by root policy and size limits."),
             String::from("JSONPath is optional; omitted means the full document."),
+            String::from(
+                "Missing JSONPath yields a null value with error metadata (jsonpath_not_found).",
+            ),
         ],
     }
 }

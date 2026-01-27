@@ -22,7 +22,6 @@ use serde::Serialize;
 use crate::core::disclosure::DispatchTarget;
 use crate::core::disclosure::PacketPayload;
 use crate::core::disclosure::PacketRecord;
-use crate::core::evidence::EvidenceProviderError;
 use crate::core::evidence::EvidenceResult;
 use crate::core::evidence::ProviderMissingError;
 use crate::core::hashing::HashDigest;
@@ -139,9 +138,6 @@ pub struct EvidenceRecord {
     pub status: TriState,
     /// Evidence result metadata.
     pub result: EvidenceResult,
-    /// Evidence provider error metadata when the query failed.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub error: Option<EvidenceProviderError>,
 }
 
 // ============================================================================

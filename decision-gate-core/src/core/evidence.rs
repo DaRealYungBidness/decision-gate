@@ -191,6 +191,9 @@ pub struct EvidenceProviderError {
     pub code: String,
     /// Provider error message.
     pub message: String,
+    /// Optional structured error details for recovery.
+    #[serde(default)]
+    pub details: Option<serde_json::Value>,
 }
 
 /// Evidence result returned by providers.
@@ -201,6 +204,9 @@ pub struct EvidenceResult {
     /// Trust lane classification for the evidence.
     #[serde(default)]
     pub lane: TrustLane,
+    /// Optional provider error metadata when evidence is invalid or missing.
+    #[serde(default)]
+    pub error: Option<EvidenceProviderError>,
     /// Canonical hash of the evidence payload.
     pub evidence_hash: Option<HashDigest>,
     /// Reference to the evidence artifact.

@@ -249,7 +249,7 @@ async fn run_case(
     let error_code = gate_evals
         .first()
         .and_then(|record| record.evidence.first())
-        .and_then(|record| record.error.as_ref())
+        .and_then(|record| record.result.error.as_ref())
         .map_or_else(|| "missing_error".to_string(), |error| error.code.clone());
 
     Ok(CaseOutcome {

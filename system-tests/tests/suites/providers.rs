@@ -30,12 +30,14 @@ use decision_gate_core::PredicateKey;
 use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
+use decision_gate_core::RunId;
 use decision_gate_core::RunStatus;
 use decision_gate_core::ScenarioId;
 use decision_gate_core::ScenarioSpec;
 use decision_gate_core::SpecVersion;
 use decision_gate_core::StageId;
 use decision_gate_core::StageSpec;
+use decision_gate_core::TenantId;
 use decision_gate_core::TimeoutPolicy;
 use decision_gate_core::Timestamp;
 use decision_gate_core::TriggerId;
@@ -64,6 +66,7 @@ use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use serde_json::json;
+use tempfile::tempdir;
 
 use crate::helpers;
 
@@ -123,6 +126,175 @@ async fn provider_time_after() -> Result<(), Box<dyn std::error::Error>> {
     reporter.finish(
         "pass",
         vec!["time provider predicate evaluated".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+        ],
+    )?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn json_provider_missing_jsonpath_returns_error_metadata()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("json_provider_missing_jsonpath_returns_error_metadata")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let config = base_http_config(&bind);
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(std::time::Duration::from_secs(5))?;
+    wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
+
+    let dir = tempdir()?;
+    let report_path = dir.path().join("report.json");
+    fs::write(&report_path, r#"{"summary":{"passed":1}}"#)?;
+
+    let fixture = ScenarioFixture::time_after("json-evidence", "run-1", 0);
+    let request = decision_gate_mcp::tools::EvidenceQueryRequest {
+        query: EvidenceQuery {
+            provider_id: ProviderId::new("json"),
+            predicate: "path".to_string(),
+            params: Some(json!({
+                "file": report_path.to_string_lossy(),
+                "jsonpath": "$.summary.failed"
+            })),
+        },
+        context: fixture.evidence_context("json-trigger", Timestamp::Logical(1)),
+    };
+
+    let input = serde_json::to_value(&request)?;
+    let response: decision_gate_mcp::tools::EvidenceQueryResponse =
+        client.call_tool_typed("evidence_query", input).await?;
+    let error = response.result.error.expect("missing error metadata");
+    if error.code != "jsonpath_not_found" {
+        return Err(format!("expected jsonpath_not_found, got {}", error.code).into());
+    }
+    if response.result.value.is_some() {
+        return Err("expected missing jsonpath to return null evidence value".into());
+    }
+    if response.result.content_type.is_some() {
+        return Err("expected missing jsonpath to return no content_type".into());
+    }
+    if response.result.evidence_hash.is_some() {
+        return Err("expected missing jsonpath to return no evidence_hash".into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["json provider returns error metadata for missing jsonpath".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+        ],
+    )?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn json_provider_contains_array_succeeds() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("json_provider_contains_array_succeeds")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let config = base_http_config(&bind);
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(Duration::from_secs(5))?;
+    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+
+    let dir = tempdir()?;
+    let report_path = dir.path().join("report.json");
+    fs::write(&report_path, r#"{"summary":{"status":"ok","tags":["alpha","beta","gamma"]}}"#)?;
+
+    let scenario_id = ScenarioId::new("json-provider-contains");
+    let stage_id = StageId::new("stage-1");
+    let predicate_key = PredicateKey::new("summary-tags");
+    let spec = ScenarioSpec {
+        scenario_id: scenario_id.clone(),
+        namespace_id: NamespaceId::new("default"),
+        spec_version: SpecVersion::new("1"),
+        stages: vec![StageSpec {
+            stage_id: stage_id.clone(),
+            entry_packets: Vec::new(),
+            gates: vec![GateSpec {
+                gate_id: GateId::new("gate-contains"),
+                requirement: ret_logic::Requirement::predicate(predicate_key.clone()),
+                trust: None,
+            }],
+            advance_to: AdvanceTo::Terminal,
+            timeout: None,
+            on_timeout: TimeoutPolicy::Fail,
+        }],
+        predicates: vec![PredicateSpec {
+            predicate: predicate_key,
+            query: EvidenceQuery {
+                provider_id: ProviderId::new("json"),
+                predicate: "path".to_string(),
+                params: Some(json!({
+                    "file": report_path.to_string_lossy(),
+                    "jsonpath": "$.summary.tags"
+                })),
+            },
+            comparator: Comparator::Contains,
+            expected: Some(json!(["alpha", "gamma"])),
+            policy_tags: Vec::new(),
+            trust: None,
+        }],
+        policies: Vec::new(),
+        schemas: Vec::new(),
+        default_tenant_id: Some(TenantId::new("tenant-1")),
+    };
+
+    let define_request = ScenarioDefineRequest {
+        spec,
+    };
+    let define_input = serde_json::to_value(&define_request)?;
+    let define_output: ScenarioDefineResponse =
+        client.call_tool_typed("scenario_define", define_input).await?;
+
+    let start_request = ScenarioStartRequest {
+        scenario_id: define_output.scenario_id.clone(),
+        run_config: RunConfig {
+            tenant_id: TenantId::new("tenant-1"),
+            namespace_id: NamespaceId::new("default"),
+            run_id: RunId::new("run-1"),
+            scenario_id: define_output.scenario_id.clone(),
+            dispatch_targets: Vec::new(),
+            policy_tags: Vec::new(),
+        },
+        started_at: Timestamp::Logical(1),
+        issue_entry_packets: false,
+    };
+    let start_input = serde_json::to_value(&start_request)?;
+    let _state: decision_gate_core::RunState =
+        client.call_tool_typed("scenario_start", start_input).await?;
+
+    let trigger_request = ScenarioTriggerRequest {
+        scenario_id: define_output.scenario_id,
+        trigger: decision_gate_core::TriggerEvent {
+            run_id: RunId::new("run-1"),
+            tenant_id: TenantId::new("tenant-1"),
+            namespace_id: NamespaceId::new("default"),
+            trigger_id: TriggerId::new("trigger-1"),
+            kind: TriggerKind::ExternalEvent,
+            time: Timestamp::Logical(2),
+            source_id: "json-provider-test".to_string(),
+            payload: None,
+            correlation_id: None,
+        },
+    };
+    let trigger_input = serde_json::to_value(&trigger_request)?;
+    let trigger_result: TriggerResult =
+        client.call_tool_typed("scenario_trigger", trigger_input).await?;
+
+    let outcome = &trigger_result.decision.outcome;
+    if !matches!(outcome, DecisionOutcome::Complete { .. }) {
+        return Err(format!("unexpected decision outcome: {outcome:?}").into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["json provider contains comparator evaluated".to_string()],
         vec![
             "summary.json".to_string(),
             "summary.md".to_string(),
@@ -274,11 +446,11 @@ async fn federated_provider_timeout_enforced() -> Result<(), Box<dyn std::error:
         context: fixture.evidence_context("timeout-trigger", Timestamp::Logical(1)),
     };
     let input = serde_json::to_value(&request)?;
-    let Err(error) = client.call_tool("evidence_query", input).await else {
-        return Err("expected evidence_query to time out".into());
-    };
-    if !error.contains("timed out") {
-        return Err(format!("expected timeout error, got: {error}").into());
+    let response: decision_gate_mcp::tools::EvidenceQueryResponse =
+        client.call_tool_typed("evidence_query", input).await?;
+    let error = response.result.error.expect("missing error metadata");
+    if !error.message.contains("timed out") {
+        return Err(format!("expected timeout error, got: {}", error.message).into());
     }
 
     reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;

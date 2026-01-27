@@ -107,6 +107,7 @@ impl EvidenceProvider for LargeEvidenceProvider {
         Ok(EvidenceResult {
             value: Some(EvidenceValue::Bytes(vec![0u8; self.size])),
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,

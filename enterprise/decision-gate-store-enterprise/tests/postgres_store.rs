@@ -36,12 +36,21 @@ fn postgres_store_invalid_connection_string_fails() {
 // ============================================================================
 
 #[test]
-fn postgres_store_config_serde_roundtrip() {
+fn postgres_store_config_serde_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
     let original = PostgresStoreConfig::default();
-    let json = serde_json::to_string(&original).expect("serialize");
-    let restored: PostgresStoreConfig = serde_json::from_str(&json).expect("deserialize");
-    assert_eq!(original.connection, restored.connection);
-    assert_eq!(original.max_connections, restored.max_connections);
-    assert_eq!(original.connect_timeout_ms, restored.connect_timeout_ms);
-    assert_eq!(original.statement_timeout_ms, restored.statement_timeout_ms);
+    let json = serde_json::to_string(&original)?;
+    let restored: PostgresStoreConfig = serde_json::from_str(&json)?;
+    if original.connection != restored.connection {
+        return Err("connection mismatch after serde roundtrip".into());
+    }
+    if original.max_connections != restored.max_connections {
+        return Err("max_connections mismatch after serde roundtrip".into());
+    }
+    if original.connect_timeout_ms != restored.connect_timeout_ms {
+        return Err("connect_timeout_ms mismatch after serde roundtrip".into());
+    }
+    if original.statement_timeout_ms != restored.statement_timeout_ms {
+        return Err("statement_timeout_ms mismatch after serde roundtrip".into());
+    }
+    Ok(())
 }

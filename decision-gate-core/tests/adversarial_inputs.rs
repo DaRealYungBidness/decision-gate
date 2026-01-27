@@ -32,6 +32,7 @@ const fn empty_result_with_value(value: EvidenceValue) -> EvidenceResult {
     EvidenceResult {
         value: Some(value),
         lane: TrustLane::Verified,
+        error: None,
         evidence_hash: None,
         evidence_ref: None,
         evidence_anchor: None,
@@ -82,6 +83,7 @@ fn comparator_returns_unknown_when_missing_value() {
         &EvidenceResult {
             value: None,
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -634,6 +636,7 @@ fn not_exists_with_missing_value() {
         &EvidenceResult {
             value: None,
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -652,6 +655,7 @@ fn exists_with_missing_value() {
         &EvidenceResult {
             value: None,
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,

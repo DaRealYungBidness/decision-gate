@@ -287,6 +287,7 @@ fn handle_request(state: &ProviderState, request: JsonRpcRequest) -> JsonRpcResp
                     let result = EvidenceResult {
                         value: Some(EvidenceValue::Json(response_value)),
                         lane: TrustLane::Verified,
+                        error: None,
                         evidence_hash: None,
                         evidence_ref: None,
                         evidence_anchor: anchor,

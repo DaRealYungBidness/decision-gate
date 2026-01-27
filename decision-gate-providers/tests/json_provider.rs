@@ -169,6 +169,8 @@ fn json_provider_jsonpath_no_match_returns_none() {
 
     let result = provider.query(&query, &sample_context()).unwrap();
     assert!(result.value.is_none());
+    let error = result.error.expect("missing error");
+    assert_eq!(error.code, "jsonpath_not_found");
 }
 
 /// Tests reading entire file without `JSONPath`.
@@ -247,14 +249,13 @@ fn json_path_traversal_basic_blocked() {
         params: Some(json!({"file": "../../../etc/passwd"})),
     };
 
-    let result = provider.query(&query, &sample_context());
-    assert!(result.is_err(), "Path traversal attack should be blocked");
-    let err = result.unwrap_err();
-    let err_str = format!("{err:?}");
-    // Should fail because the path escapes root OR file doesn't exist
+    let result = provider.query(&query, &sample_context()).unwrap();
+    assert!(result.value.is_none());
+    let error = result.error.expect("missing error");
     assert!(
-        err_str.contains("escapes root") || err_str.contains("unable to resolve"),
-        "Expected escapes root or resolution error, got: {err_str}"
+        error.code == "path_outside_root" || error.code == "file_not_found",
+        "Expected path_outside_root or file_not_found, got: {}",
+        error.code
     );
 }
 
@@ -279,9 +280,13 @@ fn json_path_traversal_vectors_blocked() {
             params: Some(json!({"file": vector})),
         };
 
-        let result = provider.query(&query, &sample_context());
-        // All vectors should either fail to resolve or be blocked
-        assert!(result.is_err(), "Path traversal vector should be blocked: {vector}");
+        let result = provider.query(&query, &sample_context()).unwrap();
+        let error = result.error.expect("missing error");
+        assert!(
+            error.code == "path_outside_root" || error.code == "file_not_found",
+            "Expected path_outside_root or file_not_found for {vector}, got: {}",
+            error.code
+        );
     }
 }
 
@@ -309,8 +314,13 @@ fn json_absolute_path_outside_root_blocked() {
         params: Some(json!({"file": absolute})),
     };
 
-    let result = provider.query(&query, &sample_context());
-    assert!(result.is_err(), "Absolute path outside root should be blocked");
+    let result = provider.query(&query, &sample_context()).unwrap();
+    let error = result.error.expect("missing error");
+    assert!(
+        error.code == "path_outside_root" || error.code == "file_not_found",
+        "Expected path_outside_root or file_not_found, got: {}",
+        error.code
+    );
 }
 
 // ============================================================================
@@ -339,10 +349,9 @@ fn json_file_exceeds_size_limit_rejected() {
         params: Some(json!({"file": "large.json"})),
     };
 
-    let result = provider.query(&query, &sample_context());
-    assert!(result.is_err());
-    let err = result.unwrap_err();
-    assert!(format!("{err:?}").contains("exceeds size limit"));
+    let result = provider.query(&query, &sample_context()).unwrap();
+    let error = result.error.expect("missing error");
+    assert_eq!(error.code, "size_limit_exceeded");
 }
 
 /// Tests that files at exactly the limit are accepted.
@@ -390,10 +399,9 @@ fn json_invalid_json_rejected() {
         params: Some(json!({"file": "invalid.json"})),
     };
 
-    let result = provider.query(&query, &sample_context());
-    assert!(result.is_err());
-    let err = result.unwrap_err();
-    assert!(format!("{err:?}").contains("invalid json"));
+    let result = provider.query(&query, &sample_context()).unwrap();
+    let error = result.error.expect("missing error");
+    assert_eq!(error.code, "invalid_json");
 }
 
 /// Tests that invalid YAML is rejected.
@@ -413,10 +421,9 @@ fn json_invalid_yaml_rejected() {
         params: Some(json!({"file": "invalid.yaml"})),
     };
 
-    let result = provider.query(&query, &sample_context());
-    assert!(result.is_err());
-    let err = result.unwrap_err();
-    assert!(format!("{err:?}").contains("invalid yaml"));
+    let result = provider.query(&query, &sample_context()).unwrap();
+    let error = result.error.expect("missing error");
+    assert_eq!(error.code, "invalid_yaml");
 }
 
 /// Tests that YAML is rejected when `allow_yaml` is false.
@@ -437,10 +444,9 @@ fn json_yaml_disabled_rejects_yaml_files() {
         params: Some(json!({"file": "config.yaml"})),
     };
 
-    let result = provider.query(&query, &sample_context());
-    assert!(result.is_err());
-    let err = result.unwrap_err();
-    assert!(format!("{err:?}").contains("yaml parsing is disabled"));
+    let result = provider.query(&query, &sample_context()).unwrap();
+    let error = result.error.expect("missing error");
+    assert_eq!(error.code, "yaml_disabled");
 }
 
 /// Tests that invalid `JSONPath` expressions are rejected.
@@ -460,10 +466,9 @@ fn json_invalid_jsonpath_rejected() {
         params: Some(json!({"file": "data.json", "jsonpath": "$[invalid"})),
     };
 
-    let result = provider.query(&query, &sample_context());
-    assert!(result.is_err());
-    let err = result.unwrap_err();
-    assert!(format!("{err:?}").contains("invalid jsonpath"));
+    let result = provider.query(&query, &sample_context()).unwrap();
+    let error = result.error.expect("missing error");
+    assert_eq!(error.code, "invalid_jsonpath");
 }
 
 // ============================================================================
@@ -496,10 +501,9 @@ fn json_missing_params_rejected() {
         params: None,
     };
 
-    let result = provider.query(&query, &sample_context());
-    assert!(result.is_err());
-    let err = result.unwrap_err();
-    assert!(format!("{err:?}").contains("requires params"));
+    let result = provider.query(&query, &sample_context()).unwrap();
+    let error = result.error.expect("missing error");
+    assert_eq!(error.code, "params_missing");
 }
 
 /// Tests that non-object params are rejected.
@@ -512,10 +516,9 @@ fn json_params_not_object_rejected() {
         params: Some(json!("not_an_object")),
     };
 
-    let result = provider.query(&query, &sample_context());
-    assert!(result.is_err());
-    let err = result.unwrap_err();
-    assert!(format!("{err:?}").contains("must be an object"));
+    let result = provider.query(&query, &sample_context()).unwrap();
+    let error = result.error.expect("missing error");
+    assert_eq!(error.code, "params_invalid");
 }
 
 /// Tests that missing file param is rejected.
@@ -528,10 +531,9 @@ fn json_missing_file_param_rejected() {
         params: Some(json!({"other": "value"})),
     };
 
-    let result = provider.query(&query, &sample_context());
-    assert!(result.is_err());
-    let err = result.unwrap_err();
-    assert!(format!("{err:?}").contains("missing file"));
+    let result = provider.query(&query, &sample_context()).unwrap();
+    let error = result.error.expect("missing error");
+    assert_eq!(error.code, "params_missing");
 }
 
 /// Tests that non-string file param is rejected.
@@ -544,10 +546,9 @@ fn json_file_param_not_string_rejected() {
         params: Some(json!({"file": 12345})),
     };
 
-    let result = provider.query(&query, &sample_context());
-    assert!(result.is_err());
-    let err = result.unwrap_err();
-    assert!(format!("{err:?}").contains("must be a string"));
+    let result = provider.query(&query, &sample_context()).unwrap();
+    let error = result.error.expect("missing error");
+    assert_eq!(error.code, "params_invalid");
 }
 
 /// Tests that non-string jsonpath param is rejected.
@@ -567,10 +568,9 @@ fn json_jsonpath_param_not_string_rejected() {
         params: Some(json!({"file": "data.json", "jsonpath": 123})),
     };
 
-    let result = provider.query(&query, &sample_context());
-    assert!(result.is_err());
-    let err = result.unwrap_err();
-    assert!(format!("{err:?}").contains("must be a string"));
+    let result = provider.query(&query, &sample_context()).unwrap();
+    let error = result.error.expect("missing error");
+    assert_eq!(error.code, "params_invalid");
 }
 
 /// Tests that missing files return an error.
@@ -587,10 +587,9 @@ fn json_missing_file_returns_error() {
         params: Some(json!({"file": "nonexistent.json"})),
     };
 
-    let result = provider.query(&query, &sample_context());
-    assert!(result.is_err());
-    let err = result.unwrap_err();
-    assert!(format!("{err:?}").contains("unable to resolve"));
+    let result = provider.query(&query, &sample_context()).unwrap();
+    let error = result.error.expect("missing error");
+    assert_eq!(error.code, "file_not_found");
 }
 
 /// Tests that invalid root directory returns an error.
@@ -606,10 +605,9 @@ fn json_invalid_root_rejected() {
         params: Some(json!({"file": "test.json"})),
     };
 
-    let result = provider.query(&query, &sample_context());
-    assert!(result.is_err());
-    let err = result.unwrap_err();
-    assert!(format!("{err:?}").contains("invalid json root"));
+    let result = provider.query(&query, &sample_context()).unwrap();
+    let error = result.error.expect("missing error");
+    assert_eq!(error.code, "invalid_root");
 }
 
 // ============================================================================

@@ -84,6 +84,7 @@ impl EvidenceProvider for TimeProvider {
                 Ok(EvidenceResult {
                     value: Some(EvidenceValue::Json(value)),
                     lane: TrustLane::Verified,
+                    error: None,
                     evidence_hash: None,
                     evidence_ref: None,
                     evidence_anchor: Some(anchor),
@@ -98,6 +99,7 @@ impl EvidenceProvider for TimeProvider {
                 Ok(EvidenceResult {
                     value: Some(EvidenceValue::Json(Value::Bool(result))),
                     lane: TrustLane::Verified,
+                    error: None,
                     evidence_hash: None,
                     evidence_ref: None,
                     evidence_anchor: Some(anchor),

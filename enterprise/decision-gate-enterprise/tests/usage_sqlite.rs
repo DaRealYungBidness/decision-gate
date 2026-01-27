@@ -5,7 +5,9 @@
 // Purpose: Validate append, sum, and idempotency behavior.
 // ============================================================================
 
-//! SQLite usage ledger unit tests.
+//! `SQLite` usage ledger unit tests.
+
+#![allow(clippy::expect_used, reason = "Tests use expect for setup clarity.")]
 
 use std::sync::Arc;
 
@@ -27,7 +29,7 @@ fn sqlite_usage_ledger_sums_by_scope() {
     ledger
         .append(UsageEvent {
             tenant_id: tenant.clone(),
-            namespace_id: ns_a.clone(),
+            namespace_id: ns_a,
             metric: UsageMetric::ToolCall,
             units: 3,
             timestamp_ms: 1000,
@@ -36,8 +38,8 @@ fn sqlite_usage_ledger_sums_by_scope() {
         .expect("append");
     ledger
         .append(UsageEvent {
-            tenant_id: tenant.clone(),
-            namespace_id: ns_b.clone(),
+            tenant_id: tenant,
+            namespace_id: ns_b,
             metric: UsageMetric::ToolCall,
             units: 2,
             timestamp_ms: 1000,
@@ -54,11 +56,9 @@ fn sqlite_usage_ledger_sums_by_scope() {
 fn sqlite_usage_ledger_idempotency_is_enforced() {
     let file = NamedTempFile::new().expect("temp file");
     let ledger = SqliteUsageLedger::new(file.path()).expect("ledger");
-    let tenant = TenantId::new("tenant-1");
-    let ns = NamespaceId::new("default");
     let event = UsageEvent {
-        tenant_id: tenant.clone(),
-        namespace_id: ns.clone(),
+        tenant_id: TenantId::new("tenant-1"),
+        namespace_id: NamespaceId::new("default"),
         metric: UsageMetric::ToolCall,
         units: 1,
         timestamp_ms: 1000,
@@ -79,13 +79,11 @@ fn sqlite_usage_ledger_idempotency_is_enforced() {
 fn sqlite_usage_ledger_time_window_filtering() {
     let file = NamedTempFile::new().expect("temp file");
     let ledger = SqliteUsageLedger::new(file.path()).expect("ledger");
-    let tenant = TenantId::new("tenant-1");
-    let ns = NamespaceId::new("default");
 
     ledger
         .append(UsageEvent {
-            tenant_id: tenant.clone(),
-            namespace_id: ns.clone(),
+            tenant_id: TenantId::new("tenant-1"),
+            namespace_id: NamespaceId::new("default"),
             metric: UsageMetric::ToolCall,
             units: 5,
             timestamp_ms: 1000,
@@ -114,14 +112,12 @@ fn sqlite_usage_seen_idempotency_false_for_unseen() {
 fn sqlite_usage_null_idempotency_not_in_seen() {
     let file = NamedTempFile::new().expect("temp file");
     let ledger = SqliteUsageLedger::new(file.path()).expect("ledger");
-    let tenant = TenantId::new("tenant-1");
-    let ns = NamespaceId::new("default");
 
     // Append event with no idempotency key.
     ledger
         .append(UsageEvent {
-            tenant_id: tenant.clone(),
-            namespace_id: ns.clone(),
+            tenant_id: TenantId::new("tenant-1"),
+            namespace_id: NamespaceId::new("default"),
             metric: UsageMetric::ToolCall,
             units: 1,
             timestamp_ms: 1000,
@@ -137,14 +133,12 @@ fn sqlite_usage_null_idempotency_not_in_seen() {
 fn sqlite_usage_sum_since_filters_by_metric() {
     let file = NamedTempFile::new().expect("temp file");
     let ledger = SqliteUsageLedger::new(file.path()).expect("ledger");
-    let tenant = TenantId::new("tenant-1");
-    let ns = NamespaceId::new("default");
 
     // Append ToolCall event with 3 units.
     ledger
         .append(UsageEvent {
-            tenant_id: tenant.clone(),
-            namespace_id: ns.clone(),
+            tenant_id: TenantId::new("tenant-1"),
+            namespace_id: NamespaceId::new("default"),
             metric: UsageMetric::ToolCall,
             units: 3,
             timestamp_ms: 1000,
@@ -155,8 +149,8 @@ fn sqlite_usage_sum_since_filters_by_metric() {
     // Append RunsStarted event with 7 units.
     ledger
         .append(UsageEvent {
-            tenant_id: tenant.clone(),
-            namespace_id: ns.clone(),
+            tenant_id: TenantId::new("tenant-1"),
+            namespace_id: NamespaceId::new("default"),
             metric: UsageMetric::RunsStarted,
             units: 7,
             timestamp_ms: 1000,
@@ -221,8 +215,8 @@ fn sqlite_usage_event_helper_constructs() {
     let tenant = TenantId::new("t1");
     let ns = NamespaceId::new("ns1");
     let event = decision_gate_enterprise::usage_sqlite::usage_event(
-        tenant.clone(),
-        ns.clone(),
+        tenant,
+        ns,
         UsageMetric::RunsStarted,
         42,
         9999,

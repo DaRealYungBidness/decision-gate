@@ -247,9 +247,12 @@ fn compare_contains(left: &Value, right: &Value) -> TriState {
 
 /// Evaluates set membership for JSON values.
 fn compare_in_set(value: &Value, expected: &Value) -> TriState {
-    match expected {
-        Value::Array(values) => TriState::from(values.contains(value)),
-        _ => TriState::Unknown,
+    let Value::Array(values) = expected else {
+        return TriState::Unknown;
+    };
+    match value {
+        Value::Array(_) | Value::Object(_) => TriState::Unknown,
+        _ => TriState::from(values.contains(value)),
     }
 }
 

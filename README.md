@@ -525,6 +525,8 @@ enables offline verification of integrity and tamper detection.
 - Provider development: `Docs/guides/provider_development.md`
 - Security guide: `Docs/guides/security_guide.md`
 - Integration patterns: `Docs/guides/integration_patterns.md`
+- JSON evidence playbook: `Docs/guides/json_evidence_playbook.md`
+- LLM-native playbook: `Docs/guides/llm_native_playbook.md`
 - AssetCore integration hub: `Docs/integrations/assetcore/`
 - Architecture:
   - `Docs/architecture/comparator_validation_architecture.md`

@@ -433,34 +433,5 @@ fn append_dir_recursive(
     Ok(())
 }
 
-#[cfg(all(test, feature = "s3"))]
-mod tests {
-    use super::normalize_prefix;
-
-    #[test]
-    fn normalize_prefix_none_is_empty() {
-        let normalized = normalize_prefix(None).expect("normalize");
-        assert_eq!(normalized, "");
-    }
-
-    #[test]
-    fn normalize_prefix_trims_and_appends_slash() {
-        let normalized = normalize_prefix(Some("/runs/prefix/")).expect("normalize");
-        assert_eq!(normalized, "runs/prefix/");
-    }
-
-    #[test]
-    fn normalize_prefix_empty_or_root_is_empty() {
-        let normalized = normalize_prefix(Some("///")).expect("normalize");
-        assert_eq!(normalized, "");
-        let normalized = normalize_prefix(Some("")).expect("normalize");
-        assert_eq!(normalized, "");
-    }
-
-    #[test]
-    fn normalize_prefix_rejects_invalid_segments() {
-        assert!(normalize_prefix(Some("bad/../prefix")).is_err());
-        assert!(normalize_prefix(Some("bad//prefix")).is_err());
-        assert!(normalize_prefix(Some("bad\\prefix")).is_err());
-    }
-}
+#[cfg(test)]
+mod tests;

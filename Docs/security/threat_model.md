@@ -137,6 +137,8 @@ agent conversations.
   redaction.
 - `env` and `json` providers can expose sensitive data if not restricted.
 - External payload sources can exfiltrate data if URIs are attacker-controlled.
+- Structured error metadata must not leak sensitive file paths or secrets;
+  redact or constrain details by policy.
 
 ### Availability and Resource Exhaustion
 - Large requests, responses, or inline payloads can exhaust memory.

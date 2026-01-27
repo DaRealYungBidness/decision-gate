@@ -42,6 +42,7 @@ use decision_gate_core::Dispatcher;
 use decision_gate_core::EvidenceAnchorPolicy;
 use decision_gate_core::EvidenceContext;
 use decision_gate_core::EvidenceProvider;
+use decision_gate_core::EvidenceProviderError;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::EvidenceResult;
 use decision_gate_core::EvidenceValue;
@@ -1525,10 +1526,28 @@ impl ToolRouter {
             &request.context.namespace_id,
         )?;
         self.capabilities.validate_query(&request.query).map_err(ToolError::from)?;
-        let mut result = self
-            .evidence
-            .query(&request.query, &request.context)
-            .map_err(|err| ToolError::Evidence(err.to_string()))?;
+        let mut result = match self.evidence.query(&request.query, &request.context) {
+            Ok(result) => result,
+            Err(err) => EvidenceResult {
+                value: None,
+                lane: TrustLane::Verified,
+                error: Some(EvidenceProviderError {
+                    code: "provider_error".to_string(),
+                    message: err.to_string(),
+                    details: None,
+                }),
+                evidence_hash: None,
+                evidence_ref: None,
+                evidence_anchor: None,
+                signature: None,
+                content_type: None,
+            },
+        };
+        if result.error.is_some() {
+            result.value = None;
+            result.content_type = None;
+            result.evidence_hash = None;
+        }
         ensure_evidence_hash(&mut result)?;
         let provider_id = request.query.provider_id.as_str();
         if !self.evidence_policy.allow_raw_values
@@ -2509,6 +2528,7 @@ const fn asserted_evidence(value: Value) -> EvidenceResult {
     EvidenceResult {
         value: Some(EvidenceValue::Json(value)),
         lane: TrustLane::Asserted,
+        error: None,
         evidence_hash: None,
         evidence_ref: None,
         evidence_anchor: None,

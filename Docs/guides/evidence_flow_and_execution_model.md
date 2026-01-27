@@ -206,6 +206,8 @@ The provider returns:
 ```json
 {
   "value": { "kind": "json", "value": 0 },
+  "lane": "verified",
+  "error": null,
   "evidence_hash": null,
   "evidence_anchor": null,
   "signature": null,
@@ -215,6 +217,29 @@ The provider returns:
 
 DG applies the comparator (for example `equals` with expected `0`), produces a
 tri-state, then evaluates gates via RET.
+
+### Error Metadata (World-Class Recovery)
+Providers may return structured error metadata alongside a `null` value. This
+keeps the evaluation **fail-closed** while giving agents enough detail to
+repair their pipelines.
+
+Example: JSONPath missing
+
+```json
+{
+  "value": null,
+  "lane": "verified",
+  "error": {
+    "code": "jsonpath_not_found",
+    "message": "jsonpath not found: $.summary.failed",
+    "details": { "jsonpath": "$.summary.failed" }
+  },
+  "evidence_hash": null,
+  "evidence_anchor": null,
+  "signature": null,
+  "content_type": null
+}
+```
 
 ---
 

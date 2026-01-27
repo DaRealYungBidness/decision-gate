@@ -160,6 +160,8 @@ def handle_evidence_query(query: Dict[str, Any], _context: Dict[str, Any]) -> Di
 
     return {
         "value": {"kind": "json", "value": params["value"]},
+        "lane": "verified",
+        "error": None,
         "evidence_hash": None,
         "evidence_ref": None,
         "evidence_anchor": None,

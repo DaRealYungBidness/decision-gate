@@ -311,6 +311,7 @@ fn sample_run_state() -> RunState {
     let evidence_result = EvidenceResult {
         value: Some(EvidenceValue::Json(json!({"status": "ok"}))),
         lane: TrustLane::Verified,
+        error: None,
         evidence_hash: Some(hash.clone()),
         evidence_ref: None,
         evidence_anchor: Some(EvidenceAnchor {
@@ -329,7 +330,6 @@ fn sample_run_state() -> RunState {
         predicate: predicate.clone(),
         status: ret_logic::TriState::True,
         result: evidence_result,
-        error: None,
     };
 
     let evaluation = GateEvaluation {

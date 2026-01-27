@@ -93,6 +93,7 @@ impl EvidenceProvider for AnchorlessEvidenceProvider {
         Ok(EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -228,7 +229,10 @@ fn provider_errors_are_recorded_in_run_state() {
         .expect("missing state");
     let evidence = &state.gate_evals[0].evidence[0];
     assert_eq!(evidence.status, TriState::Unknown);
-    let error = evidence.error.as_ref().expect("missing error");
+    assert!(evidence.result.value.is_none());
+    assert!(evidence.result.evidence_hash.is_none());
+    assert!(evidence.result.content_type.is_none());
+    let error = evidence.result.error.as_ref().expect("missing error");
     assert_eq!(error.code, "provider_error");
     assert!(error.message.contains("provider unavailable"));
 }
@@ -292,7 +296,10 @@ fn missing_anchors_are_recorded_as_errors() {
         .expect("missing state");
     let evidence = &state.gate_evals[0].evidence[0];
     assert_eq!(evidence.status, TriState::Unknown);
-    let error = evidence.error.as_ref().expect("missing error");
+    assert!(evidence.result.value.is_none());
+    assert!(evidence.result.evidence_hash.is_none());
+    assert!(evidence.result.content_type.is_none());
+    let error = evidence.result.error.as_ref().expect("missing error");
     assert_eq!(error.code, "anchor_invalid");
     assert!(error.message.contains("missing evidence_anchor"));
 }

@@ -138,6 +138,12 @@ Reads JSON or YAML files and evaluates JSONPath queries.
 }
 ```
 
+**Comparator notes (json.path)**:
+- Supports numeric ordering (`greater_than`, `less_than`, etc).
+- Supports lexicographic ordering for strings (`lex_*` comparators).
+- Supports `contains`, `in_set`, `deep_equals`, `deep_not_equals`, `exists`, `not_exists`.
+- Missing JSONPath returns `value: null` with structured error metadata and yields `unknown`.
+
 ### http provider
 Issues bounded HTTP GET requests and returns status or body hashes.
 

@@ -542,29 +542,4 @@ pub fn shared_postgres_store(
 }
 
 #[cfg(test)]
-mod tests {
-    use decision_gate_core::DataShapeRegistryError;
-    use decision_gate_core::hashing::HashAlgorithm;
-
-    use super::PostgresStore;
-    use super::hash_algorithm_label;
-
-    #[test]
-    fn postgres_store_cursor_roundtrip() {
-        let cursor = PostgresStore::encode_cursor("schema-1", "1.2.3");
-        let decoded = PostgresStore::decode_cursor(&cursor).expect("decode cursor");
-        assert_eq!(decoded.schema_id, "schema-1");
-        assert_eq!(decoded.version, "1.2.3");
-    }
-
-    #[test]
-    fn postgres_store_decode_cursor_rejects_invalid() {
-        let result = PostgresStore::decode_cursor("not-json");
-        assert!(matches!(result, Err(DataShapeRegistryError::Invalid(_))));
-    }
-
-    #[test]
-    fn postgres_store_hash_algorithm_label_matches() {
-        assert_eq!(hash_algorithm_label(HashAlgorithm::Sha256), "sha256");
-    }
-}
+mod tests;

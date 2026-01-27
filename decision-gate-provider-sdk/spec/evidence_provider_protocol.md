@@ -118,6 +118,8 @@ The response must include a `content` array with a JSON EvidenceResult:
 ```json
 {
   "value": { "kind": "json|bytes", "value": "any" },
+  "lane": "verified|asserted",
+  "error": { "code": "string", "message": "string", "details": "object|null" },
   "evidence_hash": { "algorithm": "sha256", "value": "hex" },
   "evidence_ref": { "uri": "string" },
   "evidence_anchor": { "anchor_type": "string", "anchor_value": "string" },
@@ -130,4 +132,5 @@ The response must include a `content` array with a JSON EvidenceResult:
 - `value.kind = "bytes"` encodes `value` as a JSON array of 0-255 integers.
 - `evidence_hash` is optional; Decision Gate can compute it if `value` is present.
 - Use JSON-RPC errors for unsupported predicates or malformed requests.
-
+- When evidence is invalid or missing, set `value = null` and include structured
+  `error` metadata. This keeps evaluation fail-closed while enabling recovery.

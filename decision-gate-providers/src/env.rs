@@ -161,6 +161,7 @@ fn build_value_result(
     Ok(EvidenceResult {
         value: Some(EvidenceValue::Json(Value::String(value))),
         lane: TrustLane::Verified,
+        error: None,
         evidence_hash: None,
         evidence_ref: None,
         evidence_anchor: Some(EvidenceAnchor {
@@ -177,6 +178,7 @@ fn empty_result(key: &str) -> EvidenceResult {
     EvidenceResult {
         value: None,
         lane: TrustLane::Verified,
+        error: None,
         evidence_hash: None,
         evidence_ref: None,
         evidence_anchor: Some(EvidenceAnchor {

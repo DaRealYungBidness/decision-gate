@@ -524,7 +524,7 @@ fn verify_anchor_policy<R: ArtifactReader>(
     let mut errors = Vec::new();
     for record in gate_evals {
         for evidence in &record.evidence {
-            if evidence.error.is_some() {
+            if evidence.result.error.is_some() {
                 continue;
             }
             let Some(provider_id) = predicate_map.get(&evidence.predicate) else {

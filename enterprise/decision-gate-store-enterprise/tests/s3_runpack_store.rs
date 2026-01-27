@@ -29,7 +29,7 @@ fn base_config() -> S3RunpackStoreConfig {
 #[test]
 fn s3_store_rejects_empty_bucket() {
     let mut config = base_config();
-    config.bucket = "".to_string();
+    config.bucket = String::new();
     let result = S3RunpackStore::new(config);
     assert!(result.is_err());
 }
@@ -56,14 +56,27 @@ fn s3_store_rejects_invalid_prefix() {
 // ============================================================================
 
 #[test]
-fn s3_config_serde_roundtrip() {
+fn s3_config_serde_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
     let original = base_config();
-    let json = serde_json::to_string(&original).expect("serialize");
-    let restored: S3RunpackStoreConfig = serde_json::from_str(&json).expect("deserialize");
-    assert_eq!(original.bucket, restored.bucket);
-    assert_eq!(original.region, restored.region);
-    assert_eq!(original.prefix, restored.prefix);
-    assert_eq!(original.endpoint, restored.endpoint);
-    assert_eq!(original.force_path_style, restored.force_path_style);
-    assert_eq!(original.max_archive_bytes, restored.max_archive_bytes);
+    let json = serde_json::to_string(&original)?;
+    let restored: S3RunpackStoreConfig = serde_json::from_str(&json)?;
+    if original.bucket != restored.bucket {
+        return Err("bucket mismatch after serde roundtrip".into());
+    }
+    if original.region != restored.region {
+        return Err("region mismatch after serde roundtrip".into());
+    }
+    if original.prefix != restored.prefix {
+        return Err("prefix mismatch after serde roundtrip".into());
+    }
+    if original.endpoint != restored.endpoint {
+        return Err("endpoint mismatch after serde roundtrip".into());
+    }
+    if original.force_path_style != restored.force_path_style {
+        return Err("force_path_style mismatch after serde roundtrip".into());
+    }
+    if original.max_archive_bytes != restored.max_archive_bytes {
+        return Err("max_archive_bytes mismatch after serde roundtrip".into());
+    }
+    Ok(())
 }

@@ -180,15 +180,5 @@ pub(crate) fn validate_relative_path(path: &Path) -> Result<(), RunpackStoreErro
     Ok(())
 }
 
-#[cfg(all(test, feature = "s3"))]
-mod tests {
-    use std::path::Path;
-
-    use super::validate_relative_path;
-
-    #[test]
-    fn validate_relative_path_rejects_traversal() {
-        let result = validate_relative_path(Path::new("../escape"));
-        assert!(result.is_err());
-    }
-}
+#[cfg(test)]
+mod tests;

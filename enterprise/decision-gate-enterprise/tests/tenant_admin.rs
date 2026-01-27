@@ -7,6 +7,8 @@
 
 //! Tenant admin unit tests.
 
+#![allow(clippy::expect_used, clippy::panic, reason = "Tests use expect/panic for setup clarity.")]
+
 use decision_gate_core::TenantId;
 use decision_gate_enterprise::tenant_admin::InMemoryTenantAdminStore;
 use decision_gate_enterprise::tenant_admin::TenantAdminError;

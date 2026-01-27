@@ -384,6 +384,7 @@ pub fn evidence_result_schema() -> Value {
         "required": [
             "value",
             "lane",
+            "error",
             "evidence_hash",
             "evidence_ref",
             "evidence_anchor",
@@ -398,6 +399,12 @@ pub fn evidence_result_schema() -> Value {
                 ]
             },
             "lane": trust_lane_schema(),
+            "error": {
+                "oneOf": [
+                    { "type": "null" },
+                    evidence_provider_error_schema()
+                ]
+            },
             "evidence_hash": {
                 "oneOf": [
                     { "type": "null" },
@@ -426,6 +433,26 @@ pub fn evidence_result_schema() -> Value {
                 "oneOf": [
                     { "type": "null" },
                     schema_for_string("Evidence content type.")
+                ]
+            }
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for evidence provider error metadata.
+#[must_use]
+fn evidence_provider_error_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": ["code", "message", "details"],
+        "properties": {
+            "code": schema_for_string("Stable error code."),
+            "message": schema_for_string("Error message."),
+            "details": {
+                "oneOf": [
+                    { "type": "null" },
+                    schema_for_json_value("Optional structured error details.")
                 ]
             }
         },

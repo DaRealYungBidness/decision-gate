@@ -113,6 +113,9 @@ fn usage_meter_receives_metric() {
             serde_json::to_value(&request).unwrap(),
         )
         .expect("tool call should succeed");
-    let seen = meter.seen.lock().expect("seen lock");
-    assert!(seen.contains(&UsageMetric::ToolCall));
+    let seen_tool_call = {
+        let seen = meter.seen.lock().expect("seen lock");
+        seen.contains(&UsageMetric::ToolCall)
+    };
+    assert!(seen_tool_call);
 }

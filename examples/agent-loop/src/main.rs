@@ -110,6 +110,7 @@ impl EvidenceProvider for AgentEvidenceProvider {
         Ok(EvidenceResult {
             value: Some(EvidenceValue::Json(json!(value))),
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,

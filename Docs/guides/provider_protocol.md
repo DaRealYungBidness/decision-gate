@@ -125,6 +125,8 @@ contract). It is not the ScenarioSpec predicate id.
 ```json
 {
   "value": { "kind": "json|bytes", "value": "any" } | null,
+  "lane": "verified|asserted",
+  "error": { "code": "string", "message": "string", "details": "object|null" } | null,
   "evidence_hash": { "algorithm": "sha256", "value": "hex" } | null,
   "evidence_ref": { "uri": "string" } | null,
   "evidence_anchor": { "anchor_type": "string", "anchor_value": "string" } | null,
@@ -139,3 +141,5 @@ contract). It is not the ScenarioSpec predicate id.
 - `value`/`evidence_hash`/`evidence_ref`/`evidence_anchor`/`signature`/`content_type` may be `null` to signal missing evidence.
 - `evidence_hash` is optional; Decision Gate recomputes it when `value` is present.
 - Use JSON-RPC errors for unsupported predicates or malformed requests.
+- When evidence is invalid or missing, return `value = null` and include structured
+  `error` metadata to enable recovery.

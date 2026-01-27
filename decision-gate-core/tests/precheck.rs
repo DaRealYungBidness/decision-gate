@@ -274,6 +274,7 @@ fn precheck_completes_on_verified_evidence() {
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -307,6 +308,7 @@ fn precheck_holds_on_untrusted_evidence() {
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Asserted,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -344,6 +346,7 @@ fn precheck_respects_gate_trust_override() {
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Asserted,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -365,6 +368,7 @@ fn precheck_respects_gate_trust_override() {
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -392,6 +396,7 @@ fn precheck_uses_stage_override() {
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -444,6 +449,7 @@ fn precheck_does_not_write_run_state() {
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -471,6 +477,7 @@ fn precheck_advances_to_next_stage() {
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -632,6 +639,7 @@ fn precheck_and_gate_all_true_passes() {
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -644,6 +652,7 @@ fn precheck_and_gate_all_true_passes() {
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -681,6 +690,7 @@ fn precheck_and_gate_any_false_fails() {
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -693,6 +703,7 @@ fn precheck_and_gate_any_false_fails() {
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(false))), // This will fail
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -731,6 +742,7 @@ fn precheck_and_gate_any_unknown_holds() {
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -769,6 +781,7 @@ fn precheck_or_gate_any_true_passes() {
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -808,6 +821,7 @@ fn precheck_or_gate_all_false_holds() {
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(false))),
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -820,6 +834,7 @@ fn precheck_or_gate_all_false_holds() {
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(false))),
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -896,6 +911,7 @@ fn precheck_config_verified_predicate_asserted_gate_verified_rejects_asserted_ev
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Asserted, // Asserted evidence
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -935,6 +951,7 @@ fn precheck_config_asserted_predicate_verified_gate_none_accepts_verified_eviden
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -978,6 +995,7 @@ fn precheck_gate_override_stricter_than_predicate_honored() {
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Asserted,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -1013,6 +1031,7 @@ fn precheck_predicate_override_stricter_than_config_honored() {
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Asserted,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -1045,6 +1064,7 @@ fn precheck_repeated_calls_same_input_produce_same_result() {
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -1083,6 +1103,7 @@ fn precheck_verified_evidence_passes_asserted_requirement() {
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified, // Higher trust than required
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,
@@ -1116,6 +1137,7 @@ fn precheck_trust_lane_error_includes_error_code() {
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Asserted, // Lower trust than required
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,

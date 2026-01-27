@@ -67,11 +67,18 @@ type EvidenceValue =
 interface EvidenceResult {
   value: EvidenceValue | null;
   lane: "verified" | "asserted";
+  error: EvidenceProviderError | null;
   evidence_hash: unknown | null;
   evidence_ref: unknown | null;
   evidence_anchor: unknown | null;
   signature: unknown | null;
   content_type: string | null;
+}
+
+interface EvidenceProviderError {
+  code: string;
+  message: string;
+  details: unknown | null;
 }
 
 const TOOL_LIST_RESULT = {

@@ -72,6 +72,7 @@ impl EvidenceProvider for TestEvidenceProvider {
         Ok(EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,

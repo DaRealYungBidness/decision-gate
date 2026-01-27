@@ -36,6 +36,7 @@ const fn result_with_json(value: serde_json::Value) -> EvidenceResult {
     EvidenceResult {
         value: Some(EvidenceValue::Json(value)),
         lane: TrustLane::Verified,
+        error: None,
         evidence_hash: None,
         evidence_ref: None,
         evidence_anchor: None,
@@ -48,6 +49,7 @@ const fn result_with_bytes(bytes: Vec<u8>) -> EvidenceResult {
     EvidenceResult {
         value: Some(EvidenceValue::Bytes(bytes)),
         lane: TrustLane::Verified,
+        error: None,
         evidence_hash: None,
         evidence_ref: None,
         evidence_anchor: None,
@@ -67,6 +69,7 @@ fn comparator_exists_and_not_exists() {
     let absent = EvidenceResult {
         value: None,
         lane: TrustLane::Verified,
+        error: None,
         evidence_hash: None,
         evidence_ref: None,
         evidence_anchor: None,
@@ -125,6 +128,22 @@ fn comparator_json_contains_and_in_set() {
     assert_eq!(
         evaluate_comparator(Comparator::InSet, Some(&json!(["alpha", "beta"])), &value),
         TriState::True
+    );
+}
+
+/// Verifies in-set rejects non-scalar evidence values.
+#[test]
+fn comparator_in_set_rejects_arrays_and_objects() {
+    let array = result_with_json(json!(["a", "b"]));
+    assert_eq!(
+        evaluate_comparator(Comparator::InSet, Some(&json!(["a", "b"])), &array),
+        TriState::Unknown
+    );
+
+    let object = result_with_json(json!({"k": "v"}));
+    assert_eq!(
+        evaluate_comparator(Comparator::InSet, Some(&json!(["k"])), &object),
+        TriState::Unknown
     );
 }
 
@@ -624,6 +643,7 @@ fn comparator_equals_with_missing_value_returns_unknown() {
     let evidence = EvidenceResult {
         value: None,
         lane: TrustLane::Verified,
+        error: None,
         evidence_hash: None,
         evidence_ref: None,
         evidence_anchor: None,
@@ -641,6 +661,7 @@ fn comparator_greater_than_with_missing_value_returns_unknown() {
     let evidence = EvidenceResult {
         value: None,
         lane: TrustLane::Verified,
+        error: None,
         evidence_hash: None,
         evidence_ref: None,
         evidence_anchor: None,

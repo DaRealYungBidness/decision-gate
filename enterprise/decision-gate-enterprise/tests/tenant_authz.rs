@@ -7,6 +7,8 @@
 
 //! Tenant authorization unit tests.
 
+#![allow(clippy::expect_used, reason = "Tests use expect for setup clarity.")]
+
 use std::collections::BTreeSet;
 
 use decision_gate_contract::ToolName;
@@ -288,6 +290,7 @@ fn tenant_authz_empty_allowlist_denies_all() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines, reason = "Exhaustive reason-label coverage in one test.")]
 fn tenant_authz_reason_labels_are_exact() {
     // Path 1: missing_tenant_id (require_tenant=true, tenant=None)
     let policy_required = TenantAuthzPolicy {

@@ -327,7 +327,7 @@ fn namespace_authority_denies_tool_call() {
         provider_transports,
         schema_registry_limits,
         capabilities: std::sync::Arc::new(capabilities),
-        provider_discovery: config.provider_discovery.clone(),
+        provider_discovery: config.provider_discovery,
         authz,
         tenant_authorizer: std::sync::Arc::new(NoopTenantAuthorizer),
         usage_meter: std::sync::Arc::new(NoopUsageMeter),
@@ -826,11 +826,19 @@ fn runpack_export_uses_storage_backend() {
         .expect("runpack export");
     let response: RunpackExportResponse = serde_json::from_value(response_value).unwrap();
     assert_eq!(response.storage_uri, Some("test://runpack".to_string()));
-    let calls = storage.calls.lock().expect("calls lock");
-    assert_eq!(calls.len(), 1);
-    assert_eq!(calls[0].tenant_id.as_str(), "test-tenant");
-    assert_eq!(calls[0].namespace_id.as_str(), "default");
-    assert_eq!(calls[0].run_id.as_str(), "test-run");
+    let (call_count, tenant_id, namespace_id, run_id) = {
+        let calls = storage.calls.lock().expect("calls lock");
+        (
+            calls.len(),
+            calls[0].tenant_id.clone(),
+            calls[0].namespace_id.clone(),
+            calls[0].run_id.clone(),
+        )
+    };
+    assert_eq!(call_count, 1);
+    assert_eq!(tenant_id.as_str(), "test-tenant");
+    assert_eq!(namespace_id.as_str(), "default");
+    assert_eq!(run_id.as_str(), "test-run");
 }
 
 /// Verifies `runpack_export` requires an existing run.
@@ -881,7 +889,7 @@ fn runpack_export_undefined_scenario_fails() {
     assert!(result.is_err());
 }
 
-/// Verifies `runpack_export` requires output_dir when storage is not configured.
+/// Verifies `runpack_export` requires `output_dir` when storage is not configured.
 #[test]
 fn runpack_export_requires_output_dir_without_storage() {
     let router = sample_router();

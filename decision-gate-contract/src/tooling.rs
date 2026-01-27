@@ -747,6 +747,7 @@ fn evidence_query_examples() -> Vec<ToolExample> {
                     "value": "production"
                 },
                 "lane": "verified",
+                "error": null,
                 "evidence_hash": example_hash_digest(),
                 "evidence_ref": null,
                 "evidence_anchor": {

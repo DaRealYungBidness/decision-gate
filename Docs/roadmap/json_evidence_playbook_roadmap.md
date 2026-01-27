@@ -129,7 +129,7 @@ make Decision Gate feel immediately usable for LLM and CI workflows.
   - Error handling guidance
 
 ### Docs Updates
-- New document: `Docs/roadmap/json_evidence_playbook.md` (playbook guide).
+- New document: `Docs/guides/json_evidence_playbook.md` (playbook guide).
 - Cross-link from:
   - `Docs/guides/integration_patterns.md`
   - `Docs/guides/getting_started.md`
@@ -158,6 +158,40 @@ Enable full, explicit comparator support for JSON evidence:
 - Objects:
   - Only deep equality comparisons permitted.
 - Mixed types → `Unknown`.
+
+### World-Class Comparator Semantics (Security + Determinism)
+**Why this matters**: comparator behavior is the contract boundary for trusted
+decisions. “World-class” here means *explicit semantics, no implicit coercion,
+and fail-closed behavior* so results are auditable, replayable, and safe under
+adversarial inputs (FAANG/hyperscaler and DoD-grade expectations).
+
+**Non-negotiable rules (with rationale)**:
+- **No implicit coercion**: numeric, string, boolean, array, object, and null
+  are never coerced across types. Incompatible types yield `Unknown`.  
+  *Rationale: prevents ambiguous interpretations and attacker-controlled
+  type confusion.*
+- **Fail-closed on ambiguity**: any comparator applied to unsupported types
+  yields `Unknown`.  
+  *Rationale: preserves safe-by-default semantics under partial evidence.*
+- **Numeric ordering uses decimal semantics** with stable parsing (no float
+  rounding).  
+  *Rationale: avoids platform-dependent float behavior; guarantees replay.*
+- **String ordering is lexicographic only** and must be explicitly selected
+  via `lex_*` comparators (never assumed).  
+  *Rationale: avoids accidental string/number confusion.*
+- **Temporal ordering is RFC3339 + date-only only** and must parse cleanly.  
+  *Rationale: eliminates locale/timezone ambiguities and parser discrepancies.*
+- **Array semantics are explicit**:
+  - `contains` = all needle elements are present in haystack (order-insensitive).
+  - `in_set` expects an array of scalars; membership is exact equality.  
+  *Rationale: stable, deterministic set semantics.*
+- **Object semantics are explicit**: only deep structural equality is allowed.  
+  *Rationale: avoids partial or heuristic comparisons that weaken auditability.*
+- **No regex or user-defined functions** in comparators.  
+  *Rationale: constrains attack surface and nondeterminism.*
+- **Time/space bounds are guaranteed**: evaluation is linear in evidence size
+  (already bounded by provider limits).  
+  *Rationale: prevents algorithmic DoS and preserves predictable latency.*
 
 ### Contract Updates (decision-gate-contract)
 - Expand allowed comparators for `json.path` in provider capabilities.

@@ -184,6 +184,8 @@ enum ComparatorAllowance {
 /// High-level JSON schema type classifications.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TypeClass {
+    /// Schema allows any JSON value (dynamic typing).
+    Dynamic,
     /// Boolean schema type.
     Boolean,
     /// Integer schema type.
@@ -304,6 +306,7 @@ fn allowances_for_type(kind: TypeClass) -> BTreeMap<Comparator, ComparatorAllowa
     let mut allowances = BTreeMap::new();
     for comparator in ALL_COMPARATORS {
         let allowance = match kind {
+            TypeClass::Dynamic => ComparatorAllowance::Allowed,
             TypeClass::Boolean => match comparator {
                 Comparator::Equals
                 | Comparator::NotEquals
@@ -397,6 +400,20 @@ fn allowances_for_type(kind: TypeClass) -> BTreeMap<Comparator, ComparatorAllowa
 
 /// Resolves schema type classes for comparator validation.
 fn schema_type_classes(schema: &Value) -> Result<Vec<TypeClass>, ValidationError> {
+    if let Some(meta) = schema.get("x-decision-gate") {
+        let meta = meta.as_object().ok_or_else(|| {
+            ValidationError::Invalid("x-decision-gate must be an object".to_string())
+        })?;
+        if let Some(dynamic) = meta.get("dynamic_type") {
+            let dynamic = dynamic.as_bool().ok_or_else(|| {
+                ValidationError::Invalid("x-decision-gate.dynamic_type must be boolean".to_string())
+            })?;
+            if dynamic {
+                return Ok(vec![TypeClass::Dynamic]);
+            }
+        }
+    }
+
     if let Some(values) = schema.get("enum").and_then(Value::as_array) {
         if values.is_empty() {
             return Err(ValidationError::Invalid(

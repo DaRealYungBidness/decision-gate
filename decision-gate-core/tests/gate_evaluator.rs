@@ -54,13 +54,13 @@ fn test_gate_evaluation_with_snapshot() {
             result: EvidenceResult {
                 value: None,
                 lane: TrustLane::Verified,
+                error: None,
                 evidence_hash: None,
                 evidence_ref: None,
                 evidence_anchor: None,
                 signature: None,
                 content_type: None,
             },
-            error: None,
         },
         EvidenceRecord {
             predicate: PredicateKey::from("b"),
@@ -68,13 +68,13 @@ fn test_gate_evaluation_with_snapshot() {
             result: EvidenceResult {
                 value: None,
                 lane: TrustLane::Verified,
+                error: None,
                 evidence_hash: None,
                 evidence_ref: None,
                 evidence_anchor: None,
                 signature: None,
                 content_type: None,
             },
-            error: None,
         },
     ]);
 

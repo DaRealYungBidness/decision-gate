@@ -86,6 +86,8 @@ type evidenceValue struct {
 
 type evidenceResult struct {
 	Value          *evidenceValue `json:"value"`
+	Lane           string         `json:"lane"`
+	Error          any            `json:"error"`
 	EvidenceHash   any            `json:"evidence_hash"`
 	EvidenceRef    any            `json:"evidence_ref"`
 	EvidenceAnchor any            `json:"evidence_anchor"`
@@ -200,6 +202,8 @@ func handleEvidenceQuery(query evidenceQuery, _ evidenceContext) (evidenceResult
 
 	return evidenceResult{
 		Value:          &evidenceValue{Kind: "json", Value: value},
+		Lane:           "verified",
+		Error:          nil,
 		EvidenceHash:   nil,
 		EvidenceRef:    nil,
 		EvidenceAnchor: nil,

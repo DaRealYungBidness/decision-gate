@@ -197,6 +197,19 @@ fn type_class_string_allows_contains() {
 }
 
 #[test]
+fn dynamic_schema_allows_contains_without_type() {
+    let validator = StrictValidator::new(strict_config());
+    let spec = spec_with_predicate(Comparator::Contains, Some(json!("needle")));
+    let schema = json!({
+        "x-decision-gate": {
+            "dynamic_type": true
+        }
+    });
+    let result = validator.validate_precheck(&spec, &schema);
+    assert!(result.is_ok(), "dynamic schema should allow contains: {result:?}");
+}
+
+#[test]
 fn type_class_string_forbids_numeric_ordering() {
     let validator = StrictValidator::new(strict_config());
     let spec = spec_with_predicate(Comparator::GreaterThan, Some(json!("abc")));

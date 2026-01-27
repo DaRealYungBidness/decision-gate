@@ -10,5 +10,7 @@
 
 mod helpers;
 
+#[path = "suites/json_evidence.rs"]
+mod json_evidence;
 #[path = "suites/validation.rs"]
 mod validation;

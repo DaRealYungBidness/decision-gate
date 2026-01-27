@@ -164,5 +164,7 @@ curl -s http://127.0.0.1:4000/rpc \
 
 ## Next Steps
 - Explore `Docs/guides/integration_patterns.md` for CI and agent-loop patterns.
+- For LLM-native workflows using precheck (inline evidence), see
+  `Docs/guides/llm_native_playbook.md`.
 - Run AssetCore interoperability via `Docs/guides/assetcore_interop_runbook.md`.
 - Use `decision-gate-cli` to export and verify runpacks.

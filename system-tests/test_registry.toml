@@ -287,6 +287,26 @@ artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
 [[tests]]
+name = "json_evidence_playbook_templates_pass"
+category = "functional"
+priority = "P1"
+description = "JSON evidence playbook templates evaluate via live run + JSON provider."
+files = ["system-tests/tests/suites/json_evidence.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test functional -- --exact json_evidence::json_evidence_playbook_templates_pass"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 12
+
+[[tests]]
+name = "llm_native_precheck_payload_flow"
+category = "functional"
+priority = "P1"
+description = "LLM-native precheck payload flow evaluates asserted evidence."
+files = ["system-tests/tests/suites/json_evidence.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test functional -- --exact json_evidence::llm_native_precheck_payload_flow"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 10
+
+[[tests]]
 name = "http_tool_allowlist_blocks_precheck"
 category = "security"
 priority = "P1"
@@ -315,6 +335,26 @@ files = ["system-tests/tests/suites/providers.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact federated_provider_timeout_enforced"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "echo_provider_contract.json"]
 estimated_runtime_sec = 12
+
+[[tests]]
+name = "json_provider_missing_jsonpath_returns_error_metadata"
+category = "providers"
+priority = "P1"
+description = "JSON provider returns structured error metadata for missing JSONPath."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact json_provider_missing_jsonpath_returns_error_metadata"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "json_provider_contains_array_succeeds"
+category = "providers"
+priority = "P1"
+description = "JSON provider path + contains comparator evaluates end-to-end."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact json_provider_contains_array_succeeds"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 10
 
 [[tests]]
 name = "http_provider_discovery_tools"

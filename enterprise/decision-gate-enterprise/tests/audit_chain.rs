@@ -7,6 +7,8 @@
 
 //! Audit chain unit tests.
 
+#![allow(clippy::expect_used, reason = "Tests use expect for setup clarity.")]
+
 use decision_gate_contract::ToolName;
 use decision_gate_core::hashing::HashAlgorithm;
 use decision_gate_core::hashing::hash_bytes;
@@ -133,15 +135,10 @@ fn audit_chain_corrupt_json_returns_parse_error() {
 
     let result = HashChainedAuditSink::new(file.path());
     assert!(result.is_err(), "expected error for corrupt JSON");
-    let err = match result {
-        Ok(_) => panic!("expected error for corrupt JSON"),
-        Err(err) => err,
-    };
-    match err {
-        AuditChainError::Parse(msg) => {
-            assert!(!msg.is_empty(), "parse error message should not be empty");
-        }
-        other => panic!("expected AuditChainError::Parse, got: {other:?}"),
+    let err = result.err().expect("expected error for corrupt JSON");
+    assert!(matches!(err, AuditChainError::Parse(_)), "expected Parse error, got: {err:?}");
+    if let AuditChainError::Parse(msg) = err {
+        assert!(!msg.is_empty(), "parse error message should not be empty");
     }
 }
 
@@ -167,6 +164,8 @@ fn audit_chain_all_sink_methods_emit_envelopes() {
     let sink = HashChainedAuditSink::new(file.path()).expect("sink");
 
     let dummy_hash = hash_bytes(HashAlgorithm::Sha256, b"test");
+    let request_hash = dummy_hash.clone();
+    let response_hash = dummy_hash;
 
     // 1. record_precheck
     sink.record_precheck(&PrecheckAuditEvent {
@@ -178,8 +177,8 @@ fn audit_chain_all_sink_methods_emit_envelopes() {
         stage_id: None,
         schema_id: "schema-1".to_string(),
         schema_version: "1.0.0".to_string(),
-        request_hash: dummy_hash.clone(),
-        response_hash: dummy_hash.clone(),
+        request_hash,
+        response_hash,
         request: None,
         response: None,
         redaction: "none",
@@ -246,8 +245,7 @@ fn audit_chain_all_sink_methods_emit_envelopes() {
     assert_eq!(lines.len(), 5, "expected exactly 5 audit envelopes");
 
     for (i, line) in lines.iter().enumerate() {
-        let envelope: serde_json::Value =
-            serde_json::from_str(line).unwrap_or_else(|_| panic!("parse line {i}"));
+        let envelope: serde_json::Value = serde_json::from_str(line).expect("parse line");
         assert!(envelope.get("prev_hash").is_some(), "line {i} missing prev_hash");
         assert!(envelope.get("hash").is_some(), "line {i} missing hash");
     }

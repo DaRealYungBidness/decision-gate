@@ -70,6 +70,7 @@ impl EvidenceProvider for SecretEvidenceProvider {
         Ok(EvidenceResult {
             value: Some(EvidenceValue::Json(json!({"leak": "TOP_SECRET"}))),
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: None,
             evidence_ref: None,
             evidence_anchor: None,

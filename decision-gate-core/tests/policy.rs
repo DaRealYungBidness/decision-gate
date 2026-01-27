@@ -200,6 +200,7 @@ impl EvidenceProvider for StubEvidence {
         Ok(EvidenceResult {
             value: Some(EvidenceValue::Json(serde_json::Value::Bool(true))),
             lane: TrustLane::Verified,
+            error: None,
             evidence_hash: Some(hash_bytes(DEFAULT_HASH_ALGORITHM, b"stub")),
             evidence_ref: None,
             evidence_anchor: None,

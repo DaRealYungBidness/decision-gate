@@ -25,6 +25,9 @@ to advance the stage.
 
 Example: `examples/agent-loop`
 
+For rapid, LLM-native iteration, use `precheck` with inline evidence. This
+avoids filesystem coordination while preserving deterministic evaluation.
+
 ## CI/CD Gate
 Use predicates backed by CI provider evidence (build status, test results,
 review approvals). Gate advancement signals readiness to deploy.
