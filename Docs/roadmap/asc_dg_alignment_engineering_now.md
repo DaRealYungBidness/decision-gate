@@ -187,5 +187,5 @@ The test suite must be exhaustive (not minimal). Required categories:
   added here explicitly if new coupling or policy constraints emerge.
 
 ## Validation (Executed)
-- `cargo test -p system-tests`
-- `cargo test --workspace --exclude system-tests`
+- `cargo test -p system-tests --features system-tests`
+- `cargo test --workspace --exclude system-tests --exclude enterprise-system-tests`

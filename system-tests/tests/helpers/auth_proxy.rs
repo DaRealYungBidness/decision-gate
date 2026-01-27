@@ -237,7 +237,15 @@ async fn forward_request(
     }
     let response = builder.send().await.map_err(|err| err.to_string())?;
     let payload: Value = response.json().await.map_err(|err| err.to_string())?;
-    payload.get("result").cloned().ok_or_else(|| "missing result in upstream response".to_string())
+    if let Some(result) = payload.get("result") {
+        return Ok(result.clone());
+    }
+    if let Some(error) = payload.get("error") {
+        if let Some(message) = error.get("message").and_then(Value::as_str) {
+            return Err(message.to_string());
+        }
+    }
+    Err("missing result in upstream response".to_string())
 }
 
 fn filter_tools_list(id: Value, result: Value, allowed: &BTreeSet<ToolName>) -> JsonRpcResponse {

@@ -14,6 +14,11 @@ Purpose: Provide operational entry points for Decision Gate.
 and managing runpacks and authoring utilities for Decision Gate's deterministic
 checkpoint and requirement-evaluation workflows.
 
+The CLI runs the MCP server with built-in providers enabled by default
+(time/env/json/http). For local workflows, a common pattern is: run a tool,
+emit a JSON artifact, and gate it with the `json` provider—no external MCP
+provider required.
+
 ## AssetCore Integration
 DG integrates with AssetCore via explicit interop workflows. The canonical
 integration hub lives at `Docs/integrations/assetcore/`, with implementation

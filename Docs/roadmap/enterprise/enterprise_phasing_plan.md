@@ -18,8 +18,11 @@ Dependencies:
 # Decision Gate Enterprise/Cloud Phasing Plan
 
 ## Status
-Draft. This plan is the authoritative task tracker for moving from OSS kernel to
-paid cloud and enterprise tiers.
+Phase 1 implementation and hardening coverage are now complete in code. The
+enterprise system-test suite has been fully enumerated and wired, but has not
+yet been executed in this workspace (run via `scripts/test_runner.py` or
+`cargo test -p enterprise-system-tests --features enterprise-system-tests`). This plan remains the authoritative
+task tracker for moving from OSS kernel to paid cloud and enterprise tiers.
 
 ## Scope
 - Define what is required to reach Phase 1/2/3 in mechanical terms.
@@ -44,6 +47,7 @@ Primary gaps for monetization:
 
 ## Phase 1 — DG Cloud (Developer Tier)
 Goal: first paid tier with minimal ops overhead.
+Status: **Complete (Phase‑1 scaffolding + enforcement seams implemented).**
 
 ### Must-Have Capabilities
 - Tenant provisioning (create tenant + API key + namespaces).
@@ -70,22 +74,85 @@ Goal: first paid tier with minimal ops overhead.
    - Enforce tenant/namespace on all `decision-gate-mcp` tool calls.
    - Wire into `decision-gate-mcp/src/tools.rs` before any state mutation.
    - Emit audit events for tenant mismatch denials.
+   - Status: **Implemented (OSS seam + audit event)**.
+     - References: `decision-gate-mcp/src/tenant_authz.rs`,
+       `decision-gate-mcp/src/tools.rs`,
+       `decision-gate-mcp/src/audit.rs`,
+       `decision-gate-mcp/src/server.rs`,
+       `decision-gate-mcp/tests/tenant_authz.rs`,
+       `enterprise/decision-gate-enterprise/src/tenant_authz.rs`,
+       `Docs/architecture/decision_gate_auth_disclosure_architecture.md`.
 
 3) **Usage metering + quota enforcement**
    - Add a `UsageSink` trait (or equivalent) and emit counters per tool action.
    - Add quota checks at the router layer; reject when exceeded.
    - Persist usage to a multi-tenant store with strict isolation.
    - Decide whether rate limiting is per-tenant or per-token (or both).
+   - Status: **Implemented (OSS seam + enterprise enforcer scaffolding)**.
+     - References: `decision-gate-mcp/src/usage.rs`,
+       `decision-gate-mcp/src/tools.rs`,
+       `decision-gate-mcp/src/audit.rs`,
+       `enterprise/decision-gate-enterprise/src/usage.rs`,
+       `enterprise/decision-gate-enterprise/src/usage_sqlite.rs`,
+       `decision-gate-mcp/tests/usage_meter.rs`.
 
 4) **Durable stores (multi-tenant safe)**
    - Implement enterprise run store + schema registry backends using the existing
      `RunStateStore` and `DataShapeRegistry` traits (`decision-gate-core/src/interfaces/mod.rs`).
    - Add object storage for runpacks (or blob store abstraction) with per-tenant prefixes.
    - Add backup/restore and corruption detection hooks for auditability.
+   - Add server-level overrides to wire enterprise stores without OSS deps.
+   - Provide enterprise helper to build MCP server with Postgres store wiring.
+   - Status: **Implemented (Postgres store + S3 runpack store; config wiring + MCP export integration + runbook added)**.
+      - References: `enterprise/decision-gate-store-enterprise/src/sqlite_store.rs`,
+        `enterprise/decision-gate-store-enterprise/src/runpack_store.rs`,
+        `enterprise/decision-gate-store-enterprise/src/postgres_store.rs`,
+        `enterprise/decision-gate-store-enterprise/src/s3_runpack_store.rs`,
+       `enterprise/decision-gate-enterprise/src/runpack_storage.rs`,
+       `enterprise/decision-gate-enterprise/src/config.rs`,
+       `examples/decision-gate-enterprise.toml`,
+        `enterprise/decision-gate-enterprise/src/server.rs`,
+        `decision-gate-mcp/src/server.rs`,
+        `decision-gate-mcp/src/tools.rs`,
+        `decision-gate-mcp/src/runpack_storage.rs`,
+        `Docs/roadmap/enterprise/enterprise_backup_restore_runbook.md`.
 
-5) **Tenant lifecycle + minimal UI**
+5) **Audit immutability + export scaffolding**
+   - Add append-only, hash-chained audit sink for tamper-evident logs.
+   - Provide export-friendly JSONL format.
+   - Status: **Implemented (enterprise sink)**.
+     - References: `enterprise/decision-gate-enterprise/src/audit_chain.rs`.
+
+6) **Tenant lifecycle + minimal UI**
    - Add minimal management API (or admin-only tool surface) for tenant lifecycle.
    - Build a barebones UI around those APIs (list runs, download runpacks, rotate keys).
+   - Status: **Implemented (enterprise scaffolding)**.
+     - References: `enterprise/decision-gate-enterprise/src/tenant_admin.rs`,
+       `enterprise/decision-gate-enterprise/src/admin_ui.rs`,
+       `enterprise/decision-gate-enterprise/src/server.rs`.
+
+### Phase-1 Hardening (System-Tests + Integrity)
+Status: **Implemented (tests added; execution validated for non-container suites; Docker-backed suites pending).**
+
+- **Execution status (local):** passing `audit`, `config_limits`, `runpack_hardening`,
+  `tenant_authz`, `transport_parity`, `transport_tls`, `usage`.
+- **Execution status (Docker required):** `backup_restore`, `tenant_isolation`,
+  `postgres_store`, `s3_runpack_store`, `config_wiring` (requires container runtime).
+
+- **Enterprise test registry + gap closure:** `enterprise/enterprise-system-tests/test_registry.toml`,
+  `enterprise/enterprise-system-tests/test_gaps.toml`.
+- **Audit integrity + JSONL export:** `enterprise/enterprise-system-tests/tests/audit.rs`
+  (hash-chain immutability, deny-path coverage, JSONL format).
+- **Postgres store integrity:** `enterprise/enterprise-system-tests/tests/postgres_store.rs`
+  (roundtrip, corruption detection, concurrency, pagination, signing metadata).
+- **S3 runpack integrity:** `enterprise/enterprise-system-tests/tests/s3_runpack_store.rs`
+  (roundtrip, SSE enforcement, metadata tamper detection, archive hardening).
+- **Runpack export hygiene:** `enterprise/enterprise-system-tests/tests/runpack_hardening.rs`
+  (temporary directory cleanup).
+- **Transport parity + TLS/mTLS:** `enterprise/enterprise-system-tests/tests/transport_parity.rs`,
+  `enterprise/enterprise-system-tests/tests/transport_tls.rs`.
+- **Backup/restore validation:** `enterprise/enterprise-system-tests/tests/backup_restore.rs`.
+- **Config hardening:** `enterprise/enterprise-system-tests/tests/config_limits.rs`.
 
 ### Phase-1 Design Decisions (Make These Upfront)
 These are the “lock early” choices that avoid long-term pain:
@@ -104,58 +171,59 @@ These are the “lock early” choices that avoid long-term pain:
 - All authz denials are audited.
 - Usage metering cannot be disabled in production configs.
 
-### Phase-1 Decision Matrix (Recommended Defaults)
-The choices below are optimized for world-class security, long-term scale, and
-clean separation between OSS and enterprise add-ons.
+### Phase-1 Decision Matrix (Decided Defaults)
+Status: **Decided.** These defaults are now the authoritative Phase‑1 choices.
+They are optimized for world-class security, long-term scale, and clean
+separation between OSS and enterprise add-ons.
 
-- **Auth model (recommended)**: OIDC/JWT for user sessions + opaque API keys for
+- **Auth model (decided)**: OIDC/JWT for user sessions + opaque API keys for
   service access. JWTs are short-lived and verified via JWKS; API keys are hashed
   and mapped to a principal profile with explicit tenant/namespace scopes.
   Rationale: best-of-breed identity integration + safe machine access without
   leaking tenant scope in bearer tokens.
 
-- **Tenant model (recommended)**: `org -> tenant -> namespace`, with tenant as
+- **Tenant model (decided)**: `org -> tenant -> namespace`, with tenant as
   the billing and isolation unit. Default tokens are single-tenant; multi-tenant
   tokens are explicitly scoped and audited.
   Rationale: aligns with future org/SSO requirements without breaking Phase 1.
 
-- **Isolation model (recommended)**: shared Postgres with strict partition keys
+- **Isolation model (decided)**: shared Postgres with strict partition keys
   + row-level security (RLS) enforced at the DB layer; optional per-tenant DB for
   premium tiers later.
   Rationale: immediate multi-tenant safety with a migration path to stronger
   physical isolation.
 
-- **Usage counters (recommended)**: append-only usage ledger with idempotent
+- **Usage counters (decided)**: append-only usage ledger with idempotent
   events keyed by request_id/run_id and tool action. Canonical counters:
   tool_calls, runs_started, evidence_queries, runpack_exports, schemas_written,
   storage_bytes, registry_entries.
   Rationale: deterministic billing + audit-friendly reconciliation.
 
-- **Quotas vs rate limits (recommended)**: enforce both. Rate limits per token
+- **Quotas vs rate limits (decided)**: enforce both. Rate limits per token
   and per tenant at the edge; quotas enforced via the usage ledger with hard
   denial when exceeded.
   Rationale: protects availability and enforces billing/contracts independently.
 
-- **Audit immutability (recommended)**: append-only audit log with hash chaining
+- **Audit immutability (decided)**: append-only audit log with hash chaining
   (Merkle or simple hash chain) and periodic snapshots in object storage.
   Rationale: tamper-evident by default, enterprise-ready without refactor.
 
-- **Runpack storage (recommended)**: object storage (S3-compatible) with
+- **Runpack storage (decided)**: object storage (S3-compatible) with
   per-tenant prefixing, server-side encryption, and retention policies. Support
   WORM/immutable buckets when enabled.
   Rationale: scalable, inexpensive, and compliant storage pattern.
 
-- **Namespace authority (recommended)**: DG Cloud starts with internal authority
+- **Namespace authority (decided)**: DG Cloud starts with internal authority
   (no external dependency), but keep the authority interface pluggable for
   AssetCore or external catalogs.
   Rationale: minimizes Phase-1 ops risk while preserving enterprise path.
 
-- **API/versioning (recommended)**: explicit versioning of tool schemas and
+- **API/versioning (decided)**: explicit versioning of tool schemas and
   contract artifacts; changes gated by compatibility tests. Avoid breaking
   changes in tool shapes; add new tools instead.
   Rationale: prevents tenant breakage and keeps generated docs stable.
 
-- **Secrets + key management (recommended)**: store only hashed API keys; use
+- **Secrets + key management (decided)**: store only hashed API keys; use
   KMS-backed encryption for stored secrets and audit every key use. Design for
   HSM integration later without changing interfaces.
   Rationale: eliminates plaintext risk and enables compliance later.

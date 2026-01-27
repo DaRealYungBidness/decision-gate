@@ -53,12 +53,19 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `strict_validation_precheck_allows_union_contains` | functional | Union string/null schema permits contains. |
 | `asc_auth_mapping_matrix` | security | ASC role/policy mapping enforced via auth proxy. |
 | `assetcore_determinism_replay` | reliability | Identical AssetCore fixtures yield identical runpacks. |
+| `registry_acl_builtin_matrix` | security | Builtin registry ACL matrix enforced across roles. |
+| `registry_acl_principal_subject_mapping` | security | Registry ACL principal mapping for stdio/loopback/bearer/mTLS. |
+| `registry_acl_signing_required_memory_and_sqlite` | security | Schema signing required for memory + sqlite registries. |
+| `default_namespace_allowlist_enforced` | security | Default namespace allowlist blocks non-allowlisted tenants. |
+| `dev_permissive_assetcore_rejected` | security | Dev-permissive rejected when AssetCore authority configured. |
+| `registry_security_audit_events` | security | Registry/security audit events emitted for allow/deny. |
 
 ## P2 (Non-Gated / Extended Coverage)
 | Test | Category | Purpose |
 | --- | --- | --- |
 | `stdio_transport_end_to_end` | mcp_transport | Stdio JSON-RPC transport handles tools/list and tools/call. |
 | `multi_transport_parity` | mcp_transport | HTTP, stdio, and CLI interop parity for decisions/runpacks. |
+| `runpack_export_includes_security_context` | runpack | Runpack manifests include security context metadata. |
 | `anchor_validation_fuzz_cases_fail_closed` | security | Malformed/oversized anchors fail closed with explicit errors. |
 | `performance_smoke` | performance | Non-gated MCP workflow throughput smoke test. |
 | `stress_registry_concurrent_writes` | reliability | Concurrent schema registry writes remain stable and ordered. |

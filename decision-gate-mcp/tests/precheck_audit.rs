@@ -38,6 +38,8 @@ use decision_gate_mcp::DecisionGateConfig;
 use decision_gate_mcp::FederatedEvidenceProvider;
 use decision_gate_mcp::McpAuditEvent;
 use decision_gate_mcp::McpAuditSink;
+use decision_gate_mcp::NoopTenantAuthorizer;
+use decision_gate_mcp::NoopUsageMeter;
 use decision_gate_mcp::PrecheckAuditEvent;
 use decision_gate_mcp::ToolRouter;
 use decision_gate_mcp::auth::DefaultToolAuthz;
@@ -150,6 +152,9 @@ fn build_router(mut config: DecisionGateConfig, audit: Arc<TestAuditSink>) -> To
         schema_registry_limits,
         capabilities: Arc::new(capabilities),
         authz,
+        tenant_authorizer: Arc::new(NoopTenantAuthorizer),
+        usage_meter: Arc::new(NoopUsageMeter),
+        runpack_storage: None,
         audit: auth_audit,
         trust_requirement,
         anchor_policy,

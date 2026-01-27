@@ -47,7 +47,8 @@ async fn smoke_define_start_next_status() -> Result<(), Box<dyn std::error::Erro
     let client = server.client(std::time::Duration::from_secs(5))?;
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
-    let fixture = ScenarioFixture::time_after("smoke-scenario", "run-1", 0);
+    let mut fixture = ScenarioFixture::time_after("smoke-scenario", "run-1", 0);
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -123,7 +124,8 @@ async fn smoke_schema_register_precheck() -> Result<(), Box<dyn std::error::Erro
     let client = server.client(std::time::Duration::from_secs(5))?;
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
-    let fixture = ScenarioFixture::time_after("precheck-scenario", "run-1", 0);
+    let mut fixture = ScenarioFixture::time_after("precheck-scenario", "run-1", 0);
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };
@@ -279,7 +281,8 @@ async fn smoke_precheck_rejects_invalid_payload() -> Result<(), Box<dyn std::err
     let client = server.client(std::time::Duration::from_secs(5))?;
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
-    let fixture = ScenarioFixture::time_after("precheck-invalid", "run-1", 0);
+    let mut fixture = ScenarioFixture::time_after("precheck-invalid", "run-1", 0);
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };
@@ -352,7 +355,8 @@ async fn smoke_precheck_respects_trust_lane_default() -> Result<(), Box<dyn std:
     let client = server.client(std::time::Duration::from_secs(5))?;
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
-    let fixture = ScenarioFixture::time_after("precheck-trust-default", "run-1", 0);
+    let mut fixture = ScenarioFixture::time_after("precheck-trust-default", "run-1", 0);
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };

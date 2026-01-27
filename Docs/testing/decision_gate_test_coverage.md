@@ -18,21 +18,21 @@
 
 | Test | Category | Est. Runtime (s) | Run Command |
 | --- | --- | --- | --- |
-| smoke_define_start_next_status | smoke | 10 | `cargo test -p system-tests --test smoke -- --exact smoke_define_start_next_status` |
-| runpack_export_verify_happy_path | runpack | 15 | `cargo test -p system-tests --test runpack -- --exact runpack_export_verify_happy_path` |
-| schema_conformance_all_tools | contract | 20 | `cargo test -p system-tests --test contract -- --exact schema_conformance_all_tools` |
-| evidence_redaction_default | security | 8 | `cargo test -p system-tests --test security -- --exact evidence_redaction_default` |
-| http_bearer_token_required | security | 8 | `cargo test -p system-tests --test mcp_auth -- --exact http_bearer_token_required` |
-| http_tool_allowlist_enforced | security | 8 | `cargo test -p system-tests --test mcp_auth -- --exact http_tool_allowlist_enforced` |
-| http_mtls_subject_required | security | 8 | `cargo test -p system-tests --test mcp_auth -- --exact http_mtls_subject_required` |
-| sse_bearer_token_required | security | 8 | `cargo test -p system-tests --test mcp_auth -- --exact sse_bearer_token_required` |
-| http_rate_limit_enforced | operations | 8 | `cargo test -p system-tests --test mcp_hardening -- --exact http_rate_limit_enforced` |
-| http_tls_handshake_success | operations | 8 | `cargo test -p system-tests --test mcp_hardening -- --exact http_tls_handshake_success` |
-| http_mtls_client_cert_required | security | 10 | `cargo test -p system-tests --test mcp_hardening -- --exact http_mtls_client_cert_required` |
-| http_audit_log_written | operations | 8 | `cargo test -p system-tests --test mcp_hardening -- --exact http_audit_log_written` |
-| idempotent_trigger | reliability | 15 | `cargo test -p system-tests --test reliability -- --exact idempotent_trigger` |
-| idempotent_submission | reliability | 15 | `cargo test -p system-tests --test reliability -- --exact idempotent_submission` |
-| provider_time_after | providers | 8 | `cargo test -p system-tests --test providers -- --exact provider_time_after` |
+| smoke_define_start_next_status | smoke | 10 | `cargo test -p system-tests --features system-tests --test smoke -- --exact smoke_define_start_next_status` |
+| runpack_export_verify_happy_path | runpack | 15 | `cargo test -p system-tests --features system-tests --test runpack -- --exact runpack_export_verify_happy_path` |
+| schema_conformance_all_tools | contract | 20 | `cargo test -p system-tests --features system-tests --test contract -- --exact schema_conformance_all_tools` |
+| evidence_redaction_default | security | 8 | `cargo test -p system-tests --features system-tests --test security -- --exact evidence_redaction_default` |
+| http_bearer_token_required | security | 8 | `cargo test -p system-tests --features system-tests --test mcp_auth -- --exact http_bearer_token_required` |
+| http_tool_allowlist_enforced | security | 8 | `cargo test -p system-tests --features system-tests --test mcp_auth -- --exact http_tool_allowlist_enforced` |
+| http_mtls_subject_required | security | 8 | `cargo test -p system-tests --features system-tests --test mcp_auth -- --exact http_mtls_subject_required` |
+| sse_bearer_token_required | security | 8 | `cargo test -p system-tests --features system-tests --test mcp_auth -- --exact sse_bearer_token_required` |
+| http_rate_limit_enforced | operations | 8 | `cargo test -p system-tests --features system-tests --test mcp_hardening -- --exact http_rate_limit_enforced` |
+| http_tls_handshake_success | operations | 8 | `cargo test -p system-tests --features system-tests --test mcp_hardening -- --exact http_tls_handshake_success` |
+| http_mtls_client_cert_required | security | 10 | `cargo test -p system-tests --features system-tests --test mcp_hardening -- --exact http_mtls_client_cert_required` |
+| http_audit_log_written | operations | 8 | `cargo test -p system-tests --features system-tests --test mcp_hardening -- --exact http_audit_log_written` |
+| idempotent_trigger | reliability | 15 | `cargo test -p system-tests --features system-tests --test reliability -- --exact idempotent_trigger` |
+| idempotent_submission | reliability | 15 | `cargo test -p system-tests --features system-tests --test reliability -- --exact idempotent_submission` |
+| provider_time_after | providers | 8 | `cargo test -p system-tests --features system-tests --test providers -- --exact provider_time_after` |
 
 ## Category Coverage
 

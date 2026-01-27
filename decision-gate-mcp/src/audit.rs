@@ -132,6 +132,55 @@ pub struct RegistryAuditEvent {
     pub schema_version: Option<String>,
 }
 
+/// Tenant authorization audit event payload.
+#[derive(Debug, Clone, Serialize)]
+pub struct TenantAuthzEvent {
+    /// Event identifier.
+    pub event: &'static str,
+    /// Event timestamp (milliseconds since epoch).
+    pub timestamp_ms: u128,
+    /// Request identifier when provided.
+    pub request_id: Option<String>,
+    /// Tool name when available.
+    pub tool: Option<ToolName>,
+    /// Whether access was allowed.
+    pub allowed: bool,
+    /// Decision reason label.
+    pub reason: String,
+    /// Principal identifier.
+    pub principal_id: String,
+    /// Tenant identifier when provided.
+    pub tenant_id: Option<String>,
+    /// Namespace identifier when provided.
+    pub namespace_id: Option<String>,
+}
+
+/// Usage audit event payload.
+#[derive(Debug, Clone, Serialize)]
+pub struct UsageAuditEvent {
+    /// Event identifier.
+    pub event: &'static str,
+    /// Event timestamp (milliseconds since epoch).
+    pub timestamp_ms: u128,
+    /// Request identifier when provided.
+    pub request_id: Option<String>,
+    /// Tool name when available.
+    pub tool: Option<ToolName>,
+    /// Tenant identifier when provided.
+    pub tenant_id: Option<String>,
+    /// Namespace identifier when provided.
+    pub namespace_id: Option<String>,
+    /// Principal identifier.
+    pub principal_id: String,
+    /// Usage metric label.
+    pub metric: String,
+    /// Units consumed.
+    pub units: u64,
+    /// Whether the request was allowed.
+    pub allowed: bool,
+    /// Decision reason label.
+    pub reason: String,
+}
 /// Security posture audit event payload.
 #[derive(Debug, Clone, Serialize)]
 pub struct SecurityAuditEvent {
@@ -231,6 +280,45 @@ pub struct RegistryAuditEventParams {
     pub schema_version: Option<String>,
 }
 
+/// Inputs required to construct a tenant authorization audit event.
+pub struct TenantAuthzEventParams {
+    /// Request identifier when provided.
+    pub request_id: Option<String>,
+    /// Tool name when available.
+    pub tool: Option<ToolName>,
+    /// Whether access was allowed.
+    pub allowed: bool,
+    /// Decision reason label.
+    pub reason: String,
+    /// Principal identifier.
+    pub principal_id: String,
+    /// Tenant identifier when provided.
+    pub tenant_id: Option<String>,
+    /// Namespace identifier when provided.
+    pub namespace_id: Option<String>,
+}
+
+/// Inputs required to construct a usage audit event.
+pub struct UsageAuditEventParams {
+    /// Request identifier when provided.
+    pub request_id: Option<String>,
+    /// Tool name when available.
+    pub tool: Option<ToolName>,
+    /// Tenant identifier when provided.
+    pub tenant_id: Option<String>,
+    /// Namespace identifier when provided.
+    pub namespace_id: Option<String>,
+    /// Principal identifier.
+    pub principal_id: String,
+    /// Usage metric label.
+    pub metric: String,
+    /// Units consumed.
+    pub units: u64,
+    /// Whether the request was allowed.
+    pub allowed: bool,
+    /// Decision reason label.
+    pub reason: String,
+}
 /// Inputs required to construct a security audit event.
 pub struct SecurityAuditEventParams {
     /// Security event kind.
@@ -318,6 +406,47 @@ impl RegistryAuditEvent {
     }
 }
 
+impl TenantAuthzEvent {
+    /// Creates a new tenant authorization audit event with a consistent timestamp.
+    #[must_use]
+    pub fn new(params: TenantAuthzEventParams) -> Self {
+        let timestamp_ms =
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis();
+        Self {
+            event: "tenant_authz",
+            timestamp_ms,
+            request_id: params.request_id,
+            tool: params.tool,
+            allowed: params.allowed,
+            reason: params.reason,
+            principal_id: params.principal_id,
+            tenant_id: params.tenant_id,
+            namespace_id: params.namespace_id,
+        }
+    }
+}
+
+impl UsageAuditEvent {
+    /// Creates a new usage audit event with a consistent timestamp.
+    #[must_use]
+    pub fn new(params: UsageAuditEventParams) -> Self {
+        let timestamp_ms =
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis();
+        Self {
+            event: "usage_audit",
+            timestamp_ms,
+            request_id: params.request_id,
+            tool: params.tool,
+            tenant_id: params.tenant_id,
+            namespace_id: params.namespace_id,
+            principal_id: params.principal_id,
+            metric: params.metric,
+            units: params.units,
+            allowed: params.allowed,
+            reason: params.reason,
+        }
+    }
+}
 impl SecurityAuditEvent {
     /// Creates a new security audit event with a consistent timestamp.
     #[must_use]
@@ -351,6 +480,12 @@ pub trait McpAuditSink: Send + Sync {
     /// Record a registry audit event.
     fn record_registry(&self, _event: &RegistryAuditEvent) {}
 
+    /// Record a tenant authorization audit event.
+    fn record_tenant_authz(&self, _event: &TenantAuthzEvent) {}
+
+    /// Record a usage audit event.
+    fn record_usage(&self, _event: &UsageAuditEvent) {}
+
     /// Record a security posture audit event.
     fn record_security(&self, _event: &SecurityAuditEvent) {}
 }
@@ -372,6 +507,18 @@ impl McpAuditSink for McpStderrAuditSink {
     }
 
     fn record_registry(&self, event: &RegistryAuditEvent) {
+        if let Ok(payload) = serde_json::to_string(event) {
+            let _ = writeln!(std::io::stderr(), "{payload}");
+        }
+    }
+
+    fn record_tenant_authz(&self, event: &TenantAuthzEvent) {
+        if let Ok(payload) = serde_json::to_string(event) {
+            let _ = writeln!(std::io::stderr(), "{payload}");
+        }
+    }
+
+    fn record_usage(&self, event: &UsageAuditEvent) {
         if let Ok(payload) = serde_json::to_string(event) {
             let _ = writeln!(std::io::stderr(), "{payload}");
         }
@@ -432,6 +579,24 @@ impl McpAuditSink for McpFileAuditSink {
         }
     }
 
+    fn record_tenant_authz(&self, event: &TenantAuthzEvent) {
+        if let Ok(payload) = serde_json::to_string(event)
+            && let Ok(mut file) = self.file.lock()
+        {
+            let _ = writeln!(file, "{payload}");
+            let _ = file.flush();
+        }
+    }
+
+    fn record_usage(&self, event: &UsageAuditEvent) {
+        if let Ok(payload) = serde_json::to_string(event)
+            && let Ok(mut file) = self.file.lock()
+        {
+            let _ = writeln!(file, "{payload}");
+            let _ = file.flush();
+        }
+    }
+
     fn record_security(&self, event: &SecurityAuditEvent) {
         if let Ok(payload) = serde_json::to_string(event)
             && let Ok(mut file) = self.file.lock()
@@ -451,6 +616,10 @@ impl McpAuditSink for McpNoopAuditSink {
     fn record_precheck(&self, _event: &PrecheckAuditEvent) {}
 
     fn record_registry(&self, _event: &RegistryAuditEvent) {}
+
+    fn record_tenant_authz(&self, _event: &TenantAuthzEvent) {}
+
+    fn record_usage(&self, _event: &UsageAuditEvent) {}
 
     fn record_security(&self, _event: &SecurityAuditEvent) {}
 }

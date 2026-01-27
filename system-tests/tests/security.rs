@@ -106,12 +106,13 @@ async fn packet_disclosure_visibility() -> Result<(), Box<dyn std::error::Error>
     let client = server.client(std::time::Duration::from_secs(5))?;
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
-    let fixture = ScenarioFixture::with_visibility_packet(
+    let mut fixture = ScenarioFixture::with_visibility_packet(
         "visibility-scenario",
         "run-1",
         vec!["confidential".to_string(), "restricted".to_string()],
         vec!["policy-alpha".to_string()],
     );
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -280,7 +281,7 @@ async fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Erro
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: None,
+        default_tenant_id: Some(decision_gate_core::TenantId::new("tenant-1")),
     };
 
     let define_request = ScenarioDefineRequest {
@@ -473,7 +474,7 @@ async fn policy_error_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: None,
+        default_tenant_id: Some(decision_gate_core::TenantId::new("tenant-1")),
     };
 
     let define_request = ScenarioDefineRequest {

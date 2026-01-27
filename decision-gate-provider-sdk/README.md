@@ -18,6 +18,10 @@ handles JSON-RPC 2.0 framing, tool dispatch, and EvidenceResult responses.
 Providers should also publish a capabilities contract (JSON) that Decision Gate
 loads via `capabilities_path` in the MCP config.
 
+External providers are optional. Decision Gate ships built-in providers
+(time/env/json/http) that cover most local workflows, especially when tools can
+emit JSON artifacts for the `json` provider to read.
+
 ## Layout
 - `spec/` - Protocol reference for the `evidence_query` tool contract.
 - `typescript/` - Node/TypeScript template for a stdio MCP provider.

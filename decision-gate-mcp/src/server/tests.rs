@@ -84,8 +84,10 @@ use crate::telemetry::McpMethod;
 use crate::telemetry::McpMetricEvent;
 use crate::telemetry::McpMetrics;
 use crate::telemetry::McpOutcome;
+use crate::tenant_authz::NoopTenantAuthorizer;
 use crate::tools::ToolRouter;
 use crate::tools::ToolRouterConfig;
+use crate::usage::NoopUsageMeter;
 
 // ============================================================================
 // SECTION: Fixtures
@@ -208,6 +210,9 @@ fn sample_router(config: &DecisionGateConfig) -> ToolRouter {
         schema_registry_limits,
         capabilities: Arc::new(capabilities),
         authz,
+        tenant_authorizer: Arc::new(NoopTenantAuthorizer),
+        usage_meter: Arc::new(NoopUsageMeter),
+        runpack_storage: None,
         audit,
         trust_requirement: config.effective_trust_requirement(),
         anchor_policy: config.anchors.to_policy(),

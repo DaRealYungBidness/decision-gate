@@ -42,7 +42,8 @@ agent conversations.
 - Runpack artifacts and manifest.
 - Provider contracts (capability contracts) and schemas.
 - Configuration files, provider auth tokens, and signature verification keys.
-- Run state store (SQLite) and runpack output directory.
+- Run state store (SQLite/Postgres) and runpack output directory.
+- Object storage buckets for runpack archives (S3-compatible).
 
 ## Adversary Model
 - Nation-state adversaries with full knowledge of Decision Gate behavior.
@@ -60,6 +61,7 @@ agent conversations.
   external and must fail closed.
 - Provider contracts and configuration files on disk.
 - Run state store and runpack artifacts: treat storage as untrusted.
+- Runpack object storage (S3) and metadata: treat as untrusted and verify hashes.
 - Broker sources (http/file/inline) and sinks (external systems).
 - Dispatch targets and downstream systems receiving disclosures.
 - Offline verification environment and artifact readers.

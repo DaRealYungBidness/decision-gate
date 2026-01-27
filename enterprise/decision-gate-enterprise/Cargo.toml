@@ -1,0 +1,29 @@
+# Decision Gate Enterprise manifest
+# ============================================================================
+# Private enterprise control-plane extensions for Decision Gate.
+# ============================================================================
+
+[package]
+name = "decision-gate-enterprise"
+version = { workspace = true }
+edition = "2024"
+rust-version = "1.92"
+
+[dependencies]
+decision-gate-mcp = { path = "../../decision-gate-mcp" }
+decision-gate-core = { path = "../../decision-gate-core" }
+decision-gate-store-enterprise = { path = "../decision-gate-store-enterprise", features = ["s3"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+base64 = "0.22"
+rand = "0.8"
+rusqlite = { version = "0.32", features = ["bundled"] }
+toml = "0.8"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile = "3.10"
+decision-gate-contract = { path = "../../decision-gate-contract" }

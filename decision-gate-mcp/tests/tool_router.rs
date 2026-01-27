@@ -27,6 +27,8 @@
 
 mod common;
 
+use std::sync::Mutex;
+
 use decision_gate_core::Comparator;
 use decision_gate_core::DataShapeId;
 use decision_gate_core::DataShapeRecord;
@@ -52,6 +54,11 @@ use decision_gate_core::runtime::StatusRequest;
 use decision_gate_core::runtime::SubmitRequest;
 use decision_gate_core::runtime::SubmitResult;
 use decision_gate_core::runtime::TriggerResult;
+use decision_gate_mcp::NoopTenantAuthorizer;
+use decision_gate_mcp::NoopUsageMeter;
+use decision_gate_mcp::RunpackStorage;
+use decision_gate_mcp::RunpackStorageError;
+use decision_gate_mcp::RunpackStorageKey;
 use decision_gate_mcp::SchemaRegistryConfig;
 use decision_gate_mcp::config::PrincipalConfig;
 use decision_gate_mcp::config::PrincipalRoleConfig;
@@ -66,6 +73,8 @@ use decision_gate_mcp::tools::PrecheckToolRequest;
 use decision_gate_mcp::tools::PrecheckToolResponse;
 use decision_gate_mcp::tools::ProvidersListRequest;
 use decision_gate_mcp::tools::ProvidersListResponse;
+use decision_gate_mcp::tools::RunpackExportRequest;
+use decision_gate_mcp::tools::RunpackExportResponse;
 use decision_gate_mcp::tools::ScenarioDefineRequest;
 use decision_gate_mcp::tools::ScenarioDefineResponse;
 use decision_gate_mcp::tools::ScenarioNextRequest;
@@ -86,6 +95,7 @@ use serde_json::json;
 
 use crate::common::define_scenario;
 use crate::common::local_request_context;
+use crate::common::router_with_authorizer_usage_and_runpack_storage;
 use crate::common::router_with_config;
 use crate::common::sample_config;
 use crate::common::sample_context;
@@ -312,6 +322,9 @@ fn namespace_authority_denies_tool_call() {
         schema_registry_limits,
         capabilities: std::sync::Arc::new(capabilities),
         authz,
+        tenant_authorizer: std::sync::Arc::new(NoopTenantAuthorizer),
+        usage_meter: std::sync::Arc::new(NoopUsageMeter),
+        runpack_storage: None,
         audit,
         trust_requirement,
         anchor_policy,
@@ -749,6 +762,70 @@ fn evidence_query_invalid_params_rejected() {
 // SECTION: runpack_export Tests
 // ============================================================================
 
+#[derive(Default)]
+struct RecordingRunpackStorage {
+    calls: Mutex<Vec<RunpackStorageKey>>,
+}
+
+impl RunpackStorage for RecordingRunpackStorage {
+    fn store_runpack(
+        &self,
+        key: &RunpackStorageKey,
+        source_dir: &std::path::Path,
+    ) -> Result<Option<String>, RunpackStorageError> {
+        let manifest_path = source_dir.join("manifest.json");
+        if !manifest_path.exists() {
+            return Err(RunpackStorageError::Invalid(
+                "manifest missing from runpack export".to_string(),
+            ));
+        }
+        self.calls.lock().expect("calls lock").push(key.clone());
+        Ok(Some("test://runpack".to_string()))
+    }
+}
+
+/// Verifies `runpack_export` uses managed storage when configured.
+#[test]
+fn runpack_export_uses_storage_backend() {
+    let config = sample_config();
+    let storage = std::sync::Arc::new(RecordingRunpackStorage::default());
+    let router = router_with_authorizer_usage_and_runpack_storage(
+        &config,
+        std::sync::Arc::new(NoopTenantAuthorizer),
+        std::sync::Arc::new(NoopUsageMeter),
+        Some(storage.clone()),
+    );
+    let spec = sample_spec();
+    let scenario_id = define_scenario(&router, spec).unwrap();
+    let run_config = sample_run_config_with_ids("test-tenant", "test-run", scenario_id.as_str());
+    start_run(&router, &scenario_id, run_config, Timestamp::Logical(1)).unwrap();
+
+    let request = RunpackExportRequest {
+        scenario_id,
+        tenant_id: TenantId::new("test-tenant"),
+        namespace_id: NamespaceId::new("default"),
+        run_id: RunId::new("test-run"),
+        output_dir: None,
+        manifest_name: Some("manifest.json".to_string()),
+        generated_at: Timestamp::Logical(2),
+        include_verification: false,
+    };
+    let response_value = router
+        .handle_tool_call(
+            &local_request_context(),
+            "runpack_export",
+            serde_json::to_value(&request).unwrap(),
+        )
+        .expect("runpack export");
+    let response: RunpackExportResponse = serde_json::from_value(response_value).unwrap();
+    assert_eq!(response.storage_uri, Some("test://runpack".to_string()));
+    let calls = storage.calls.lock().expect("calls lock");
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].tenant_id.as_str(), "test-tenant");
+    assert_eq!(calls[0].namespace_id.as_str(), "default");
+    assert_eq!(calls[0].run_id.as_str(), "test-run");
+}
+
 /// Verifies `runpack_export` requires an existing run.
 #[test]
 fn runpack_export_missing_run_fails() {
@@ -761,7 +838,7 @@ fn runpack_export_missing_run_fails() {
         tenant_id: TenantId::new("test-tenant"),
         namespace_id: NamespaceId::new("default"),
         run_id: RunId::new("nonexistent-run"),
-        output_dir: "/tmp/test-runpack".to_string(),
+        output_dir: Some("/tmp/test-runpack".to_string()),
         manifest_name: None,
         generated_at: Timestamp::Logical(1),
         include_verification: false,
@@ -784,9 +861,36 @@ fn runpack_export_undefined_scenario_fails() {
         tenant_id: TenantId::new("test-tenant"),
         namespace_id: NamespaceId::new("default"),
         run_id: RunId::new("run-1"),
-        output_dir: "/tmp/test-runpack".to_string(),
+        output_dir: Some("/tmp/test-runpack".to_string()),
         manifest_name: None,
         generated_at: Timestamp::Logical(1),
+        include_verification: false,
+    };
+    let result = router.handle_tool_call(
+        &local_request_context(),
+        "runpack_export",
+        serde_json::to_value(&request).unwrap(),
+    );
+    assert!(result.is_err());
+}
+
+/// Verifies `runpack_export` requires output_dir when storage is not configured.
+#[test]
+fn runpack_export_requires_output_dir_without_storage() {
+    let router = sample_router();
+    let spec = sample_spec();
+    let scenario_id = define_scenario(&router, spec).unwrap();
+    let run_config = sample_run_config_with_ids("test-tenant", "test-run", scenario_id.as_str());
+    start_run(&router, &scenario_id, run_config, Timestamp::Logical(1)).unwrap();
+
+    let request = decision_gate_mcp::tools::RunpackExportRequest {
+        scenario_id,
+        tenant_id: TenantId::new("test-tenant"),
+        namespace_id: NamespaceId::new("default"),
+        run_id: RunId::new("test-run"),
+        output_dir: None,
+        manifest_name: None,
+        generated_at: Timestamp::Logical(2),
         include_verification: false,
     };
     let result = router.handle_tool_call(

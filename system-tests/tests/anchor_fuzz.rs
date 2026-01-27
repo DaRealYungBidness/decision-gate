@@ -233,7 +233,7 @@ async fn run_case(
         tenant_id: fixture.tenant_id.clone(),
         namespace_id: fixture.namespace_id.clone(),
         run_id: fixture.run_id.clone(),
-        output_dir: runpack_dir.to_string_lossy().to_string(),
+        output_dir: Some(runpack_dir.to_string_lossy().to_string()),
         manifest_name: Some("manifest.json".to_string()),
         generated_at: Timestamp::Logical(4),
         include_verification: false,

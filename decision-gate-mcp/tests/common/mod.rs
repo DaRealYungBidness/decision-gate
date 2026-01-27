@@ -52,8 +52,13 @@ use decision_gate_core::TriggerId;
 use decision_gate_mcp::DecisionGateConfig;
 use decision_gate_mcp::FederatedEvidenceProvider;
 use decision_gate_mcp::McpNoopAuditSink;
+use decision_gate_mcp::NoopTenantAuthorizer;
+use decision_gate_mcp::NoopUsageMeter;
+use decision_gate_mcp::RunpackStorage;
 use decision_gate_mcp::SchemaRegistryConfig;
+use decision_gate_mcp::TenantAuthorizer;
 use decision_gate_mcp::ToolRouter;
+use decision_gate_mcp::UsageMeter;
 use decision_gate_mcp::auth::DefaultToolAuthz;
 use decision_gate_mcp::auth::NoopAuditSink;
 use decision_gate_mcp::auth::RequestContext;
@@ -158,6 +163,36 @@ pub fn sample_router() -> ToolRouter {
 /// Creates a tool router using a custom configuration.
 #[must_use]
 pub fn router_with_config(config: &DecisionGateConfig) -> ToolRouter {
+    router_with_authorizer(config, Arc::new(NoopTenantAuthorizer))
+}
+
+/// Creates a tool router using a custom tenant authorizer.
+#[must_use]
+pub fn router_with_authorizer(
+    config: &DecisionGateConfig,
+    tenant_authorizer: Arc<dyn TenantAuthorizer>,
+) -> ToolRouter {
+    router_with_authorizer_and_usage(config, tenant_authorizer, Arc::new(NoopUsageMeter))
+}
+
+/// Creates a tool router using custom tenant authorizer and usage meter.
+#[must_use]
+pub fn router_with_authorizer_and_usage(
+    config: &DecisionGateConfig,
+    tenant_authorizer: Arc<dyn TenantAuthorizer>,
+    usage_meter: Arc<dyn UsageMeter>,
+) -> ToolRouter {
+    router_with_authorizer_usage_and_runpack_storage(config, tenant_authorizer, usage_meter, None)
+}
+
+/// Creates a tool router using custom auth, usage, and runpack storage.
+#[must_use]
+pub fn router_with_authorizer_usage_and_runpack_storage(
+    config: &DecisionGateConfig,
+    tenant_authorizer: Arc<dyn TenantAuthorizer>,
+    usage_meter: Arc<dyn UsageMeter>,
+    runpack_storage: Option<Arc<dyn RunpackStorage>>,
+) -> ToolRouter {
     let evidence = FederatedEvidenceProvider::from_config(config).unwrap();
     let capabilities = CapabilityRegistry::from_config(config).unwrap();
     let store = decision_gate_core::SharedRunStateStore::from_store(
@@ -230,6 +265,9 @@ pub fn router_with_config(config: &DecisionGateConfig) -> ToolRouter {
         schema_registry_limits,
         capabilities: Arc::new(capabilities),
         authz,
+        tenant_authorizer,
+        usage_meter,
+        runpack_storage,
         audit,
         trust_requirement,
         anchor_policy,

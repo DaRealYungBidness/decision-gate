@@ -19,6 +19,10 @@ application uses, and exports runpacks for offline verification. In the
 operational sense, this is LLM/task evaluation: a run cannot advance until its
 requirements pass.
 
+The core does not execute arbitrary tasks. It evaluates evidence produced by
+providers or supplied via precheck and applies comparators + RET to decide gate
+outcomes.
+
 ## AssetCore Integration
 DG integrates with AssetCore through explicit interfaces for deterministic
 evidence and replay. Integration is optional and does not introduce code
@@ -30,6 +34,24 @@ Decision Gate core is implemented end-to-end as a backend-agnostic control-plane
 engine. It includes canonical schemas, deterministic evaluation, trust lanes,
 and offline-verifiable runpacks. Production integration (HTTP/MCP services,
 persistent storage, and policy engines) is intentionally external to this crate.
+
+## Evidence Sourcing Model (Core View)
+Decision Gate core evaluates evidence from three sources:
+
+1) **Provider-pulled evidence (live runs)**  
+Evidence is fetched by an `EvidenceProvider` implementation (built-in or
+external MCP via the MCP layer).
+
+2) **Asserted evidence (precheck only)**  
+Precheck accepts caller-supplied evidence payloads validated against data
+shapes, and evaluates gates without mutating run state.
+
+3) **Audit submissions (scenario.submit)**  
+Submissions are stored with hashes for audit, but they do not affect gate
+evaluation.
+
+The evaluation model is the same in all cases: evidence → comparator →
+tri-state → RET gate outcome.
 
 ## Governance and Standards
 

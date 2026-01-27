@@ -75,7 +75,8 @@ async fn provider_time_after() -> Result<(), Box<dyn std::error::Error>> {
     let client = server.client(std::time::Duration::from_secs(5))?;
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
-    let fixture = ScenarioFixture::time_after("provider-time", "run-1", 0);
+    let mut fixture = ScenarioFixture::time_after("provider-time", "run-1", 0);
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -175,7 +176,7 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: None,
+        default_tenant_id: Some(decision_gate_core::TenantId::new("tenant-1")),
     };
 
     let define_request = ScenarioDefineRequest {

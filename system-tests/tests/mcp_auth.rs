@@ -91,7 +91,8 @@ async fn http_tool_allowlist_enforced() -> Result<(), Box<dyn std::error::Error>
         server.client(Duration::from_secs(5))?.with_bearer_token("allowlist-token".to_string());
     wait_for_server_ready(&client, Duration::from_secs(5)).await?;
 
-    let fixture = ScenarioFixture::time_after("allowlist-scenario", "run-1", 0);
+    let mut fixture = ScenarioFixture::time_after("allowlist-scenario", "run-1", 0);
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };
@@ -154,7 +155,8 @@ async fn http_tool_allowlist_blocks_precheck() -> Result<(), Box<dyn std::error:
         server.client(Duration::from_secs(5))?.with_bearer_token("allowlist-token".to_string());
     wait_for_server_ready(&client, Duration::from_secs(5)).await?;
 
-    let fixture = ScenarioFixture::time_after("allowlist-precheck", "run-1", 0);
+    let mut fixture = ScenarioFixture::time_after("allowlist-precheck", "run-1", 0);
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };

@@ -71,6 +71,14 @@ System-tests write artifacts beneath the run root:
 - `DECISION_GATE_SYSTEM_TEST_PROVIDER_URL`: Optional external provider URL.
 - `DECISION_GATE_SYSTEM_TEST_TIMEOUT_SEC`: Optional timeout override.
 
+## Running Tests
+System-tests are feature-gated to avoid running by default in unit-test passes.
+
+```bash
+cargo test -p system-tests --features system-tests
+cargo nextest run -p system-tests --features system-tests
+```
+
 ## Formatting and Hygiene
 - Format with `cargo +nightly fmt --all` (required).
 - Keep test data deterministic. Do not call wall-clock time in tests.

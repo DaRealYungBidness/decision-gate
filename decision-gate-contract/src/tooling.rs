@@ -708,7 +708,8 @@ fn runpack_export_examples() -> Vec<ToolExample> {
         }),
         output: json!({
             "manifest": example_runpack_manifest(),
-            "report": null
+            "report": null,
+            "storage_uri": null
         }),
     }]
 }
@@ -1135,7 +1136,12 @@ fn runpack_export_input_schema() -> Value {
             "tenant_id": schema_identifier("Tenant identifier."),
             "namespace_id": schema_identifier("Namespace identifier."),
             "run_id": schema_identifier("Run identifier."),
-            "output_dir": schema_path("Output directory path."),
+            "output_dir": describe_schema(json!({
+                "oneOf": [
+                    { "type": "null" },
+                    schema_path("Output directory path.")
+                ]
+            }), "Optional output directory (required for filesystem export)."),
             "manifest_name": describe_schema(json!({
                 "oneOf": [
                     { "type": "null" },
@@ -1150,7 +1156,6 @@ fn runpack_export_input_schema() -> Value {
             "tenant_id",
             "namespace_id",
             "run_id",
-            "output_dir",
             "generated_at",
             "include_verification",
         ],
@@ -1168,7 +1173,13 @@ fn runpack_export_output_schema() -> Value {
                     { "type": "null" },
                     schemas::verification_report_schema()
                 ]
-            }
+            },
+            "storage_uri": describe_schema(json!({
+                "oneOf": [
+                    { "type": "null" },
+                    { "type": "string" }
+                ]
+            }), "Optional storage URI for managed runpack storage backends.")
         }),
         &["manifest", "report"],
     )

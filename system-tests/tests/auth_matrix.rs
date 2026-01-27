@@ -94,7 +94,8 @@ async fn asc_auth_mapping_matrix() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut admin = ProxyClient::new(&proxy_url, &admin_roles, admin_policy)?;
 
-    let admin_fixture = ScenarioFixture::time_after("admin-scenario", "run-admin", 0);
+    let mut admin_fixture = ScenarioFixture::time_after("admin-scenario", "run-admin", 0);
+    admin_fixture.spec.default_tenant_id = Some(admin_fixture.tenant_id.clone());
     let admin_define = ScenarioDefineRequest {
         spec: admin_fixture.spec.clone(),
     };
@@ -158,7 +159,7 @@ async fn asc_auth_mapping_matrix() -> Result<(), Box<dyn std::error::Error>> {
         tenant_id: admin_fixture.tenant_id.clone(),
         namespace_id: admin_fixture.namespace_id.clone(),
         run_id: admin_fixture.run_id.clone(),
-        output_dir: runpack_dir.to_string_lossy().to_string(),
+        output_dir: Some(runpack_dir.to_string_lossy().to_string()),
         manifest_name: Some("manifest.json".to_string()),
         generated_at: Timestamp::Logical(5),
         include_verification: true,
@@ -260,8 +261,9 @@ async fn exercise_mapping(
     allowed: &BTreeSet<ToolName>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if allowed.contains(&ToolName::ScenarioDefine) {
-        let fixture =
+        let mut fixture =
             ScenarioFixture::time_after(&format!("role-{}", context.role_label), "run-role", 0);
+        fixture.spec.default_tenant_id = Some(context.tenant_id.clone());
         let request = ScenarioDefineRequest {
             spec: fixture.spec,
         };
@@ -272,8 +274,9 @@ async fn exercise_mapping(
             )
             .await?;
     } else {
-        let fixture =
+        let mut fixture =
             ScenarioFixture::time_after(&format!("deny-{}", context.role_label), "run-deny", 0);
+        fixture.spec.default_tenant_id = Some(context.tenant_id.clone());
         let request = ScenarioDefineRequest {
             spec: fixture.spec,
         };
@@ -565,7 +568,7 @@ async fn exercise_mapping(
                 tenant_id: run_config.tenant_id.clone(),
                 namespace_id: run_config.namespace_id.clone(),
                 run_id: run_id.clone(),
-                output_dir: runpack_dir.to_string_lossy().to_string(),
+                output_dir: Some(runpack_dir.to_string_lossy().to_string()),
                 manifest_name: Some("manifest.json".to_string()),
                 generated_at: Timestamp::Logical(8),
                 include_verification: true,
@@ -582,7 +585,7 @@ async fn exercise_mapping(
                 tenant_id: run_config.tenant_id.clone(),
                 namespace_id: run_config.namespace_id.clone(),
                 run_id: run_id.clone(),
-                output_dir: context.runpack_dir.to_string_lossy().to_string(),
+                output_dir: Some(context.runpack_dir.to_string_lossy().to_string()),
                 manifest_name: Some("manifest.json".to_string()),
                 generated_at: Timestamp::Logical(8),
                 include_verification: false,

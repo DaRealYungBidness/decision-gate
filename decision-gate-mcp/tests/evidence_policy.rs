@@ -34,6 +34,8 @@ use decision_gate_core::HashAlgorithm;
 use decision_gate_core::ProviderId;
 use decision_gate_mcp::FederatedEvidenceProvider;
 use decision_gate_mcp::McpNoopAuditSink;
+use decision_gate_mcp::NoopTenantAuthorizer;
+use decision_gate_mcp::NoopUsageMeter;
 use decision_gate_mcp::ToolRouter;
 use decision_gate_mcp::auth::DefaultToolAuthz;
 use decision_gate_mcp::auth::NoopAuditSink;
@@ -136,6 +138,9 @@ fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
         schema_registry_limits,
         capabilities: std::sync::Arc::new(capabilities),
         authz,
+        tenant_authorizer: std::sync::Arc::new(NoopTenantAuthorizer),
+        usage_meter: std::sync::Arc::new(NoopUsageMeter),
+        runpack_storage: None,
         audit,
         trust_requirement,
         anchor_policy,

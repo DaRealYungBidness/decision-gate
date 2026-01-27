@@ -38,7 +38,7 @@ For integration framing and architecture context, see
 Run the deterministic fixture suite against the provider stub:
 
 ```bash
-cargo test -p system-tests --test providers -- --exact assetcore_interop_fixtures
+cargo test -p system-tests --features system-tests --test providers -- --exact assetcore_interop_fixtures
 ```
 
 The provider stub emits `assetcore.anchor_set` anchors derived from the fixture

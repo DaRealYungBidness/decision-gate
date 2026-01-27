@@ -85,7 +85,7 @@ fn time_now_spec(scenario_id: &str) -> ScenarioSpec {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: None,
+        default_tenant_id: Some(TenantId::new("tenant-1")),
     }
 }
 
@@ -124,7 +124,7 @@ fn time_now_in_set_spec(scenario_id: &str, expected: Value) -> ScenarioSpec {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: None,
+        default_tenant_id: Some(TenantId::new("tenant-1")),
     }
 }
 
@@ -163,7 +163,7 @@ fn env_contains_spec(scenario_id: &str) -> ScenarioSpec {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: None,
+        default_tenant_id: Some(TenantId::new("tenant-1")),
     }
 }
 
@@ -224,7 +224,7 @@ fn strict_provider_spec(scenario_id: &str) -> ScenarioSpec {
         ],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: None,
+        default_tenant_id: Some(TenantId::new("tenant-1")),
     }
 }
 

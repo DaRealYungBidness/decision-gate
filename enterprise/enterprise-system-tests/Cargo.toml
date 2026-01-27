@@ -1,0 +1,103 @@
+# Decision Gate Enterprise System Tests manifest
+# ============================================================================
+# Private system tests for enterprise features and managed cloud behavior.
+# ============================================================================
+
+[package]
+name = "enterprise-system-tests"
+version = { workspace = true }
+edition = "2024"
+rust-version = "1.92"
+publish = false
+autotests = false
+
+[dependencies]
+aws-config = "1.1"
+aws-sdk-s3 = "1.60"
+decision-gate-contract = { path = "../../decision-gate-contract" }
+decision-gate-core = { path = "../../decision-gate-core" }
+decision-gate-enterprise = { path = "../decision-gate-enterprise" }
+decision-gate-mcp = { path = "../../decision-gate-mcp" }
+decision-gate-store-enterprise = { path = "../decision-gate-store-enterprise", features = ["s3"] }
+once_cell = "1.19"
+postgres = "0.19"
+ret-logic = { path = "../../ret-logic" }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_jcs = "0.1"
+serde_json = "1.0"
+tar = "0.4"
+tempfile = "3.10"
+testcontainers = "0.15"
+tokio = { version = "1.43", features = ["io-util", "macros", "rt-multi-thread", "sync", "time"] }
+toml = "0.8"
+
+[dev-dependencies]
+
+[lints]
+workspace = true
+
+[features]
+enterprise-system-tests = []
+
+[[test]]
+name = "audit"
+path = "tests/audit.rs"
+required-features = ["enterprise-system-tests"]
+
+[[test]]
+name = "backup_restore"
+path = "tests/backup_restore.rs"
+required-features = ["enterprise-system-tests"]
+
+[[test]]
+name = "config_limits"
+path = "tests/config_limits.rs"
+required-features = ["enterprise-system-tests"]
+
+[[test]]
+name = "config_wiring"
+path = "tests/config_wiring.rs"
+required-features = ["enterprise-system-tests"]
+
+[[test]]
+name = "postgres_store"
+path = "tests/postgres_store.rs"
+required-features = ["enterprise-system-tests"]
+
+[[test]]
+name = "runpack_hardening"
+path = "tests/runpack_hardening.rs"
+required-features = ["enterprise-system-tests"]
+
+[[test]]
+name = "s3_runpack_store"
+path = "tests/s3_runpack_store.rs"
+required-features = ["enterprise-system-tests"]
+
+[[test]]
+name = "tenant_authz"
+path = "tests/tenant_authz.rs"
+required-features = ["enterprise-system-tests"]
+
+[[test]]
+name = "tenant_isolation"
+path = "tests/tenant_isolation.rs"
+required-features = ["enterprise-system-tests"]
+
+[[test]]
+name = "transport_parity"
+path = "tests/transport_parity.rs"
+required-features = ["enterprise-system-tests"]
+
+[[test]]
+name = "transport_tls"
+path = "tests/transport_tls.rs"
+required-features = ["enterprise-system-tests"]
+
+[[test]]
+name = "usage"
+path = "tests/usage.rs"
+required-features = ["enterprise-system-tests"]

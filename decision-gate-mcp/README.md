@@ -19,6 +19,10 @@ queries, schema registry access, and precheck.
 This crate is a thin transport and policy layer over the control plane in
 `decision-gate-core`. It must never implement divergent behavior.
 
+Decision Gate does not require external MCP providers to be useful. Built-in
+providers (time, env, json, http) are available out of the box, and the `json`
+provider enables gating any tool that can emit JSON artifacts.
+
 ## AssetCore Integration
 DG integrates with AssetCore for deterministic evidence and replay without
 coupling the codebases. See `Docs/integrations/assetcore/` for the canonical
@@ -32,6 +36,16 @@ for the contract.
 - Precheck: schema-validated, read-only evaluation of asserted data.
 - Security controls: bearer or mTLS auth, tool allowlist, rate limits,
   inflight limits, audit logging.
+
+## Evidence Sourcing Modes
+Evidence can come from:
+- **Built-in providers** (time, env, json, http).
+- **External MCP providers** (stdio or HTTP, configured in `decision-gate.toml`).
+- **Asserted evidence** via `precheck` (schema-validated, read-only).
+
+Decision Gate does not execute arbitrary tasks; it evaluates evidence produced
+by providers or supplied to precheck. For local workflows, run tools outside DG
+and point the `json` provider at the resulting artifacts.
 
 ## Current Limits and Gaps
 - No explicit dev-permissive toggle; trust is controlled by `trust.min_lane`.

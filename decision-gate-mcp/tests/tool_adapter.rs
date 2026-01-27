@@ -56,6 +56,8 @@ use decision_gate_mcp::DefaultToolAuthz;
 use decision_gate_mcp::FederatedEvidenceProvider;
 use decision_gate_mcp::McpNoopAuditSink;
 use decision_gate_mcp::NoopAuditSink;
+use decision_gate_mcp::NoopTenantAuthorizer;
+use decision_gate_mcp::NoopUsageMeter;
 use decision_gate_mcp::RequestContext;
 use decision_gate_mcp::SchemaRegistryConfig;
 use decision_gate_mcp::ToolRouter;
@@ -231,6 +233,9 @@ fn build_router(config: &DecisionGateConfig) -> ToolRouter {
         schema_registry_limits,
         capabilities: Arc::new(capabilities),
         authz,
+        tenant_authorizer: Arc::new(NoopTenantAuthorizer),
+        usage_meter: Arc::new(NoopUsageMeter),
+        runpack_storage: None,
         audit,
         trust_requirement: config.effective_trust_requirement(),
         anchor_policy: config.anchors.to_policy(),

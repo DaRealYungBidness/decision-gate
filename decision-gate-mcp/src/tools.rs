@@ -18,6 +18,7 @@
 
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -90,6 +91,10 @@ use crate::audit::PrecheckAuditEvent;
 use crate::audit::PrecheckAuditEventParams;
 use crate::audit::RegistryAuditEvent;
 use crate::audit::RegistryAuditEventParams;
+use crate::audit::TenantAuthzEvent;
+use crate::audit::TenantAuthzEventParams;
+use crate::audit::UsageAuditEvent;
+use crate::audit::UsageAuditEventParams;
 use crate::auth::AuthAction;
 use crate::auth::AuthAuditEvent;
 use crate::auth::AuthAuditSink;
@@ -111,6 +116,17 @@ use crate::registry_acl::RegistryAcl;
 use crate::registry_acl::RegistryAclDecision;
 use crate::runpack::FileArtifactReader;
 use crate::runpack::FileArtifactSink;
+use crate::runpack_storage::RunpackStorage;
+use crate::runpack_storage::RunpackStorageKey;
+use crate::tenant_authz::TenantAccessRequest;
+use crate::tenant_authz::TenantAuthorizer;
+use crate::tenant_authz::TenantAuthzAction;
+use crate::tenant_authz::TenantAuthzDecision;
+use crate::usage::UsageCheckRequest;
+use crate::usage::UsageDecision;
+use crate::usage::UsageMeter;
+use crate::usage::UsageMetric;
+use crate::usage::UsageRecord;
 use crate::validation::StrictValidator;
 
 /// Default page size for list-style tools.
@@ -157,6 +173,12 @@ pub struct ToolRouter {
     capabilities: Arc<CapabilityRegistry>,
     /// Authn/authz policy for tool calls.
     authz: Arc<dyn ToolAuthz>,
+    /// Tenant authorization policy for tool calls.
+    tenant_authorizer: Arc<dyn TenantAuthorizer>,
+    /// Usage metering and quota enforcement.
+    usage_meter: Arc<dyn UsageMeter>,
+    /// Optional runpack storage backend for managed deployments.
+    runpack_storage: Option<Arc<dyn RunpackStorage>>,
     /// Audit sink for auth decisions.
     audit: Arc<dyn AuthAuditSink>,
     /// Audit sink for precheck events.
@@ -197,6 +219,12 @@ pub struct ToolRouterConfig {
     pub validation: ValidationConfig,
     /// Authn/authz policy for tool calls.
     pub authz: Arc<dyn ToolAuthz>,
+    /// Tenant authorization policy for tool calls.
+    pub tenant_authorizer: Arc<dyn TenantAuthorizer>,
+    /// Usage metering and quota enforcement.
+    pub usage_meter: Arc<dyn UsageMeter>,
+    /// Optional runpack storage backend for managed deployments.
+    pub runpack_storage: Option<Arc<dyn RunpackStorage>>,
     /// Audit sink for auth decisions.
     pub audit: Arc<dyn AuthAuditSink>,
     /// Minimum trust requirement for evidence evaluation.
@@ -239,6 +267,9 @@ impl ToolRouter {
             schema_registry_limits: config.schema_registry_limits,
             capabilities: config.capabilities,
             authz: config.authz,
+            tenant_authorizer: config.tenant_authorizer,
+            usage_meter: config.usage_meter,
+            runpack_storage: config.runpack_storage,
             audit: config.audit,
             trust_requirement: config.trust_requirement,
             anchor_policy: config.anchor_policy,
@@ -278,82 +309,547 @@ impl ToolRouter {
         let tool = ToolName::parse(name).ok_or(ToolError::UnknownTool)?;
         let auth_ctx = self.authorize(context, AuthAction::CallTool(&tool))?;
         match tool {
-            ToolName::ScenarioDefine => {
-                let request = decode::<ScenarioDefineRequest>(payload)?;
-                let response = self.define_scenario(context, request)?;
-                serde_json::to_value(response).map_err(|_| ToolError::Serialization)
-            }
-            ToolName::ScenarioStart => {
-                let request = decode::<ScenarioStartRequest>(payload)?;
-                let response = self.start_run(context, request)?;
-                serde_json::to_value(response).map_err(|_| ToolError::Serialization)
-            }
-            ToolName::ScenarioStatus => {
-                let request = decode::<ScenarioStatusRequest>(payload)?;
-                let response = self.status(context, &request)?;
-                serde_json::to_value(response).map_err(|_| ToolError::Serialization)
-            }
-            ToolName::ScenarioNext => {
-                let request = decode::<ScenarioNextRequest>(payload)?;
-                let response = self.next(context, &request)?;
-                serde_json::to_value(response).map_err(|_| ToolError::Serialization)
-            }
-            ToolName::ScenarioSubmit => {
-                let request = decode::<ScenarioSubmitRequest>(payload)?;
-                let response = self.submit(context, &request)?;
-                serde_json::to_value(response).map_err(|_| ToolError::Serialization)
-            }
-            ToolName::ScenarioTrigger => {
-                let request = decode::<ScenarioTriggerRequest>(payload)?;
-                let response = self.trigger(context, &request)?;
-                serde_json::to_value(response).map_err(|_| ToolError::Serialization)
-            }
-            ToolName::EvidenceQuery => {
-                let request = decode::<EvidenceQueryRequest>(payload)?;
-                let response = self.query_evidence(context, &request)?;
-                serde_json::to_value(response).map_err(|_| ToolError::Serialization)
-            }
-            ToolName::RunpackExport => {
-                let request = decode::<RunpackExportRequest>(payload)?;
-                let response = self.export_runpack(context, &request)?;
-                serde_json::to_value(response).map_err(|_| ToolError::Serialization)
-            }
-            ToolName::RunpackVerify => {
-                let request = decode::<RunpackVerifyRequest>(payload)?;
-                let response = Self::verify_runpack(&request)?;
-                serde_json::to_value(response).map_err(|_| ToolError::Serialization)
-            }
-            ToolName::ProvidersList => {
-                let request = decode::<ProvidersListRequest>(payload)?;
-                let response = self.providers_list(&request);
-                serde_json::to_value(response).map_err(|_| ToolError::Serialization)
-            }
-            ToolName::SchemasRegister => {
-                let request = decode::<SchemasRegisterRequest>(payload)?;
-                let response = self.schemas_register(context, &auth_ctx, &request)?;
-                serde_json::to_value(response).map_err(|_| ToolError::Serialization)
-            }
-            ToolName::SchemasList => {
-                let request = decode::<SchemasListRequest>(payload)?;
-                let response = self.schemas_list(context, &auth_ctx, &request)?;
-                serde_json::to_value(response).map_err(|_| ToolError::Serialization)
-            }
-            ToolName::SchemasGet => {
-                let request = decode::<SchemasGetRequest>(payload)?;
-                let response = self.schemas_get(context, &auth_ctx, &request)?;
-                serde_json::to_value(response).map_err(|_| ToolError::Serialization)
-            }
-            ToolName::ScenariosList => {
-                let request = decode::<ScenariosListRequest>(payload)?;
-                let response = self.scenarios_list(context, &request)?;
-                serde_json::to_value(response).map_err(|_| ToolError::Serialization)
-            }
-            ToolName::Precheck => {
-                let request = decode::<PrecheckToolRequest>(payload)?;
-                let response = self.precheck(context, &request)?;
-                serde_json::to_value(response).map_err(|_| ToolError::Serialization)
-            }
+            ToolName::ScenarioDefine => self.handle_scenario_define(context, &auth_ctx, payload),
+            ToolName::ScenarioStart => self.handle_scenario_start(context, &auth_ctx, payload),
+            ToolName::ScenarioStatus => self.handle_scenario_status(context, &auth_ctx, payload),
+            ToolName::ScenarioNext => self.handle_scenario_next(context, &auth_ctx, payload),
+            ToolName::ScenarioSubmit => self.handle_scenario_submit(context, &auth_ctx, payload),
+            ToolName::ScenarioTrigger => self.handle_scenario_trigger(context, &auth_ctx, payload),
+            ToolName::EvidenceQuery => self.handle_evidence_query(context, &auth_ctx, payload),
+            ToolName::RunpackExport => self.handle_runpack_export(context, &auth_ctx, payload),
+            ToolName::RunpackVerify => Self::handle_runpack_verify(payload),
+            ToolName::ProvidersList => self.handle_providers_list(payload),
+            ToolName::SchemasRegister => self.handle_schemas_register(context, &auth_ctx, payload),
+            ToolName::SchemasList => self.handle_schemas_list(context, &auth_ctx, payload),
+            ToolName::SchemasGet => self.handle_schemas_get(context, &auth_ctx, payload),
+            ToolName::ScenariosList => self.handle_scenarios_list(context, &auth_ctx, payload),
+            ToolName::Precheck => self.handle_precheck(context, &auth_ctx, payload),
         }
+    }
+
+    /// Handles scenario definition tool requests.
+    fn handle_scenario_define(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        payload: Value,
+    ) -> Result<Value, ToolError> {
+        let tool = ToolName::ScenarioDefine;
+        let request = decode::<ScenarioDefineRequest>(payload)?;
+        let tenant_id = request.spec.default_tenant_id.clone();
+        let namespace_id = request.spec.namespace_id.clone();
+        self.ensure_tool_call_allowed(
+            context,
+            auth_ctx,
+            tool,
+            tenant_id.as_ref(),
+            Some(&namespace_id),
+        )?;
+        let response = self.define_scenario(context, request)?;
+        self.record_tool_call_usage(
+            context,
+            auth_ctx,
+            tool,
+            tenant_id.as_ref(),
+            Some(&namespace_id),
+        );
+        serde_json::to_value(response).map_err(|_| ToolError::Serialization)
+    }
+
+    /// Handles scenario start tool requests.
+    fn handle_scenario_start(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        payload: Value,
+    ) -> Result<Value, ToolError> {
+        let tool = ToolName::ScenarioStart;
+        let request = decode::<ScenarioStartRequest>(payload)?;
+        let tenant_id = request.run_config.tenant_id.clone();
+        let namespace_id = request.run_config.namespace_id.clone();
+        self.ensure_tool_call_allowed(
+            context,
+            auth_ctx,
+            tool,
+            Some(&tenant_id),
+            Some(&namespace_id),
+        )?;
+        self.ensure_usage_allowed(
+            context,
+            auth_ctx,
+            tool,
+            Some(&tenant_id),
+            Some(&namespace_id),
+            UsageMetric::RunsStarted,
+            1,
+        )?;
+        let response = self.start_run(context, request)?;
+        self.record_tool_call_usage(context, auth_ctx, tool, Some(&tenant_id), Some(&namespace_id));
+        self.record_usage(
+            context,
+            auth_ctx,
+            tool,
+            Some(&tenant_id),
+            Some(&namespace_id),
+            UsageMetric::RunsStarted,
+            1,
+        );
+        serde_json::to_value(response).map_err(|_| ToolError::Serialization)
+    }
+
+    /// Handles scenario status tool requests.
+    fn handle_scenario_status(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        payload: Value,
+    ) -> Result<Value, ToolError> {
+        let tool = ToolName::ScenarioStatus;
+        let request = decode::<ScenarioStatusRequest>(payload)?;
+        self.ensure_tool_call_allowed(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.request.tenant_id),
+            Some(&request.request.namespace_id),
+        )?;
+        let response = self.status(context, &request)?;
+        self.record_tool_call_usage(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.request.tenant_id),
+            Some(&request.request.namespace_id),
+        );
+        serde_json::to_value(response).map_err(|_| ToolError::Serialization)
+    }
+
+    /// Handles scenario next tool requests.
+    fn handle_scenario_next(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        payload: Value,
+    ) -> Result<Value, ToolError> {
+        let tool = ToolName::ScenarioNext;
+        let request = decode::<ScenarioNextRequest>(payload)?;
+        self.ensure_tool_call_allowed(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.request.tenant_id),
+            Some(&request.request.namespace_id),
+        )?;
+        let response = self.next(context, &request)?;
+        self.record_tool_call_usage(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.request.tenant_id),
+            Some(&request.request.namespace_id),
+        );
+        serde_json::to_value(response).map_err(|_| ToolError::Serialization)
+    }
+
+    /// Handles scenario submit tool requests.
+    fn handle_scenario_submit(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        payload: Value,
+    ) -> Result<Value, ToolError> {
+        let tool = ToolName::ScenarioSubmit;
+        let request = decode::<ScenarioSubmitRequest>(payload)?;
+        self.ensure_tool_call_allowed(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.request.tenant_id),
+            Some(&request.request.namespace_id),
+        )?;
+        let response = self.submit(context, &request)?;
+        self.record_tool_call_usage(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.request.tenant_id),
+            Some(&request.request.namespace_id),
+        );
+        serde_json::to_value(response).map_err(|_| ToolError::Serialization)
+    }
+
+    /// Handles scenario trigger tool requests.
+    fn handle_scenario_trigger(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        payload: Value,
+    ) -> Result<Value, ToolError> {
+        let tool = ToolName::ScenarioTrigger;
+        let request = decode::<ScenarioTriggerRequest>(payload)?;
+        self.ensure_tool_call_allowed(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.trigger.tenant_id),
+            Some(&request.trigger.namespace_id),
+        )?;
+        let response = self.trigger(context, &request)?;
+        self.record_tool_call_usage(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.trigger.tenant_id),
+            Some(&request.trigger.namespace_id),
+        );
+        serde_json::to_value(response).map_err(|_| ToolError::Serialization)
+    }
+
+    /// Handles evidence query tool requests.
+    fn handle_evidence_query(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        payload: Value,
+    ) -> Result<Value, ToolError> {
+        let tool = ToolName::EvidenceQuery;
+        let request = decode::<EvidenceQueryRequest>(payload)?;
+        self.ensure_tool_call_allowed(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.context.tenant_id),
+            Some(&request.context.namespace_id),
+        )?;
+        self.ensure_usage_allowed(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.context.tenant_id),
+            Some(&request.context.namespace_id),
+            UsageMetric::EvidenceQueries,
+            1,
+        )?;
+        let response = self.query_evidence(context, &request)?;
+        self.record_tool_call_usage(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.context.tenant_id),
+            Some(&request.context.namespace_id),
+        );
+        self.record_usage(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.context.tenant_id),
+            Some(&request.context.namespace_id),
+            UsageMetric::EvidenceQueries,
+            1,
+        );
+        serde_json::to_value(response).map_err(|_| ToolError::Serialization)
+    }
+
+    /// Handles runpack export tool requests.
+    fn handle_runpack_export(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        payload: Value,
+    ) -> Result<Value, ToolError> {
+        let tool = ToolName::RunpackExport;
+        let request = decode::<RunpackExportRequest>(payload)?;
+        self.ensure_tool_call_allowed(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.tenant_id),
+            Some(&request.namespace_id),
+        )?;
+        self.ensure_usage_allowed(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.tenant_id),
+            Some(&request.namespace_id),
+            UsageMetric::RunpackExports,
+            1,
+        )?;
+        let response = self.export_runpack(context, &request)?;
+        self.record_tool_call_usage(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.tenant_id),
+            Some(&request.namespace_id),
+        );
+        self.record_usage(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.tenant_id),
+            Some(&request.namespace_id),
+            UsageMetric::RunpackExports,
+            1,
+        );
+        serde_json::to_value(response).map_err(|_| ToolError::Serialization)
+    }
+
+    /// Handles runpack verification tool requests.
+    fn handle_runpack_verify(payload: Value) -> Result<Value, ToolError> {
+        let request = decode::<RunpackVerifyRequest>(payload)?;
+        let response = Self::verify_runpack(&request)?;
+        serde_json::to_value(response).map_err(|_| ToolError::Serialization)
+    }
+
+    /// Handles provider discovery tool requests.
+    fn handle_providers_list(&self, payload: Value) -> Result<Value, ToolError> {
+        let request = decode::<ProvidersListRequest>(payload)?;
+        let response = self.providers_list(&request);
+        serde_json::to_value(response).map_err(|_| ToolError::Serialization)
+    }
+
+    /// Handles schema registration tool requests.
+    fn handle_schemas_register(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        payload: Value,
+    ) -> Result<Value, ToolError> {
+        let tool = ToolName::SchemasRegister;
+        let request = decode::<SchemasRegisterRequest>(payload)?;
+        self.ensure_tenant_access(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.record.tenant_id),
+            Some(&request.record.namespace_id),
+        )?;
+        let schema_bytes = serde_json::to_vec(&request.record.schema)
+            .map_err(|err| ToolError::InvalidParams(err.to_string()))?;
+        self.ensure_usage_allowed(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.record.tenant_id),
+            Some(&request.record.namespace_id),
+            UsageMetric::ToolCall,
+            1,
+        )?;
+        self.ensure_usage_allowed(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.record.tenant_id),
+            Some(&request.record.namespace_id),
+            UsageMetric::SchemasWritten,
+            1,
+        )?;
+        self.ensure_usage_allowed(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.record.tenant_id),
+            Some(&request.record.namespace_id),
+            UsageMetric::RegistryEntries,
+            1,
+        )?;
+        self.ensure_usage_allowed(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.record.tenant_id),
+            Some(&request.record.namespace_id),
+            UsageMetric::StorageBytes,
+            u64::try_from(schema_bytes.len()).unwrap_or(u64::MAX),
+        )?;
+        let response = self.schemas_register(context, auth_ctx, &request)?;
+        self.record_usage(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.record.tenant_id),
+            Some(&request.record.namespace_id),
+            UsageMetric::ToolCall,
+            1,
+        );
+        self.record_usage(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.record.tenant_id),
+            Some(&request.record.namespace_id),
+            UsageMetric::SchemasWritten,
+            1,
+        );
+        self.record_usage(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.record.tenant_id),
+            Some(&request.record.namespace_id),
+            UsageMetric::RegistryEntries,
+            1,
+        );
+        self.record_usage(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.record.tenant_id),
+            Some(&request.record.namespace_id),
+            UsageMetric::StorageBytes,
+            u64::try_from(schema_bytes.len()).unwrap_or(u64::MAX),
+        );
+        serde_json::to_value(response).map_err(|_| ToolError::Serialization)
+    }
+
+    /// Handles schema list tool requests.
+    fn handle_schemas_list(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        payload: Value,
+    ) -> Result<Value, ToolError> {
+        let tool = ToolName::SchemasList;
+        let request = decode::<SchemasListRequest>(payload)?;
+        self.ensure_tool_call_allowed(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.tenant_id),
+            Some(&request.namespace_id),
+        )?;
+        let response = self.schemas_list(context, auth_ctx, &request)?;
+        self.record_tool_call_usage(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.tenant_id),
+            Some(&request.namespace_id),
+        );
+        serde_json::to_value(response).map_err(|_| ToolError::Serialization)
+    }
+
+    /// Handles schema get tool requests.
+    fn handle_schemas_get(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        payload: Value,
+    ) -> Result<Value, ToolError> {
+        let tool = ToolName::SchemasGet;
+        let request = decode::<SchemasGetRequest>(payload)?;
+        self.ensure_tool_call_allowed(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.tenant_id),
+            Some(&request.namespace_id),
+        )?;
+        let response = self.schemas_get(context, auth_ctx, &request)?;
+        self.record_tool_call_usage(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.tenant_id),
+            Some(&request.namespace_id),
+        );
+        serde_json::to_value(response).map_err(|_| ToolError::Serialization)
+    }
+
+    /// Handles scenario list tool requests.
+    fn handle_scenarios_list(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        payload: Value,
+    ) -> Result<Value, ToolError> {
+        let tool = ToolName::ScenariosList;
+        let request = decode::<ScenariosListRequest>(payload)?;
+        self.ensure_tool_call_allowed(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.tenant_id),
+            Some(&request.namespace_id),
+        )?;
+        let response = self.scenarios_list(context, &request)?;
+        self.record_tool_call_usage(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.tenant_id),
+            Some(&request.namespace_id),
+        );
+        serde_json::to_value(response).map_err(|_| ToolError::Serialization)
+    }
+
+    /// Handles precheck tool requests.
+    fn handle_precheck(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        payload: Value,
+    ) -> Result<Value, ToolError> {
+        let tool = ToolName::Precheck;
+        let request = decode::<PrecheckToolRequest>(payload)?;
+        self.ensure_tool_call_allowed(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.tenant_id),
+            Some(&request.namespace_id),
+        )?;
+        let response = self.precheck(context, &request)?;
+        self.record_tool_call_usage(
+            context,
+            auth_ctx,
+            tool,
+            Some(&request.tenant_id),
+            Some(&request.namespace_id),
+        );
+        serde_json::to_value(response).map_err(|_| ToolError::Serialization)
+    }
+
+    /// Enforces tenant access and tool call usage limits.
+    fn ensure_tool_call_allowed(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        tool: ToolName,
+        tenant_id: Option<&TenantId>,
+        namespace_id: Option<&NamespaceId>,
+    ) -> Result<(), ToolError> {
+        self.ensure_tenant_access(context, auth_ctx, tool, tenant_id, namespace_id)?;
+        self.ensure_usage_allowed(
+            context,
+            auth_ctx,
+            tool,
+            tenant_id,
+            namespace_id,
+            UsageMetric::ToolCall,
+            1,
+        )
+    }
+
+    /// Records tool call usage after successful actions.
+    fn record_tool_call_usage(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        tool: ToolName,
+        tenant_id: Option<&TenantId>,
+        namespace_id: Option<&NamespaceId>,
+    ) {
+        self.record_usage(
+            context,
+            auth_ctx,
+            tool,
+            tenant_id,
+            namespace_id,
+            UsageMetric::ToolCall,
+            1,
+        );
     }
 }
 
@@ -453,8 +949,9 @@ pub struct RunpackExportRequest {
     pub namespace_id: NamespaceId,
     /// Run identifier.
     pub run_id: RunId,
-    /// Output directory for runpack artifacts.
-    pub output_dir: String,
+    /// Output directory for runpack artifacts (filesystem storage only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_dir: Option<String>,
     /// Manifest file name.
     pub manifest_name: Option<String>,
     /// Timestamp recorded in the runpack manifest.
@@ -470,6 +967,9 @@ pub struct RunpackExportResponse {
     pub manifest: decision_gate_core::RunpackManifest,
     /// Optional verification report.
     pub report: Option<VerificationReport>,
+    /// Optional storage URI for managed runpack storage.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub storage_uri: Option<String>,
 }
 
 /// Runpack verification request.
@@ -894,8 +1394,30 @@ impl ToolRouter {
         self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)?;
         let runtime = self.runtime_for(&request.scenario_id)?;
         let manifest_name = request.manifest_name.as_deref().unwrap_or("manifest.json");
-        let output_dir = PathBuf::from(&request.output_dir);
-        let mut sink = FileArtifactSink::new(output_dir, manifest_name)
+        let temp_dir = if self.runpack_storage.is_some() {
+            Some(
+                tempfile::Builder::new()
+                    .prefix("decision-gate-runpack-")
+                    .tempdir()
+                    .map_err(|err| ToolError::Runpack(err.to_string()))?,
+            )
+        } else {
+            None
+        };
+        let output_dir = match (self.runpack_storage.as_ref(), request.output_dir.as_ref()) {
+            (Some(_), _) => temp_dir
+                .as_ref()
+                .ok_or_else(|| ToolError::Runpack("runpack temp dir unavailable".to_string()))?
+                .path()
+                .to_path_buf(),
+            (None, Some(path)) => PathBuf::from(path),
+            (None, None) => {
+                return Err(ToolError::Runpack(
+                    "output_dir is required when runpack storage is not configured".to_string(),
+                ));
+            }
+        };
+        let mut sink = FileArtifactSink::new(output_dir.clone(), manifest_name)
             .map_err(|err| ToolError::Runpack(err.to_string()))?;
         let state = runtime
             .store
@@ -907,7 +1429,7 @@ impl ToolRouter {
             builder = builder.with_security_context(context);
         }
         if request.include_verification {
-            let reader = FileArtifactReader::new(PathBuf::from(&request.output_dir))
+            let reader = FileArtifactReader::new(output_dir.clone())
                 .map_err(|err| ToolError::Runpack(err.to_string()))?;
             let (manifest, report) = builder
                 .build_with_verification(
@@ -918,18 +1440,43 @@ impl ToolRouter {
                     request.generated_at,
                 )
                 .map_err(|err| ToolError::Runpack(err.to_string()))?;
+            let storage_uri = self.store_runpack_if_needed(request, &output_dir)?;
             return Ok(RunpackExportResponse {
                 manifest,
                 report: Some(report),
+                storage_uri,
             });
         }
         let manifest = builder
             .build(&mut sink, &runtime.spec, &state, request.generated_at)
             .map_err(|err| ToolError::Runpack(err.to_string()))?;
+        let storage_uri = self.store_runpack_if_needed(request, &output_dir)?;
         Ok(RunpackExportResponse {
             manifest,
             report: None,
+            storage_uri,
         })
+    }
+
+    /// Stores the runpack in configured external storage if enabled.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ToolError`] when storage fails.
+    fn store_runpack_if_needed(
+        &self,
+        request: &RunpackExportRequest,
+        output_dir: &Path,
+    ) -> Result<Option<String>, ToolError> {
+        let Some(storage) = &self.runpack_storage else {
+            return Ok(None);
+        };
+        let key = RunpackStorageKey {
+            tenant_id: request.tenant_id.clone(),
+            namespace_id: request.namespace_id.clone(),
+            run_id: request.run_id.clone(),
+        };
+        storage.store_runpack(&key, output_dir).map_err(|err| ToolError::Runpack(err.to_string()))
     }
 
     /// Verifies a runpack manifest and artifacts.
@@ -1293,6 +1840,27 @@ impl ToolRouter {
             .map_err(map_namespace_error)
     }
 
+    /// Enforces tenant authorization for a tool call.
+    fn ensure_tenant_access(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        tool: ToolName,
+        tenant_id: Option<&TenantId>,
+        namespace_id: Option<&NamespaceId>,
+    ) -> Result<(), ToolError> {
+        let decision = self.tenant_authorizer.authorize(
+            auth_ctx,
+            TenantAccessRequest {
+                action: TenantAuthzAction::ToolCall(&tool),
+                tenant_id,
+                namespace_id,
+            },
+        );
+        self.record_tenant_authz(context, auth_ctx, tool, tenant_id, namespace_id, &decision);
+        if decision.allowed { Ok(()) } else { Err(ToolError::Unauthorized(decision.reason)) }
+    }
+
     /// Enforces registry ACL decisions and emits registry audit events.
     fn ensure_registry_access(
         &self,
@@ -1319,6 +1887,116 @@ impl ToolRouter {
         } else {
             Err(ToolError::Unauthorized("schema registry access denied".to_string()))
         }
+    }
+
+    /// Records a tenant authorization audit event.
+    fn record_tenant_authz(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        tool: ToolName,
+        tenant_id: Option<&TenantId>,
+        namespace_id: Option<&NamespaceId>,
+        decision: &TenantAuthzDecision,
+    ) {
+        let event = TenantAuthzEvent::new(TenantAuthzEventParams {
+            request_id: context.request_id.clone(),
+            tool: Some(tool),
+            allowed: decision.allowed,
+            reason: decision.reason.clone(),
+            principal_id: auth_ctx.principal_id(),
+            tenant_id: tenant_id.map(ToString::to_string),
+            namespace_id: namespace_id.map(ToString::to_string),
+        });
+        self.precheck_audit.record_tenant_authz(&event);
+    }
+
+    /// Enforces usage quotas for a tool call.
+    #[allow(clippy::too_many_arguments, reason = "Usage checks require full request context.")]
+    fn ensure_usage_allowed(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        tool: ToolName,
+        tenant_id: Option<&TenantId>,
+        namespace_id: Option<&NamespaceId>,
+        metric: UsageMetric,
+        units: u64,
+    ) -> Result<(), ToolError> {
+        let decision = self.usage_meter.check(
+            auth_ctx,
+            UsageCheckRequest {
+                tool: &tool,
+                tenant_id,
+                namespace_id,
+                request_id: context.request_id.as_deref(),
+                metric,
+                units,
+            },
+        );
+        self.record_usage_audit(
+            context,
+            auth_ctx,
+            tool,
+            tenant_id,
+            namespace_id,
+            metric,
+            units,
+            &decision,
+        );
+        if decision.allowed { Ok(()) } else { Err(ToolError::Unauthorized(decision.reason)) }
+    }
+
+    /// Records usage after a successful action.
+    #[allow(clippy::too_many_arguments, reason = "Usage records mirror check context.")]
+    fn record_usage(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        tool: ToolName,
+        tenant_id: Option<&TenantId>,
+        namespace_id: Option<&NamespaceId>,
+        metric: UsageMetric,
+        units: u64,
+    ) {
+        self.usage_meter.record(
+            auth_ctx,
+            UsageRecord {
+                tool: &tool,
+                tenant_id,
+                namespace_id,
+                request_id: context.request_id.as_deref(),
+                metric,
+                units,
+            },
+        );
+    }
+
+    /// Records a usage audit event.
+    #[allow(clippy::too_many_arguments, reason = "Audit records capture full usage context.")]
+    fn record_usage_audit(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        tool: ToolName,
+        tenant_id: Option<&TenantId>,
+        namespace_id: Option<&NamespaceId>,
+        metric: UsageMetric,
+        units: u64,
+        decision: &UsageDecision,
+    ) {
+        let event = UsageAuditEvent::new(UsageAuditEventParams {
+            request_id: context.request_id.clone(),
+            tool: Some(tool),
+            tenant_id: tenant_id.map(ToString::to_string),
+            namespace_id: namespace_id.map(ToString::to_string),
+            principal_id: auth_ctx.principal_id(),
+            metric: usage_metric_label(metric).to_string(),
+            units,
+            allowed: decision.allowed,
+            reason: decision.reason.clone(),
+        });
+        self.precheck_audit.record_usage(&event);
     }
 
     /// Validates schema signing metadata when required by registry ACL.
@@ -1502,6 +2180,19 @@ fn map_namespace_error(error: NamespaceAuthorityError) -> ToolError {
         NamespaceAuthorityError::InvalidNamespace(message) => ToolError::InvalidParams(message),
         NamespaceAuthorityError::Denied(message)
         | NamespaceAuthorityError::Unavailable(message) => ToolError::Unauthorized(message),
+    }
+}
+
+/// Returns the canonical label for a usage metric.
+const fn usage_metric_label(metric: UsageMetric) -> &'static str {
+    match metric {
+        UsageMetric::ToolCall => "tool_calls",
+        UsageMetric::RunsStarted => "runs_started",
+        UsageMetric::EvidenceQueries => "evidence_queries",
+        UsageMetric::RunpackExports => "runpack_exports",
+        UsageMetric::SchemasWritten => "schemas_written",
+        UsageMetric::RegistryEntries => "registry_entries",
+        UsageMetric::StorageBytes => "storage_bytes",
     }
 }
 

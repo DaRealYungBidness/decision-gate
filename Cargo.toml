@@ -14,6 +14,9 @@ members = [
     "decision-gate-mcp",
     "decision-gate-cli",
     "ret-logic",
+    "enterprise/decision-gate-enterprise",
+    "enterprise/decision-gate-store-enterprise",
+    "enterprise/enterprise-system-tests",
     "examples/minimal",
     "examples/file-disclosure",
     "examples/llm-scenario",
@@ -21,6 +24,24 @@ members = [
     "examples/ci-gate",
     "examples/data-disclosure",
     "system-tests",
+]
+default-members = [
+    "decision-gate-core",
+    "decision-gate-broker",
+    "decision-gate-contract",
+    "decision-gate-providers",
+    "decision-gate-store-sqlite",
+    "decision-gate-mcp",
+    "decision-gate-cli",
+    "ret-logic",
+    "enterprise/decision-gate-enterprise",
+    "enterprise/decision-gate-store-enterprise",
+    "examples/minimal",
+    "examples/file-disclosure",
+    "examples/llm-scenario",
+    "examples/agent-loop",
+    "examples/ci-gate",
+    "examples/data-disclosure",
 ]
 resolver = "3"
 

@@ -37,11 +37,14 @@ System-tests must mirror production behavior end-to-end.
 
 ## Quick Start
 ```bash
-# Run the full system-tests suite
-cargo test -p system-tests
+# Run the full system-tests suite (opt-in feature)
+cargo test -p system-tests --features system-tests
+
+# Run with nextest (recommended for CI)
+cargo nextest run -p system-tests --features system-tests
 
 # Run a single test
-cargo test -p system-tests --test smoke -- --exact smoke_define_start_next_status
+cargo test -p system-tests --features system-tests --test smoke -- --exact smoke_define_start_next_status
 ```
 
 ## Test Runner (Registry Driven)

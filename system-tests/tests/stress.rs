@@ -246,7 +246,8 @@ async fn stress_precheck_request_storm() -> Result<(), Box<dyn std::error::Error
     let client = server.client(std::time::Duration::from_secs(10))?;
     wait_for_server_ready(&client, std::time::Duration::from_secs(10)).await?;
 
-    let fixture = ScenarioFixture::time_after("stress-precheck", "run-0", 0);
+    let mut fixture = ScenarioFixture::time_after("stress-precheck", "run-0", 0);
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };

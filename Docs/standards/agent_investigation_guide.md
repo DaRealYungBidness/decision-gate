@@ -87,7 +87,9 @@ Before or during edits:
 - Assume that **all changes must pass**:
   - `cargo +nightly fmt --all`
   - `cargo clippy --all-targets --all-features -- -D warnings`
-  - `cargo nextest run --all` (or relevant subset)
+  - `cargo nextest run` (unit/integration default tier)
+  - `cargo nextest run -p system-tests --features system-tests` (OSS system-tests)
+  - `cargo nextest run -p enterprise-system-tests --features enterprise-system-tests` (enterprise system-tests)
 
 You do not need to script these commands, but you must avoid introducing anything that would obviously violate them.
 

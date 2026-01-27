@@ -161,7 +161,8 @@ async fn schema_conformance_all_tools() -> Result<(), Box<dyn Error>> {
     let resolver = build_resolver()?;
     let tool_schemas = compile_tool_schemas(&resolver)?;
 
-    let fixture = ScenarioFixture::time_after("contract-scenario", "run-1", 0);
+    let mut fixture = ScenarioFixture::time_after("contract-scenario", "run-1", 0);
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -293,7 +294,7 @@ async fn schema_conformance_all_tools() -> Result<(), Box<dyn Error>> {
         tenant_id: run_config.tenant_id.clone(),
         namespace_id: run_config.namespace_id.clone(),
         run_id: run_config.run_id.clone(),
-        output_dir: output_dir.clone(),
+        output_dir: Some(output_dir.clone()),
         manifest_name: Some(manifest_name.clone()),
         generated_at: Timestamp::Logical(7),
         include_verification: true,

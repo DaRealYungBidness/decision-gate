@@ -124,7 +124,7 @@ fn precheck_spec() -> ScenarioSpec {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: None,
+        default_tenant_id: Some(TenantId::new("tenant-1")),
     }
 }
 

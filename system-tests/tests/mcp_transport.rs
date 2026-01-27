@@ -41,7 +41,8 @@ async fn http_transport_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
         return Err("tools/list missing scenario_define".into());
     }
 
-    let fixture = ScenarioFixture::time_after("transport-scenario", "run-1", 0);
+    let mut fixture = ScenarioFixture::time_after("transport-scenario", "run-1", 0);
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec,
     };
@@ -98,7 +99,8 @@ type = "builtin"
     let client = StdioMcpClient::spawn(&binary, &config_path, &stderr_path)?;
     wait_for_stdio_ready(&client, Duration::from_secs(5)).await?;
 
-    let fixture = ScenarioFixture::time_after("stdio-scenario", "run-1", 0);
+    let mut fixture = ScenarioFixture::time_after("stdio-scenario", "run-1", 0);
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };

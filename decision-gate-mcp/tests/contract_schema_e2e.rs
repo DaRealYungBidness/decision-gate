@@ -308,7 +308,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
         tenant_id: run_config.tenant_id,
         namespace_id: run_config.namespace_id,
         run_id: run_config.run_id,
-        output_dir: output_dir.clone(),
+        output_dir: Some(output_dir.clone()),
         manifest_name: Some(manifest_name.clone()),
         generated_at: Timestamp::Logical(7),
         include_verification: true,

@@ -12,7 +12,7 @@ Dependencies:
   - decision-gate-mcp/src/server.rs
   - decision-gate-mcp/src/config.rs
 ============================================================================
-Last Updated: 2026-01-26 (UTC)
+Last Updated: 2026-01-27 (UTC)
 ============================================================================
 -->
 
@@ -29,10 +29,12 @@ Last Updated: 2026-01-26 (UTC)
 2. [Request Context and Identity](#request-context-and-identity)
 3. [Authentication Modes](#authentication-modes)
 4. [Tool Authorization (Allowlist)](#tool-authorization-allowlist)
-5. [Auth Audit Events](#auth-audit-events)
-6. [Disclosure Posture (JSON-RPC + HTTP)](#disclosure-posture-json-rpc--http)
-7. [Rate Limiting and Overload Responses](#rate-limiting-and-overload-responses)
-8. [File-by-File Cross Reference](#file-by-file-cross-reference)
+5. [Tenant Authorization (Pluggable)](#tenant-authorization-pluggable)
+6. [Usage Metering and Quotas (Pluggable)](#usage-metering-and-quotas-pluggable)
+7. [Auth Audit Events](#auth-audit-events)
+8. [Disclosure Posture (JSON-RPC + HTTP)](#disclosure-posture-json-rpc--http)
+9. [Rate Limiting and Overload Responses](#rate-limiting-and-overload-responses)
+10. [File-by-File Cross Reference](#file-by-file-cross-reference)
 
 ---
 
@@ -41,10 +43,12 @@ Last Updated: 2026-01-26 (UTC)
 Decision Gate MCP enforces strict, fail-closed authentication and authorization
 for tool calls. Authentication is transport-aware (stdio, HTTP, SSE) and
 configured via `server.auth`. Authorization is enforced per tool call via
-`DefaultToolAuthz`, with optional tool allowlists. Auth decisions emit structured
-audit events, and request failures are mapped to stable JSON-RPC error codes and
-HTTP status codes for deterministic disclosure and metrics labeling.
-[F:decision-gate-mcp/src/auth.rs L217-L296][F:decision-gate-mcp/src/tools.rs L1420-L1435][F:decision-gate-mcp/src/server.rs L1341-L1399]
+`DefaultToolAuthz`, with optional tool allowlists. A separate, pluggable tenant
+authorization layer can enforce tenant/namespace scoping before tool execution.
+Auth decisions emit structured audit events, and request failures are mapped to
+stable JSON-RPC error codes and HTTP status codes for deterministic disclosure
+and metrics labeling.
+[F:decision-gate-mcp/src/auth.rs L217-L296][F:decision-gate-mcp/src/tools.rs L1420-L1435][F:decision-gate-mcp/src/tools.rs L1286-L1370][F:decision-gate-mcp/src/server.rs L1341-L1399]
 
 ---
 
@@ -100,6 +104,33 @@ Tool authorization results are emitted by the tool router:
 - `AuthAuditEvent::allowed` on success
 - `AuthAuditEvent::denied` on failure
 [F:decision-gate-mcp/src/tools.rs L1420-L1435][F:decision-gate-mcp/src/auth.rs L302-L360]
+
+---
+
+## Tenant Authorization (Pluggable)
+
+Tenant/namespace authorization is enforced by a pluggable `TenantAuthorizer`
+hook. The default implementation allows all access, but enterprise deployments
+can supply an authorizer that binds principals to tenant and namespace scopes.
+Tenant authorization runs after tool allowlist checks and before tool execution.
+Tenant denials emit dedicated audit events (`tenant_authz`).
+
+Implementation references:
+- Tenant authz interface: `decision-gate-mcp/src/tenant_authz.rs`
+- Enforcement and audit emission: `decision-gate-mcp/src/tools.rs`
+
+---
+
+## Usage Metering and Quotas (Pluggable)
+
+Usage metering and quota checks are enforced by a pluggable `UsageMeter` hook.
+The default implementation is a no-op, but enterprise deployments can supply a
+meter that enforces quotas and records billing-grade usage. Usage checks run
+before tool execution; denials emit `usage_audit` events.
+
+Implementation references:
+- Usage metering interface: `decision-gate-mcp/src/usage.rs`
+- Enforcement and audit emission: `decision-gate-mcp/src/tools.rs`
 
 ---
 
@@ -167,5 +198,6 @@ marked retryable when appropriate.
 | Auth config surface | `decision-gate-mcp/src/config.rs` | Auth modes, token/subject allowlists, tool allowlist. |
 | Auth policy engine | `decision-gate-mcp/src/auth.rs` | DefaultToolAuthz, auth modes, audit events, token parsing. |
 | Tool auth integration | `decision-gate-mcp/src/tools.rs` | Per-call authorization + audit emission. |
+| Tenant authz interface | `decision-gate-mcp/src/tenant_authz.rs` | Pluggable tenant/namespace authorization seam. |
+| Usage metering interface | `decision-gate-mcp/src/usage.rs` | Pluggable usage metering + quota enforcement seam. |
 | JSON-RPC disclosure | `decision-gate-mcp/src/server.rs` | Error mapping and response codes. |
-

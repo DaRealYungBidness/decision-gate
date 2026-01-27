@@ -95,17 +95,22 @@ use crate::namespace_authority::NamespaceAuthorityError;
 use crate::namespace_authority::NoopNamespaceAuthority;
 use crate::registry_acl::PrincipalResolver;
 use crate::registry_acl::RegistryAcl;
+use crate::runpack_storage::RunpackStorage;
 use crate::telemetry::McpMethod;
 use crate::telemetry::McpMetricEvent;
 use crate::telemetry::McpMetrics;
 use crate::telemetry::McpOutcome;
 use crate::telemetry::NoopMetrics;
+use crate::tenant_authz::NoopTenantAuthorizer;
+use crate::tenant_authz::TenantAuthorizer;
 use crate::tools::ProviderTransport;
 use crate::tools::SchemaRegistryLimits;
 use crate::tools::ToolDefinition;
 use crate::tools::ToolError;
 use crate::tools::ToolRouter;
 use crate::tools::ToolRouterConfig;
+use crate::usage::NoopUsageMeter;
+use crate::usage::UsageMeter;
 
 // ============================================================================
 // SECTION: MCP Server
@@ -121,6 +126,21 @@ pub struct McpServer {
     metrics: Arc<dyn McpMetrics>,
     /// Audit sink for request logging.
     audit: Arc<dyn McpAuditSink>,
+}
+
+/// Optional overrides for enterprise deployments.
+#[derive(Default)]
+pub struct ServerOverrides {
+    /// Tenant authorization policy override.
+    pub tenant_authorizer: Option<Arc<dyn TenantAuthorizer>>,
+    /// Usage metering/quota enforcement override.
+    pub usage_meter: Option<Arc<dyn UsageMeter>>,
+    /// Runpack storage override.
+    pub runpack_storage: Option<Arc<dyn RunpackStorage>>,
+    /// Run state store override.
+    pub run_state_store: Option<SharedRunStateStore>,
+    /// Schema registry override.
+    pub schema_registry: Option<SharedDataShapeRegistry>,
 }
 
 impl McpServer {
@@ -152,17 +172,49 @@ impl McpServer {
     ///
     /// Returns [`McpServerError`] when initialization fails.
     pub fn from_config_with_observability(
+        config: DecisionGateConfig,
+        metrics: Arc<dyn McpMetrics>,
+        audit: Arc<dyn McpAuditSink>,
+    ) -> Result<Self, McpServerError> {
+        Self::from_config_with_observability_and_overrides(
+            config,
+            metrics,
+            audit,
+            ServerOverrides::default(),
+        )
+    }
+
+    /// Builds a new MCP server with custom metrics, audit sinks, and overrides.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpServerError`] when initialization fails.
+    pub fn from_config_with_observability_and_overrides(
         mut config: DecisionGateConfig,
         metrics: Arc<dyn McpMetrics>,
         audit: Arc<dyn McpAuditSink>,
+        overrides: ServerOverrides,
     ) -> Result<Self, McpServerError> {
         config.validate().map_err(|err| McpServerError::Config(err.to_string()))?;
         let evidence = FederatedEvidenceProvider::from_config(&config)
             .map_err(|err| McpServerError::Init(err.to_string()))?;
         let capabilities = CapabilityRegistry::from_config(&config)
             .map_err(|err| McpServerError::Init(err.to_string()))?;
-        let store = build_run_state_store(&config)?;
-        let schema_registry = build_schema_registry(&config)?;
+        let ServerOverrides {
+            tenant_authorizer,
+            usage_meter,
+            runpack_storage,
+            run_state_store,
+            schema_registry,
+        } = overrides;
+        let store = match run_state_store {
+            Some(store) => store,
+            None => build_run_state_store(&config)?,
+        };
+        let schema_registry = match schema_registry {
+            Some(registry) => registry,
+            None => build_schema_registry(&config)?,
+        };
         let provider_transports = build_provider_transports(&config);
         let schema_registry_limits = build_schema_registry_limits(&config)?;
         let default_namespace_tenants = config
@@ -183,6 +235,8 @@ impl McpServer {
             .map_err(|err| McpServerError::Config(err.to_string()))?;
         let provider_trust_overrides = build_provider_trust_overrides(&config);
         let runpack_security_context = Some(build_runpack_security_context(&config));
+        let tenant_authorizer = tenant_authorizer.unwrap_or_else(|| Arc::new(NoopTenantAuthorizer));
+        let usage_meter = usage_meter.unwrap_or_else(|| Arc::new(NoopUsageMeter));
         let router = ToolRouter::new(ToolRouterConfig {
             evidence,
             evidence_policy: config.evidence.clone(),
@@ -194,6 +248,9 @@ impl McpServer {
             schema_registry_limits,
             capabilities: Arc::new(capabilities),
             authz,
+            tenant_authorizer,
+            usage_meter,
+            runpack_storage,
             audit: auth_audit,
             trust_requirement: config.effective_trust_requirement(),
             anchor_policy: config.anchors.to_policy(),
@@ -216,6 +273,24 @@ impl McpServer {
             metrics,
             audit,
         })
+    }
+
+    /// Builds a new MCP server with overrides and default metrics/audit handling.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpServerError`] when initialization fails.
+    pub fn from_config_with_overrides(
+        config: DecisionGateConfig,
+        overrides: ServerOverrides,
+    ) -> Result<Self, McpServerError> {
+        let audit = build_audit_sink(&config.server.audit)?;
+        Self::from_config_with_observability_and_overrides(
+            config,
+            Arc::new(NoopMetrics),
+            audit,
+            overrides,
+        )
     }
 
     /// Serves requests using the configured transport.

@@ -47,7 +47,8 @@ async fn sqlite_run_state_persists_across_restart() -> Result<(), Box<dyn std::e
     let client = server.client(std::time::Duration::from_secs(5))?;
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
-    let fixture = ScenarioFixture::time_after("sqlite-scenario", "run-1", 0);
+    let mut fixture = ScenarioFixture::time_after("sqlite-scenario", "run-1", 0);
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };
@@ -146,7 +147,8 @@ async fn sqlite_requires_redefine_after_restart() -> Result<(), Box<dyn std::err
     let client = server.client(std::time::Duration::from_secs(5))?;
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
-    let fixture = ScenarioFixture::time_after("sqlite-scenario", "run-1", 0);
+    let mut fixture = ScenarioFixture::time_after("sqlite-scenario", "run-1", 0);
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };

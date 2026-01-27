@@ -184,7 +184,7 @@ async fn execute_fixture_run(
         tenant_id: run_config.tenant_id.clone(),
         namespace_id: run_config.namespace_id.clone(),
         run_id: run_config.run_id.clone(),
-        output_dir: runpack_dir.to_string_lossy().to_string(),
+        output_dir: Some(runpack_dir.to_string_lossy().to_string()),
         manifest_name: Some("manifest.json".to_string()),
         generated_at: Timestamp::Logical(10),
         include_verification: true,

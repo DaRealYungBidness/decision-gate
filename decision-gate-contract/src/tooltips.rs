@@ -864,9 +864,15 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     // =====================================================================
     (
         "output_dir",
-        "Directory where runpack_export writes the audit bundle. The exporter creates the \
-         manifest and artifact files here. Ensure write permissions and sufficient disk space. \
-         Existing files may be overwritten.",
+        "Directory where runpack_export writes the audit bundle for filesystem storage. Optional \
+         when managed runpack storage is configured. Ensure write permissions and sufficient disk \
+         space. Existing files may be overwritten.",
+    ),
+    (
+        "storage_uri",
+        "Optional storage location returned by managed runpack storage backends (for example, \
+         s3://bucket/tenant/namespace/run/runpack.tar). Present only when the server is \
+         configured to export runpacks to object storage.",
     ),
     (
         "runpack_dir",
