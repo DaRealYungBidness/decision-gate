@@ -25,7 +25,10 @@ use std::sync::Mutex;
 
 use decision_gate_contract::ToolName;
 pub use decision_gate_contract::tooling::ToolDefinition;
+use decision_gate_contract::types::DeterminismClass;
+use decision_gate_contract::types::PredicateExample;
 use decision_gate_core::ArtifactReader;
+use decision_gate_core::Comparator;
 use decision_gate_core::DataShapeId;
 use decision_gate_core::DataShapeRecord;
 use decision_gate_core::DataShapeRef;
@@ -64,6 +67,8 @@ use decision_gate_core::TriggerEvent;
 use decision_gate_core::TrustLane;
 use decision_gate_core::TrustRequirement;
 use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
+use decision_gate_core::hashing::HashError;
+use decision_gate_core::hashing::canonical_json_bytes_with_limit;
 use decision_gate_core::hashing::hash_canonical_json;
 use decision_gate_core::runtime::ControlPlane;
 use decision_gate_core::runtime::ControlPlaneConfig;
@@ -104,7 +109,9 @@ use crate::auth::RequestContext;
 use crate::auth::ToolAuthz;
 use crate::capabilities::CapabilityError;
 use crate::capabilities::CapabilityRegistry;
+use crate::capabilities::ProviderContractSource;
 use crate::config::EvidencePolicyConfig;
+use crate::config::ProviderDiscoveryConfig;
 use crate::config::RegistryAclAction;
 use crate::config::ValidationConfig;
 use crate::evidence::FederatedEvidenceProvider;
@@ -171,6 +178,8 @@ pub struct ToolRouter {
     runpack_security_context: Option<decision_gate_core::RunpackSecurityContext>,
     /// Capability registry used for preflight validation.
     capabilities: Arc<CapabilityRegistry>,
+    /// Provider discovery configuration.
+    provider_discovery: ProviderDiscoveryConfig,
     /// Authn/authz policy for tool calls.
     authz: Arc<dyn ToolAuthz>,
     /// Tenant authorization policy for tool calls.
@@ -215,6 +224,8 @@ pub struct ToolRouterConfig {
     pub schema_registry_limits: SchemaRegistryLimits,
     /// Capability registry used for preflight validation.
     pub capabilities: Arc<CapabilityRegistry>,
+    /// Provider discovery configuration.
+    pub provider_discovery: ProviderDiscoveryConfig,
     /// Validation configuration for strict comparator enforcement.
     pub validation: ValidationConfig,
     /// Authn/authz policy for tool calls.
@@ -266,6 +277,7 @@ impl ToolRouter {
             provider_transports: config.provider_transports,
             schema_registry_limits: config.schema_registry_limits,
             capabilities: config.capabilities,
+            provider_discovery: config.provider_discovery,
             authz: config.authz,
             tenant_authorizer: config.tenant_authorizer,
             usage_meter: config.usage_meter,
@@ -319,6 +331,12 @@ impl ToolRouter {
             ToolName::RunpackExport => self.handle_runpack_export(context, &auth_ctx, payload),
             ToolName::RunpackVerify => Self::handle_runpack_verify(payload),
             ToolName::ProvidersList => self.handle_providers_list(payload),
+            ToolName::ProviderContractGet => {
+                self.handle_provider_contract_get(context, &auth_ctx, payload)
+            }
+            ToolName::ProviderSchemaGet => {
+                self.handle_provider_schema_get(context, &auth_ctx, payload)
+            }
             ToolName::SchemasRegister => self.handle_schemas_register(context, &auth_ctx, payload),
             ToolName::SchemasList => self.handle_schemas_list(context, &auth_ctx, payload),
             ToolName::SchemasGet => self.handle_schemas_get(context, &auth_ctx, payload),
@@ -609,6 +627,64 @@ impl ToolRouter {
         serde_json::to_value(response).map_err(|_| ToolError::Serialization)
     }
 
+    /// Handles provider contract discovery requests.
+    fn handle_provider_contract_get(
+        &self,
+        _context: &RequestContext,
+        _auth_ctx: &AuthContext,
+        payload: Value,
+    ) -> Result<Value, ToolError> {
+        let request = decode::<ProviderContractGetRequest>(payload)?;
+        if request.provider_id.trim().is_empty() {
+            return Err(ToolError::InvalidParams("provider_id must be non-empty".to_string()));
+        }
+        self.ensure_provider_disclosure_allowed(&request.provider_id)?;
+        let view = self.capabilities.provider_contract_view(&request.provider_id)?;
+        let response = ProviderContractGetResponse {
+            provider_id: view.provider_id,
+            contract: view.contract,
+            contract_hash: view.contract_hash,
+            source: view.source,
+            version: view.version,
+        };
+        self.ensure_discovery_response_size(&response)?;
+        serde_json::to_value(response).map_err(|_| ToolError::Serialization)
+    }
+
+    /// Handles provider predicate schema discovery requests.
+    fn handle_provider_schema_get(
+        &self,
+        _context: &RequestContext,
+        _auth_ctx: &AuthContext,
+        payload: Value,
+    ) -> Result<Value, ToolError> {
+        let request = decode::<ProviderSchemaGetRequest>(payload)?;
+        if request.provider_id.trim().is_empty() {
+            return Err(ToolError::InvalidParams("provider_id must be non-empty".to_string()));
+        }
+        if request.predicate.trim().is_empty() {
+            return Err(ToolError::InvalidParams("predicate must be non-empty".to_string()));
+        }
+        self.ensure_provider_disclosure_allowed(&request.provider_id)?;
+        let view =
+            self.capabilities.predicate_schema_view(&request.provider_id, &request.predicate)?;
+        let response = ProviderSchemaGetResponse {
+            provider_id: view.provider_id,
+            predicate: view.predicate,
+            params_required: view.params_required,
+            params_schema: view.params_schema,
+            result_schema: view.result_schema,
+            allowed_comparators: view.allowed_comparators,
+            determinism: view.determinism,
+            anchor_types: view.anchor_types,
+            content_types: view.content_types,
+            examples: view.examples,
+            contract_hash: view.contract_hash,
+        };
+        self.ensure_discovery_response_size(&response)?;
+        serde_json::to_value(response).map_err(|_| ToolError::Serialization)
+    }
+
     /// Handles schema registration tool requests.
     fn handle_schemas_register(
         &self,
@@ -851,6 +927,30 @@ impl ToolRouter {
             1,
         );
     }
+
+    /// Ensures provider contract/schema disclosure is permitted.
+    fn ensure_provider_disclosure_allowed(&self, provider_id: &str) -> Result<(), ToolError> {
+        if self.provider_discovery.is_allowed(provider_id) {
+            return Ok(());
+        }
+        Err(ToolError::Unauthorized("provider contract disclosure denied".to_string()))
+    }
+
+    /// Ensures provider discovery responses stay within configured size limits.
+    fn ensure_discovery_response_size<T: Serialize>(&self, payload: &T) -> Result<(), ToolError> {
+        match canonical_json_bytes_with_limit(payload, self.provider_discovery.max_response_bytes) {
+            Ok(_) => Ok(()),
+            Err(HashError::SizeLimitExceeded {
+                limit,
+                actual,
+            }) => Err(ToolError::ResponseTooLarge(format!(
+                "provider discovery response exceeds size limit ({actual} > {limit})"
+            ))),
+            Err(HashError::Canonicalization(err)) => Err(ToolError::Internal(format!(
+                "failed to canonicalize discovery response: {err}"
+            ))),
+        }
+    }
 }
 
 // ============================================================================
@@ -1029,6 +1129,64 @@ pub struct ProvidersListRequest {}
 pub struct ProvidersListResponse {
     /// Provider summaries.
     pub providers: Vec<ProviderSummary>,
+}
+
+/// `provider_contract_get` request payload.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderContractGetRequest {
+    /// Provider identifier.
+    pub provider_id: String,
+}
+
+/// `provider_contract_get` response payload.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderContractGetResponse {
+    /// Provider identifier.
+    pub provider_id: String,
+    /// Provider contract payload.
+    pub contract: decision_gate_contract::types::ProviderContract,
+    /// Canonical contract hash.
+    pub contract_hash: decision_gate_core::hashing::HashDigest,
+    /// Contract source origin.
+    pub source: ProviderContractSource,
+    /// Optional contract version label.
+    pub version: Option<String>,
+}
+
+/// `provider_schema_get` request payload.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderSchemaGetRequest {
+    /// Provider identifier.
+    pub provider_id: String,
+    /// Predicate name.
+    pub predicate: String,
+}
+
+/// `provider_schema_get` response payload.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderSchemaGetResponse {
+    /// Provider identifier.
+    pub provider_id: String,
+    /// Predicate name.
+    pub predicate: String,
+    /// Whether params are required for this predicate.
+    pub params_required: bool,
+    /// JSON schema for predicate params.
+    pub params_schema: Value,
+    /// JSON schema for predicate result values.
+    pub result_schema: Value,
+    /// Comparator allow-list.
+    pub allowed_comparators: Vec<Comparator>,
+    /// Determinism classification.
+    pub determinism: DeterminismClass,
+    /// Anchor types emitted by this predicate.
+    pub anchor_types: Vec<String>,
+    /// Content types for predicate output.
+    pub content_types: Vec<String>,
+    /// Predicate examples.
+    pub examples: Vec<PredicateExample>,
+    /// Canonical contract hash.
+    pub contract_hash: decision_gate_core::hashing::HashDigest,
 }
 
 /// `schemas_register` request payload.
@@ -2218,6 +2376,9 @@ pub enum ToolError {
     /// Tool payload deserialization failed.
     #[error("invalid parameters: {0}")]
     InvalidParams(String),
+    /// Tool response exceeds size limits.
+    #[error("response too large: {0}")]
+    ResponseTooLarge(String),
     /// Capability registry validation error.
     #[error("capability violation: {code}: {message}")]
     CapabilityViolation {

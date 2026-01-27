@@ -111,6 +111,18 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          available providers and supported checks.",
     ),
     (
+        "provider_contract_get",
+        "Fetches the canonical provider contract JSON and its hash for a provider. Use this to \
+         discover predicate schemas, comparator allow-lists, and examples. Disclosure is \
+         controlled by authz and provider contract visibility policy.",
+    ),
+    (
+        "provider_schema_get",
+        "Fetches predicate-level schema details for a provider (params schema, result schema, \
+         comparator allow-lists, and examples). Use this for authoring forms or LLM guidance \
+         without loading the full provider contract.",
+    ),
+    (
         "schemas_register",
         "Registers a data shape schema for a tenant and namespace. Schemas are immutable; \
          re-registering the same version fails. Include created_at to capture when the schema was \

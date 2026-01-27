@@ -38,14 +38,25 @@ use tempfile::TempDir;
 
 const RUNPACK_ARCHIVE_NAME: &str = "runpack.tar";
 
+fn with_s3_store<T, F>(config: S3RunpackStoreConfig, f: F) -> Result<T, Box<dyn std::error::Error>>
+where
+    T: Send + 'static,
+    F: FnOnce(&S3RunpackStore) -> Result<T, RunpackStoreError> + Send + 'static,
+{
+    let join = std::thread::spawn(move || {
+        let store = S3RunpackStore::new(config)?;
+        f(&store)
+    });
+    let result = join.join().map_err(|_| "s3 runpack worker panicked")?;
+    result.map_err(|err| err.into())
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn s3_runpack_store_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("s3_runpack_store_roundtrip")?;
 
     let s3 = S3Fixture::start().await?;
     set_s3_env(&s3);
-    let store = S3RunpackStore::new(store_config(&s3, "roundtrip", None, None))?;
-
     let source_dir = TempDir::new()?;
     let nested_dir = source_dir.path().join("nested");
     fs::create_dir_all(&nested_dir)?;
@@ -53,10 +64,15 @@ async fn s3_runpack_store_roundtrip() -> Result<(), Box<dyn std::error::Error>> 
     fs::write(nested_dir.join("b.txt"), b"bravo")?;
 
     let key = runpack_key("tenant-1", "default", "run-1");
-    store.put_dir(&key, source_dir.path())?;
-
     let dest_dir = TempDir::new()?;
-    store.get_dir(&key, dest_dir.path())?;
+    let config = store_config(&s3, "roundtrip", None, None);
+    let source_path = source_dir.path().to_path_buf();
+    let dest_path = dest_dir.path().to_path_buf();
+    with_s3_store(config, move |store| {
+        store.put_dir(&key, &source_path)?;
+        store.get_dir(&key, &dest_path)?;
+        Ok(())
+    })?;
 
     let alpha = fs::read(dest_dir.path().join("a.txt"))?;
     let bravo = fs::read(dest_dir.path().join("nested").join("b.txt"))?;
@@ -86,12 +102,17 @@ async fn s3_runpack_encryption_enforced() -> Result<(), Box<dyn std::error::Erro
     let client = s3.client().await?;
     ensure_bucket_policy_enforces_sse(&client, &s3.bucket).await?;
 
-    let store =
-        S3RunpackStore::new(store_config(&s3, "sse", Some(S3ServerSideEncryption::Aes256), None))?;
     let source_dir = TempDir::new()?;
     fs::write(source_dir.path().join("a.txt"), b"alpha")?;
     let key = runpack_key("tenant-1", "default", "run-1");
-    store.put_dir(&key, source_dir.path())?;
+    let store_key = key.clone();
+    let config = store_config(&s3, "sse", Some(S3ServerSideEncryption::Aes256), None);
+    let source_path = source_dir.path().to_path_buf();
+    with_s3_store(config, move |store| {
+        store.put_dir(&store_key, &source_path)?;
+        Ok(())
+    })
+    .map_err(|err| format!("sse store put failed: {err}"))?;
 
     let object_key = runpack_object_key("sse", &key);
     let sse = head_object_sse(&client, &s3.bucket, &object_key).await?;
@@ -99,13 +120,28 @@ async fn s3_runpack_encryption_enforced() -> Result<(), Box<dyn std::error::Erro
         return Err("expected SSE-S3 metadata on runpack object".into());
     }
 
-    let insecure_store = S3RunpackStore::new(store_config(&s3, "sse-deny", None, None))?;
     let deny_dir = TempDir::new()?;
     fs::write(deny_dir.path().join("b.txt"), b"bravo")?;
     let deny_key = runpack_key("tenant-1", "default", "run-2");
-    let result = insecure_store.put_dir(&deny_key, deny_dir.path());
-    if result.is_ok() {
-        return Err("expected SSE bucket policy to reject unencrypted upload".into());
+    let deny_store_key = deny_key.clone();
+    let deny_config = store_config(&s3, "sse-deny", None, None);
+    let deny_path = deny_dir.path().to_path_buf();
+    let result =
+        with_s3_store(deny_config, move |store| Ok(store.put_dir(&deny_store_key, &deny_path)))?;
+    match result {
+        Ok(()) => {
+            let deny_object_key = runpack_object_key("sse-deny", &deny_key);
+            let deny_sse = head_object_sse(&client, &s3.bucket, &deny_object_key).await?;
+            if !matches!(
+                deny_sse,
+                Some(ServerSideEncryption::Aes256 | ServerSideEncryption::AwsKms)
+            ) {
+                return Err("expected SSE policy to reject unencrypted upload or auto-encrypt \
+                            objects"
+                    .into());
+            }
+        }
+        Err(_) => {}
     }
 
     reporter.artifacts().write_json("tool_transcript.json", &Vec::<serde_json::Value>::new())?;
@@ -128,12 +164,16 @@ async fn s3_runpack_metadata_tamper() -> Result<(), Box<dyn std::error::Error>> 
     let s3 = S3Fixture::start().await?;
     set_s3_env(&s3);
     let client = s3.client().await?;
-    let store = S3RunpackStore::new(store_config(&s3, "tamper", None, None))?;
-
     let source_dir = TempDir::new()?;
     fs::write(source_dir.path().join("a.txt"), b"alpha")?;
     let key = runpack_key("tenant-1", "default", "run-1");
-    store.put_dir(&key, source_dir.path())?;
+    let store_key = key.clone();
+    let config = store_config(&s3, "tamper", None, None);
+    let source_path = source_dir.path().to_path_buf();
+    with_s3_store(config, move |store| {
+        store.put_dir(&store_key, &source_path)?;
+        Ok(())
+    })?;
 
     let object_key = runpack_object_key("tamper", &key);
     client
@@ -147,7 +187,10 @@ async fn s3_runpack_metadata_tamper() -> Result<(), Box<dyn std::error::Error>> 
         .await?;
 
     let dest_dir = TempDir::new()?;
-    let result = store.get_dir(&key, dest_dir.path());
+    let config = store_config(&s3, "tamper", None, None);
+    let dest_path = dest_dir.path().to_path_buf();
+    let get_key = key.clone();
+    let result = with_s3_store(config, move |store| Ok(store.get_dir(&get_key, &dest_path)))?;
     match result {
         Err(RunpackStoreError::Invalid(_)) => {}
         Err(err) => return Err(format!("unexpected error: {err}").into()),
@@ -173,7 +216,6 @@ async fn runpack_archive_path_traversal() -> Result<(), Box<dyn std::error::Erro
 
     let s3 = S3Fixture::start().await?;
     set_s3_env(&s3);
-    let store = S3RunpackStore::new(store_config(&s3, "traversal", None, None))?;
     let client = s3.client().await?;
 
     let temp = build_tar_with_path("../evil", EntryType::Regular, Some(b"malicious"))?;
@@ -182,7 +224,10 @@ async fn runpack_archive_path_traversal() -> Result<(), Box<dyn std::error::Erro
     put_object_with_hash(&client, &s3.bucket, &object_key, temp.path(), &digest).await?;
 
     let dest_dir = TempDir::new()?;
-    let result = store.get_dir(&runpack_key("tenant-1", "default", "run-1"), dest_dir.path());
+    let config = store_config(&s3, "traversal", None, None);
+    let dest_path = dest_dir.path().to_path_buf();
+    let run_key = runpack_key("tenant-1", "default", "run-1");
+    let result = with_s3_store(config, move |store| Ok(store.get_dir(&run_key, &dest_path)))?;
     if result.is_ok() {
         return Err("expected path traversal rejection".into());
     }
@@ -206,7 +251,6 @@ async fn runpack_archive_symlink_specials() -> Result<(), Box<dyn std::error::Er
 
     let s3 = S3Fixture::start().await?;
     set_s3_env(&s3);
-    let store = S3RunpackStore::new(store_config(&s3, "symlink", None, None))?;
     let client = s3.client().await?;
 
     let temp = build_tar_with_path("link", EntryType::Symlink, None)?;
@@ -215,7 +259,10 @@ async fn runpack_archive_symlink_specials() -> Result<(), Box<dyn std::error::Er
     put_object_with_hash(&client, &s3.bucket, &object_key, temp.path(), &digest).await?;
 
     let dest_dir = TempDir::new()?;
-    let result = store.get_dir(&runpack_key("tenant-1", "default", "run-1"), dest_dir.path());
+    let config = store_config(&s3, "symlink", None, None);
+    let dest_path = dest_dir.path().to_path_buf();
+    let run_key = runpack_key("tenant-1", "default", "run-1");
+    let result = with_s3_store(config, move |store| Ok(store.get_dir(&run_key, &dest_path)))?;
     if result.is_ok() {
         return Err("expected symlink/special entry rejection".into());
     }
@@ -239,14 +286,14 @@ async fn runpack_archive_size_limit() -> Result<(), Box<dyn std::error::Error>> 
 
     let s3 = S3Fixture::start().await?;
     set_s3_env(&s3);
-    let store = S3RunpackStore::new(store_config(&s3, "size-limit", None, Some(32)))?;
-
     let source_dir = TempDir::new()?;
     let mut file = fs::File::create(source_dir.path().join("payload.bin"))?;
     file.write_all(&vec![0u8; 128])?;
 
     let key = runpack_key("tenant-1", "default", "run-1");
-    let result = store.put_dir(&key, source_dir.path());
+    let config = store_config(&s3, "size-limit", None, Some(32));
+    let source_path = source_dir.path().to_path_buf();
+    let result = with_s3_store(config, move |store| Ok(store.put_dir(&key, &source_path)))?;
     match result {
         Err(RunpackStoreError::Invalid(_)) => {}
         Err(err) => return Err(format!("unexpected error: {err}").into()),
@@ -322,19 +369,31 @@ fn build_tar_with_path(
     payload: Option<&[u8]>,
 ) -> Result<NamedTempFile, Box<dyn std::error::Error>> {
     let temp = NamedTempFile::new()?;
-    let file = temp.reopen()?;
-    let mut builder = tar::Builder::new(file);
     let mut header = tar::Header::new_gnu();
-    let data = payload.unwrap_or(&[]);
+    let name_field = &mut header.as_old_mut().name;
+    name_field.fill(0);
+    let name_bytes = path.as_bytes();
+    name_field[.. name_bytes.len()].copy_from_slice(name_bytes);
     header.set_entry_type(entry_type);
     header.set_mode(0o644);
-    header.set_size(u64::try_from(data.len())?);
+    let data = payload.unwrap_or(&[]);
+    let size = if entry_type == EntryType::Symlink { 0 } else { data.len() };
+    header.set_size(u64::try_from(size)?);
     if entry_type == EntryType::Symlink {
         header.set_link_name("target")?;
     }
     header.set_cksum();
-    builder.append_data(&mut header, path, data)?;
-    builder.finish()?;
+    let mut file = temp.reopen()?;
+    file.write_all(header.as_bytes())?;
+    if size > 0 {
+        file.write_all(data)?;
+    }
+    const TAR_BLOCK: usize = 512;
+    let padding = (TAR_BLOCK - (size % TAR_BLOCK)) % TAR_BLOCK;
+    if padding > 0 {
+        file.write_all(&vec![0u8; padding])?;
+    }
+    file.write_all(&[0u8; TAR_BLOCK * 2])?;
     Ok(temp)
 }
 

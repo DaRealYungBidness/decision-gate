@@ -71,6 +71,10 @@ use decision_gate_mcp::tools::EvidenceQueryRequest;
 use decision_gate_mcp::tools::EvidenceQueryResponse;
 use decision_gate_mcp::tools::PrecheckToolRequest;
 use decision_gate_mcp::tools::PrecheckToolResponse;
+use decision_gate_mcp::tools::ProviderContractGetRequest;
+use decision_gate_mcp::tools::ProviderContractGetResponse;
+use decision_gate_mcp::tools::ProviderSchemaGetRequest;
+use decision_gate_mcp::tools::ProviderSchemaGetResponse;
 use decision_gate_mcp::tools::ProvidersListRequest;
 use decision_gate_mcp::tools::ProvidersListResponse;
 use decision_gate_mcp::tools::RunpackExportRequest;
@@ -145,7 +149,7 @@ fn sample_shape_record(schema_id: &str, version: &str) -> DataShapeRecord {
 
 /// Verifies all expected tools are listed.
 #[test]
-fn list_tools_returns_all_fifteen_tools() {
+fn list_tools_returns_all_seventeen_tools() {
     let router = sample_router();
     let tools = router.list_tools(&local_request_context()).unwrap();
 
@@ -160,12 +164,14 @@ fn list_tools_returns_all_fifteen_tools() {
     assert!(names.contains(&"runpack_export"));
     assert!(names.contains(&"runpack_verify"));
     assert!(names.contains(&"providers_list"));
+    assert!(names.contains(&"provider_contract_get"));
+    assert!(names.contains(&"provider_schema_get"));
     assert!(names.contains(&"schemas_register"));
     assert!(names.contains(&"schemas_list"));
     assert!(names.contains(&"schemas_get"));
     assert!(names.contains(&"scenarios_list"));
     assert!(names.contains(&"precheck"));
-    assert_eq!(tools.len(), 15);
+    assert_eq!(tools.len(), 17);
 }
 
 // ============================================================================
@@ -321,6 +327,7 @@ fn namespace_authority_denies_tool_call() {
         provider_transports,
         schema_registry_limits,
         capabilities: std::sync::Arc::new(capabilities),
+        provider_discovery: config.provider_discovery.clone(),
         authz,
         tenant_authorizer: std::sync::Arc::new(NoopTenantAuthorizer),
         usage_meter: std::sync::Arc::new(NoopUsageMeter),
@@ -1330,6 +1337,67 @@ fn providers_list_includes_builtin_provider() {
         .unwrap();
     let response: ProvidersListResponse = serde_json::from_value(response).unwrap();
     assert!(response.providers.iter().any(|provider| provider.provider_id == "time"));
+}
+
+#[test]
+fn provider_contract_get_returns_contract() {
+    let router = sample_router();
+    let request = ProviderContractGetRequest {
+        provider_id: "json".to_string(),
+    };
+    let response = router
+        .handle_tool_call(
+            &local_request_context(),
+            "provider_contract_get",
+            serde_json::to_value(&request).unwrap(),
+        )
+        .unwrap();
+    let response: ProviderContractGetResponse = serde_json::from_value(response).unwrap();
+    assert_eq!(response.provider_id, "json");
+    assert_eq!(response.contract.provider_id, "json");
+    assert!(matches!(
+        response.source,
+        decision_gate_mcp::capabilities::ProviderContractSource::Builtin
+    ));
+    assert_eq!(response.contract_hash.algorithm, decision_gate_core::HashAlgorithm::Sha256);
+}
+
+#[test]
+fn provider_schema_get_returns_predicate_schema() {
+    let router = sample_router();
+    let request = ProviderSchemaGetRequest {
+        provider_id: "json".to_string(),
+        predicate: "path".to_string(),
+    };
+    let response = router
+        .handle_tool_call(
+            &local_request_context(),
+            "provider_schema_get",
+            serde_json::to_value(&request).unwrap(),
+        )
+        .unwrap();
+    let response: ProviderSchemaGetResponse = serde_json::from_value(response).unwrap();
+    assert_eq!(response.provider_id, "json");
+    assert_eq!(response.predicate, "path");
+    assert!(!response.allowed_comparators.is_empty());
+}
+
+#[test]
+fn provider_contract_get_respects_denylist() {
+    let mut config = sample_config();
+    config.provider_discovery.denylist.push("json".to_string());
+    let router = router_with_config(&config);
+    let request = ProviderContractGetRequest {
+        provider_id: "json".to_string(),
+    };
+    let error = router
+        .handle_tool_call(
+            &local_request_context(),
+            "provider_contract_get",
+            serde_json::to_value(&request).unwrap(),
+        )
+        .unwrap_err();
+    assert!(error.to_string().contains("unauthorized"));
 }
 
 #[test]

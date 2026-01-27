@@ -232,6 +232,7 @@ fn build_router(config: &DecisionGateConfig) -> ToolRouter {
         provider_transports,
         schema_registry_limits,
         capabilities: Arc::new(capabilities),
+        provider_discovery: config.provider_discovery.clone(),
         authz,
         tenant_authorizer: Arc::new(NoopTenantAuthorizer),
         usage_meter: Arc::new(NoopUsageMeter),
@@ -282,6 +283,7 @@ fn mcp_tools_match_core_control_plane() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -382,6 +384,7 @@ fn default_config() -> DecisionGateConfig {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -475,6 +478,54 @@ fn parity_providers_list() {
     // Should include the "time" provider from config
     let provider_ids: Vec<_> = response.providers.iter().map(|p| p.provider_id.as_str()).collect();
     assert!(provider_ids.contains(&"time"), "providers should include 'time': {provider_ids:?}");
+}
+
+/// Tests `provider_contract_get` returns contract metadata.
+#[test]
+fn parity_provider_contract_get() {
+    use decision_gate_mcp::tools::ProviderContractGetRequest;
+    use decision_gate_mcp::tools::ProviderContractGetResponse;
+
+    let config = default_config();
+    let router = build_router(&config);
+    let context = RequestContext::stdio();
+
+    let request = ProviderContractGetRequest {
+        provider_id: "time".to_string(),
+    };
+    let mcp_result = router
+        .handle_tool_call(
+            &context,
+            "provider_contract_get",
+            serde_json::to_value(&request).unwrap(),
+        )
+        .unwrap();
+    let response: ProviderContractGetResponse = serde_json::from_value(mcp_result).unwrap();
+    assert_eq!(response.provider_id, "time");
+    assert_eq!(response.contract.provider_id, "time");
+}
+
+/// Tests `provider_schema_get` returns predicate schema metadata.
+#[test]
+fn parity_provider_schema_get() {
+    use decision_gate_mcp::tools::ProviderSchemaGetRequest;
+    use decision_gate_mcp::tools::ProviderSchemaGetResponse;
+
+    let config = default_config();
+    let router = build_router(&config);
+    let context = RequestContext::stdio();
+
+    let request = ProviderSchemaGetRequest {
+        provider_id: "time".to_string(),
+        predicate: "after".to_string(),
+    };
+    let mcp_result = router
+        .handle_tool_call(&context, "provider_schema_get", serde_json::to_value(&request).unwrap())
+        .unwrap();
+    let response: ProviderSchemaGetResponse = serde_json::from_value(mcp_result).unwrap();
+    assert_eq!(response.provider_id, "time");
+    assert_eq!(response.predicate, "after");
+    assert!(!response.allowed_comparators.is_empty());
 }
 
 /// Tests `scenarios_list` tool returns defined scenarios.

@@ -71,6 +71,7 @@ fn validate_server_config(
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -92,6 +93,7 @@ fn validate_provider_config(
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -112,6 +114,7 @@ fn policy_static_requires_config() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig {
             engine: PolicyEngine::Static,
@@ -138,6 +141,7 @@ fn policy_static_rejects_empty_rule() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig {
             engine: PolicyEngine::Static,
@@ -181,6 +185,7 @@ fn policy_static_error_requires_message() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig {
             engine: PolicyEngine::Static,
@@ -224,6 +229,7 @@ fn policy_static_rejects_external_target_id() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig {
             engine: PolicyEngine::Static,
@@ -272,6 +278,7 @@ fn policy_static_rejects_agent_with_system() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig {
             engine: PolicyEngine::Static,
@@ -903,6 +910,7 @@ fn schema_registry_memory_rejects_path() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -933,6 +941,7 @@ fn schema_registry_sqlite_requires_path() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -968,6 +977,7 @@ fn validation_strict_disabled_requires_allow_permissive() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig {
             strict: false,
             allow_permissive: false,
@@ -1004,6 +1014,7 @@ fn dev_permissive_forces_asserted_trust_lane() {
         },
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -1029,6 +1040,7 @@ fn strict_mode_uses_configured_trust_lane() {
         },
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -1054,6 +1066,7 @@ fn dev_permissive_does_not_override_default_namespace() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -1079,6 +1092,7 @@ fn strict_mode_requires_explicit_default_namespace_allow() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -1104,6 +1118,7 @@ fn allow_default_namespace_requires_default_tenants() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -1127,6 +1142,7 @@ fn schema_registry_rejects_zero_max_schema_bytes() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -1151,6 +1167,7 @@ fn schema_registry_rejects_zero_max_entries() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -1179,6 +1196,7 @@ fn run_state_store_sqlite_requires_path() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig {
@@ -1209,6 +1227,7 @@ fn run_state_store_memory_rejects_path() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig {
@@ -1237,6 +1256,7 @@ fn run_state_store_sqlite_accepts_path() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig {
@@ -1265,6 +1285,7 @@ fn run_state_store_sqlite_rejects_zero_retention() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig {
@@ -1415,6 +1436,7 @@ fn namespace_authority_assetcore_requires_config() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -1441,6 +1463,7 @@ fn namespace_authority_none_rejects_assetcore_config() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -1474,6 +1497,7 @@ fn namespace_authority_rejects_mapping_mode_none() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -1511,6 +1535,7 @@ fn dev_permissive_rejected_with_assetcore_authority() {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -1559,6 +1584,7 @@ fn anchors_require_required_fields() {
                 required_fields: Vec::new(),
             }],
         },
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),
@@ -1570,4 +1596,62 @@ fn anchors_require_required_fields() {
     assert!(result.is_err());
     let error = result.unwrap_err();
     assert!(error.to_string().contains("anchors.providers.required_fields"));
+}
+
+// ========================================================================
+// SECTION: Provider Discovery Validation Tests
+// ========================================================================
+
+#[test]
+fn provider_discovery_rejects_empty_entries() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig {
+            allowlist: vec!["".to_string()],
+            denylist: Vec::new(),
+            max_response_bytes: 1024,
+        },
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+        source_modified_at: None,
+    };
+    let result = config.validate();
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("provider_discovery"));
+}
+
+#[test]
+fn provider_discovery_rejects_zero_max_bytes() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig {
+            allowlist: Vec::new(),
+            denylist: Vec::new(),
+            max_response_bytes: 0,
+        },
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+        source_modified_at: None,
+    };
+    let result = config.validate();
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("provider_discovery.max_response_bytes"));
 }

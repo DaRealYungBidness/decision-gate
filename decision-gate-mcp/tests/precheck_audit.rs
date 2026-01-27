@@ -151,6 +151,7 @@ fn build_router(mut config: DecisionGateConfig, audit: Arc<TestAuditSink>) -> To
         provider_transports,
         schema_registry_limits,
         capabilities: Arc::new(capabilities),
+        provider_discovery: config.provider_discovery.clone(),
         authz,
         tenant_authorizer: Arc::new(NoopTenantAuthorizer),
         usage_meter: Arc::new(NoopUsageMeter),
@@ -243,7 +244,7 @@ fn precheck_audit_hash_only_by_default() {
     config.server.audit.log_precheck_payloads = false;
     let audit = Arc::new(TestAuditSink::default());
     let router = build_router(config, Arc::clone(&audit));
-    let tenant_id = TenantId::new("tenant-1");
+    let tenant_id = TenantId::new("test-tenant");
     let namespace_id = NamespaceId::new("default");
     define_scenario(&router);
     register_schema(&router, tenant_id.clone(), namespace_id.clone());
@@ -266,7 +267,7 @@ fn precheck_audit_payloads_opt_in() {
     config.server.audit.log_precheck_payloads = true;
     let audit = Arc::new(TestAuditSink::default());
     let router = build_router(config, Arc::clone(&audit));
-    let tenant_id = TenantId::new("tenant-1");
+    let tenant_id = TenantId::new("test-tenant");
     let namespace_id = NamespaceId::new("default");
     define_scenario(&router);
     register_schema(&router, tenant_id.clone(), namespace_id.clone());

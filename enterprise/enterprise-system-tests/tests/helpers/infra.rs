@@ -14,6 +14,8 @@ use aws_config::BehaviorVersion;
 use aws_config::Region;
 use aws_sdk_s3::Client;
 use aws_sdk_s3::types::ServerSideEncryption;
+use decision_gate_store_enterprise::postgres_store::PostgresStore;
+use decision_gate_store_enterprise::postgres_store::PostgresStoreConfig;
 use once_cell::sync::Lazy;
 use testcontainers::Container;
 use testcontainers::GenericImage;
@@ -89,10 +91,13 @@ impl S3Fixture {
         let secret_key = "minioadmin".to_string();
         let region = "us-east-1".to_string();
         let bucket = "decision-gate-test".to_string();
+        let kms_secret_key = "minio-kms:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=".to_string();
         let image = GenericImage::new("minio/minio", "latest")
             .with_env_var("MINIO_ROOT_USER", access_key.clone())
             .with_env_var("MINIO_ROOT_PASSWORD", secret_key.clone())
             .with_env_var("MINIO_REGION", region.clone())
+            .with_env_var("MINIO_KMS_SECRET_KEY", kms_secret_key.clone())
+            .with_env_var("MINIO_KMS_AUTO_ENCRYPTION", "on")
             .with_exposed_port(9000)
             .with_entrypoint("/usr/bin/minio");
         let args = vec![
@@ -146,22 +151,26 @@ impl S3Fixture {
     }
 }
 
-pub async fn wait_for_postgres(url: &str) -> Result<(), String> {
+pub fn wait_for_postgres_blocking(url: &str) -> Result<(), String> {
     let start = std::time::Instant::now();
-    let timeout = Duration::from_secs(10);
+    let timeout = Duration::from_secs(30);
+    let mut last_error = "unknown error".to_string();
     loop {
+        if start.elapsed() > timeout {
+            return Err(format!("postgres readiness timeout: {last_error}"));
+        }
         match postgres::Client::connect(url, postgres::NoTls) {
-            Ok(mut client) => {
-                let _ = client.simple_query("SELECT 1");
-                return Ok(());
-            }
-            Err(err) => {
-                if start.elapsed() > timeout {
-                    return Err(format!("postgres readiness timeout: {err}"));
+            Ok(mut client) => match client.simple_query("SELECT 1") {
+                Ok(_) => return Ok(()),
+                Err(err) => {
+                    last_error = err.to_string();
                 }
-                std::thread::sleep(Duration::from_millis(100));
+            },
+            Err(err) => {
+                last_error = err.to_string();
             }
         }
+        std::thread::sleep(Duration::from_millis(100));
     }
 }
 
@@ -220,4 +229,85 @@ fn ensure_docker_available() -> Result<(), String> {
         ));
     }
     Ok(())
+}
+
+pub fn io_error(err: impl std::fmt::Display) -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::Other, err.to_string())
+}
+
+fn join_thread<T>(join: std::thread::JoinHandle<T>) -> Result<T, std::io::Error> {
+    match tokio::runtime::Handle::try_current() {
+        Ok(_) => tokio::task::block_in_place(|| join.join()),
+        Err(_) => join.join(),
+    }
+    .map_err(|_| io_error("postgres worker panicked"))
+}
+
+pub async fn with_postgres_client<T, F>(url: &str, f: F) -> Result<T, std::io::Error>
+where
+    T: Send + 'static,
+    F: FnOnce(&mut postgres::Client) -> Result<T, std::io::Error> + Send + 'static,
+{
+    let url = url.to_string();
+    let join = std::thread::spawn(move || {
+        let mut client = postgres::Client::connect(&url, postgres::NoTls).map_err(io_error)?;
+        f(&mut client)
+    });
+    join_thread(join)?
+}
+
+pub async fn with_postgres_clients<T, F>(
+    source_url: &str,
+    dest_url: &str,
+    f: F,
+) -> Result<T, std::io::Error>
+where
+    T: Send + 'static,
+    F: FnOnce(&mut postgres::Client, &mut postgres::Client) -> Result<T, std::io::Error>
+        + Send
+        + 'static,
+{
+    let source_url = source_url.to_string();
+    let dest_url = dest_url.to_string();
+    let join = std::thread::spawn(move || {
+        let mut source =
+            postgres::Client::connect(&source_url, postgres::NoTls).map_err(io_error)?;
+        let mut dest = postgres::Client::connect(&dest_url, postgres::NoTls).map_err(io_error)?;
+        f(&mut source, &mut dest)
+    });
+    join_thread(join)?
+}
+
+pub fn build_postgres_store_blocking(
+    config: PostgresStoreConfig,
+) -> Result<PostgresStore, std::io::Error> {
+    let start = std::time::Instant::now();
+    let timeout = Duration::from_secs(20);
+    let mut last_error = "unknown error".to_string();
+    loop {
+        if start.elapsed() > timeout {
+            return Err(io_error(format!("postgres store init timeout: {last_error}")));
+        }
+        match PostgresStore::new(&config) {
+            Ok(store) => return Ok(store),
+            Err(err) => {
+                last_error = err.to_string();
+                std::thread::sleep(Duration::from_millis(200));
+            }
+        }
+    }
+}
+
+pub async fn build_postgres_store(
+    config: PostgresStoreConfig,
+) -> Result<PostgresStore, std::io::Error> {
+    let join = std::thread::spawn(move || build_postgres_store_blocking(config));
+    join_thread(join)?
+}
+
+pub async fn wait_for_postgres(url: &str) -> Result<(), String> {
+    let url = url.to_string();
+    let join = std::thread::spawn(move || wait_for_postgres_blocking(&url));
+    let result = join_thread(join).map_err(|err| err.to_string())?;
+    result
 }

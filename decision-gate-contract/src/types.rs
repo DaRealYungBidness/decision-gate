@@ -115,6 +115,10 @@ pub enum ToolName {
     RunpackVerify,
     /// List registered evidence providers.
     ProvidersList,
+    /// Fetch a provider contract by provider identifier.
+    ProviderContractGet,
+    /// Fetch predicate schema details for a provider.
+    ProviderSchemaGet,
     /// List registered data shapes.
     SchemasList,
     /// Register a data shape schema.
@@ -142,6 +146,8 @@ impl ToolName {
             Self::RunpackExport => "runpack_export",
             Self::RunpackVerify => "runpack_verify",
             Self::ProvidersList => "providers_list",
+            Self::ProviderContractGet => "provider_contract_get",
+            Self::ProviderSchemaGet => "provider_schema_get",
             Self::SchemasList => "schemas_list",
             Self::SchemasRegister => "schemas_register",
             Self::SchemasGet => "schemas_get",
@@ -164,6 +170,8 @@ impl ToolName {
             Self::RunpackExport,
             Self::RunpackVerify,
             Self::ProvidersList,
+            Self::ProviderContractGet,
+            Self::ProviderSchemaGet,
             Self::SchemasList,
             Self::SchemasRegister,
             Self::SchemasGet,
@@ -186,6 +194,8 @@ impl ToolName {
             "runpack_export" => Some(Self::RunpackExport),
             "runpack_verify" => Some(Self::RunpackVerify),
             "providers_list" => Some(Self::ProvidersList),
+            "provider_contract_get" => Some(Self::ProviderContractGet),
+            "provider_schema_get" => Some(Self::ProviderSchemaGet),
             "schemas_list" => Some(Self::SchemasList),
             "schemas_register" => Some(Self::SchemasRegister),
             "schemas_get" => Some(Self::SchemasGet),

@@ -23,23 +23,21 @@ use decision_gate_core::RunStatus;
 use decision_gate_core::StoreError;
 use decision_gate_core::TenantId;
 use decision_gate_core::Timestamp;
-use decision_gate_store_enterprise::postgres_store::PostgresStore;
 use decision_gate_store_enterprise::postgres_store::PostgresStoreConfig;
 use helpers::artifacts::TestReporter;
 use helpers::infra::PostgresFixture;
-use helpers::infra::wait_for_postgres;
+use helpers::infra::build_postgres_store_blocking;
+use helpers::infra::wait_for_postgres_blocking;
 use helpers::scenarios::ScenarioFixture;
-use postgres::Client;
-use postgres::NoTls;
 use serde_json::json;
 
-#[tokio::test(flavor = "multi_thread")]
-async fn postgres_store_run_state_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
+#[test]
+fn postgres_store_run_state_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("postgres_store_run_state_roundtrip")?;
 
     let postgres = PostgresFixture::start()?;
-    wait_for_postgres(&postgres.url).await?;
-    let store = PostgresStore::new(&postgres_config(&postgres.url))?;
+    wait_for_postgres_blocking(&postgres.url)?;
+    let store = build_postgres_store_blocking(postgres_config(&postgres.url))?;
 
     let fixture = ScenarioFixture::time_after("pg-roundtrip", "run-1", 0);
     let state_v1 = build_state(&fixture, RunStatus::Active, 0);
@@ -59,7 +57,7 @@ async fn postgres_store_run_state_roundtrip() -> Result<(), Box<dyn std::error::
         return Err("spec hash mismatch after roundtrip".into());
     }
 
-    let mut client = Client::connect(&postgres.url, NoTls)?;
+    let mut client = postgres::Client::connect(&postgres.url, postgres::NoTls)?;
     let latest: i64 = client
         .query_one(
             "SELECT latest_version FROM runs WHERE tenant_id = $1 AND namespace_id = $2 AND \
@@ -88,19 +86,19 @@ async fn postgres_store_run_state_roundtrip() -> Result<(), Box<dyn std::error::
     Ok(())
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn postgres_store_corruption_detection() -> Result<(), Box<dyn std::error::Error>> {
+#[test]
+fn postgres_store_corruption_detection() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("postgres_store_corruption_detection")?;
 
     let postgres = PostgresFixture::start()?;
-    wait_for_postgres(&postgres.url).await?;
-    let store = PostgresStore::new(&postgres_config(&postgres.url))?;
+    wait_for_postgres_blocking(&postgres.url)?;
+    let store = build_postgres_store_blocking(postgres_config(&postgres.url))?;
 
     let fixture = ScenarioFixture::time_after("pg-corrupt", "run-1", 0);
     let state = build_state(&fixture, RunStatus::Active, 0);
     store.save(&state)?;
 
-    let mut client = Client::connect(&postgres.url, NoTls)?;
+    let mut client = postgres::Client::connect(&postgres.url, postgres::NoTls)?;
     client.execute(
         "UPDATE run_state_versions SET state_hash = $1 WHERE tenant_id = $2 AND namespace_id = $3 \
          AND run_id = $4",
@@ -132,13 +130,13 @@ async fn postgres_store_corruption_detection() -> Result<(), Box<dyn std::error:
     Ok(())
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn postgres_store_concurrent_writes() -> Result<(), Box<dyn std::error::Error>> {
+#[test]
+fn postgres_store_concurrent_writes() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("postgres_store_concurrent_writes")?;
 
     let postgres = PostgresFixture::start()?;
-    wait_for_postgres(&postgres.url).await?;
-    let store = Arc::new(PostgresStore::new(&postgres_config(&postgres.url))?);
+    wait_for_postgres_blocking(&postgres.url)?;
+    let store = Arc::new(build_postgres_store_blocking(postgres_config(&postgres.url))?);
 
     let fixture = ScenarioFixture::time_after("pg-concurrent", "run-1", 0);
     let mut handles = Vec::new();
@@ -146,16 +144,16 @@ async fn postgres_store_concurrent_writes() -> Result<(), Box<dyn std::error::Er
     for idx in 0 .. writes {
         let store = Arc::clone(&store);
         let state = build_state(&fixture, RunStatus::Active, idx);
-        handles.push(tokio::task::spawn_blocking(move || store.save(&state)));
+        handles.push(std::thread::spawn(move || store.save(&state)));
     }
     for handle in handles {
         handle
-            .await
-            .map_err(|err| format!("join failed: {err}"))?
+            .join()
+            .map_err(|_| "join failed".to_string())?
             .map_err(|err| format!("save failed: {err}"))?;
     }
 
-    let mut client = Client::connect(&postgres.url, NoTls)?;
+    let mut client = postgres::Client::connect(&postgres.url, postgres::NoTls)?;
     let latest: i64 = client
         .query_one(
             "SELECT latest_version FROM runs WHERE tenant_id = $1 AND namespace_id = $2 AND \
@@ -199,13 +197,13 @@ async fn postgres_store_concurrent_writes() -> Result<(), Box<dyn std::error::Er
     Ok(())
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn postgres_registry_pagination_stability() -> Result<(), Box<dyn std::error::Error>> {
+#[test]
+fn postgres_registry_pagination_stability() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("postgres_registry_pagination_stability")?;
 
     let postgres = PostgresFixture::start()?;
-    wait_for_postgres(&postgres.url).await?;
-    let store = PostgresStore::new(&postgres_config(&postgres.url))?;
+    wait_for_postgres_blocking(&postgres.url)?;
+    let store = build_postgres_store_blocking(postgres_config(&postgres.url))?;
 
     let tenant_id = TenantId::new("tenant-1");
     let namespace_id = NamespaceId::new("default");
@@ -254,13 +252,13 @@ async fn postgres_registry_pagination_stability() -> Result<(), Box<dyn std::err
     Ok(())
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn postgres_registry_signing_metadata() -> Result<(), Box<dyn std::error::Error>> {
+#[test]
+fn postgres_registry_signing_metadata() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("postgres_registry_signing_metadata")?;
 
     let postgres = PostgresFixture::start()?;
-    wait_for_postgres(&postgres.url).await?;
-    let store = PostgresStore::new(&postgres_config(&postgres.url))?;
+    wait_for_postgres_blocking(&postgres.url)?;
+    let store = build_postgres_store_blocking(postgres_config(&postgres.url))?;
 
     let tenant_id = TenantId::new("tenant-1");
     let namespace_id = NamespaceId::new("default");

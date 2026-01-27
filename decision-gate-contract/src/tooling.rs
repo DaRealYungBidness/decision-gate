@@ -46,6 +46,8 @@ pub fn tool_contracts() -> Vec<ToolContract> {
         runpack_export_contract(),
         runpack_verify_contract(),
         providers_list_contract(),
+        provider_contract_get_contract(),
+        provider_schema_get_contract(),
         schemas_register_contract(),
         schemas_list_contract(),
         schemas_get_contract(),
@@ -215,6 +217,38 @@ fn providers_list_contract() -> ToolContract {
         vec![
             "Returns provider identifiers and transport metadata.".to_string(),
             "Results are scoped by auth policy.".to_string(),
+        ],
+    )
+}
+
+/// Builds the tool contract for `provider_contract_get`.
+fn provider_contract_get_contract() -> ToolContract {
+    build_tool_contract(
+        ToolName::ProviderContractGet,
+        "Fetch the canonical provider contract JSON and hash for a provider.",
+        provider_contract_get_input_schema(),
+        provider_contract_get_output_schema(),
+        tool_examples(ToolName::ProviderContractGet),
+        vec![
+            "Returns the provider contract as loaded by the MCP server.".to_string(),
+            "Includes a canonical hash for audit and reproducibility.".to_string(),
+            "Subject to provider disclosure policy and authz.".to_string(),
+        ],
+    )
+}
+
+/// Builds the tool contract for `provider_schema_get`.
+fn provider_schema_get_contract() -> ToolContract {
+    build_tool_contract(
+        ToolName::ProviderSchemaGet,
+        "Fetch predicate schema details (params/result/comparators) for a provider.",
+        provider_schema_get_input_schema(),
+        provider_schema_get_output_schema(),
+        tool_examples(ToolName::ProviderSchemaGet),
+        vec![
+            "Returns compiled schema metadata for a single predicate.".to_string(),
+            "Includes comparator allow-lists and predicate examples.".to_string(),
+            "Subject to provider disclosure policy and authz.".to_string(),
         ],
     )
 }
@@ -510,12 +544,46 @@ fn tool_examples(tool_name: ToolName) -> Vec<ToolExample> {
         ToolName::RunpackExport => runpack_export_examples(),
         ToolName::RunpackVerify => runpack_verify_examples(),
         ToolName::ProvidersList => providers_list_examples(),
+        ToolName::ProviderContractGet => provider_contract_get_examples(),
+        ToolName::ProviderSchemaGet => provider_schema_get_examples(),
         ToolName::SchemasRegister => schemas_register_examples(),
         ToolName::SchemasList => schemas_list_examples(),
         ToolName::SchemasGet => schemas_get_examples(),
         ToolName::ScenariosList => scenarios_list_examples(),
         ToolName::Precheck => precheck_examples(),
     }
+}
+
+// ============================================================================
+// SECTION: Schema Helpers (Local)
+// ============================================================================
+
+/// Returns a JSON schema for strings.
+#[must_use]
+fn schema_for_string(description: &str) -> Value {
+    json!({
+        "type": "string",
+        "description": description
+    })
+}
+
+/// Returns a JSON schema for string arrays.
+#[must_use]
+fn schema_for_string_array(description: &str) -> Value {
+    json!({
+        "type": "array",
+        "items": { "type": "string" },
+        "description": description
+    })
+}
+
+/// Returns a permissive JSON schema accepting any JSON value.
+#[must_use]
+fn schema_for_json_value(description: &str) -> Value {
+    json!({
+        "type": ["null", "boolean", "number", "string", "array", "object"],
+        "description": description
+    })
 }
 
 /// Returns example payloads for `scenario_define`.
@@ -746,6 +814,62 @@ fn providers_list_examples() -> Vec<ToolExample> {
                     "predicates": ["get"]
                 }
             ]
+        }),
+    }]
+}
+
+/// Returns example payloads for `provider_contract_get`.
+fn provider_contract_get_examples() -> Vec<ToolExample> {
+    vec![ToolExample {
+        description: String::from("Fetch the contract JSON for a provider."),
+        input: json!({
+            "provider_id": "json"
+        }),
+        output: json!({
+            "provider_id": "json",
+            "contract": {
+                "provider_id": "json",
+                "name": "JSON Provider",
+                "description": "Reads JSON or YAML files and evaluates JSONPath.",
+                "transport": "builtin",
+                "config_schema": { "type": "object", "additionalProperties": false },
+                "predicates": [],
+                "notes": []
+            },
+            "contract_hash": example_hash_digest(),
+            "source": "builtin",
+            "version": null
+        }),
+    }]
+}
+
+/// Returns example payloads for `provider_schema_get`.
+fn provider_schema_get_examples() -> Vec<ToolExample> {
+    vec![ToolExample {
+        description: String::from("Fetch predicate schema details for a provider."),
+        input: json!({
+            "provider_id": "json",
+            "predicate": "path"
+        }),
+        output: json!({
+            "provider_id": "json",
+            "predicate": "path",
+            "params_required": true,
+            "params_schema": {
+                "type": "object",
+                "properties": {
+                    "file": { "type": "string" },
+                    "jsonpath": { "type": "string" }
+                },
+                "required": ["file"]
+            },
+            "result_schema": { "type": ["null", "string", "number", "boolean", "array", "object"] },
+            "allowed_comparators": ["equals", "in_set", "exists", "not_exists"],
+            "determinism": "external",
+            "anchor_types": [],
+            "content_types": ["application/json"],
+            "examples": [],
+            "contract_hash": example_hash_digest()
         }),
     }]
 }
@@ -1226,6 +1350,97 @@ fn providers_list_output_schema() -> Value {
             }
         }),
         &["providers"],
+    )
+}
+
+/// Builds the input schema for `provider_contract_get`.
+#[must_use]
+fn provider_contract_get_input_schema() -> Value {
+    tool_input_schema(
+        &json!({
+            "provider_id": schema_identifier("Provider identifier.")
+        }),
+        &["provider_id"],
+    )
+}
+
+/// Builds the output schema for `provider_contract_get`.
+#[must_use]
+fn provider_contract_get_output_schema() -> Value {
+    tool_output_schema(
+        &json!({
+            "provider_id": schema_identifier("Provider identifier."),
+            "contract": schemas::provider_contract_schema(),
+            "contract_hash": schemas::hash_digest_schema(),
+            "source": {
+                "type": "string",
+                "enum": ["builtin", "file"],
+                "description": "Contract source origin."
+            },
+            "version": {
+                "oneOf": [
+                    { "type": "null" },
+                    { "type": "string" }
+                ],
+                "description": "Optional contract version label."
+            }
+        }),
+        &["provider_id", "contract", "contract_hash", "source", "version"],
+    )
+}
+
+/// Builds the input schema for `provider_schema_get`.
+#[must_use]
+fn provider_schema_get_input_schema() -> Value {
+    tool_input_schema(
+        &json!({
+            "provider_id": schema_identifier("Provider identifier."),
+            "predicate": schema_for_string("Provider predicate name.")
+        }),
+        &["provider_id", "predicate"],
+    )
+}
+
+/// Builds the output schema for `provider_schema_get`.
+#[must_use]
+fn provider_schema_get_output_schema() -> Value {
+    tool_output_schema(
+        &json!({
+            "provider_id": schema_identifier("Provider identifier."),
+            "predicate": schema_for_string("Predicate name."),
+            "params_required": {
+                "type": "boolean",
+                "description": "Whether params are required for this predicate."
+            },
+            "params_schema": schema_for_json_value("JSON schema for predicate params."),
+            "result_schema": schema_for_json_value("JSON schema for predicate result value."),
+            "allowed_comparators": {
+                "type": "array",
+                "items": schemas::comparator_schema(),
+                "description": "Comparator allow-list for this predicate."
+            },
+            "determinism": schemas::determinism_class_schema(),
+            "anchor_types": schema_for_string_array("Anchor types emitted by this predicate."),
+            "content_types": schema_for_string_array("Content types for predicate output."),
+            "examples": {
+                "type": "array",
+                "items": schemas::predicate_example_schema()
+            },
+            "contract_hash": schemas::hash_digest_schema()
+        }),
+        &[
+            "provider_id",
+            "predicate",
+            "params_required",
+            "params_schema",
+            "result_schema",
+            "allowed_comparators",
+            "determinism",
+            "anchor_types",
+            "content_types",
+            "examples",
+            "contract_hash",
+        ],
     )
 }
 

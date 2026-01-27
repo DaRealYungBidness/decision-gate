@@ -247,6 +247,7 @@ impl McpServer {
             provider_transports,
             schema_registry_limits,
             capabilities: Arc::new(capabilities),
+            provider_discovery: config.provider_discovery.clone(),
             authz,
             tenant_authorizer,
             usage_meter,
@@ -1085,10 +1086,15 @@ fn call_tool_with_blocking(
     arguments: Value,
 ) -> Result<Value, ToolError> {
     match tokio::runtime::Handle::try_current() {
-        Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
-            tokio::task::block_in_place(|| router.handle_tool_call(context, name, arguments))
+        Ok(_) => {
+            let router = router.clone();
+            let context = context.clone();
+            let name = name.to_string();
+            std::thread::spawn(move || router.handle_tool_call(&context, &name, arguments))
+                .join()
+                .map_err(|_| ToolError::Internal("tool execution panicked".to_string()))?
         }
-        _ => router.handle_tool_call(context, name, arguments),
+        Err(_) => router.handle_tool_call(context, name, arguments),
     }
 }
 
@@ -1422,6 +1428,7 @@ fn jsonrpc_error(id: Value, error: ToolError) -> (StatusCode, JsonRpcResponse) {
         }
         ToolError::Unauthorized(_) => (StatusCode::FORBIDDEN, -32003, "unauthorized".to_string()),
         ToolError::InvalidParams(message) => (StatusCode::BAD_REQUEST, -32602, message),
+        ToolError::ResponseTooLarge(message) => (StatusCode::OK, -32070, message),
         ToolError::CapabilityViolation {
             code,
             message,

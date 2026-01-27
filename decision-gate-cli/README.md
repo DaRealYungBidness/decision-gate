@@ -31,6 +31,8 @@ details in `Docs/guides/assetcore_interop_runbook.md`.
 - `authoring validate`: validate scenario specs.
 - `authoring normalize`: normalize scenario specs.
 - `config validate`: validate Decision Gate config.
+- `provider contract get`: fetch provider contract JSON.
+- `provider schema get`: fetch predicate schema details for a provider.
 
 ## Examples
 ```bash

@@ -45,6 +45,8 @@ use decision_gate_core::runtime::NextRequest;
 use decision_gate_core::runtime::StatusRequest;
 use decision_gate_core::runtime::SubmitRequest;
 use decision_gate_mcp::tools::EvidenceQueryRequest;
+use decision_gate_mcp::tools::ProviderContractGetRequest;
+use decision_gate_mcp::tools::ProviderSchemaGetRequest;
 use decision_gate_mcp::tools::RunpackExportRequest;
 use decision_gate_mcp::tools::RunpackVerifyRequest;
 use decision_gate_mcp::tools::ScenarioDefineRequest;
@@ -299,6 +301,30 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
     let evidence_output =
         router.handle_tool_call(&local_request_context(), "evidence_query", evidence_input)?;
     assert_valid(&evidence_schema.output, &evidence_output, "evidence_query output")?;
+
+    let contract_request = ProviderContractGetRequest {
+        provider_id: "json".to_string(),
+    };
+    let contract_input = serde_json::to_value(&contract_request)?;
+    let contract_schema = tool_schema(&tool_schemas, ToolName::ProviderContractGet)?;
+    assert_valid(&contract_schema.input, &contract_input, "provider_contract_get input")?;
+    let contract_output = router.handle_tool_call(
+        &local_request_context(),
+        "provider_contract_get",
+        contract_input,
+    )?;
+    assert_valid(&contract_schema.output, &contract_output, "provider_contract_get output")?;
+
+    let schema_request = ProviderSchemaGetRequest {
+        provider_id: "json".to_string(),
+        predicate: "path".to_string(),
+    };
+    let schema_input = serde_json::to_value(&schema_request)?;
+    let schema_schema = tool_schema(&tool_schemas, ToolName::ProviderSchemaGet)?;
+    assert_valid(&schema_schema.input, &schema_input, "provider_schema_get input")?;
+    let schema_output =
+        router.handle_tool_call(&local_request_context(), "provider_schema_get", schema_input)?;
+    assert_valid(&schema_schema.output, &schema_output, "provider_schema_get output")?;
 
     let temp_dir = TempDir::new()?;
     let output_dir = temp_dir.path().to_string_lossy().to_string();

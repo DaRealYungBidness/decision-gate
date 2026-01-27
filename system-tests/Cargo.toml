@@ -107,6 +107,11 @@ path = "tests/providers.rs"
 required-features = ["system-tests"]
 
 [[test]]
+name = "provider_discovery"
+path = "tests/provider_discovery.rs"
+required-features = ["system-tests"]
+
+[[test]]
 name = "registry_acl"
 path = "tests/registry_acl.rs"
 required-features = ["system-tests"]

@@ -137,6 +137,7 @@ fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
         provider_transports,
         schema_registry_limits,
         capabilities: std::sync::Arc::new(capabilities),
+        provider_discovery: config.provider_discovery.clone(),
         authz,
         tenant_authorizer: std::sync::Arc::new(NoopTenantAuthorizer),
         usage_meter: std::sync::Arc::new(NoopUsageMeter),

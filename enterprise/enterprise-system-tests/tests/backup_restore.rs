@@ -44,7 +44,6 @@ use decision_gate_mcp::tools::ScenarioDefineResponse;
 use decision_gate_mcp::tools::ScenarioStartRequest;
 use decision_gate_mcp::tools::ScenarioTriggerRequest;
 use decision_gate_mcp::tools::SchemasRegisterRequest;
-use decision_gate_store_enterprise::postgres_store::PostgresStore;
 use decision_gate_store_enterprise::postgres_store::PostgresStoreConfig;
 use decision_gate_store_enterprise::runpack_store::RunpackKey;
 use decision_gate_store_enterprise::runpack_store::RunpackStore;
@@ -56,11 +55,12 @@ use helpers::harness::base_http_config;
 use helpers::harness::spawn_enterprise_server_from_configs;
 use helpers::infra::PostgresFixture;
 use helpers::infra::S3Fixture;
+use helpers::infra::build_postgres_store_blocking;
+use helpers::infra::io_error;
 use helpers::infra::wait_for_postgres;
+use helpers::infra::with_postgres_clients;
 use helpers::readiness::wait_for_server_ready;
 use helpers::scenarios::ScenarioFixture;
-use postgres::Client;
-use postgres::NoTls;
 use serde_json::json;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -224,8 +224,14 @@ async fn enterprise_backup_restore_validation() -> Result<(), Box<dyn std::error
 
     let restore_postgres = PostgresFixture::start()?;
     wait_for_postgres(&restore_postgres.url).await?;
-    let _ = PostgresStore::new(&postgres_config(&restore_postgres.url))?;
-    copy_postgres_tables(&postgres.url, &restore_postgres.url)?;
+    let restore_config = postgres_config(&restore_postgres.url);
+    tokio::task::spawn_blocking(move || {
+        let _ = build_postgres_store_blocking(restore_config)?;
+        Ok::<(), std::io::Error>(())
+    })
+    .await
+    .map_err(io_error)??;
+    with_postgres_clients(&postgres.url, &restore_postgres.url, copy_postgres_tables).await?;
 
     let restore_bucket = "decision-gate-restore".to_string();
     let s3_client = s3.client().await?;
@@ -256,47 +262,67 @@ async fn enterprise_backup_restore_validation() -> Result<(), Box<dyn std::error
         return Err("restored runpack missing sha256 metadata".into());
     }
 
-    let restore_store = PostgresStore::new(&postgres_config(&restore_postgres.url))?;
-    let restored = restore_store
-        .load(&fixture.tenant_id, &fixture.namespace_id, &fixture.run_id)?
-        .ok_or("missing restored run state")?;
-    if restored.run_id != fixture.run_id {
-        return Err("restored run state mismatch".into());
-    }
+    let restore_config = postgres_config(&restore_postgres.url);
+    let tenant_id = fixture.tenant_id.clone();
+    let namespace_id = fixture.namespace_id.clone();
+    let run_id = fixture.run_id.clone();
+    let schema_tenant_id = schema_record.tenant_id.clone();
+    let schema_namespace_id = schema_record.namespace_id.clone();
+    let schema_id = schema_record.schema_id.clone();
+    let schema_version = schema_record.version.clone();
+    tokio::task::spawn_blocking(move || {
+        let restore_store = build_postgres_store_blocking(restore_config)?;
+        let restored = restore_store
+            .load(&tenant_id, &namespace_id, &run_id)
+            .map_err(io_error)?
+            .ok_or_else(|| io_error("missing restored run state"))?;
+        if restored.run_id != run_id {
+            return Err(io_error("restored run state mismatch"));
+        }
 
-    let restored_schema = restore_store
-        .get(
-            &schema_record.tenant_id,
-            &schema_record.namespace_id,
-            &schema_record.schema_id,
-            &schema_record.version,
-        )?
-        .ok_or("missing restored schema")?;
-    if restored_schema.schema_id != schema_record.schema_id {
-        return Err("restored schema mismatch".into());
-    }
+        let restored_schema = restore_store
+            .get(&schema_tenant_id, &schema_namespace_id, &schema_id, &schema_version)
+            .map_err(io_error)?
+            .ok_or_else(|| io_error("missing restored schema"))?;
+        if restored_schema.schema_id != schema_id {
+            return Err(io_error("restored schema mismatch"));
+        }
+        Ok::<(), std::io::Error>(())
+    })
+    .await
+    .map_err(io_error)??;
 
-    let runpack_store = S3RunpackStore::new(S3RunpackStoreConfig {
-        bucket: restore_bucket.clone(),
-        region: Some(s3.region.clone()),
-        prefix: Some("primary".to_string()),
-        endpoint: Some(s3.endpoint.clone()),
-        force_path_style: s3.force_path_style,
-        server_side_encryption: None,
-        kms_key_id: None,
-        max_archive_bytes: None,
-    })?;
-    let dest_dir = tempfile::TempDir::new()?;
-    let runpack_key = RunpackKey {
-        tenant_id: TenantId::new("tenant-1"),
-        namespace_id: NamespaceId::new("default"),
-        run_id: fixture.run_id.clone(),
-    };
-    runpack_store.get_dir(&runpack_key, dest_dir.path())?;
-    let manifest_path = dest_dir.path().join("manifest.json");
-    if !manifest_path.exists() {
-        return Err("restored runpack missing manifest".into());
-    }
+    let runpack_bucket = restore_bucket.clone();
+    let runpack_region = s3.region.clone();
+    let runpack_endpoint = s3.endpoint.clone();
+    let runpack_force_path = s3.force_path_style;
+    let runpack_run_id = fixture.run_id.clone();
+    let runpack_check = std::thread::spawn(move || {
+        let runpack_store = S3RunpackStore::new(S3RunpackStoreConfig {
+            bucket: runpack_bucket,
+            region: Some(runpack_region),
+            prefix: Some("primary".to_string()),
+            endpoint: Some(runpack_endpoint),
+            force_path_style: runpack_force_path,
+            server_side_encryption: None,
+            kms_key_id: None,
+            max_archive_bytes: None,
+        })
+        .map_err(io_error)?;
+        let dest_dir = tempfile::TempDir::new().map_err(io_error)?;
+        let runpack_key = RunpackKey {
+            tenant_id: TenantId::new("tenant-1"),
+            namespace_id: NamespaceId::new("default"),
+            run_id: runpack_run_id,
+        };
+        runpack_store.get_dir(&runpack_key, dest_dir.path()).map_err(io_error)?;
+        let manifest_path = dest_dir.path().join("manifest.json");
+        if !manifest_path.exists() {
+            return Err(io_error("restored runpack missing manifest"));
+        }
+        Ok::<(), std::io::Error>(())
+    });
+    runpack_check.join().map_err(|_| io_error("runpack worker panicked"))??;
 
     reporter.finish(
         "pass",
@@ -320,14 +346,12 @@ fn postgres_config(url: &str) -> PostgresStoreConfig {
 }
 
 fn copy_postgres_tables(
-    source_url: &str,
-    dest_url: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut source = Client::connect(source_url, NoTls)?;
-    let mut dest = Client::connect(dest_url, NoTls)?;
-
-    let run_rows =
-        source.query("SELECT tenant_id, namespace_id, run_id, latest_version FROM runs", &[])?;
+    source: &mut postgres::Client,
+    dest: &mut postgres::Client,
+) -> Result<(), std::io::Error> {
+    let run_rows = source
+        .query("SELECT tenant_id, namespace_id, run_id, latest_version FROM runs", &[])
+        .map_err(io_error)?;
     for row in run_rows {
         let tenant_id: String = row.get(0);
         let namespace_id: String = row.get(1);
@@ -337,14 +361,17 @@ fn copy_postgres_tables(
             "INSERT INTO runs (tenant_id, namespace_id, run_id, latest_version) VALUES ($1, $2, \
              $3, $4)",
             &[&tenant_id, &namespace_id, &run_id, &latest_version],
-        )?;
+        )
+        .map_err(io_error)?;
     }
 
-    let state_rows = source.query(
-        "SELECT tenant_id, namespace_id, run_id, version, state_json, state_hash, hash_algorithm, \
-         saved_at FROM run_state_versions",
-        &[],
-    )?;
+    let state_rows = source
+        .query(
+            "SELECT tenant_id, namespace_id, run_id, version, state_json, state_hash, \
+             hash_algorithm, saved_at FROM run_state_versions",
+            &[],
+        )
+        .map_err(io_error)?;
     for row in state_rows {
         let tenant_id: String = row.get(0);
         let namespace_id: String = row.get(1);
@@ -368,15 +395,18 @@ fn copy_postgres_tables(
                 &hash_algorithm,
                 &saved_at,
             ],
-        )?;
+        )
+        .map_err(io_error)?;
     }
 
-    let schema_rows = source.query(
-        "SELECT tenant_id, namespace_id, schema_id, version, schema_json, schema_hash, \
-         hash_algorithm, description, created_at_json, signing_key_id, signing_signature, \
-         signing_algorithm FROM data_shapes",
-        &[],
-    )?;
+    let schema_rows = source
+        .query(
+            "SELECT tenant_id, namespace_id, schema_id, version, schema_json, schema_hash, \
+             hash_algorithm, description, created_at_json, signing_key_id, signing_signature, \
+             signing_algorithm FROM data_shapes",
+            &[],
+        )
+        .map_err(io_error)?;
     for row in schema_rows {
         let tenant_id: String = row.get(0);
         let namespace_id: String = row.get(1);
@@ -409,7 +439,8 @@ fn copy_postgres_tables(
                 &signing_signature,
                 &signing_algorithm,
             ],
-        )?;
+        )
+        .map_err(io_error)?;
     }
     Ok(())
 }

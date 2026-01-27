@@ -56,6 +56,7 @@ fn base_config() -> DecisionGateConfig {
         trust: TrustConfig::default(),
         evidence: EvidencePolicyConfig::default(),
         anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
         validation: ValidationConfig::default(),
         policy: PolicyConfig::default(),
         run_state_store: RunStateStoreConfig::default(),

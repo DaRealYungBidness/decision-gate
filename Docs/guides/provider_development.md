@@ -105,6 +105,9 @@ by `EvidenceQuery.predicate`.
 The contract is loaded from `capabilities_path` in `decision-gate.toml` and is
 validated before any scenario or evidence query is accepted.
 
+Provider contracts are discoverable via MCP tools (`provider_contract_get` and
+`provider_schema_get`) when disclosure policy allows it.
+
 Example configuration:
 ```toml
 [[providers]]

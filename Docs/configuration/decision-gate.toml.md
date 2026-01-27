@@ -140,6 +140,13 @@ default_policy = { require_signature = { keys = ["key1.pub"] } }
 | `allow_raw_values` | bool | `false` | Enables raw evidence disclosure. |
 | `require_provider_opt_in` | bool | `true` | Providers must opt in via `allow_raw`. |
 
+### `[provider_discovery]`
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `allowlist` | array | `[]` | Optional allowlist for provider contract/schema disclosure. Empty means allow all. |
+| `denylist` | array | `[]` | Provider IDs that must not be disclosed. |
+| `max_response_bytes` | integer | `1048576` | Maximum response size for discovery tools. |
+
 ### `[anchors]`
 | Field | Type | Default | Notes |
 | --- | --- | --- | --- |

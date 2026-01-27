@@ -25,9 +25,15 @@ use decision_gate_contract::types::ProviderContract;
 use decision_gate_core::Comparator;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::ScenarioSpec;
+use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
+use decision_gate_core::hashing::HashDigest;
+use decision_gate_core::hashing::HashError;
+use decision_gate_core::hashing::hash_canonical_json_with_limit;
 use jsonschema::CompilationOptions;
 use jsonschema::Draft;
 use jsonschema::JSONSchema;
+use serde::Deserialize;
+use serde::Serialize;
 use serde_json::Value;
 use thiserror::Error;
 
@@ -159,6 +165,14 @@ pub enum CapabilityError {
         /// Error details.
         error: String,
     },
+    /// Contract hash computation failed.
+    #[error("contract hash failed for {provider_id}: {error}")]
+    ContractHash {
+        /// Provider identifier.
+        provider_id: String,
+        /// Error details.
+        error: String,
+    },
 }
 
 impl CapabilityError {
@@ -205,6 +219,9 @@ impl CapabilityError {
             Self::SchemaCompile {
                 ..
             } => "schema_compile_failed",
+            Self::ContractHash {
+                ..
+            } => "contract_hash_failed",
         }
     }
 }
@@ -219,8 +236,14 @@ pub struct CapabilityRegistry {
     providers: BTreeMap<String, ProviderCapabilities>,
 }
 
-/// Provider capability bundle with compiled predicate schemas.
+/// Provider capability bundle with contract and compiled predicate schemas.
 struct ProviderCapabilities {
+    /// Provider contract definition.
+    contract: ProviderContract,
+    /// Canonical contract hash.
+    contract_hash: HashDigest,
+    /// Contract source origin.
+    contract_source: ProviderContractSource,
     /// Predicate capability map keyed by predicate name.
     predicates: BTreeMap<String, PredicateCapabilities>,
 }
@@ -233,6 +256,58 @@ struct PredicateCapabilities {
     params_schema: JSONSchema,
     /// Compiled schema for predicate results.
     result_schema: JSONSchema,
+}
+
+/// Provider contract source origin.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderContractSource {
+    /// Built-in contract compiled into the server.
+    Builtin,
+    /// External contract loaded from a file.
+    File,
+}
+
+/// Provider contract view for discovery tools.
+#[derive(Debug, Clone, Serialize)]
+pub struct ProviderContractView {
+    /// Provider identifier.
+    pub provider_id: String,
+    /// Provider contract payload.
+    pub contract: ProviderContract,
+    /// Canonical contract hash.
+    pub contract_hash: HashDigest,
+    /// Contract source origin.
+    pub source: ProviderContractSource,
+    /// Optional contract version label (unused when not provided).
+    pub version: Option<String>,
+}
+
+/// Predicate schema view for discovery tools.
+#[derive(Debug, Clone, Serialize)]
+pub struct PredicateSchemaView {
+    /// Provider identifier.
+    pub provider_id: String,
+    /// Predicate name.
+    pub predicate: String,
+    /// Whether params are required for the predicate.
+    pub params_required: bool,
+    /// JSON schema for predicate params.
+    pub params_schema: Value,
+    /// JSON schema for predicate result values.
+    pub result_schema: Value,
+    /// Comparator allow-list for this predicate.
+    pub allowed_comparators: Vec<Comparator>,
+    /// Determinism classification for the predicate.
+    pub determinism: decision_gate_contract::types::DeterminismClass,
+    /// Anchor types emitted by this predicate.
+    pub anchor_types: Vec<String>,
+    /// Content types for predicate output.
+    pub content_types: Vec<String>,
+    /// Predicate examples.
+    pub examples: Vec<decision_gate_contract::types::PredicateExample>,
+    /// Canonical contract hash.
+    pub contract_hash: HashDigest,
 }
 
 impl CapabilityRegistry {
@@ -250,9 +325,14 @@ impl CapabilityRegistry {
 
         let mut providers = BTreeMap::new();
         for provider in &config.providers {
-            let contract = match provider.provider_type {
-                ProviderType::Builtin => builtin_contract_for(provider, &builtin_index)?,
-                ProviderType::Mcp => load_external_contract(provider)?,
+            let (contract, source) = match provider.provider_type {
+                ProviderType::Builtin => (
+                    builtin_contract_for(provider, &builtin_index)?,
+                    ProviderContractSource::Builtin,
+                ),
+                ProviderType::Mcp => {
+                    (load_external_contract(provider)?, ProviderContractSource::File)
+                }
             };
             let provider_id = contract.provider_id.clone();
             if providers.contains_key(&provider_id) {
@@ -261,9 +341,13 @@ impl CapabilityRegistry {
                 });
             }
             let predicates = compile_predicates(&contract)?;
+            let contract_hash = contract_hash(&contract, &provider_id)?;
             providers.insert(
                 provider_id,
                 ProviderCapabilities {
+                    contract,
+                    contract_hash,
+                    contract_source: source,
                     predicates,
                 },
             );
@@ -350,6 +434,64 @@ impl CapabilityRegistry {
     ) -> Result<&PredicateContract, CapabilityError> {
         let capability = self.lookup_predicate(provider_id, predicate)?;
         Ok(&capability.contract)
+    }
+
+    /// Returns a provider contract view for discovery tooling.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CapabilityError`] when the provider is missing.
+    pub fn provider_contract_view(
+        &self,
+        provider_id: &str,
+    ) -> Result<ProviderContractView, CapabilityError> {
+        let provider =
+            self.providers.get(provider_id).ok_or_else(|| CapabilityError::ProviderMissing {
+                provider_id: provider_id.to_string(),
+            })?;
+        Ok(ProviderContractView {
+            provider_id: provider_id.to_string(),
+            contract: provider.contract.clone(),
+            contract_hash: provider.contract_hash.clone(),
+            source: provider.contract_source,
+            version: None,
+        })
+    }
+
+    /// Returns a predicate schema view for discovery tooling.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CapabilityError`] when provider or predicate is missing.
+    pub fn predicate_schema_view(
+        &self,
+        provider_id: &str,
+        predicate: &str,
+    ) -> Result<PredicateSchemaView, CapabilityError> {
+        let provider =
+            self.providers.get(provider_id).ok_or_else(|| CapabilityError::ProviderMissing {
+                provider_id: provider_id.to_string(),
+            })?;
+        let capability = provider.predicates.get(predicate).ok_or_else(|| {
+            CapabilityError::PredicateMissing {
+                provider_id: provider_id.to_string(),
+                predicate: predicate.to_string(),
+            }
+        })?;
+        let contract = &capability.contract;
+        Ok(PredicateSchemaView {
+            provider_id: provider_id.to_string(),
+            predicate: predicate.to_string(),
+            params_required: contract.params_required,
+            params_schema: contract.params_schema.clone(),
+            result_schema: contract.result_schema.clone(),
+            allowed_comparators: contract.allowed_comparators.clone(),
+            determinism: contract.determinism,
+            anchor_types: contract.anchor_types.clone(),
+            content_types: contract.content_types.clone(),
+            examples: contract.examples.clone(),
+            contract_hash: provider.contract_hash.clone(),
+        })
     }
 
     /// Locates a predicate capability by provider and predicate name.
@@ -484,6 +626,27 @@ fn compile_predicates(
         );
     }
     Ok(predicates)
+}
+
+/// Computes the canonical contract hash with size limits.
+fn contract_hash(
+    contract: &ProviderContract,
+    provider_id: &str,
+) -> Result<HashDigest, CapabilityError> {
+    match hash_canonical_json_with_limit(DEFAULT_HASH_ALGORITHM, contract, MAX_CAPABILITY_BYTES) {
+        Ok(digest) => Ok(digest),
+        Err(HashError::Canonicalization(err)) => Err(CapabilityError::ContractHash {
+            provider_id: provider_id.to_string(),
+            error: err,
+        }),
+        Err(HashError::SizeLimitExceeded {
+            limit,
+            actual,
+        }) => Err(CapabilityError::ContractHash {
+            provider_id: provider_id.to_string(),
+            error: format!("canonical json exceeds size limit ({actual} > {limit})"),
+        }),
+    }
 }
 
 /// Compiles a JSON schema with Decision Gate defaults.

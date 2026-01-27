@@ -96,7 +96,15 @@ pub struct S3RunpackStore {
     /// Store configuration.
     config: S3RunpackStoreConfig,
     /// Tokio runtime for blocking S3 calls.
-    runtime: Arc<Runtime>,
+    runtime: Option<Arc<Runtime>>,
+}
+
+impl Drop for S3RunpackStore {
+    fn drop(&mut self) {
+        if let Some(runtime) = self.runtime.take() {
+            let _ = std::thread::spawn(move || drop(runtime));
+        }
+    }
 }
 
 impl S3RunpackStore {
@@ -141,7 +149,7 @@ impl S3RunpackStore {
             bucket: config.bucket.clone(),
             prefix,
             config,
-            runtime: Arc::new(runtime),
+            runtime: Some(Arc::new(runtime)),
         })
     }
 
@@ -285,28 +293,31 @@ impl RunpackStore for S3RunpackStore {
         let client = self.client.clone();
         let sse = self.config.server_side_encryption;
         let kms_key_id = self.config.kms_key_id.clone();
-        self.runtime.block_on(async {
-            let body = aws_sdk_s3::primitives::ByteStream::from_path(&archive_path)
-                .await
-                .map_err(|err| RunpackStoreError::Io(err.to_string()))?;
-            let mut metadata = HashMap::new();
-            metadata.insert("sha256".to_string(), digest.value.clone());
-            let mut request = client
-                .put_object()
-                .bucket(bucket)
-                .key(object_key)
-                .body(body)
-                .set_metadata(Some(metadata))
-                .content_type("application/x-tar");
-            if let Some(mode) = sse {
-                request = request.server_side_encryption(mode.as_sdk());
-            }
-            if let Some(key_id) = kms_key_id {
-                request = request.ssekms_key_id(key_id);
-            }
-            request.send().await.map_err(|err| RunpackStoreError::Io(err.to_string()))?;
-            Ok(())
-        })
+        self.runtime
+            .as_ref()
+            .ok_or_else(|| RunpackStoreError::Io("runpack store closed".to_string()))?
+            .block_on(async {
+                let body = aws_sdk_s3::primitives::ByteStream::from_path(&archive_path)
+                    .await
+                    .map_err(|err| RunpackStoreError::Io(err.to_string()))?;
+                let mut metadata = HashMap::new();
+                metadata.insert("sha256".to_string(), digest.value.clone());
+                let mut request = client
+                    .put_object()
+                    .bucket(bucket)
+                    .key(object_key)
+                    .body(body)
+                    .set_metadata(Some(metadata))
+                    .content_type("application/x-tar");
+                if let Some(mode) = sse {
+                    request = request.server_side_encryption(mode.as_sdk());
+                }
+                if let Some(key_id) = kms_key_id {
+                    request = request.ssekms_key_id(key_id);
+                }
+                request.send().await.map_err(|err| RunpackStoreError::Io(err.to_string()))?;
+                Ok(())
+            })
     }
 
     fn get_dir(&self, key: &RunpackKey, dest_dir: &Path) -> Result<(), RunpackStoreError> {
@@ -319,25 +330,29 @@ impl RunpackStore for S3RunpackStore {
             .tempfile()
             .map_err(|err| RunpackStoreError::Io(err.to_string()))?;
         let temp_path = temp.path().to_path_buf();
-        let metadata = self.runtime.block_on(async {
-            let output = client
-                .get_object()
-                .bucket(bucket)
-                .key(object_key)
-                .send()
-                .await
-                .map_err(|err| RunpackStoreError::Io(err.to_string()))?;
-            let metadata = output.metadata().cloned();
-            let mut file = tokio::fs::File::from_std(
-                temp.reopen().map_err(|err| RunpackStoreError::Io(err.to_string()))?,
-            );
-            let mut body = output.body.into_async_read();
-            tokio::io::copy(&mut body, &mut file)
-                .await
-                .map_err(|err| RunpackStoreError::Io(err.to_string()))?;
-            file.flush().await.map_err(|err| RunpackStoreError::Io(err.to_string()))?;
-            Ok::<_, RunpackStoreError>(metadata)
-        })?;
+        let metadata = self
+            .runtime
+            .as_ref()
+            .ok_or_else(|| RunpackStoreError::Io("runpack store closed".to_string()))?
+            .block_on(async {
+                let output = client
+                    .get_object()
+                    .bucket(bucket)
+                    .key(object_key)
+                    .send()
+                    .await
+                    .map_err(|err| RunpackStoreError::Io(err.to_string()))?;
+                let metadata = output.metadata().cloned();
+                let mut file = tokio::fs::File::from_std(
+                    temp.reopen().map_err(|err| RunpackStoreError::Io(err.to_string()))?,
+                );
+                let mut body = output.body.into_async_read();
+                tokio::io::copy(&mut body, &mut file)
+                    .await
+                    .map_err(|err| RunpackStoreError::Io(err.to_string()))?;
+                file.flush().await.map_err(|err| RunpackStoreError::Io(err.to_string()))?;
+                Ok::<_, RunpackStoreError>(metadata)
+            })?;
         self.verify_archive_size(&temp_path)?;
         let digest = Self::compute_sha256(&temp_path)?;
         if let Some(meta) = metadata

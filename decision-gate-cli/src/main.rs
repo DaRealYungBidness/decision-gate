@@ -51,6 +51,8 @@ use decision_gate_core::ScenarioSpec;
 use decision_gate_core::Timestamp;
 use decision_gate_core::TriggerEvent;
 use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
+use decision_gate_core::hashing::HashError;
+use decision_gate_core::hashing::canonical_json_bytes_with_limit;
 use decision_gate_core::runtime::MAX_RUNPACK_ARTIFACT_BYTES;
 use decision_gate_core::runtime::RunpackBuilder;
 use decision_gate_core::runtime::RunpackVerifier;
@@ -60,10 +62,12 @@ use decision_gate_mcp::DecisionGateConfig;
 use decision_gate_mcp::FileArtifactReader;
 use decision_gate_mcp::FileArtifactSink;
 use decision_gate_mcp::McpServer;
+use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::ServerTransport;
 use interop::InteropConfig;
 use interop::run_interop;
 use interop::validate_inputs;
+use serde::Serialize;
 use serde::de::DeserializeOwned;
 use thiserror::Error;
 
@@ -125,6 +129,12 @@ enum Commands {
         #[command(subcommand)]
         command: ConfigCommand,
     },
+    /// Provider discovery utilities.
+    Provider {
+        /// Selected provider subcommand.
+        #[command(subcommand)]
+        command: ProviderCommand,
+    },
     /// Interop evaluation utilities.
     Interop {
         /// Selected interop subcommand.
@@ -164,6 +174,62 @@ enum AuthoringCommand {
 enum ConfigCommand {
     /// Validate a Decision Gate configuration file.
     Validate(ConfigValidateCommand),
+}
+
+/// Provider discovery subcommands.
+#[derive(Subcommand, Debug)]
+enum ProviderCommand {
+    /// Provider contract operations.
+    Contract {
+        /// Selected contract subcommand.
+        #[command(subcommand)]
+        command: ProviderContractCommand,
+    },
+    /// Provider schema operations.
+    Schema {
+        /// Selected schema subcommand.
+        #[command(subcommand)]
+        command: ProviderSchemaCommand,
+    },
+}
+
+/// Provider contract subcommands.
+#[derive(Subcommand, Debug)]
+enum ProviderContractCommand {
+    /// Fetch provider contract JSON.
+    Get(ProviderContractGetCommand),
+}
+
+/// Provider schema subcommands.
+#[derive(Subcommand, Debug)]
+enum ProviderSchemaCommand {
+    /// Fetch provider predicate schema metadata.
+    Get(ProviderSchemaGetCommand),
+}
+
+/// Arguments for `provider contract get`.
+#[derive(Args, Debug)]
+struct ProviderContractGetCommand {
+    /// Provider identifier.
+    #[arg(long, value_name = "PROVIDER")]
+    provider: String,
+    /// Optional config file path (defaults to decision-gate.toml or env override).
+    #[arg(long, value_name = "PATH")]
+    config: Option<PathBuf>,
+}
+
+/// Arguments for `provider schema get`.
+#[derive(Args, Debug)]
+struct ProviderSchemaGetCommand {
+    /// Provider identifier.
+    #[arg(long, value_name = "PROVIDER")]
+    provider: String,
+    /// Predicate name.
+    #[arg(long, value_name = "PREDICATE")]
+    predicate: String,
+    /// Optional config file path (defaults to decision-gate.toml or env override).
+    #[arg(long, value_name = "PATH")]
+    config: Option<PathBuf>,
 }
 
 /// Interop subcommands.
@@ -383,6 +449,9 @@ async fn run() -> CliResult<ExitCode> {
         Commands::Config {
             command,
         } => command_config(command),
+        Commands::Provider {
+            command,
+        } => command_provider(command),
         Commands::Interop {
             command,
         } => command_interop(command).await,
@@ -486,6 +555,78 @@ fn command_config_validate(command: &ConfigValidateCommand) -> CliResult<ExitCod
         .map_err(|err| CliError::new(t!("config.load_failed", error = err)))?;
     write_stdout_line(&t!("config.validate.ok"))
         .map_err(|err| CliError::new(output_error("stdout", &err)))?;
+    Ok(ExitCode::SUCCESS)
+}
+
+// ============================================================================
+// SECTION: Provider Discovery Commands
+// ============================================================================
+
+/// Dispatches provider discovery subcommands.
+fn command_provider(command: ProviderCommand) -> CliResult<ExitCode> {
+    match command {
+        ProviderCommand::Contract {
+            command,
+        } => match command {
+            ProviderContractCommand::Get(command) => command_provider_contract_get(&command),
+        },
+        ProviderCommand::Schema {
+            command,
+        } => match command {
+            ProviderSchemaCommand::Get(command) => command_provider_schema_get(&command),
+        },
+    }
+}
+
+/// Executes `provider contract get`.
+fn command_provider_contract_get(command: &ProviderContractGetCommand) -> CliResult<ExitCode> {
+    let config = DecisionGateConfig::load(command.config.as_deref())
+        .map_err(|err| CliError::new(t!("config.load_failed", error = err)))?;
+    if !config.provider_discovery.is_allowed(&command.provider) {
+        return Err(CliError::new(t!("provider.discovery.denied", provider = command.provider)));
+    }
+    let registry = CapabilityRegistry::from_config(&config)
+        .map_err(|err| CliError::new(t!("provider.discovery.failed", error = err)))?;
+    let view = registry
+        .provider_contract_view(&command.provider)
+        .map_err(|err| CliError::new(t!("provider.discovery.failed", error = err)))?;
+    let response = decision_gate_mcp::tools::ProviderContractGetResponse {
+        provider_id: view.provider_id,
+        contract: view.contract,
+        contract_hash: view.contract_hash,
+        source: view.source,
+        version: view.version,
+    };
+    write_canonical_json(&response, config.provider_discovery.max_response_bytes)?;
+    Ok(ExitCode::SUCCESS)
+}
+
+/// Executes `provider schema get`.
+fn command_provider_schema_get(command: &ProviderSchemaGetCommand) -> CliResult<ExitCode> {
+    let config = DecisionGateConfig::load(command.config.as_deref())
+        .map_err(|err| CliError::new(t!("config.load_failed", error = err)))?;
+    if !config.provider_discovery.is_allowed(&command.provider) {
+        return Err(CliError::new(t!("provider.discovery.denied", provider = command.provider)));
+    }
+    let registry = CapabilityRegistry::from_config(&config)
+        .map_err(|err| CliError::new(t!("provider.discovery.failed", error = err)))?;
+    let view = registry
+        .predicate_schema_view(&command.provider, &command.predicate)
+        .map_err(|err| CliError::new(t!("provider.discovery.failed", error = err)))?;
+    let response = decision_gate_mcp::tools::ProviderSchemaGetResponse {
+        provider_id: view.provider_id,
+        predicate: view.predicate,
+        params_required: view.params_required,
+        params_schema: view.params_schema,
+        result_schema: view.result_schema,
+        allowed_comparators: view.allowed_comparators,
+        determinism: view.determinism,
+        anchor_types: view.anchor_types,
+        content_types: view.content_types,
+        examples: view.examples,
+        contract_hash: view.contract_hash,
+    };
+    write_canonical_json(&response, config.provider_discovery.max_response_bytes)?;
     Ok(ExitCode::SUCCESS)
 }
 
@@ -1051,6 +1192,27 @@ fn write_stdout_line(message: &str) -> std::io::Result<()> {
 fn write_stdout_bytes(bytes: &[u8]) -> std::io::Result<()> {
     let mut stdout = std::io::stdout();
     stdout.write_all(bytes)
+}
+
+/// Writes canonical JSON to stdout with a size limit.
+fn write_canonical_json<T: Serialize>(value: &T, max_bytes: usize) -> CliResult<()> {
+    let mut bytes = canonical_json_bytes_with_limit(value, max_bytes).map_err(|err| {
+        let message = match err {
+            HashError::Canonicalization(error) => {
+                t!("provider.discovery.serialize_failed", error = error)
+            }
+            HashError::SizeLimitExceeded {
+                limit,
+                actual,
+            } => t!(
+                "provider.discovery.serialize_failed",
+                error = format!("response exceeds size limit ({actual} > {limit})")
+            ),
+        };
+        CliError::new(message)
+    })?;
+    bytes.push(b'\n');
+    write_stdout_bytes(&bytes).map_err(|err| CliError::new(output_error("stdout", &err)))
 }
 
 /// Writes a single line to stderr.

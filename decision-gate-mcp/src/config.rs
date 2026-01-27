@@ -109,6 +109,8 @@ const MIN_NAMESPACE_AUTH_REQUEST_TIMEOUT_MS: u64 = 500;
 const MAX_NAMESPACE_AUTH_REQUEST_TIMEOUT_MS: u64 = 30_000;
 /// Maximum number of namespace mapping entries.
 const MAX_NAMESPACE_AUTH_MAPPINGS: usize = 10_000;
+/// Default maximum provider discovery response size in bytes.
+const DEFAULT_PROVIDER_DISCOVERY_MAX_BYTES: usize = 1024 * 1024;
 
 // ============================================================================
 // SECTION: Configuration Types
@@ -135,6 +137,9 @@ pub struct DecisionGateConfig {
     /// Evidence anchor policy configuration.
     #[serde(default)]
     pub anchors: AnchorPolicyConfig,
+    /// Provider contract discovery configuration.
+    #[serde(default)]
+    pub provider_discovery: ProviderDiscoveryConfig,
     /// Validation configuration for scenario and precheck inputs.
     #[serde(default)]
     pub validation: ValidationConfig,
@@ -191,6 +196,7 @@ impl DecisionGateConfig {
         self.run_state_store.validate()?;
         self.schema_registry.validate()?;
         self.anchors.validate()?;
+        self.provider_discovery.validate()?;
         for provider in &self.providers {
             provider.validate()?;
         }
@@ -978,6 +984,61 @@ impl Default for EvidencePolicyConfig {
     }
 }
 
+/// Provider contract discovery configuration.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ProviderDiscoveryConfig {
+    /// Optional provider allowlist for contract/schema disclosure.
+    #[serde(default)]
+    pub allowlist: Vec<String>,
+    /// Provider denylist for contract/schema disclosure.
+    #[serde(default)]
+    pub denylist: Vec<String>,
+    /// Maximum response size for provider discovery tools.
+    #[serde(default = "default_provider_discovery_max_bytes")]
+    pub max_response_bytes: usize,
+}
+
+impl Default for ProviderDiscoveryConfig {
+    fn default() -> Self {
+        Self {
+            allowlist: Vec::new(),
+            denylist: Vec::new(),
+            max_response_bytes: default_provider_discovery_max_bytes(),
+        }
+    }
+}
+
+impl ProviderDiscoveryConfig {
+    /// Returns true when a provider is allowed to be disclosed.
+    #[must_use]
+    pub fn is_allowed(&self, provider_id: &str) -> bool {
+        if self.denylist.iter().any(|item| item == provider_id) {
+            return false;
+        }
+        if self.allowlist.is_empty() {
+            return true;
+        }
+        self.allowlist.iter().any(|item| item == provider_id)
+    }
+
+    /// Validates provider discovery configuration.
+    fn validate(&self) -> Result<(), ConfigError> {
+        for entry in self.allowlist.iter().chain(self.denylist.iter()) {
+            if entry.trim().is_empty() {
+                return Err(ConfigError::Invalid(
+                    "provider_discovery allow/deny entries must be non-empty".to_string(),
+                ));
+            }
+        }
+        if self.max_response_bytes == 0 {
+            return Err(ConfigError::Invalid(
+                "provider_discovery.max_response_bytes must be > 0".to_string(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 /// Evidence anchor policy configuration.
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct AnchorPolicyConfig {
@@ -1669,6 +1730,11 @@ fn default_dev_permissive_exempt_providers() -> Vec<String> {
 /// Default value for requiring provider opt-in to raw evidence.
 const fn default_require_provider_opt_in() -> bool {
     true
+}
+
+/// Default maximum response size for provider discovery tooling.
+const fn default_provider_discovery_max_bytes() -> usize {
+    DEFAULT_PROVIDER_DISCOVERY_MAX_BYTES
 }
 
 /// Default busy timeout for the `SQLite` store (ms).

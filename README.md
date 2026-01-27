@@ -447,6 +447,8 @@ Decision Gate exposes MCP tools that map directly to the control plane:
 - `scenario_trigger`
 - `evidence_query`
 - `providers_list`
+- `provider_contract_get`
+- `provider_schema_get`
 - `schemas_register`
 - `schemas_list`
 - `schemas_get`

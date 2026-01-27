@@ -62,6 +62,10 @@ Provider configuration is defined in `ProviderConfig`:
 - `allow_raw`: opt-in for raw evidence disclosure
 - `timeouts`: HTTP connect and request timeouts
 
+Discovery controls are defined in `provider_discovery`:
+- `allowlist` / `denylist`: restrict which provider contracts are disclosed
+- `max_response_bytes`: cap discovery response size
+
 Validation enforces:
 - MCP providers must specify `command` or `url` and `capabilities_path`.
 - `allow_insecure_http` is required for `http://` URLs.
@@ -123,6 +127,8 @@ Tool behavior enforces capability and disclosure policy:
 
 - `scenario_define` validates the spec against capabilities before registering.
 - `evidence_query` validates queries and applies raw evidence redaction policy.
+- `provider_contract_get` / `provider_schema_get` apply disclosure policy and
+  return canonical provider contracts or predicate schemas.
 
 [F:decision-gate-mcp/src/tools.rs L694-L885]
 
@@ -132,8 +138,7 @@ Tool behavior enforces capability and disclosure policy:
 
 | Area | File | Notes |
 | --- | --- | --- |
-| Provider config + validation | `decision-gate-mcp/src/config.rs` | Provider type, transport, contract path, timeouts. |
+| Provider config + validation | `decision-gate-mcp/src/config.rs` | Provider type, transport, contract path, timeouts, discovery allow/deny. |
 | Capability registry | `decision-gate-mcp/src/capabilities.rs` | Contract loading, schema compilation, validation. |
 | Evidence federation | `decision-gate-mcp/src/evidence.rs` | Provider registry + trust enforcement. |
 | Tool integration | `decision-gate-mcp/src/tools.rs` | Spec/query validation and disclosure policy. |
-

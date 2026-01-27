@@ -31,7 +31,8 @@ for the contract.
 
 ## Capabilities
 - MCP tools: scenario lifecycle, evidence_query, runpack export/verify.
-- Discovery tools: providers_list, schemas_list/get, scenarios_list.
+- Discovery tools: providers_list, provider_contract_get, provider_schema_get,
+  schemas_list/get, scenarios_list.
 - Schema registry: register/list/get for versioned data shapes.
 - Precheck: schema-validated, read-only evaluation of asserted data.
 - Security controls: bearer or mTLS auth, tool allowlist, rate limits,
@@ -63,7 +64,8 @@ and point the `json` provider at the resulting artifacts.
 - scenario_define, scenario_start, scenario_status, scenario_next
 - scenario_submit, scenario_trigger
 - evidence_query
-- providers_list, schemas_register, schemas_list, schemas_get, scenarios_list
+- providers_list, provider_contract_get, provider_schema_get
+- schemas_register, schemas_list, schemas_get, scenarios_list
 - precheck
 - runpack_export, runpack_verify
 

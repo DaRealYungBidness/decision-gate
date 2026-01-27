@@ -50,7 +50,9 @@ use helpers::harness::base_http_config;
 use helpers::harness::spawn_enterprise_server_from_configs;
 use helpers::infra::PostgresFixture;
 use helpers::infra::S3Fixture;
+use helpers::infra::io_error;
 use helpers::infra::wait_for_postgres;
+use helpers::infra::with_postgres_client;
 use helpers::readiness::wait_for_server_ready;
 use helpers::scenarios::ScenarioFixture;
 use serde_json::json;
@@ -241,21 +243,28 @@ async fn enterprise_config_wiring_postgres_s3() -> Result<(), Box<dyn std::error
         .await
         .map_err(|err| format!("head_object failed: {err}"))?;
 
-    let mut pg_client = postgres::Client::connect(&postgres.url, postgres::NoTls)?;
-    let run_rows = pg_client.query(
-        "SELECT run_id FROM run_state_versions WHERE tenant_id = $1 AND namespace_id = $2",
-        &[&"tenant-1", &"default"],
-    )?;
-    if run_rows.is_empty() {
-        return Err("expected run_state_versions rows in Postgres".into());
-    }
-    let schema_rows = pg_client.query(
-        "SELECT schema_id FROM data_shapes WHERE tenant_id = $1 AND namespace_id = $2",
-        &[&"tenant-1", &"default"],
-    )?;
-    if schema_rows.is_empty() {
-        return Err("expected data_shapes rows in Postgres".into());
-    }
+    with_postgres_client(&postgres.url, |pg_client| {
+        let run_rows = pg_client
+            .query(
+                "SELECT run_id FROM run_state_versions WHERE tenant_id = $1 AND namespace_id = $2",
+                &[&"tenant-1", &"default"],
+            )
+            .map_err(io_error)?;
+        if run_rows.is_empty() {
+            return Err(io_error("expected run_state_versions rows in Postgres"));
+        }
+        let schema_rows = pg_client
+            .query(
+                "SELECT schema_id FROM data_shapes WHERE tenant_id = $1 AND namespace_id = $2",
+                &[&"tenant-1", &"default"],
+            )
+            .map_err(io_error)?;
+        if schema_rows.is_empty() {
+            return Err(io_error("expected data_shapes rows in Postgres"));
+        }
+        Ok(())
+    })
+    .await?;
 
     reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
     reporter.finish(

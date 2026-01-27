@@ -141,11 +141,10 @@ How the agent learns the shape today:
   `decision-gate-mcp/src/tools.rs`
 - `schemas_list` and `schemas_get` return registered data shapes.
   `decision-gate-mcp/src/tools.rs`
-- There is still no MCP tool that returns full provider param/result schemas;
-  agents must obtain provider contracts out-of-band (e.g.
-  `Docs/generated/decision-gate/providers.json` for built-ins, and the external
-  provider's contract JSON for custom providers).
-  `Docs/guides/provider_development.md`
+- Provider schemas are now available via discovery tools:
+  - `provider_contract_get` returns full provider contracts.
+  - `provider_schema_get` returns predicate-level schemas and comparator allow-lists.
+  Access is gated by authz and provider discovery policy.
 
 Also note: ScenarioSpec includes `schemas` (SchemaRef) for packet schemas, but
 that is still metadata in core; there is no runtime schema lookup or validation
@@ -179,11 +178,13 @@ Yes, for registry-backed data shapes and provider summaries:
   `decision-gate-mcp/src/tools.rs`
   `decision-gate-contract/src/tooling.rs`
 
-Full provider schemas are still discovered out-of-band:
+Provider schemas are discoverable in-band when allowed:
 
-- Built-ins: `Docs/generated/decision-gate/providers.json`
-- External: the provider's `capabilities_path` JSON in config
-  `Docs/guides/provider_development.md`
+- `provider_contract_get` for full contracts.
+- `provider_schema_get` for predicate-level schema views.
+
+Contracts remain stored in the contract bundle (`Docs/generated/decision-gate/providers.json`)
+and referenced via `capabilities_path` for external providers.
 
 ## Who retrieves the data? How do we detect modification? Hashing and logs?
 
@@ -258,10 +259,8 @@ quality, and data source determines which assurance level you get.
 
 Out-of-band means "not fully discoverable via MCP tools":
 
-- Provider contracts (param/result schemas) are still obtained from files or
-  docs; the MCP tool surface only exposes provider summaries.
-  `Docs/generated/decision-gate/providers.json`
-  `Docs/guides/provider_development.md`
+- Provider contracts are now discoverable via `provider_contract_get` and
+  `provider_schema_get` when allowed by authz and disclosure policy.
 - Data shapes are discoverable via `schemas_list`/`schemas_get` once registered.
   `decision-gate-mcp/src/tools.rs`
 

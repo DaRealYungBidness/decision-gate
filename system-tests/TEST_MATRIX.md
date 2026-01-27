@@ -35,6 +35,8 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `assetcore_interop_fixtures` | providers | AssetCore interop fixture map executes via provider stub. |
 | `assetcore_anchor_missing_fails_closed` | providers | Missing AssetCore anchors fail closed for evidence queries. |
 | `assetcore_correlation_id_passthrough` | providers | Correlation IDs are preserved for AssetCore evidence queries. |
+| `http_provider_discovery_tools` | contract | HTTP MCP exposes provider contract/schema discovery tools. |
+| `stdio_provider_discovery_tools` | contract | Stdio MCP exposes provider contract/schema discovery tools. |
 | `namespace_authority_allows_known_namespace` | security | AssetCore namespace authority allows known namespaces. |
 | `namespace_authority_denies_unknown_namespace` | security | AssetCore namespace authority denies unknown namespaces. |
 | `namespace_mismatch_rejected` | security | Namespace mismatch between spec and run config is rejected. |

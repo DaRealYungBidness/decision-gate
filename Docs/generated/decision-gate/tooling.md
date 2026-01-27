@@ -31,6 +31,8 @@ This document summarizes the MCP tool surface and expected usage. Full schemas a
 | runpack_export | Export deterministic runpack artifacts for offline verification. |
 | runpack_verify | Verify a runpack manifest and artifacts offline. |
 | providers_list | List registered evidence providers and capabilities summary. |
+| provider_contract_get | Fetch the canonical provider contract JSON and hash for a provider. |
+| provider_schema_get | Fetch predicate schema details (params/result/comparators) for a provider. |
 | schemas_register | Register a data shape schema for a tenant and namespace. |
 | schemas_list | List registered data shapes for a tenant and namespace. |
 | schemas_get | Fetch a specific data shape by identifier and version. |
@@ -595,7 +597,7 @@ Export deterministic runpack artifacts for offline verification.
 - `include_verification` (required): Generate a verification report artifact.
 - `manifest_name` (optional, nullable): Optional override for the manifest file name.
 - `namespace_id` (required): Namespace identifier.
-- `output_dir` (required): Output directory path.
+- `output_dir` (optional, nullable): Optional output directory (required for filesystem export).
 - `run_id` (required): Run identifier.
 - `scenario_id` (required): Scenario identifier.
 - `tenant_id` (required): Tenant identifier.
@@ -604,6 +606,7 @@ Export deterministic runpack artifacts for offline verification.
 
 - `manifest` (required): Type: object.
 - `report` (required, nullable): One of: null, object.
+- `storage_uri` (optional, nullable): Optional storage URI for managed runpack storage backends.
 
 ### Notes
 
@@ -679,7 +682,8 @@ Output:
     "tenant_id": "tenant-001",
     "verifier_mode": "offline_strict"
   },
-  "report": null
+  "report": null,
+  "storage_uri": null
 }
 ```
 ## runpack_verify
@@ -760,6 +764,150 @@ Output:
       "transport": "builtin"
     }
   ]
+}
+```
+## provider_contract_get
+
+Fetch the canonical provider contract JSON and hash for a provider.
+
+### Inputs
+
+- `provider_id` (required): Provider identifier.
+
+### Outputs
+
+- `contract` (required): Type: object.
+- `contract_hash` (required): Type: object.
+- `provider_id` (required): Provider identifier.
+- `source` (required): Contract source origin.
+- `version` (required, nullable): Optional contract version label.
+
+### Notes
+
+- Returns the provider contract as loaded by the MCP server.
+- Includes a canonical hash for audit and reproducibility.
+- Subject to provider disclosure policy and authz.
+
+### Example
+
+Fetch the contract JSON for a provider.
+
+Input:
+```json
+{
+  "provider_id": "json"
+}
+```
+Output:
+```json
+{
+  "contract": {
+    "config_schema": {
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "description": "Reads JSON or YAML files and evaluates JSONPath.",
+    "name": "JSON Provider",
+    "notes": [],
+    "predicates": [],
+    "provider_id": "json",
+    "transport": "builtin"
+  },
+  "contract_hash": {
+    "algorithm": "sha256",
+    "value": "5c3a5b6bce0f4a2c9e22c4fa6a1e6d8d90b0f2dfed1b7f1e9b3d3b3d1f0c9b21"
+  },
+  "provider_id": "json",
+  "source": "builtin",
+  "version": null
+}
+```
+## provider_schema_get
+
+Fetch predicate schema details (params/result/comparators) for a provider.
+
+### Inputs
+
+- `predicate` (required): Provider predicate name.
+- `provider_id` (required): Provider identifier.
+
+### Outputs
+
+- `allowed_comparators` (required): Comparator allow-list for this predicate.
+- `anchor_types` (required): Anchor types emitted by this predicate.
+- `content_types` (required): Content types for predicate output.
+- `contract_hash` (required): Type: object.
+- `determinism` (required): Determinism classification for provider predicates.
+- `examples` (required): Type: array.
+- `params_required` (required): Whether params are required for this predicate.
+- `params_schema` (required): JSON schema for predicate params.
+- `predicate` (required): Predicate name.
+- `provider_id` (required): Provider identifier.
+- `result_schema` (required): JSON schema for predicate result value.
+
+### Notes
+
+- Returns compiled schema metadata for a single predicate.
+- Includes comparator allow-lists and predicate examples.
+- Subject to provider disclosure policy and authz.
+
+### Example
+
+Fetch predicate schema details for a provider.
+
+Input:
+```json
+{
+  "predicate": "path",
+  "provider_id": "json"
+}
+```
+Output:
+```json
+{
+  "allowed_comparators": [
+    "equals",
+    "in_set",
+    "exists",
+    "not_exists"
+  ],
+  "anchor_types": [],
+  "content_types": [
+    "application/json"
+  ],
+  "contract_hash": {
+    "algorithm": "sha256",
+    "value": "5c3a5b6bce0f4a2c9e22c4fa6a1e6d8d90b0f2dfed1b7f1e9b3d3b3d1f0c9b21"
+  },
+  "determinism": "external",
+  "examples": [],
+  "params_required": true,
+  "params_schema": {
+    "properties": {
+      "file": {
+        "type": "string"
+      },
+      "jsonpath": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "file"
+    ],
+    "type": "object"
+  },
+  "predicate": "path",
+  "provider_id": "json",
+  "result_schema": {
+    "type": [
+      "null",
+      "string",
+      "number",
+      "boolean",
+      "array",
+      "object"
+    ]
+  }
 }
 ```
 ## schemas_register

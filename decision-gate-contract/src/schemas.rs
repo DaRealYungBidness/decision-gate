@@ -347,6 +347,7 @@ pub fn config_schema() -> Value {
             "trust": trust_config_schema(),
             "evidence": evidence_policy_schema(),
             "anchors": anchor_policy_schema(),
+            "provider_discovery": provider_discovery_config_schema(),
             "policy": policy_config_schema(),
             "run_state_store": run_state_store_schema(),
             "schema_registry": schema_registry_config_schema(),
@@ -1098,6 +1099,108 @@ pub fn comparator_schema() -> Value {
             "not_exists"
         ],
         "description": "Comparator applied to evidence values."
+    })
+}
+
+/// Returns the JSON schema for `DeterminismClass`.
+#[must_use]
+pub fn determinism_class_schema() -> Value {
+    json!({
+        "type": "string",
+        "enum": ["deterministic", "time_dependent", "external"],
+        "description": "Determinism classification for provider predicates."
+    })
+}
+
+/// Returns the JSON schema for `PredicateExample`.
+#[must_use]
+pub fn predicate_example_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": ["description", "params", "result"],
+        "properties": {
+            "description": schema_for_string("Short example description."),
+            "params": schema_for_json_value("Example params payload."),
+            "result": schema_for_json_value("Example result value.")
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for `PredicateContract`.
+#[must_use]
+pub fn predicate_contract_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": [
+            "name",
+            "description",
+            "determinism",
+            "params_required",
+            "params_schema",
+            "result_schema",
+            "allowed_comparators",
+            "anchor_types",
+            "content_types",
+            "examples"
+        ],
+        "properties": {
+            "name": schema_for_string("Predicate name."),
+            "description": schema_for_string("Predicate description."),
+            "determinism": determinism_class_schema(),
+            "params_required": {
+                "type": "boolean",
+                "description": "Whether params are required for this predicate."
+            },
+            "params_schema": schema_for_json_value("JSON schema for predicate params."),
+            "result_schema": schema_for_json_value("JSON schema for predicate result values."),
+            "allowed_comparators": {
+                "type": "array",
+                "items": comparator_schema(),
+                "description": "Comparator allow-list for this predicate."
+            },
+            "anchor_types": schema_for_string_array("Anchor types emitted by this predicate."),
+            "content_types": schema_for_string_array("Content types for predicate output."),
+            "examples": {
+                "type": "array",
+                "items": predicate_example_schema()
+            }
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for `ProviderContract`.
+#[must_use]
+pub fn provider_contract_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": [
+            "provider_id",
+            "name",
+            "description",
+            "transport",
+            "config_schema",
+            "predicates",
+            "notes"
+        ],
+        "properties": {
+            "provider_id": schema_for_identifier("Provider identifier."),
+            "name": schema_for_string("Provider display name."),
+            "description": schema_for_string("Provider description."),
+            "transport": {
+                "type": "string",
+                "enum": ["builtin", "mcp"],
+                "description": "Provider transport kind."
+            },
+            "config_schema": schema_for_json_value("Provider configuration schema."),
+            "predicates": {
+                "type": "array",
+                "items": predicate_contract_schema()
+            },
+            "notes": schema_for_string_array("Provider notes and guidance.")
+        },
+        "additionalProperties": false
     })
 }
 
@@ -2077,6 +2180,33 @@ fn evidence_policy_schema() -> Value {
         "properties": {
             "allow_raw_values": { "type": "boolean", "default": false },
             "require_provider_opt_in": { "type": "boolean", "default": true }
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for provider discovery configuration.
+#[must_use]
+fn provider_discovery_config_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "allowlist": {
+                "type": "array",
+                "items": schema_for_identifier("Provider identifier allowed for disclosure."),
+                "default": []
+            },
+            "denylist": {
+                "type": "array",
+                "items": schema_for_identifier("Provider identifier denied for disclosure."),
+                "default": []
+            },
+            "max_response_bytes": {
+                "type": "integer",
+                "minimum": 1,
+                "default": 1_048_576,
+                "description": "Maximum response size for provider discovery tools."
+            }
         },
         "additionalProperties": false
     })

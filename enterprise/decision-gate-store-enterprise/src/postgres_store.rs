@@ -77,7 +77,15 @@ pub enum PostgresStoreError {
 /// Postgres-backed store implementing run state and schema registry.
 pub struct PostgresStore {
     /// Connection pool for Postgres access.
-    pool: Pool<PostgresConnectionManager<NoTls>>,
+    pool: Option<Pool<PostgresConnectionManager<NoTls>>>,
+}
+
+impl Drop for PostgresStore {
+    fn drop(&mut self) {
+        if let Some(pool) = self.pool.take() {
+            let _ = std::thread::spawn(move || drop(pool));
+        }
+    }
 }
 
 impl PostgresStore {
@@ -100,7 +108,7 @@ impl PostgresStore {
             .build(manager)
             .map_err(|err| PostgresStoreError::Postgres(err.to_string()))?;
         let store = Self {
-            pool,
+            pool: Some(pool),
         };
         store.migrate()?;
         Ok(store)
@@ -108,8 +116,12 @@ impl PostgresStore {
 
     /// Ensures schema and indices exist for Postgres storage.
     fn migrate(&self) -> Result<(), PostgresStoreError> {
-        let mut conn =
-            self.pool.get().map_err(|err| PostgresStoreError::Postgres(err.to_string()))?;
+        let mut conn = self
+            .pool
+            .as_ref()
+            .ok_or_else(|| PostgresStoreError::Postgres("postgres store closed".to_string()))?
+            .get()
+            .map_err(|err| PostgresStoreError::Postgres(err.to_string()))?;
         conn.batch_execute(
             "CREATE TABLE IF NOT EXISTS runs (tenant_id TEXT NOT NULL,namespace_id TEXT NOT \
              NULL,run_id TEXT NOT NULL,latest_version BIGINT NOT NULL,PRIMARY KEY (tenant_id, \
@@ -117,15 +129,15 @@ impl PostgresStore {
              NOT NULL,namespace_id TEXT NOT NULL,run_id TEXT NOT NULL,version BIGINT NOT \
              NULL,state_json TEXT NOT NULL,state_hash TEXT NOT NULL,hash_algorithm TEXT NOT \
              NULL,saved_at BIGINT NOT NULL,PRIMARY KEY (tenant_id, namespace_id, run_id, \
-             version));CREATE INDEX IF NOT EXISTS idx_run_state_versions_lookupON \
+             version));CREATE INDEX IF NOT EXISTS idx_run_state_versions_lookup ON \
              run_state_versions (tenant_id, namespace_id, run_id, version);CREATE TABLE IF NOT \
              EXISTS data_shapes (tenant_id TEXT NOT NULL,namespace_id TEXT NOT NULL,schema_id \
              TEXT NOT NULL,version TEXT NOT NULL,schema_json TEXT NOT NULL,schema_hash TEXT NOT \
              NULL,hash_algorithm TEXT NOT NULL,description TEXT,created_at_json TEXT NOT \
              NULL,signing_key_id TEXT,signing_signature TEXT,signing_algorithm TEXT,PRIMARY KEY \
              (tenant_id, namespace_id, schema_id, version));CREATE INDEX IF NOT EXISTS \
-             idx_data_shapes_lookupON data_shapes (tenant_id, namespace_id, schema_id, \
-             version);CREATE INDEX IF NOT EXISTS idx_data_shapes_listON data_shapes (tenant_id, \
+             idx_data_shapes_lookup ON data_shapes (tenant_id, namespace_id, schema_id, \
+             version);CREATE INDEX IF NOT EXISTS idx_data_shapes_list ON data_shapes (tenant_id, \
              namespace_id, schema_id, version);",
         )
         .map_err(|err| PostgresStoreError::Postgres(err.to_string()))?;
@@ -164,7 +176,12 @@ impl RunStateStore for PostgresStore {
         namespace_id: &NamespaceId,
         run_id: &RunId,
     ) -> Result<Option<RunState>, StoreError> {
-        let mut conn = self.pool.get().map_err(|err| StoreError::Io(err.to_string()))?;
+        let mut conn = self
+            .pool
+            .as_ref()
+            .ok_or_else(|| StoreError::Io("postgres store closed".to_string()))?
+            .get()
+            .map_err(|err| StoreError::Io(err.to_string()))?;
         let latest: Option<i64> = conn
             .query_opt(
                 "SELECT latest_version FROM runs WHERE tenant_id = $1 AND namespace_id = $2 AND \
@@ -214,21 +231,26 @@ impl RunStateStore for PostgresStore {
         let digest = hash_bytes(DEFAULT_HASH_ALGORITHM, &canonical_json);
         let state_json = String::from_utf8(canonical_json)
             .map_err(|err| StoreError::Invalid(err.to_string()))?;
-        let mut conn = self.pool.get().map_err(|err| StoreError::Io(err.to_string()))?;
+        let mut conn = self
+            .pool
+            .as_ref()
+            .ok_or_else(|| StoreError::Io("postgres store closed".to_string()))?
+            .get()
+            .map_err(|err| StoreError::Io(err.to_string()))?;
         let mut tx = conn.transaction().map_err(|err| StoreError::Io(err.to_string()))?;
         let row = tx
             .query_one(
-                "INSERT INTO runs (tenant_id, namespace_id, run_id, latest_version)VALUES ($1, \
-                 $2, $3, 1)ON CONFLICT (tenant_id, namespace_id, run_id)DO UPDATE SET \
-                 latest_version = runs.latest_version + 1RETURNING latest_version",
+                "INSERT INTO runs (tenant_id, namespace_id, run_id, latest_version) VALUES ($1, \
+                 $2, $3, 1) ON CONFLICT (tenant_id, namespace_id, run_id) DO UPDATE SET \
+                 latest_version = runs.latest_version + 1 RETURNING latest_version",
                 &[&state.tenant_id.as_str(), &state.namespace_id.as_str(), &state.run_id.as_str()],
             )
             .map_err(|err| StoreError::Io(err.to_string()))?;
         let next_version: i64 = row.get(0);
         tx.execute(
             "INSERT INTO run_state_versions (tenant_id, namespace_id, run_id, version, \
-             state_json, state_hash, hash_algorithm, saved_at)VALUES ($1, $2, $3, $4, $5, $6, $7, \
-             $8)",
+             state_json, state_hash, hash_algorithm, saved_at) VALUES ($1, $2, $3, $4, $5, $6, \
+             $7, $8)",
             &[
                 &state.tenant_id.as_str(),
                 &state.namespace_id.as_str(),
@@ -254,12 +276,16 @@ impl DataShapeRegistry for PostgresStore {
         let schema_json = String::from_utf8(schema_bytes)
             .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
         let signing = record.signing.clone();
-        let mut conn =
-            self.pool.get().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+        let mut conn = self
+            .pool
+            .as_ref()
+            .ok_or_else(|| DataShapeRegistryError::Io("postgres store closed".to_string()))?
+            .get()
+            .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
         let result = conn.execute(
             "INSERT INTO data_shapes (tenant_id, namespace_id, schema_id, version, schema_json, \
              schema_hash, hash_algorithm, description, created_at_json, signing_key_id, \
-             signing_signature, signing_algorithm)VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, \
+             signing_signature, signing_algorithm) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, \
              $10, $11, $12)",
             &[
                 &record.tenant_id.as_str(),
@@ -295,8 +321,12 @@ impl DataShapeRegistry for PostgresStore {
         schema_id: &DataShapeId,
         version: &DataShapeVersion,
     ) -> Result<Option<DataShapeRecord>, DataShapeRegistryError> {
-        let mut conn =
-            self.pool.get().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+        let mut conn = self
+            .pool
+            .as_ref()
+            .ok_or_else(|| DataShapeRegistryError::Io("postgres store closed".to_string()))?
+            .get()
+            .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
         let row = conn
             .query_opt(
                 "SELECT schema_json, schema_hash, hash_algorithm, description, created_at_json, \
@@ -381,14 +411,18 @@ impl DataShapeRegistry for PostgresStore {
                 (Some(parsed.schema_id), Some(parsed.version))
             }
         };
-        let mut conn =
-            self.pool.get().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+        let mut conn = self
+            .pool
+            .as_ref()
+            .ok_or_else(|| DataShapeRegistryError::Io("postgres store closed".to_string()))?
+            .get()
+            .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
         let rows = if let (Some(schema_id), Some(version)) = (cursor_schema, cursor_version) {
             conn.query(
                 "SELECT schema_id, version, schema_json, schema_hash, hash_algorithm, \
                  description, created_at_json, signing_key_id, signing_signature, \
-                 signing_algorithmFROM data_shapesWHERE tenant_id = $1 AND namespace_id = $2 AND \
-                 (schema_id, version) > ($3, $4)ORDER BY schema_id, versionLIMIT $5",
+                 signing_algorithm FROM data_shapes WHERE tenant_id = $1 AND namespace_id = $2 \
+                 AND (schema_id, version) > ($3, $4) ORDER BY schema_id, version LIMIT $5",
                 &[
                     &tenant_id.as_str(),
                     &namespace_id.as_str(),
@@ -402,8 +436,8 @@ impl DataShapeRegistry for PostgresStore {
             conn.query(
                 "SELECT schema_id, version, schema_json, schema_hash, hash_algorithm, \
                  description, created_at_json, signing_key_id, signing_signature, \
-                 signing_algorithmFROM data_shapesWHERE tenant_id = $1 AND namespace_id = $2ORDER \
-                 BY schema_id, versionLIMIT $3",
+                 signing_algorithm FROM data_shapes WHERE tenant_id = $1 AND namespace_id = $2 \
+                 ORDER BY schema_id, version LIMIT $3",
                 &[&tenant_id.as_str(), &namespace_id.as_str(), &fetch_limit],
             )
             .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?

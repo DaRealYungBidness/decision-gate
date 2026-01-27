@@ -372,7 +372,7 @@ Stage timeout policy (TimeoutPolicy). Always present in StageSpec and used only 
 
 ## `output_dir`
 
-Directory where runpack_export writes the audit bundle. The exporter creates the manifest and artifact files here. Ensure write permissions and sufficient disk space. Existing files may be overwritten.
+Directory where runpack_export writes the audit bundle for filesystem storage. Optional when managed runpack storage is configured. Ensure write permissions and sufficient disk space. Existing files may be overwritten.
 
 ## `overrides`
 
@@ -438,9 +438,17 @@ The provider check name to evaluate within a provider. Each provider exposes nam
 
 List of provider checks exposed by the provider contract.
 
+## `provider_contract_get`
+
+Fetches the canonical provider contract JSON and its hash for a provider. Use this to discover predicate schemas, comparator allow-lists, and examples. Disclosure is controlled by authz and provider contract visibility policy.
+
 ## `provider_id`
 
 Identifier for an evidence provider registered in decision-gate.toml. Providers supply predicates: 'time' for timestamps, 'env' for environment variables, 'http' for health checks, 'json' for file queries. Custom providers can be registered via MCP configuration.
+
+## `provider_schema_get`
+
+Fetches predicate-level schema details for a provider (params schema, result schema, comparator allow-lists, and examples). Use this for authoring forms or LLM guidance without loading the full provider contract.
 
 ## `providers_list`
 
@@ -601,6 +609,10 @@ Static dispatch policy configuration. Applies when policy.engine = 'static'.
 ## `status`
 
 Current state indicator for a run or verification. Run statuses: 'active', 'completed', 'failed'. Verification statuses: 'pass', 'fail'. Check status to determine next actions or surface issues.
+
+## `storage_uri`
+
+Optional storage location returned by managed runpack storage backends (for example, s3://bucket/tenant/namespace/run/runpack.tar). Present only when the server is configured to export runpacks to object storage.
 
 ## `submission_id`
 

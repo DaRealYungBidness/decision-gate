@@ -140,6 +140,12 @@ const CATALOG_ITEMS: &[(&str, &str)] = &[
     ("interop.status.active", "active"),
     ("interop.status.completed", "completed"),
     ("interop.status.failed", "failed"),
+    ("provider.discovery.failed", "Provider discovery failed: {error}"),
+    ("provider.discovery.denied", "Provider discovery denied for {provider}."),
+    (
+        "provider.discovery.serialize_failed",
+        "Failed to serialize provider discovery output: {error}",
+    ),
 ];
 
 /// Translates `key` using the English fallback catalog while substituting `args`.
