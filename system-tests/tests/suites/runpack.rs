@@ -17,7 +17,6 @@ use decision_gate_core::TriggerId;
 use decision_gate_core::TriggerKind;
 use decision_gate_mcp::config::AssetCoreNamespaceAuthorityConfig;
 use decision_gate_mcp::config::NamespaceAuthorityMode;
-use decision_gate_mcp::config::NamespaceMappingMode;
 use decision_gate_mcp::config::ObjectStoreConfig;
 use decision_gate_mcp::config::ObjectStoreProvider;
 use decision_gate_mcp::config::RunpackStorageConfig;
@@ -248,8 +247,8 @@ async fn runpack_export_object_store_roundtrip() -> Result<(), Box<dyn std::erro
         if root_prefix.is_empty() { String::new() } else { format!("{root_prefix}/") };
     let runpack_prefix = format!(
         "tenant/{}/namespace/{}/scenario/{}/run/{}/spec/{}/{}/",
-        fixture.tenant_id.as_str(),
-        fixture.namespace_id.as_str(),
+        &fixture.tenant_id.to_string(),
+        &fixture.namespace_id.to_string(),
         define_output.scenario_id.as_str(),
         fixture.run_id.as_str(),
         match manifest.spec_hash.algorithm {
@@ -478,15 +477,12 @@ async fn runpack_export_includes_security_context() -> Result<(), Box<dyn std::e
         if security.namespace_authority != "dg_registry" {
             return Err("unexpected namespace_authority in runpack security context".into());
         }
-        if security.namespace_mapping_mode.is_some() {
-            return Err("unexpected namespace_mapping_mode in dev-permissive runpack".into());
-        }
 
         transcripts.extend(client.transcript());
         server.shutdown().await;
     }
 
-    // Case 2: AssetCore authority emits mapping mode metadata.
+    // Case 2: AssetCore authority emits security context metadata.
     {
         let authority = spawn_namespace_authority_stub(vec![99]).await?;
         let bind = allocate_bind_addr()?.to_string();
@@ -497,8 +493,6 @@ async fn runpack_export_includes_security_context() -> Result<(), Box<dyn std::e
             auth_token: None,
             connect_timeout_ms: 500,
             request_timeout_ms: 1_000,
-            mapping: [(String::from("default"), 99)].into_iter().collect(),
-            mapping_mode: NamespaceMappingMode::ExplicitMap,
         });
 
         let server = spawn_mcp_server(config).await?;
@@ -575,9 +569,6 @@ async fn runpack_export_includes_security_context() -> Result<(), Box<dyn std::e
         }
         if security.namespace_authority != "assetcore_catalog" {
             return Err("unexpected namespace_authority for assetcore runpack".into());
-        }
-        if security.namespace_mapping_mode.as_deref() != Some("explicit_map") {
-            return Err("expected explicit_map namespace_mapping_mode".into());
         }
 
         transcripts.extend(client.transcript());

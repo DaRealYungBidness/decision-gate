@@ -25,19 +25,19 @@ use decision_gate_core::Timestamp;
 use serde_json::json;
 
 fn sample_record(schema_id: &str, version: &str) -> DataShapeRecord {
-    sample_record_with("tenant", "default", schema_id, version, json!({"type": "object"}))
+    sample_record_with(1, 1, schema_id, version, json!({"type": "object"}))
 }
 
 fn sample_record_with(
-    tenant: &str,
-    namespace: &str,
+    tenant: u64,
+    namespace: u64,
     schema_id: &str,
     version: &str,
     schema: serde_json::Value,
 ) -> DataShapeRecord {
     DataShapeRecord {
-        tenant_id: TenantId::new(tenant),
-        namespace_id: NamespaceId::new(namespace),
+        tenant_id: TenantId::from_raw(tenant).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(namespace).expect("nonzero namespaceid"),
         schema_id: DataShapeId::new(schema_id),
         version: DataShapeVersion::new(version),
         schema,
@@ -109,8 +109,7 @@ fn registry_rejects_invalid_cursor() {
 fn registry_respects_namespace_isolation() {
     let registry = InMemoryDataShapeRegistry::new();
     let default_record = sample_record("schema-a", "v1");
-    let other_record =
-        sample_record_with("tenant", "other", "schema-a", "v1", json!({"type": "object"}));
+    let other_record = sample_record_with(1, 2, "schema-a", "v1", json!({"type": "object"}));
     registry.register(default_record.clone()).unwrap();
     registry.register(other_record).unwrap();
 
@@ -135,8 +134,8 @@ fn registry_enforces_max_schema_bytes() {
     let registry = InMemoryDataShapeRegistry::with_limits(32, None);
     let oversized = "x".repeat(128);
     let record = sample_record_with(
-        "tenant",
-        "default",
+        1,
+        1,
         "schema-a",
         "v1",
         json!({"type": "string", "description": oversized}),
@@ -155,8 +154,14 @@ fn registry_orders_by_schema_id_then_version() {
     registry.register(record_a2).unwrap();
     registry.register(record_a1).unwrap();
 
-    let page =
-        registry.list(&TenantId::new("tenant"), &NamespaceId::new("default"), None, 10).unwrap();
+    let page = registry
+        .list(
+            &TenantId::from_raw(1).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            None,
+            10,
+        )
+        .unwrap();
     let keys: Vec<(String, String)> = page
         .items
         .iter()
@@ -195,10 +200,8 @@ fn registry_returns_empty_after_last_cursor() {
 #[test]
 fn registry_same_schema_different_tenants_both_succeed() {
     let registry = InMemoryDataShapeRegistry::new();
-    let tenant1_record =
-        sample_record_with("tenant-1", "default", "schema-a", "v1", json!({"type": "object"}));
-    let tenant2_record =
-        sample_record_with("tenant-2", "default", "schema-a", "v1", json!({"type": "object"}));
+    let tenant1_record = sample_record_with(1, 1, "schema-a", "v1", json!({"type": "object"}));
+    let tenant2_record = sample_record_with(2, 1, "schema-a", "v1", json!({"type": "object"}));
 
     registry.register(tenant1_record.clone()).unwrap();
     registry.register(tenant2_record.clone()).unwrap();
@@ -212,8 +215,8 @@ fn registry_same_schema_different_tenants_both_succeed() {
             &tenant1_record.version,
         )
         .unwrap()
-        .expect("tenant-1 record");
-    assert_eq!(fetched1.tenant_id.as_str(), "tenant-1");
+        .expect("tenant 1 record");
+    assert_eq!(fetched1.tenant_id.get(), 1);
 
     let fetched2 = registry
         .get(
@@ -224,45 +227,54 @@ fn registry_same_schema_different_tenants_both_succeed() {
         )
         .unwrap()
         .expect("tenant-2 record");
-    assert_eq!(fetched2.tenant_id.as_str(), "tenant-2");
+    assert_eq!(fetched2.tenant_id.get(), 2);
 }
 
 #[test]
 fn registry_list_filters_by_tenant() {
     let registry = InMemoryDataShapeRegistry::new();
-    let tenant1_record =
-        sample_record_with("tenant-1", "default", "schema-a", "v1", json!({"type": "object"}));
-    let tenant2_record =
-        sample_record_with("tenant-2", "default", "schema-b", "v1", json!({"type": "object"}));
+    let tenant1_record = sample_record_with(1, 1, "schema-a", "v1", json!({"type": "object"}));
+    let tenant2_record = sample_record_with(2, 1, "schema-b", "v1", json!({"type": "object"}));
 
     registry.register(tenant1_record).unwrap();
     registry.register(tenant2_record).unwrap();
 
-    // List for tenant-1 should only return tenant-1's schema
-    let page1 =
-        registry.list(&TenantId::new("tenant-1"), &NamespaceId::new("default"), None, 10).unwrap();
+    // List for tenant 1 should only return tenant 1's schema
+    let page1 = registry
+        .list(
+            &TenantId::from_raw(1).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            None,
+            10,
+        )
+        .unwrap();
     assert_eq!(page1.items.len(), 1);
-    assert_eq!(page1.items[0].tenant_id.as_str(), "tenant-1");
+    assert_eq!(page1.items[0].tenant_id.get(), 1);
 
     // List for tenant-2 should only return tenant-2's schema
-    let page2 =
-        registry.list(&TenantId::new("tenant-2"), &NamespaceId::new("default"), None, 10).unwrap();
+    let page2 = registry
+        .list(
+            &TenantId::from_raw(2).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            None,
+            10,
+        )
+        .unwrap();
     assert_eq!(page2.items.len(), 1);
-    assert_eq!(page2.items[0].tenant_id.as_str(), "tenant-2");
+    assert_eq!(page2.items[0].tenant_id.get(), 2);
 }
 
 #[test]
 fn registry_get_requires_exact_tenant_match() {
     let registry = InMemoryDataShapeRegistry::new();
-    let tenant1_record =
-        sample_record_with("tenant-1", "default", "schema-a", "v1", json!({"type": "object"}));
+    let tenant1_record = sample_record_with(1, 1, "schema-a", "v1", json!({"type": "object"}));
     registry.register(tenant1_record).unwrap();
 
     // Trying to get with wrong tenant returns None
     let wrong_tenant = registry
         .get(
-            &TenantId::new("tenant-2"),
-            &NamespaceId::new("default"),
+            &TenantId::from_raw(2).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             &DataShapeId::new("schema-a"),
             &DataShapeVersion::new("v1"),
         )
@@ -273,10 +285,8 @@ fn registry_get_requires_exact_tenant_match() {
 #[test]
 fn registry_register_same_schema_id_different_tenant_no_conflict() {
     let registry = InMemoryDataShapeRegistry::new();
-    let tenant1_record =
-        sample_record_with("tenant-1", "default", "shared-schema", "v1", json!({"type": "string"}));
-    let tenant2_record =
-        sample_record_with("tenant-2", "default", "shared-schema", "v1", json!({"type": "number"}));
+    let tenant1_record = sample_record_with(1, 1, "shared-schema", "v1", json!({"type": "string"}));
+    let tenant2_record = sample_record_with(2, 1, "shared-schema", "v1", json!({"type": "number"}));
 
     // Both should succeed - no conflict across tenants
     registry.register(tenant1_record).unwrap();
@@ -295,8 +305,14 @@ fn registry_versions_v1_v10_v2_sorted_lexicographically() {
     registry.register(sample_record("schema-a", "v10")).unwrap();
     registry.register(sample_record("schema-a", "v1")).unwrap();
 
-    let page =
-        registry.list(&TenantId::new("tenant"), &NamespaceId::new("default"), None, 10).unwrap();
+    let page = registry
+        .list(
+            &TenantId::from_raw(1).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            None,
+            10,
+        )
+        .unwrap();
 
     let versions: Vec<&str> = page.items.iter().map(|r| r.version.as_str()).collect();
     // Lexicographic: "v1" < "v10" < "v2"
@@ -310,8 +326,14 @@ fn registry_versions_semver_style_sorted_lexicographically() {
     registry.register(sample_record("schema-a", "1.0.10")).unwrap();
     registry.register(sample_record("schema-a", "1.0.1")).unwrap();
 
-    let page =
-        registry.list(&TenantId::new("tenant"), &NamespaceId::new("default"), None, 10).unwrap();
+    let page = registry
+        .list(
+            &TenantId::from_raw(1).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            None,
+            10,
+        )
+        .unwrap();
 
     let versions: Vec<&str> = page.items.iter().map(|r| r.version.as_str()).collect();
     // Lexicographic: "1.0.1" < "1.0.10" < "1.0.2"
@@ -325,8 +347,14 @@ fn registry_versions_with_prefix_sorted_correctly() {
     registry.register(sample_record("schema-a", "beta-1")).unwrap();
     registry.register(sample_record("schema-a", "alpha-1")).unwrap();
 
-    let page =
-        registry.list(&TenantId::new("tenant"), &NamespaceId::new("default"), None, 10).unwrap();
+    let page = registry
+        .list(
+            &TenantId::from_raw(1).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            None,
+            10,
+        )
+        .unwrap();
 
     let versions: Vec<&str> = page.items.iter().map(|r| r.version.as_str()).collect();
     // Lexicographic: "alpha-1" < "beta-1" < "release-2"
@@ -340,8 +368,14 @@ fn registry_versions_numeric_only_sorted_as_strings() {
     registry.register(sample_record("schema-a", "10")).unwrap();
     registry.register(sample_record("schema-a", "1")).unwrap();
 
-    let page =
-        registry.list(&TenantId::new("tenant"), &NamespaceId::new("default"), None, 10).unwrap();
+    let page = registry
+        .list(
+            &TenantId::from_raw(1).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            None,
+            10,
+        )
+        .unwrap();
 
     let versions: Vec<&str> = page.items.iter().map(|r| r.version.as_str()).collect();
     // Lexicographic: "1" < "10" < "2"
@@ -359,7 +393,7 @@ fn registry_schema_exactly_at_max_bytes_accepted() {
     // Create a schema that is exactly at the limit
     // The JSON serialization must be exactly 64 bytes
     let small_schema = json!({"t":"o"});
-    let record = sample_record_with("tenant", "default", "schema-a", "v1", small_schema);
+    let record = sample_record_with(1, 1, "schema-a", "v1", small_schema);
     // This should succeed as it's under 64 bytes
     registry.register(record).unwrap();
 }
@@ -367,7 +401,7 @@ fn registry_schema_exactly_at_max_bytes_accepted() {
 #[test]
 fn registry_empty_schema_object_accepted() {
     let registry = InMemoryDataShapeRegistry::new();
-    let record = sample_record_with("tenant", "default", "schema-a", "v1", json!({}));
+    let record = sample_record_with(1, 1, "schema-a", "v1", json!({}));
     registry.register(record.clone()).unwrap();
     let fetched = registry
         .get(&record.tenant_id, &record.namespace_id, &record.schema_id, &record.version)
@@ -397,7 +431,7 @@ fn registry_deeply_nested_schema_within_limit_accepted() {
             }
         }
     });
-    let record = sample_record_with("tenant", "default", "schema-a", "v1", nested);
+    let record = sample_record_with(1, 1, "schema-a", "v1", nested);
     registry.register(record).unwrap();
 }
 
@@ -423,13 +457,7 @@ fn registry_cursor_with_empty_schema_id_handled() {
 fn registry_cursor_with_special_characters_handled() {
     let registry = InMemoryDataShapeRegistry::new();
     // Register with special characters in schema_id
-    let record = sample_record_with(
-        "tenant",
-        "default",
-        "schema/with:special",
-        "v1",
-        json!({"type": "object"}),
-    );
+    let record = sample_record_with(1, 1, "schema/with:special", "v1", json!({"type": "object"}));
     registry.register(record.clone()).unwrap();
 
     let page = registry.list(&record.tenant_id, &record.namespace_id, None, 10).unwrap();
@@ -454,12 +482,12 @@ fn registry_concurrent_registers_to_different_schemas_succeed() {
     let registry = Arc::new(InMemoryDataShapeRegistry::new());
     let mut handles = vec![];
 
-    for i in 0 .. 10u64 {
+    for i in 0..10u64 {
         let registry = Arc::clone(&registry);
         let handle = thread::spawn(move || {
             let record = DataShapeRecord {
-                tenant_id: TenantId::new("tenant"),
-                namespace_id: NamespaceId::new("default"),
+                tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+                namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
                 schema_id: DataShapeId::new(format!("schema-{i}")),
                 version: DataShapeVersion::new("v1"),
                 schema: json!({"type": "object", "id": i}),
@@ -477,8 +505,14 @@ fn registry_concurrent_registers_to_different_schemas_succeed() {
     }
 
     // Verify all 10 schemas are registered
-    let page =
-        registry.list(&TenantId::new("tenant"), &NamespaceId::new("default"), None, 20).unwrap();
+    let page = registry
+        .list(
+            &TenantId::from_raw(1).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            None,
+            20,
+        )
+        .unwrap();
     assert_eq!(page.items.len(), 10);
 }
 
@@ -494,14 +528,14 @@ fn registry_concurrent_register_same_schema_one_wins_one_conflicts() {
     let conflict_count = Arc::new(AtomicUsize::new(0));
     let mut handles = vec![];
 
-    for i in 0 .. 10u64 {
+    for i in 0..10u64 {
         let registry = Arc::clone(&registry);
         let success_count = Arc::clone(&success_count);
         let conflict_count = Arc::clone(&conflict_count);
         let handle = thread::spawn(move || {
             let record = DataShapeRecord {
-                tenant_id: TenantId::new("tenant"),
-                namespace_id: NamespaceId::new("default"),
+                tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+                namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
                 schema_id: DataShapeId::new("same-schema"),
                 version: DataShapeVersion::new("v1"),
                 schema: json!({"type": "object", "thread": i}),
@@ -540,13 +574,13 @@ fn registry_concurrent_list_during_register_consistent() {
     let mut handles = vec![];
 
     // Spawn writers
-    for i in 0 .. 5u64 {
+    for i in 0..5u64 {
         let registry = Arc::clone(&registry);
         let handle = thread::spawn(move || {
-            for j in 0 .. 10u64 {
+            for j in 0..10u64 {
                 let record = DataShapeRecord {
-                    tenant_id: TenantId::new("tenant"),
-                    namespace_id: NamespaceId::new("default"),
+                    tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+                    namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
                     schema_id: DataShapeId::new(format!("schema-{i}-{j}")),
                     version: DataShapeVersion::new("v1"),
                     schema: json!({"type": "object"}),
@@ -561,13 +595,13 @@ fn registry_concurrent_list_during_register_consistent() {
     }
 
     // Spawn readers
-    for _ in 0 .. 5 {
+    for _ in 0..5 {
         let registry = Arc::clone(&registry);
         let handle = thread::spawn(move || {
-            for _ in 0 .. 20 {
+            for _ in 0..20 {
                 let result = registry.list(
-                    &TenantId::new("tenant"),
-                    &NamespaceId::new("default"),
+                    &TenantId::from_raw(1).expect("nonzero tenantid"),
+                    &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
                     None,
                     100,
                 );

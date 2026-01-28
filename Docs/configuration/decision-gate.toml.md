@@ -62,8 +62,8 @@ policy_class = "prod"
 
 [[server.auth.principals.roles]]
 name = "TenantAdmin"
-tenant_id = "tenant-1"
-namespace_id = "default"
+tenant_id = 1
+namespace_id = 1
 ```
 Built-in registry ACL expects `policy_class` values like `prod`, `project`,
 or `scratch` (case-insensitive). Unknown values are treated as `prod`.
@@ -89,7 +89,7 @@ Dev-permissive is rejected when `namespace.authority.mode = "assetcore_http"`.
 ### `[namespace]`
 | Field | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `allow_default` | bool | `false` | Allow the literal `default` namespace (opt-in). |
+| `allow_default` | bool | `false` | Allow the default namespace id (1) (opt-in). |
 | `default_tenants` | array | `[]` | Tenant allowlist required when `allow_default = true`. |
 
 ### `[namespace.authority]`
@@ -105,8 +105,6 @@ Dev-permissive is rejected when `namespace.authority.mode = "assetcore_http"`.
 | `auth_token` | string | `null` | Optional bearer token for namespace lookup. |
 | `connect_timeout_ms` | integer | `500` | HTTP connect timeout (ms). |
 | `request_timeout_ms` | integer | `2000` | HTTP request timeout (ms). |
-| `mapping` | table | `{}` | Optional DG namespace -> ASC numeric mapping. |
-| `mapping_mode` | `"explicit_map" | "numeric_parse"` | `numeric_parse` | Namespace mapping strategy (required for Asset Core). |
 
 Asset Core authority example:
 ```toml
@@ -118,8 +116,6 @@ base_url = "http://127.0.0.1:9001"
 auth_token = "token"
 connect_timeout_ms = 500
 request_timeout_ms = 2000
-mapping_mode = "explicit_map"
-mapping = { default = 42 }
 ```
 
 ### `[trust]`
@@ -296,8 +292,8 @@ default = "deny"
 [[schema_registry.acl.rules]]
 effect = "allow"
 actions = ["register", "list", "get"]
-tenants = ["tenant-1"]
-namespaces = ["default"]
+tenants = [1]
+namespaces = [1]
 roles = ["TenantAdmin", "NamespaceAdmin"]
 ```
 

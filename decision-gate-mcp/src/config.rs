@@ -108,8 +108,6 @@ const MAX_NAMESPACE_AUTH_CONNECT_TIMEOUT_MS: u64 = 10_000;
 const MIN_NAMESPACE_AUTH_REQUEST_TIMEOUT_MS: u64 = 500;
 /// Maximum namespace authority request timeout in milliseconds.
 const MAX_NAMESPACE_AUTH_REQUEST_TIMEOUT_MS: u64 = 30_000;
-/// Maximum number of namespace mapping entries.
-const MAX_NAMESPACE_AUTH_MAPPINGS: usize = 10_000;
 /// Default maximum provider discovery response size in bytes.
 const DEFAULT_PROVIDER_DISCOVERY_MAX_BYTES: usize = 1024 * 1024;
 
@@ -826,10 +824,10 @@ impl Default for TrustConfig {
 /// Namespace policy configuration.
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct NamespaceConfig {
-    /// Allow the literal `default` namespace identifier.
+    /// Allow the default namespace identifier (id = 1).
     #[serde(default)]
     pub allow_default: bool,
-    /// Explicit tenant allowlist for the default namespace.
+    /// Explicit tenant allowlist for the default namespace id.
     #[serde(default)]
     pub default_tenants: Vec<TenantId>,
     /// Namespace authority configuration.
@@ -930,12 +928,6 @@ pub struct AssetCoreNamespaceAuthorityConfig {
     /// Request timeout in milliseconds.
     #[serde(default = "default_namespace_auth_request_timeout_ms")]
     pub request_timeout_ms: u64,
-    /// Optional DG -> Asset Core namespace mapping.
-    #[serde(default)]
-    pub mapping: BTreeMap<String, u64>,
-    /// Mapping mode selection.
-    #[serde(default)]
-    pub mapping_mode: NamespaceMappingMode,
 }
 
 impl AssetCoreNamespaceAuthorityConfig {
@@ -962,31 +954,8 @@ impl AssetCoreNamespaceAuthorityConfig {
             MIN_NAMESPACE_AUTH_REQUEST_TIMEOUT_MS,
             MAX_NAMESPACE_AUTH_REQUEST_TIMEOUT_MS,
         )?;
-        if self.mapping.len() > MAX_NAMESPACE_AUTH_MAPPINGS {
-            return Err(ConfigError::Invalid(
-                "namespace.authority.assetcore.mapping exceeds max entries".to_string(),
-            ));
-        }
-        if self.mapping_mode == NamespaceMappingMode::None {
-            return Err(ConfigError::Invalid(
-                "namespace.authority.assetcore.mapping_mode cannot be none".to_string(),
-            ));
-        }
         Ok(())
     }
-}
-
-/// Namespace mapping mode for Asset Core authority.
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum NamespaceMappingMode {
-    /// No mapping and no numeric parsing (disallowed for Asset Core authority).
-    None,
-    /// Require explicit mappings only (numeric parsing disabled).
-    ExplicitMap,
-    /// Allow numeric parsing (mappings may still be provided).
-    #[default]
-    NumericParse,
 }
 
 /// Policy engine configuration.

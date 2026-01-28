@@ -133,10 +133,14 @@ pub struct McpServer {
 /// Optional overrides for enterprise deployments.
 #[derive(Default)]
 pub struct ServerOverrides {
+    /// Tool authz override (authn/authz policy).
+    pub authz: Option<Arc<dyn crate::auth::ToolAuthz>>,
     /// Tenant authorization policy override.
     pub tenant_authorizer: Option<Arc<dyn TenantAuthorizer>>,
     /// Usage metering/quota enforcement override.
     pub usage_meter: Option<Arc<dyn UsageMeter>>,
+    /// Namespace authority override.
+    pub namespace_authority: Option<Arc<dyn NamespaceAuthority>>,
     /// Runpack storage override.
     pub runpack_storage: Option<Arc<dyn RunpackStorage>>,
     /// Run state store override.
@@ -203,8 +207,10 @@ impl McpServer {
         let capabilities = CapabilityRegistry::from_config(&config)
             .map_err(|err| McpServerError::Init(err.to_string()))?;
         let ServerOverrides {
+            authz,
             tenant_authorizer,
             usage_meter,
+            namespace_authority,
             runpack_storage,
             run_state_store,
             schema_registry,
@@ -219,15 +225,17 @@ impl McpServer {
         };
         let provider_transports = build_provider_transports(&config);
         let schema_registry_limits = build_schema_registry_limits(&config)?;
-        let default_namespace_tenants = config
-            .namespace
-            .default_tenants
-            .iter()
-            .map(ToString::to_string)
-            .collect::<BTreeSet<_>>();
-        let namespace_authority = build_namespace_authority(&config)
-            .map_err(|err| McpServerError::Init(err.to_string()))?;
-        let authz = Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
+        let default_namespace_tenants =
+            config.namespace.default_tenants.iter().cloned().collect::<BTreeSet<_>>();
+        let namespace_authority = match namespace_authority {
+            Some(authority) => authority,
+            None => build_namespace_authority(&config)
+                .map_err(|err| McpServerError::Init(err.to_string()))?,
+        };
+        let authz = match authz {
+            Some(authz) => authz,
+            None => Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref())),
+        };
         let auth_audit = Arc::new(StderrAuditSink);
         let principal_resolver = PrincipalResolver::from_config(config.server.auth.as_ref());
         let registry_acl = RegistryAcl::new(&config.schema_registry.acl);
@@ -462,18 +470,9 @@ fn build_runpack_security_context(config: &DecisionGateConfig) -> RunpackSecurit
         crate::config::NamespaceAuthorityMode::None => "dg_registry".to_string(),
         crate::config::NamespaceAuthorityMode::AssetcoreHttp => "assetcore_catalog".to_string(),
     };
-    let mapping_mode =
-        config.namespace.authority.assetcore.as_ref().map(|assetcore| {
-            match assetcore.mapping_mode {
-                crate::config::NamespaceMappingMode::None => "none".to_string(),
-                crate::config::NamespaceMappingMode::ExplicitMap => "explicit_map".to_string(),
-                crate::config::NamespaceMappingMode::NumericParse => "numeric_parse".to_string(),
-            }
-        });
     RunpackSecurityContext {
         dev_permissive: config.is_dev_permissive(),
         namespace_authority,
-        namespace_mapping_mode: mapping_mode,
     }
 }
 
@@ -494,8 +493,6 @@ fn build_namespace_authority(
                 assetcore.auth_token.clone(),
                 Duration::from_millis(assetcore.connect_timeout_ms),
                 Duration::from_millis(assetcore.request_timeout_ms),
-                assetcore.mapping.clone(),
-                assetcore.mapping_mode,
             )?;
             Ok(Arc::new(authority))
         }
@@ -944,7 +941,7 @@ struct McpRequestInfo {
 }
 
 /// Dispatches a JSON-RPC request to the tool router.
-fn handle_request(
+async fn handle_request(
     router: &ToolRouter,
     base_context: &RequestContext,
     request: JsonRpcRequest,
@@ -954,8 +951,8 @@ fn handle_request(
         return invalid_version_response(&request);
     }
     match request.method.as_str() {
-        "tools/list" => handle_tools_list(router, &context, request.id),
-        "tools/call" => handle_tools_call(router, &context, request.id, request.params),
+        "tools/list" => handle_tools_list(router, &context, request.id).await,
+        "tools/call" => handle_tools_call(router, &context, request.id, request.params).await,
         _ => method_not_found_response(&request),
     }
 }
@@ -1003,7 +1000,7 @@ fn method_not_found_response(
 }
 
 /// Handles `tools/list` requests and serializes the response.
-fn handle_tools_list(
+async fn handle_tools_list(
     router: &ToolRouter,
     context: &RequestContext,
     id: Value,
@@ -1012,7 +1009,7 @@ fn handle_tools_list(
         method: McpMethod::ToolsList,
         tool: None,
     };
-    match router.list_tools(context) {
+    match router.list_tools(context).await {
         Ok(tools) => {
             if let Ok(value) = serde_json::to_value(ToolListResult {
                 tools,
@@ -1040,7 +1037,7 @@ fn handle_tools_list(
 }
 
 /// Handles `tools/call` requests and serializes the response.
-fn handle_tools_call(
+async fn handle_tools_call(
     router: &ToolRouter,
     context: &RequestContext,
     id: Value,
@@ -1054,7 +1051,10 @@ fn handle_tools_call(
                 method: McpMethod::ToolsCall,
                 tool: ToolName::parse(&call.name),
             };
-            match call_tool_with_blocking(router, context, &call.name, call.arguments) {
+            match router
+                .handle_tool_call(context, &call.name, call.arguments)
+                .await
+            {
                 Ok(result) => {
                     if let Ok(value) = serde_json::to_value(ToolCallResult {
                         content: vec![ToolContent::Json {
@@ -1097,26 +1097,6 @@ fn invalid_tool_params_response(id: Value) -> (StatusCode, JsonRpcResponse, McpR
             tool: None,
         },
     )
-}
-
-/// Executes a tool call, shifting to a blocking context when available.
-fn call_tool_with_blocking(
-    router: &ToolRouter,
-    context: &RequestContext,
-    name: &str,
-    arguments: Value,
-) -> Result<Value, ToolError> {
-    match tokio::runtime::Handle::try_current() {
-        Ok(_) => {
-            let router = router.clone();
-            let context = context.clone();
-            let name = name.to_string();
-            std::thread::spawn(move || router.handle_tool_call(&context, &name, arguments))
-                .join()
-                .map_err(|_| ToolError::Internal("tool execution panicked".to_string()))?
-        }
-        Err(_) => router.handle_tool_call(context, name, arguments),
-    }
 }
 
 /// Request size and timing metadata used for metrics.
@@ -1243,7 +1223,7 @@ fn parse_request(
     };
 
     let context = context.clone().with_request_id(request.id.to_string());
-    let (status, response, info) = handle_request(&state.router, &context, request);
+    let (status, response, info) = handle_request(&state.router, &context, request).await;
     record_metrics(
         state,
         &context,
@@ -1340,20 +1320,11 @@ fn emit_security_audit(audit: &Arc<dyn McpAuditSink>, config: &DecisionGateConfi
         crate::config::NamespaceAuthorityMode::None => "dg_registry".to_string(),
         crate::config::NamespaceAuthorityMode::AssetcoreHttp => "assetcore_catalog".to_string(),
     };
-    let mapping_mode =
-        config.namespace.authority.assetcore.as_ref().map(|assetcore| {
-            match assetcore.mapping_mode {
-                crate::config::NamespaceMappingMode::None => "none".to_string(),
-                crate::config::NamespaceMappingMode::ExplicitMap => "explicit_map".to_string(),
-                crate::config::NamespaceMappingMode::NumericParse => "numeric_parse".to_string(),
-            }
-        });
     let event = SecurityAuditEvent::new(SecurityAuditEventParams {
         kind: "dev_permissive_enabled".to_string(),
         message: Some("dev-permissive mode enabled".to_string()),
         dev_permissive: true,
         namespace_authority,
-        namespace_mapping_mode: mapping_mode,
     });
     audit.record_security(&event);
 }

@@ -595,6 +595,8 @@ Decision Gate is built by Michael "Yung Bidness" Campbell.
 
 The Amity Affliction. (2014). _Pittsburgh_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=vu3xGr-lNVI
 
+Secrets. (2019). _My Mind, Myself & I_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=51xzsGkQIcQ
+
 Kublai Khan TX. (2017). _The Hammer_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=8GGMdMo61_o
 
 Paleface Swiss. (2023). _The Gallow_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=ThvEJXMeYOA

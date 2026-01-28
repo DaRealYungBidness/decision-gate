@@ -50,7 +50,7 @@ fn base_config() -> DecisionGateConfig {
         server: ServerConfig::default(),
         namespace: decision_gate_mcp::config::NamespaceConfig {
             allow_default: true,
-            default_tenants: vec![TenantId::new("test-tenant")],
+            default_tenants: vec![TenantId::from_raw(100).expect("nonzero tenantid")],
             ..decision_gate_mcp::config::NamespaceConfig::default()
         },
         trust: TrustConfig::default(),

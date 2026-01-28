@@ -143,7 +143,7 @@ impl RunStateStore for CountingStore {
 fn sample_spec() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -182,7 +182,7 @@ fn sample_spec_two_stages() -> ScenarioSpec {
     let approved_predicate = PredicateKey::new("approved");
     ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("1"),
         stages: vec![
             StageSpec {
@@ -521,7 +521,7 @@ fn spec_with_and_gate() -> ScenarioSpec {
     let approved_predicate = PredicateKey::new("approved");
     ScenarioSpec {
         scenario_id: ScenarioId::new("and-gate-scenario"),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -576,7 +576,7 @@ fn spec_with_or_gate() -> ScenarioSpec {
     let approved_predicate = PredicateKey::new("approved");
     ScenarioSpec {
         scenario_id: ScenarioId::new("or-gate-scenario"),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),

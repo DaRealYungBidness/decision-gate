@@ -157,8 +157,8 @@ fn start_run(
     >,
 ) {
     let run_config = RunConfig {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: ScenarioId::new("scenario"),
         dispatch_targets: vec![DispatchTarget::Agent {
@@ -174,7 +174,7 @@ fn timeout_fail_triggers_fail_decision() {
     let store = InMemoryRunStateStore::new();
     let spec = ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -207,8 +207,8 @@ fn timeout_fail_triggers_fail_decision() {
 
     let trigger = TriggerEvent {
         run_id: decision_gate_core::RunId::new("run-1"),
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         trigger_id: TriggerId::new("tick-1"),
         kind: TriggerKind::Tick,
         time: Timestamp::Logical(10),
@@ -232,7 +232,7 @@ fn timeout_advance_with_flag_advances_stage() {
     let store = InMemoryRunStateStore::new();
     let spec = ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("1"),
         stages: vec![
             StageSpec {
@@ -285,8 +285,8 @@ fn timeout_advance_with_flag_advances_stage() {
 
     let trigger = TriggerEvent {
         run_id: decision_gate_core::RunId::new("run-1"),
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         trigger_id: TriggerId::new("tick-1"),
         kind: TriggerKind::Tick,
         time: Timestamp::Logical(10),
@@ -311,8 +311,8 @@ fn timeout_advance_with_flag_advances_stage() {
 
     let state = store
         .load(
-            &TenantId::new("tenant"),
-            &NamespaceId::new("default"),
+            &TenantId::from_raw(1).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             &decision_gate_core::RunId::new("run-1"),
         )
         .unwrap()
@@ -326,7 +326,7 @@ fn timeout_alternate_branch_routes_unknown() {
     let store = InMemoryRunStateStore::new();
     let spec = ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("1"),
         stages: vec![
             StageSpec {
@@ -384,8 +384,8 @@ fn timeout_alternate_branch_routes_unknown() {
 
     let trigger = TriggerEvent {
         run_id: decision_gate_core::RunId::new("run-1"),
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         trigger_id: TriggerId::new("tick-1"),
         kind: TriggerKind::Tick,
         time: Timestamp::Logical(10),
@@ -409,8 +409,8 @@ fn timeout_alternate_branch_routes_unknown() {
 
     let state = store
         .load(
-            &TenantId::new("tenant"),
-            &NamespaceId::new("default"),
+            &TenantId::from_raw(1).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             &decision_gate_core::RunId::new("run-1"),
         )
         .unwrap()
@@ -423,7 +423,7 @@ fn tick_before_timeout_evaluates_normally() {
     let store = InMemoryRunStateStore::new();
     let spec = ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("1"),
         stages: vec![
             StageSpec {
@@ -466,8 +466,8 @@ fn tick_before_timeout_evaluates_normally() {
 
     let trigger = TriggerEvent {
         run_id: decision_gate_core::RunId::new("run-1"),
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         trigger_id: TriggerId::new("tick-1"),
         kind: TriggerKind::Tick,
         time: Timestamp::Logical(5),

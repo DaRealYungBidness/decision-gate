@@ -132,7 +132,7 @@ static rules, deny/permit/error effects, and contract schema support.
 
 ### L) Dev-Permissive Mode + Default Namespace Policy
 **Status**: Implemented. `dev.permissive` provides explicit dev-only trust
-relaxation with warnings and TTL checks. Default namespace usage is allowlisted
+relaxation with warnings and TTL checks. Default namespace id usage is allowlisted
 via `namespace.default_tenants` and is never implicitly enabled. Dev-permissive
 is disallowed when `namespace.authority.mode = "assetcore_http"`.
 

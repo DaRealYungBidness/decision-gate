@@ -978,9 +978,9 @@ fn precheck_examples() -> Vec<ToolExample> {
 }
 
 /// Example tenant identifier used in tooling samples.
-const EXAMPLE_TENANT_ID: &str = "tenant-001";
+const EXAMPLE_TENANT_ID: u64 = 1;
 /// Example namespace identifier used in tooling samples.
-const EXAMPLE_NAMESPACE_ID: &str = "namespace-001";
+const EXAMPLE_NAMESPACE_ID: u64 = 1;
 /// Example run identifier used in tooling samples.
 const EXAMPLE_RUN_ID: &str = "run-0001";
 /// Example scenario identifier used in tooling samples.
@@ -1258,8 +1258,8 @@ fn runpack_export_input_schema() -> Value {
     tool_input_schema(
         &json!({
             "scenario_id": schema_identifier("Scenario identifier."),
-            "tenant_id": schema_identifier("Tenant identifier."),
-            "namespace_id": schema_identifier("Namespace identifier."),
+            "tenant_id": schema_numeric_identifier("Tenant identifier."),
+            "namespace_id": schema_numeric_identifier("Namespace identifier."),
             "run_id": schema_identifier("Run identifier."),
             "output_dir": describe_schema(json!({
                 "oneOf": [
@@ -1472,8 +1472,8 @@ fn schemas_register_output_schema() -> Value {
 fn schemas_list_input_schema() -> Value {
     tool_input_schema(
         &json!({
-            "tenant_id": schema_identifier("Tenant identifier."),
-            "namespace_id": schema_identifier("Namespace identifier."),
+            "tenant_id": schema_numeric_identifier("Tenant identifier."),
+            "namespace_id": schema_numeric_identifier("Namespace identifier."),
             "cursor": {
                 "oneOf": [
                     { "type": "null" },
@@ -1516,8 +1516,8 @@ fn schemas_list_output_schema() -> Value {
 fn schemas_get_input_schema() -> Value {
     tool_input_schema(
         &json!({
-            "tenant_id": schema_identifier("Tenant identifier."),
-            "namespace_id": schema_identifier("Namespace identifier."),
+            "tenant_id": schema_numeric_identifier("Tenant identifier."),
+            "namespace_id": schema_numeric_identifier("Namespace identifier."),
             "schema_id": schema_identifier("Data shape identifier."),
             "version": schema_identifier("Data shape version identifier.")
         }),
@@ -1541,8 +1541,8 @@ fn schemas_get_output_schema() -> Value {
 fn scenarios_list_input_schema() -> Value {
     tool_input_schema(
         &json!({
-            "tenant_id": schema_identifier("Tenant identifier."),
-            "namespace_id": schema_identifier("Namespace identifier."),
+            "tenant_id": schema_numeric_identifier("Tenant identifier."),
+            "namespace_id": schema_numeric_identifier("Namespace identifier."),
             "cursor": {
                 "oneOf": [
                     { "type": "null" },
@@ -1585,8 +1585,8 @@ fn scenarios_list_output_schema() -> Value {
 fn precheck_input_schema() -> Value {
     tool_input_schema(
         &json!({
-            "tenant_id": schema_identifier("Tenant identifier."),
-            "namespace_id": schema_identifier("Namespace identifier."),
+            "tenant_id": schema_numeric_identifier("Tenant identifier."),
+            "namespace_id": schema_numeric_identifier("Namespace identifier."),
             "scenario_id": {
                 "oneOf": [
                     { "type": "null" },
@@ -1660,7 +1660,7 @@ fn scenario_summary_schema() -> Value {
         "required": ["scenario_id", "namespace_id", "spec_hash"],
         "properties": {
             "scenario_id": schema_identifier("Scenario identifier."),
-            "namespace_id": schema_identifier("Namespace identifier."),
+            "namespace_id": schema_numeric_identifier("Namespace identifier."),
             "spec_hash": schemas::hash_digest_schema()
         },
         "additionalProperties": false
@@ -1707,8 +1707,8 @@ fn tool_output_schema(properties: &Value, required: &[&str]) -> Value {
 #[must_use]
 fn evidence_context_schema() -> Value {
     let properties = json!({
-        "tenant_id": schema_identifier("Tenant identifier."),
-        "namespace_id": schema_identifier("Namespace identifier."),
+        "tenant_id": schema_numeric_identifier("Tenant identifier."),
+        "namespace_id": schema_numeric_identifier("Namespace identifier."),
         "run_id": schema_identifier("Run identifier."),
         "scenario_id": schema_identifier("Scenario identifier."),
         "stage_id": schema_identifier("Stage identifier."),
@@ -1758,6 +1758,16 @@ fn with_schema(schema: Value) -> Value {
 fn schema_identifier(description: &str) -> Value {
     json!({
         "type": "string",
+        "description": description
+    })
+}
+
+/// Returns a schema describing numeric identifiers (1-based, non-zero).
+#[must_use]
+fn schema_numeric_identifier(description: &str) -> Value {
+    json!({
+        "type": "integer",
+        "minimum": 1,
         "description": description
     })
 }

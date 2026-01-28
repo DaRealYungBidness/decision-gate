@@ -40,7 +40,7 @@ use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
 fn sample_state(run_id: &str) -> RunState {
     let spec = decision_gate_core::ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: decision_gate_core::SpecVersion::new("1"),
         stages: vec![decision_gate_core::StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -57,8 +57,8 @@ fn sample_state(run_id: &str) -> RunState {
     };
     let spec_hash = spec.canonical_hash_with(DEFAULT_HASH_ALGORITHM).expect("spec hash");
     RunState {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: RunId::new(run_id),
         scenario_id: ScenarioId::new("scenario"),
         spec_hash,
@@ -83,7 +83,7 @@ fn store_save_and_load_roundtrip() {
 
     store.save(&state).unwrap();
     let loaded = store
-        .load(&TenantId::new("tenant"), &NamespaceId::new("default"), &RunId::new("run-1"))
+        .load(&TenantId::from_raw(1).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), &RunId::new("run-1"))
         .unwrap();
     assert_eq!(loaded, Some(state));
 }
@@ -93,7 +93,7 @@ fn store_save_and_load_roundtrip() {
 fn store_returns_none_for_missing_run() {
     let store = InMemoryRunStateStore::new();
     let loaded = store
-        .load(&TenantId::new("tenant"), &NamespaceId::new("default"), &RunId::new("missing"))
+        .load(&TenantId::from_raw(1).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), &RunId::new("missing"))
         .unwrap();
     assert!(loaded.is_none());
 }

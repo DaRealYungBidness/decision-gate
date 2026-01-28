@@ -48,7 +48,7 @@ use tempfile::TempDir;
 fn sample_state(run_id: &str) -> RunState {
     let spec = ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -65,8 +65,8 @@ fn sample_state(run_id: &str) -> RunState {
     };
     let spec_hash = spec.canonical_hash_with(DEFAULT_HASH_ALGORITHM).expect("spec hash");
     RunState {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: RunId::new(run_id),
         scenario_id: ScenarioId::new("scenario"),
         spec_hash,
@@ -102,7 +102,7 @@ fn sqlite_store_roundtrip() {
     let state = sample_state("run-1");
     store.save(&state).unwrap();
     let loaded = store
-        .load(&TenantId::new("tenant"), &NamespaceId::new("default"), &RunId::new("run-1"))
+        .load(&TenantId::from_raw(1).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), &RunId::new("run-1"))
         .unwrap();
     assert_eq!(loaded, Some(state));
 }
@@ -113,7 +113,7 @@ fn sqlite_store_returns_none_for_missing_run() {
     let path = temp.path().join("store.sqlite");
     let store = store_for(&path);
     let loaded = store
-        .load(&TenantId::new("tenant"), &NamespaceId::new("default"), &RunId::new("missing"))
+        .load(&TenantId::from_raw(1).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), &RunId::new("missing"))
         .unwrap();
     assert!(loaded.is_none());
 }
@@ -129,7 +129,7 @@ fn sqlite_store_persists_across_instances() {
     }
     let store = store_for(&path);
     let loaded = store
-        .load(&TenantId::new("tenant"), &NamespaceId::new("default"), &RunId::new("run-1"))
+        .load(&TenantId::from_raw(1).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), &RunId::new("run-1"))
         .unwrap();
     assert_eq!(loaded, Some(state));
 }
@@ -151,7 +151,7 @@ fn sqlite_store_detects_corrupt_hash() {
             .unwrap();
     }
     let result =
-        store.load(&TenantId::new("tenant"), &NamespaceId::new("default"), &RunId::new("run-1"));
+        store.load(&TenantId::from_raw(1).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), &RunId::new("run-1"));
     assert!(result.is_err());
 }
 
@@ -169,7 +169,7 @@ fn sqlite_store_rejects_oversized_state_payload() {
         .execute(
             "INSERT INTO runs (tenant_id, namespace_id, run_id, latest_version) VALUES (?1, ?2, \
              ?3, 1)",
-            rusqlite::params!["tenant", "default", run_id.as_str()],
+            rusqlite::params!["1", "1", run_id.as_str()],
         )
         .unwrap();
     connection
@@ -178,8 +178,8 @@ fn sqlite_store_rejects_oversized_state_payload() {
              state_json, state_hash, hash_algorithm, saved_at) VALUES (?1, ?2, ?3, 1, ?4, ?5, ?6, \
              ?7)",
             rusqlite::params![
-                "tenant",
-                "default",
+                "1",
+                "1",
                 run_id.as_str(),
                 oversized,
                 digest.value,
@@ -189,7 +189,7 @@ fn sqlite_store_rejects_oversized_state_payload() {
         )
         .unwrap();
 
-    let result = store.load(&TenantId::new("tenant"), &NamespaceId::new("default"), &run_id);
+    let result = store.load(&TenantId::from_raw(1).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), &run_id);
     assert!(matches!(result, Err(StoreError::Invalid(_))));
 }
 
@@ -260,7 +260,7 @@ fn sqlite_store_rejects_invalid_hash_algorithm() {
         .unwrap();
 
     let result =
-        store.load(&TenantId::new("tenant"), &NamespaceId::new("default"), &RunId::new("run-1"));
+        store.load(&TenantId::from_raw(1).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), &RunId::new("run-1"));
     assert!(matches!(result, Err(StoreError::Invalid(_))));
 }
 
@@ -292,7 +292,7 @@ fn sqlite_store_rejects_run_id_mismatch() {
         .unwrap();
 
     let result =
-        store.load(&TenantId::new("tenant"), &NamespaceId::new("default"), &RunId::new("run-1"));
+        store.load(&TenantId::from_raw(1).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), &RunId::new("run-1"));
     assert!(matches!(result, Err(StoreError::Invalid(_))));
 }
 
@@ -313,7 +313,7 @@ fn sqlite_store_rejects_invalid_latest_version_on_load() {
         .unwrap();
 
     let result =
-        store.load(&TenantId::new("tenant"), &NamespaceId::new("default"), &RunId::new("run-1"));
+        store.load(&TenantId::from_raw(1).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), &RunId::new("run-1"));
     assert!(matches!(result, Err(StoreError::Corrupt(_))));
 }
 

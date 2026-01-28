@@ -124,7 +124,7 @@ impl PolicyDecider for PermitAllPolicy {
 fn sample_spec() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("1"),
         stages: vec![
             StageSpec {
@@ -195,8 +195,8 @@ fn test_trigger_idempotency() {
     .unwrap();
 
     let run_config = RunConfig {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: ScenarioId::new("scenario"),
         dispatch_targets: vec![DispatchTarget::Agent {
@@ -209,8 +209,8 @@ fn test_trigger_idempotency() {
 
     let request = NextRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         trigger_id: TriggerId::new("trigger-1"),
         agent_id: "agent-1".to_string(),
         time: Timestamp::Logical(1),
@@ -226,8 +226,8 @@ fn test_trigger_idempotency() {
 
     let status_request = decision_gate_core::runtime::StatusRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         requested_at: Timestamp::Logical(2),
         correlation_id: None,
     };
@@ -250,8 +250,8 @@ fn scenario_next_completes_after_terminal_stage_evaluation() {
     .unwrap();
 
     let run_config = RunConfig {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: decision_gate_core::RunId::new("run-2"),
         scenario_id: ScenarioId::new("scenario"),
         dispatch_targets: vec![DispatchTarget::Agent {
@@ -264,8 +264,8 @@ fn scenario_next_completes_after_terminal_stage_evaluation() {
 
     let first = NextRequest {
         run_id: decision_gate_core::RunId::new("run-2"),
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         trigger_id: TriggerId::new("trigger-1"),
         agent_id: "agent-1".to_string(),
         time: Timestamp::Logical(1),
@@ -276,8 +276,8 @@ fn scenario_next_completes_after_terminal_stage_evaluation() {
 
     let second = NextRequest {
         run_id: decision_gate_core::RunId::new("run-2"),
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         trigger_id: TriggerId::new("trigger-2"),
         agent_id: "agent-1".to_string(),
         time: Timestamp::Logical(2),

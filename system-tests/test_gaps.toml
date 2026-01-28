@@ -88,7 +88,7 @@ title = "Runpack export includes security context"
 priority = "P2"
 category = "audit"
 status = "closed"
-acceptance_criteria = "System-tests verify runpack_export manifest includes security.dev_permissive, security.namespace_authority, and security.namespace_mapping_mode when applicable."
+acceptance_criteria = "System-tests verify runpack_export manifest includes security.dev_permissive and security.namespace_authority."
 notes = "Implemented in system-tests/tests/suites/runpack.rs (runpack_export_includes_security_context)."
 
 [[gaps]]

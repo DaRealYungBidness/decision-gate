@@ -61,7 +61,7 @@ use crate::interop::validate_inputs;
 fn minimal_spec(id: &str) -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new(id),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("v1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -80,8 +80,8 @@ fn minimal_spec(id: &str) -> ScenarioSpec {
 
 fn minimal_run_config(scenario_id: &ScenarioId) -> RunConfig {
     RunConfig {
-        tenant_id: TenantId::new("tenant-1"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: RunId::new("run-1"),
         scenario_id: scenario_id.clone(),
         dispatch_targets: Vec::new(),
@@ -303,7 +303,7 @@ fn validate_inputs_rejects_tenant_mismatch() {
     let spec = minimal_spec("scenario-1");
     let run_config = minimal_run_config(&spec.scenario_id);
     let mut trigger = minimal_trigger(&run_config);
-    trigger.tenant_id = TenantId::new("tenant-2");
+    trigger.tenant_id = TenantId::from_raw(2).expect("nonzero tenantid");
     assert!(validate_inputs(&spec, &run_config, &trigger).is_err());
 }
 
@@ -312,7 +312,7 @@ fn validate_inputs_rejects_namespace_mismatch() {
     let spec = minimal_spec("scenario-1");
     let run_config = minimal_run_config(&spec.scenario_id);
     let mut trigger = minimal_trigger(&run_config);
-    trigger.namespace_id = NamespaceId::new("namespace-2");
+    trigger.namespace_id = NamespaceId::from_raw(2).expect("nonzero namespaceid");
     assert!(validate_inputs(&spec, &run_config, &trigger).is_err());
 }
 

@@ -145,7 +145,7 @@ impl PolicyDecider for PermitAllPolicy {
 fn minimal_spec() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -196,8 +196,8 @@ fn provider_errors_are_recorded_in_run_state() {
     .expect("control plane");
 
     let run_config = RunConfig {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: ScenarioId::new("scenario"),
         dispatch_targets: vec![],
@@ -208,8 +208,8 @@ fn provider_errors_are_recorded_in_run_state() {
 
     let request = decision_gate_core::runtime::NextRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         trigger_id: TriggerId::new("trigger-1"),
         agent_id: "agent-1".to_string(),
         time: Timestamp::Logical(1),
@@ -221,8 +221,8 @@ fn provider_errors_are_recorded_in_run_state() {
 
     let state = store_clone
         .load(
-            &TenantId::new("tenant"),
-            &NamespaceId::new("default"),
+            &TenantId::from_raw(1).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             &decision_gate_core::RunId::new("run-1"),
         )
         .expect("load state")
@@ -264,8 +264,8 @@ fn missing_anchors_are_recorded_as_errors() {
     .expect("control plane");
 
     let run_config = RunConfig {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: decision_gate_core::RunId::new("run-anchor"),
         scenario_id: ScenarioId::new("scenario"),
         dispatch_targets: vec![],
@@ -276,8 +276,8 @@ fn missing_anchors_are_recorded_as_errors() {
 
     let request = decision_gate_core::runtime::NextRequest {
         run_id: decision_gate_core::RunId::new("run-anchor"),
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         trigger_id: TriggerId::new("trigger-anchor"),
         agent_id: "agent-1".to_string(),
         time: Timestamp::Logical(1),
@@ -288,8 +288,8 @@ fn missing_anchors_are_recorded_as_errors() {
 
     let state = store_clone
         .load(
-            &TenantId::new("tenant"),
-            &NamespaceId::new("default"),
+            &TenantId::from_raw(1).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             &decision_gate_core::RunId::new("run-anchor"),
         )
         .expect("load state")

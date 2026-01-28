@@ -54,7 +54,7 @@ use serde_json::json;
 pub fn scenario_example() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::from("example-scenario"),
-        namespace_id: NamespaceId::from("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::from("v1"),
         stages: vec![example_stage()],
         predicates: vec![env_predicate_example(), time_predicate_example()],
@@ -81,8 +81,8 @@ pub fn scenario_example_ron() -> Result<String, ron::Error> {
 #[must_use]
 pub fn run_config_example() -> RunConfig {
     RunConfig {
-        tenant_id: TenantId::from("tenant-001"),
-        namespace_id: NamespaceId::from("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: RunId::from("run-0001"),
         scenario_id: ScenarioId::from("example-scenario"),
         dispatch_targets: vec![DispatchTarget::Agent {

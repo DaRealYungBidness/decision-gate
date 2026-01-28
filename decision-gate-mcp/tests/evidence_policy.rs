@@ -120,7 +120,6 @@ fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
     let runpack_security_context = Some(decision_gate_core::RunpackSecurityContext {
         dev_permissive: config.is_dev_permissive(),
         namespace_authority: "dg_registry".to_string(),
-        namespace_mapping_mode: None,
     });
     let precheck_audit_payloads = config.server.audit.log_precheck_payloads;
     let authz = std::sync::Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));

@@ -36,13 +36,13 @@ async fn default_namespace_allowlist_enforced() -> Result<(), Box<dyn std::error
     let bind = allocate_bind_addr()?.to_string();
     let mut config = base_http_config(&bind);
     config.namespace.allow_default = true;
-    config.namespace.default_tenants = vec![TenantId::new("tenant-allowed")];
+    config.namespace.default_tenants = vec![TenantId::from_raw(100).expect("nonzero tenantid")];
     if let Some(auth) = config.server.auth.as_mut() {
         if let Some(principal) = auth.principals.iter_mut().find(|p| p.subject == "loopback") {
             principal.roles.push(PrincipalRoleConfig {
                 name: "TenantAdmin".to_string(),
-                tenant_id: Some(TenantId::new("tenant-allowed")),
-                namespace_id: Some(NamespaceId::new("default")),
+                tenant_id: Some(TenantId::from_raw(100).expect("nonzero tenantid")),
+                namespace_id: Some(NamespaceId::from_raw(1).expect("nonzero namespaceid")),
             });
         }
     }
@@ -52,8 +52,8 @@ async fn default_namespace_allowlist_enforced() -> Result<(), Box<dyn std::error
     wait_for_server_ready(&client, Duration::from_secs(5)).await?;
 
     let allowed_record = DataShapeRecord {
-        tenant_id: TenantId::new("tenant-allowed"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         schema_id: DataShapeId::new("allowed-schema"),
         version: DataShapeVersion::new("v1"),
         schema: json!({
@@ -71,8 +71,8 @@ async fn default_namespace_allowlist_enforced() -> Result<(), Box<dyn std::error
     client.call_tool("schemas_register", serde_json::to_value(&request)?).await?;
 
     let denied_record = DataShapeRecord {
-        tenant_id: TenantId::new("tenant-denied"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(101).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         schema_id: DataShapeId::new("denied-schema"),
         version: DataShapeVersion::new("v1"),
         schema: json!({

@@ -145,7 +145,7 @@ const DEFAULT_LIST_LIMIT: usize = 50;
 /// Maximum page size for list-style tools.
 const MAX_LIST_LIMIT: usize = 1000;
 /// Reserved default namespace identifier.
-const DEFAULT_NAMESPACE_ID: &str = "default";
+const DEFAULT_NAMESPACE_ID: u64 = 1;
 
 // ============================================================================
 // SECTION: Tool Router
@@ -207,7 +207,7 @@ pub struct ToolRouter {
     /// Allow default namespace usage.
     allow_default_namespace: bool,
     /// Tenant allowlist for default namespace usage.
-    default_namespace_tenants: BTreeSet<String>,
+    default_namespace_tenants: BTreeSet<TenantId>,
     /// Namespace authority for integrated deployments.
     namespace_authority: Arc<dyn NamespaceAuthority>,
 }
@@ -265,7 +265,7 @@ pub struct ToolRouterConfig {
     /// Allow default namespace usage.
     pub allow_default_namespace: bool,
     /// Tenant allowlist for default namespace usage.
-    pub default_namespace_tenants: BTreeSet<String>,
+    pub default_namespace_tenants: BTreeSet<TenantId>,
     /// Namespace authority for integrated deployments.
     pub namespace_authority: Arc<dyn NamespaceAuthority>,
 }
@@ -311,8 +311,11 @@ impl ToolRouter {
     /// # Errors
     ///
     /// Returns [`ToolError`] when authorization fails.
-    pub fn list_tools(&self, context: &RequestContext) -> Result<Vec<ToolDefinition>, ToolError> {
-        let _ = self.authorize(context, AuthAction::ListTools)?;
+    pub async fn list_tools(
+        &self,
+        context: &RequestContext,
+    ) -> Result<Vec<ToolDefinition>, ToolError> {
+        let _ = self.authorize(context, AuthAction::ListTools).await?;
         Ok(decision_gate_contract::tooling::tool_definitions())
     }
 
@@ -321,41 +324,55 @@ impl ToolRouter {
     /// # Errors
     ///
     /// Returns [`ToolError`] when routing fails.
-    pub fn handle_tool_call(
+    pub async fn handle_tool_call(
         &self,
         context: &RequestContext,
         name: &str,
         payload: Value,
     ) -> Result<Value, ToolError> {
         let tool = ToolName::parse(name).ok_or(ToolError::UnknownTool)?;
-        let auth_ctx = self.authorize(context, AuthAction::CallTool(&tool))?;
+        let auth_ctx = self.authorize(context, AuthAction::CallTool(&tool)).await?;
         match tool {
-            ToolName::ScenarioDefine => self.handle_scenario_define(context, &auth_ctx, payload),
-            ToolName::ScenarioStart => self.handle_scenario_start(context, &auth_ctx, payload),
-            ToolName::ScenarioStatus => self.handle_scenario_status(context, &auth_ctx, payload),
-            ToolName::ScenarioNext => self.handle_scenario_next(context, &auth_ctx, payload),
-            ToolName::ScenarioSubmit => self.handle_scenario_submit(context, &auth_ctx, payload),
-            ToolName::ScenarioTrigger => self.handle_scenario_trigger(context, &auth_ctx, payload),
-            ToolName::EvidenceQuery => self.handle_evidence_query(context, &auth_ctx, payload),
-            ToolName::RunpackExport => self.handle_runpack_export(context, &auth_ctx, payload),
+            ToolName::ScenarioDefine => {
+                self.handle_scenario_define(context, &auth_ctx, payload).await
+            }
+            ToolName::ScenarioStart => self.handle_scenario_start(context, &auth_ctx, payload).await,
+            ToolName::ScenarioStatus => {
+                self.handle_scenario_status(context, &auth_ctx, payload).await
+            }
+            ToolName::ScenarioNext => self.handle_scenario_next(context, &auth_ctx, payload).await,
+            ToolName::ScenarioSubmit => {
+                self.handle_scenario_submit(context, &auth_ctx, payload).await
+            }
+            ToolName::ScenarioTrigger => {
+                self.handle_scenario_trigger(context, &auth_ctx, payload).await
+            }
+            ToolName::EvidenceQuery => self.handle_evidence_query(context, &auth_ctx, payload).await,
+            ToolName::RunpackExport => {
+                self.handle_runpack_export(context, &auth_ctx, payload).await
+            }
             ToolName::RunpackVerify => Self::handle_runpack_verify(payload),
             ToolName::ProvidersList => self.handle_providers_list(payload),
             ToolName::ProviderContractGet => {
-                self.handle_provider_contract_get(context, &auth_ctx, payload)
+                self.handle_provider_contract_get(context, &auth_ctx, payload).await
             }
             ToolName::ProviderSchemaGet => {
-                self.handle_provider_schema_get(context, &auth_ctx, payload)
+                self.handle_provider_schema_get(context, &auth_ctx, payload).await
             }
-            ToolName::SchemasRegister => self.handle_schemas_register(context, &auth_ctx, payload),
-            ToolName::SchemasList => self.handle_schemas_list(context, &auth_ctx, payload),
-            ToolName::SchemasGet => self.handle_schemas_get(context, &auth_ctx, payload),
-            ToolName::ScenariosList => self.handle_scenarios_list(context, &auth_ctx, payload),
-            ToolName::Precheck => self.handle_precheck(context, &auth_ctx, payload),
+            ToolName::SchemasRegister => {
+                self.handle_schemas_register(context, &auth_ctx, payload).await
+            }
+            ToolName::SchemasList => self.handle_schemas_list(context, &auth_ctx, payload).await,
+            ToolName::SchemasGet => self.handle_schemas_get(context, &auth_ctx, payload).await,
+            ToolName::ScenariosList => {
+                self.handle_scenarios_list(context, &auth_ctx, payload).await
+            }
+            ToolName::Precheck => self.handle_precheck(context, &auth_ctx, payload).await,
         }
     }
 
     /// Handles scenario definition tool requests.
-    fn handle_scenario_define(
+    async fn handle_scenario_define(
         &self,
         context: &RequestContext,
         auth_ctx: &AuthContext,
@@ -372,6 +389,8 @@ impl ToolRouter {
             tenant_id.as_ref(),
             Some(&namespace_id),
         )?;
+        self.ensure_namespace_allowed(context, tenant_id.as_ref(), &namespace_id)
+            .await?;
         let response = self.define_scenario(context, request)?;
         self.record_tool_call_usage(
             context,
@@ -384,7 +403,7 @@ impl ToolRouter {
     }
 
     /// Handles scenario start tool requests.
-    fn handle_scenario_start(
+    async fn handle_scenario_start(
         &self,
         context: &RequestContext,
         auth_ctx: &AuthContext,
@@ -401,6 +420,8 @@ impl ToolRouter {
             Some(&tenant_id),
             Some(&namespace_id),
         )?;
+        self.ensure_namespace_allowed(context, Some(&tenant_id), &namespace_id)
+            .await?;
         self.ensure_usage_allowed(
             context,
             auth_ctx,
@@ -425,7 +446,7 @@ impl ToolRouter {
     }
 
     /// Handles scenario status tool requests.
-    fn handle_scenario_status(
+    async fn handle_scenario_status(
         &self,
         context: &RequestContext,
         auth_ctx: &AuthContext,
@@ -440,6 +461,12 @@ impl ToolRouter {
             Some(&request.request.tenant_id),
             Some(&request.request.namespace_id),
         )?;
+        self.ensure_namespace_allowed(
+            context,
+            Some(&request.request.tenant_id),
+            &request.request.namespace_id,
+        )
+        .await?;
         let response = self.status(context, &request)?;
         self.record_tool_call_usage(
             context,
@@ -452,7 +479,7 @@ impl ToolRouter {
     }
 
     /// Handles scenario next tool requests.
-    fn handle_scenario_next(
+    async fn handle_scenario_next(
         &self,
         context: &RequestContext,
         auth_ctx: &AuthContext,
@@ -467,6 +494,12 @@ impl ToolRouter {
             Some(&request.request.tenant_id),
             Some(&request.request.namespace_id),
         )?;
+        self.ensure_namespace_allowed(
+            context,
+            Some(&request.request.tenant_id),
+            &request.request.namespace_id,
+        )
+        .await?;
         let response = self.next(context, &request)?;
         self.record_tool_call_usage(
             context,
@@ -479,7 +512,7 @@ impl ToolRouter {
     }
 
     /// Handles scenario submit tool requests.
-    fn handle_scenario_submit(
+    async fn handle_scenario_submit(
         &self,
         context: &RequestContext,
         auth_ctx: &AuthContext,
@@ -494,6 +527,12 @@ impl ToolRouter {
             Some(&request.request.tenant_id),
             Some(&request.request.namespace_id),
         )?;
+        self.ensure_namespace_allowed(
+            context,
+            Some(&request.request.tenant_id),
+            &request.request.namespace_id,
+        )
+        .await?;
         let response = self.submit(context, &request)?;
         self.record_tool_call_usage(
             context,
@@ -506,7 +545,7 @@ impl ToolRouter {
     }
 
     /// Handles scenario trigger tool requests.
-    fn handle_scenario_trigger(
+    async fn handle_scenario_trigger(
         &self,
         context: &RequestContext,
         auth_ctx: &AuthContext,
@@ -521,6 +560,12 @@ impl ToolRouter {
             Some(&request.trigger.tenant_id),
             Some(&request.trigger.namespace_id),
         )?;
+        self.ensure_namespace_allowed(
+            context,
+            Some(&request.trigger.tenant_id),
+            &request.trigger.namespace_id,
+        )
+        .await?;
         let response = self.trigger(context, &request)?;
         self.record_tool_call_usage(
             context,
@@ -533,7 +578,7 @@ impl ToolRouter {
     }
 
     /// Handles evidence query tool requests.
-    fn handle_evidence_query(
+    async fn handle_evidence_query(
         &self,
         context: &RequestContext,
         auth_ctx: &AuthContext,
@@ -548,6 +593,12 @@ impl ToolRouter {
             Some(&request.context.tenant_id),
             Some(&request.context.namespace_id),
         )?;
+        self.ensure_namespace_allowed(
+            context,
+            Some(&request.context.tenant_id),
+            &request.context.namespace_id,
+        )
+        .await?;
         self.ensure_usage_allowed(
             context,
             auth_ctx,
@@ -578,7 +629,7 @@ impl ToolRouter {
     }
 
     /// Handles runpack export tool requests.
-    fn handle_runpack_export(
+    async fn handle_runpack_export(
         &self,
         context: &RequestContext,
         auth_ctx: &AuthContext,
@@ -593,6 +644,8 @@ impl ToolRouter {
             Some(&request.tenant_id),
             Some(&request.namespace_id),
         )?;
+        self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)
+            .await?;
         self.ensure_usage_allowed(
             context,
             auth_ctx,
@@ -637,7 +690,7 @@ impl ToolRouter {
     }
 
     /// Handles provider contract discovery requests.
-    fn handle_provider_contract_get(
+    async fn handle_provider_contract_get(
         &self,
         _context: &RequestContext,
         _auth_ctx: &AuthContext,
@@ -661,7 +714,7 @@ impl ToolRouter {
     }
 
     /// Handles provider predicate schema discovery requests.
-    fn handle_provider_schema_get(
+    async fn handle_provider_schema_get(
         &self,
         _context: &RequestContext,
         _auth_ctx: &AuthContext,
@@ -695,7 +748,7 @@ impl ToolRouter {
     }
 
     /// Handles schema registration tool requests.
-    fn handle_schemas_register(
+    async fn handle_schemas_register(
         &self,
         context: &RequestContext,
         auth_ctx: &AuthContext,
@@ -710,6 +763,12 @@ impl ToolRouter {
             Some(&request.record.tenant_id),
             Some(&request.record.namespace_id),
         )?;
+        self.ensure_namespace_allowed(
+            context,
+            Some(&request.record.tenant_id),
+            &request.record.namespace_id,
+        )
+        .await?;
         let schema_bytes = serde_json::to_vec(&request.record.schema)
             .map_err(|err| ToolError::InvalidParams(err.to_string()))?;
         self.ensure_usage_allowed(
@@ -789,7 +848,7 @@ impl ToolRouter {
     }
 
     /// Handles schema list tool requests.
-    fn handle_schemas_list(
+    async fn handle_schemas_list(
         &self,
         context: &RequestContext,
         auth_ctx: &AuthContext,
@@ -804,6 +863,8 @@ impl ToolRouter {
             Some(&request.tenant_id),
             Some(&request.namespace_id),
         )?;
+        self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)
+            .await?;
         let response = self.schemas_list(context, auth_ctx, &request)?;
         self.record_tool_call_usage(
             context,
@@ -816,7 +877,7 @@ impl ToolRouter {
     }
 
     /// Handles schema get tool requests.
-    fn handle_schemas_get(
+    async fn handle_schemas_get(
         &self,
         context: &RequestContext,
         auth_ctx: &AuthContext,
@@ -831,6 +892,8 @@ impl ToolRouter {
             Some(&request.tenant_id),
             Some(&request.namespace_id),
         )?;
+        self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)
+            .await?;
         let response = self.schemas_get(context, auth_ctx, &request)?;
         self.record_tool_call_usage(
             context,
@@ -843,7 +906,7 @@ impl ToolRouter {
     }
 
     /// Handles scenario list tool requests.
-    fn handle_scenarios_list(
+    async fn handle_scenarios_list(
         &self,
         context: &RequestContext,
         auth_ctx: &AuthContext,
@@ -858,6 +921,8 @@ impl ToolRouter {
             Some(&request.tenant_id),
             Some(&request.namespace_id),
         )?;
+        self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)
+            .await?;
         let response = self.scenarios_list(context, &request)?;
         self.record_tool_call_usage(
             context,
@@ -870,7 +935,7 @@ impl ToolRouter {
     }
 
     /// Handles precheck tool requests.
-    fn handle_precheck(
+    async fn handle_precheck(
         &self,
         context: &RequestContext,
         auth_ctx: &AuthContext,
@@ -885,6 +950,8 @@ impl ToolRouter {
             Some(&request.tenant_id),
             Some(&request.namespace_id),
         )?;
+        self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)
+            .await?;
         let response = self.precheck(context, &request)?;
         self.record_tool_call_usage(
             context,
@@ -1365,15 +1432,10 @@ impl ToolRouter {
     /// Defines and registers a scenario specification.
     fn define_scenario(
         &self,
-        context: &RequestContext,
+        _context: &RequestContext,
         request: ScenarioDefineRequest,
     ) -> Result<ScenarioDefineResponse, ToolError> {
         let scenario_id = request.spec.scenario_id.to_string();
-        self.ensure_namespace_allowed(
-            context,
-            request.spec.default_tenant_id.as_ref(),
-            &request.spec.namespace_id,
-        )?;
         {
             let guard = self
                 .state
@@ -1437,14 +1499,9 @@ impl ToolRouter {
     /// Starts a new run for a scenario.
     fn start_run(
         &self,
-        context: &RequestContext,
+        _context: &RequestContext,
         request: ScenarioStartRequest,
     ) -> Result<RunState, ToolError> {
-        self.ensure_namespace_allowed(
-            context,
-            Some(&request.run_config.tenant_id),
-            &request.run_config.namespace_id,
-        )?;
         let runtime = self.runtime_for(&request.scenario_id)?;
         let state = runtime
             .control
@@ -1456,14 +1513,9 @@ impl ToolRouter {
     /// Returns the current status for a scenario run.
     fn status(
         &self,
-        context: &RequestContext,
+        _context: &RequestContext,
         request: &ScenarioStatusRequest,
     ) -> Result<ScenarioStatus, ToolError> {
-        self.ensure_namespace_allowed(
-            context,
-            Some(&request.request.tenant_id),
-            &request.request.namespace_id,
-        )?;
         let runtime = self.runtime_for(&request.scenario_id)?;
         let status =
             runtime.control.scenario_status(&request.request).map_err(ToolError::ControlPlane)?;
@@ -1473,14 +1525,9 @@ impl ToolRouter {
     /// Advances a scenario evaluation.
     fn next(
         &self,
-        context: &RequestContext,
+        _context: &RequestContext,
         request: &ScenarioNextRequest,
     ) -> Result<NextResult, ToolError> {
-        self.ensure_namespace_allowed(
-            context,
-            Some(&request.request.tenant_id),
-            &request.request.namespace_id,
-        )?;
         let runtime = self.runtime_for(&request.scenario_id)?;
         let result =
             runtime.control.scenario_next(&request.request).map_err(ToolError::ControlPlane)?;
@@ -1490,14 +1537,9 @@ impl ToolRouter {
     /// Submits external artifacts to a scenario run.
     fn submit(
         &self,
-        context: &RequestContext,
+        _context: &RequestContext,
         request: &ScenarioSubmitRequest,
     ) -> Result<SubmitResult, ToolError> {
-        self.ensure_namespace_allowed(
-            context,
-            Some(&request.request.tenant_id),
-            &request.request.namespace_id,
-        )?;
         let runtime = self.runtime_for(&request.scenario_id)?;
         let result =
             runtime.control.scenario_submit(&request.request).map_err(|err| match err {
@@ -1512,14 +1554,9 @@ impl ToolRouter {
     /// Submits a trigger event to a scenario run.
     fn trigger(
         &self,
-        context: &RequestContext,
+        _context: &RequestContext,
         request: &ScenarioTriggerRequest,
     ) -> Result<TriggerResult, ToolError> {
-        self.ensure_namespace_allowed(
-            context,
-            Some(&request.trigger.tenant_id),
-            &request.trigger.namespace_id,
-        )?;
         let runtime = self.runtime_for(&request.scenario_id)?;
         let result = runtime.control.trigger(&request.trigger).map_err(ToolError::ControlPlane)?;
         Ok(result)
@@ -1528,14 +1565,9 @@ impl ToolRouter {
     /// Queries evidence providers with disclosure policy enforcement.
     fn query_evidence(
         &self,
-        context: &RequestContext,
+        _context: &RequestContext,
         request: &EvidenceQueryRequest,
     ) -> Result<EvidenceQueryResponse, ToolError> {
-        self.ensure_namespace_allowed(
-            context,
-            Some(&request.context.tenant_id),
-            &request.context.namespace_id,
-        )?;
         self.capabilities.validate_query(&request.query).map_err(ToolError::from)?;
         let mut result = match self.evidence.query(&request.query, &request.context) {
             Ok(result) => result,
@@ -1580,10 +1612,9 @@ impl ToolRouter {
     )]
     fn export_runpack(
         &self,
-        context: &RequestContext,
+        _context: &RequestContext,
         request: &RunpackExportRequest,
     ) -> Result<RunpackExportResponse, ToolError> {
-        self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)?;
         let runtime = self.runtime_for(&request.scenario_id)?;
         let manifest_name = request.manifest_name.as_deref().unwrap_or("manifest.json");
         let state = runtime
@@ -1780,11 +1811,6 @@ impl ToolRouter {
         auth_ctx: &AuthContext,
         request: &SchemasRegisterRequest,
     ) -> Result<SchemasRegisterResponse, ToolError> {
-        self.ensure_namespace_allowed(
-            context,
-            Some(&request.record.tenant_id),
-            &request.record.namespace_id,
-        )?;
         self.ensure_registry_access(
             context,
             auth_ctx,
@@ -1809,7 +1835,6 @@ impl ToolRouter {
         auth_ctx: &AuthContext,
         request: &SchemasListRequest,
     ) -> Result<SchemasListResponse, ToolError> {
-        self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)?;
         self.ensure_registry_access(
             context,
             auth_ctx,
@@ -1838,7 +1863,6 @@ impl ToolRouter {
         auth_ctx: &AuthContext,
         request: &SchemasGetRequest,
     ) -> Result<SchemasGetResponse, ToolError> {
-        self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)?;
         self.ensure_registry_access(
             context,
             auth_ctx,
@@ -1859,10 +1883,9 @@ impl ToolRouter {
     /// Lists registered scenarios for a tenant and namespace.
     fn scenarios_list(
         &self,
-        context: &RequestContext,
+        _context: &RequestContext,
         request: &ScenariosListRequest,
     ) -> Result<ScenariosListResponse, ToolError> {
-        self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)?;
         let limit = normalize_limit(request.limit)?;
         let mut items: Vec<ScenarioSummary> = {
             let guard = self
@@ -1911,10 +1934,9 @@ impl ToolRouter {
     /// Evaluates a scenario stage using asserted data without mutating state.
     fn precheck(
         &self,
-        context: &RequestContext,
+        _context: &RequestContext,
         request: &PrecheckToolRequest,
     ) -> Result<PrecheckToolResponse, ToolError> {
-        self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)?;
         let record = self
             .schema_registry
             .get(
@@ -2068,13 +2090,13 @@ impl ToolRouter {
     }
 
     /// Enforces the default namespace policy.
-    fn ensure_namespace_allowed(
+    async fn ensure_namespace_allowed(
         &self,
         context: &RequestContext,
         tenant_id: Option<&TenantId>,
         namespace_id: &NamespaceId,
     ) -> Result<(), ToolError> {
-        if namespace_id.as_str() == DEFAULT_NAMESPACE_ID {
+        if namespace_id.get() == DEFAULT_NAMESPACE_ID {
             if !self.allow_default_namespace {
                 return Err(ToolError::Unauthorized(
                     "default namespace is not allowed".to_string(),
@@ -2083,7 +2105,7 @@ impl ToolRouter {
             let tenant = tenant_id.ok_or_else(|| {
                 ToolError::Unauthorized("default namespace requires tenant_id".to_string())
             })?;
-            if !self.default_namespace_tenants.contains(tenant.as_str()) {
+            if !self.default_namespace_tenants.contains(tenant) {
                 return Err(ToolError::Unauthorized(
                     "default namespace not allowed for tenant".to_string(),
                 ));
@@ -2091,6 +2113,7 @@ impl ToolRouter {
         }
         self.namespace_authority
             .ensure_namespace(tenant_id, namespace_id, context.request_id.as_deref())
+            .await
             .map_err(map_namespace_error)
     }
 
@@ -2349,12 +2372,12 @@ impl ToolRouter {
     }
 
     /// Authorizes a tool action and emits an auth audit record.
-    fn authorize(
+    async fn authorize(
         &self,
         context: &RequestContext,
         action: AuthAction<'_>,
     ) -> Result<AuthContext, ToolError> {
-        match self.authz.authorize(context, action) {
+        match self.authz.authorize(context, action).await {
             Ok(auth_ctx) => {
                 self.audit.record(&AuthAuditEvent::allowed(context, action, &auth_ctx));
                 Ok(auth_ctx)

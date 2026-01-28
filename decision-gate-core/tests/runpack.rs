@@ -137,7 +137,7 @@ impl InMemoryArtifactStore {
 fn minimal_spec() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: decision_gate_core::SpecVersion::new("1"),
         stages: vec![decision_gate_core::StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -157,7 +157,7 @@ fn minimal_spec() -> ScenarioSpec {
 fn anchor_spec() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("anchor-scenario"),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -208,8 +208,8 @@ fn anchor_policy() -> EvidenceAnchorPolicy {
 fn anchor_state(spec: &ScenarioSpec, anchor: Option<EvidenceAnchor>) -> RunState {
     let spec_hash = spec.canonical_hash_with(DEFAULT_HASH_ALGORITHM).expect("spec hash");
     RunState {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: RunId::new("run-1"),
         scenario_id: spec.scenario_id.clone(),
         spec_hash,
@@ -262,8 +262,8 @@ fn test_runpack_build_and_verify() {
     let spec_hash = spec.canonical_hash_with(DEFAULT_HASH_ALGORITHM).expect("spec hash");
 
     let state = RunState {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: RunId::new("run-1"),
         scenario_id: ScenarioId::new("scenario"),
         spec_hash,
@@ -297,8 +297,8 @@ fn runpack_verifier_rejects_oversized_artifact() {
     let spec_hash = spec.canonical_hash_with(DEFAULT_HASH_ALGORITHM).expect("spec hash");
 
     let state = RunState {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: RunId::new("run-1"),
         scenario_id: ScenarioId::new("scenario"),
         spec_hash,

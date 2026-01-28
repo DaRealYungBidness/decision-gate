@@ -66,11 +66,11 @@ Decision Gate enforces namespace isolation and schema registry authorization as
 system is intentionally conservative:
 
 - Namespace routing requires explicit validation; unknown namespaces are denied.
-- The reserved `default` namespace is **blocked by default** and allowed only
+- The reserved default namespace id (1) is **blocked by default** and allowed only
   when both `namespace.allow_default = true` and the caller's tenant appears in
   `namespace.default_tenants`.[F:decision-gate-mcp/src/config.rs L736-L765][F:decision-gate-mcp/src/tools.rs L1269-L1294]
-- Asset Core integration is explicit and constrained by a strict mapping mode
-  (`explicit_map` or `numeric_parse`), never implicit.[F:decision-gate-mcp/src/config.rs L829-L900][F:decision-gate-mcp/src/namespace_authority.rs L109-L133]
+- Asset Core integration is explicit and bounded to configured endpoints and
+  timeouts; no implicit namespace mapping is allowed.[F:decision-gate-mcp/src/config.rs L829-L900][F:decision-gate-mcp/src/namespace_authority.rs L109-L133]
 - Schema registry access is guarded by a dedicated Registry ACL layer that is
   **independent** of tool allowlists; both must allow the action.[F:decision-gate-mcp/src/registry_acl.rs L137-L186][F:decision-gate-mcp/src/tools.rs L1296-L1322]
 
@@ -149,20 +149,13 @@ injection.[F:decision-gate-mcp/src/namespace_authority.rs L135-L244]
 `namespace.authority.mode = assetcore_http` to avoid weakening namespace
 security in integrated deployments.[F:decision-gate-mcp/src/config.rs L354-L377]
 
-### Asset Core Mapping Rules
-Namespace identifiers may be strings in DG but numeric in Asset Core. Mapping
-is controlled by `namespace.authority.assetcore.mapping_mode`:
-
-- `explicit_map`: require a mapping entry for every namespace id.
-- `numeric_parse`: accept explicit mappings; if absent, parse numeric ids.
-- `none`: invalid when Asset Core authority is active.
-
-The resolver checks explicit mappings first, then applies the selected mode; any
+### Asset Core Namespace Rules
+Namespace identifiers are numeric everywhere (>= 1). Asset Core authority
+validation is direct and does not apply any mapping or translation. Any parse
 failure yields a namespace validation error (fail closed).[F:decision-gate-mcp/src/config.rs L829-L900][F:decision-gate-mcp/src/namespace_authority.rs L109-L133]
 
 Config validation enforces required Asset Core settings (base URL, timeout
-ranges, mapping count limits) and rejects `mapping_mode = none` when Asset Core
-authority is enabled.[F:decision-gate-mcp/src/config.rs L829-L886]
+ranges) when Asset Core authority is enabled.[F:decision-gate-mcp/src/config.rs L829-L886]
 
 ### Failure Posture
 Namespace authority failures are mapped as follows:

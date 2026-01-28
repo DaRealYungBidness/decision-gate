@@ -39,12 +39,9 @@ Dev-permissive is **disallowed** when `namespace.authority.mode = "assetcore_htt
 - Unknown namespace -> **fail closed**.
 - Catalog unreachable -> **fail closed**.
 
-### Mapping Rules
-- Mapping behavior is controlled by `namespace.authority.assetcore.mapping_mode`:
-  - `explicit_map`: require an explicit mapping for every namespace ID.
-  - `numeric_parse`: attempt explicit mapping, then parse numeric IDs.
-- `mapping_mode = none` is invalid for Asset Core authority.
-- Mapping is explicit and version-controlled; no implicit fallbacks.
+### Namespace ID Rules
+- DG accepts only numeric namespace IDs (>= 1).
+- Asset Core authority validation is direct; no mapping table or translation.
 
 ## Auth/RBAC Mapping
 ### Integration Layer

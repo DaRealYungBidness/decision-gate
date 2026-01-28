@@ -44,8 +44,8 @@ pub fn sample_context() -> EvidenceContext {
 #[must_use]
 pub fn sample_context_with_time(trigger_time: Timestamp) -> EvidenceContext {
     EvidenceContext {
-        tenant_id: TenantId::new("test-tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: RunId::new("test-run"),
         scenario_id: ScenarioId::new("test-scenario"),
         stage_id: StageId::new("test-stage"),

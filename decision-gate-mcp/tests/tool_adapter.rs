@@ -111,7 +111,7 @@ impl PolicyDecider for PermitAll {
 fn sample_spec() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -139,7 +139,7 @@ fn sample_spec() -> ScenarioSpec {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(TenantId::new("tenant")),
+        default_tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
     }
 }
 
@@ -220,7 +220,6 @@ fn build_router(config: &DecisionGateConfig) -> ToolRouter {
     let runpack_security_context = Some(decision_gate_core::RunpackSecurityContext {
         dev_permissive: config.is_dev_permissive(),
         namespace_authority: "dg_registry".to_string(),
-        namespace_mapping_mode: None,
     });
     ToolRouter::new(ToolRouterConfig {
         evidence,
@@ -268,8 +267,8 @@ fn mcp_tools_match_core_control_plane() {
                     policy_class: Some("prod".to_string()),
                     roles: vec![PrincipalRoleConfig {
                         name: "TenantAdmin".to_string(),
-                        tenant_id: Some(TenantId::new("tenant")),
-                        namespace_id: Some(NamespaceId::new("default")),
+                        tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
+                        namespace_id: Some(NamespaceId::from_raw(1).expect("nonzero namespaceid")),
                     }],
                 }],
             }),
@@ -277,7 +276,7 @@ fn mcp_tools_match_core_control_plane() {
         },
         namespace: decision_gate_mcp::config::NamespaceConfig {
             allow_default: true,
-            default_tenants: vec![TenantId::new("tenant")],
+            default_tenants: vec![TenantId::from_raw(1).expect("nonzero tenantid")],
             ..decision_gate_mcp::config::NamespaceConfig::default()
         },
         dev: decision_gate_mcp::config::DevConfig::default(),
@@ -306,8 +305,8 @@ fn mcp_tools_match_core_control_plane() {
         .unwrap();
 
     let run_config = RunConfig {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: ScenarioId::new("scenario"),
         dispatch_targets: Vec::new(),
@@ -325,8 +324,8 @@ fn mcp_tools_match_core_control_plane() {
 
     let next_request = NextRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         trigger_id: TriggerId::new("trigger-1"),
         agent_id: "agent-1".to_string(),
         time: Timestamp::Logical(2),
@@ -372,8 +371,8 @@ fn default_config() -> DecisionGateConfig {
                     policy_class: Some("prod".to_string()),
                     roles: vec![PrincipalRoleConfig {
                         name: "TenantAdmin".to_string(),
-                        tenant_id: Some(TenantId::new("tenant")),
-                        namespace_id: Some(NamespaceId::new("default")),
+                        tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
+                        namespace_id: Some(NamespaceId::from_raw(1).expect("nonzero namespaceid")),
                     }],
                 }],
             }),
@@ -381,7 +380,7 @@ fn default_config() -> DecisionGateConfig {
         },
         namespace: decision_gate_mcp::config::NamespaceConfig {
             allow_default: true,
-            default_tenants: vec![TenantId::new("tenant")],
+            default_tenants: vec![TenantId::from_raw(1).expect("nonzero tenantid")],
             ..decision_gate_mcp::config::NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
@@ -420,8 +419,8 @@ fn parity_scenario_status() {
         .unwrap();
 
     let run_config = RunConfig {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: decision_gate_core::RunId::new("run-status"),
         scenario_id: ScenarioId::new("scenario"),
         dispatch_targets: Vec::new(),
@@ -442,8 +441,8 @@ fn parity_scenario_status() {
         scenario_id: ScenarioId::new("scenario"),
         request: StatusRequest {
             run_id: decision_gate_core::RunId::new("run-status"),
-            tenant_id: TenantId::new("tenant"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             requested_at: Timestamp::Logical(2),
             correlation_id: None,
         },
@@ -553,8 +552,8 @@ fn parity_scenarios_list() {
 
     // List scenarios
     let request = ScenariosListRequest {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         cursor: None,
         limit: None,
     };
@@ -588,8 +587,8 @@ fn parity_schemas_register_get() {
 
     let schema = json!({"type": "object", "properties": {"value": {"type": "integer"}}});
     let record = DataShapeRecord {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         schema_id: DataShapeId::new("test-schema"),
         version: DataShapeVersion::new("1"),
         schema: schema.clone(),
@@ -615,8 +614,8 @@ fn parity_schemas_register_get() {
 
     // Get schema back
     let get_request = SchemasGetRequest {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         schema_id: DataShapeId::new("test-schema"),
         version: DataShapeVersion::new("1"),
     };
@@ -643,8 +642,8 @@ fn parity_schemas_list() {
 
     let schema = json!({"type": "string"});
     let record = DataShapeRecord {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         schema_id: DataShapeId::new("list-schema"),
         version: DataShapeVersion::new("1"),
         schema,
@@ -667,8 +666,8 @@ fn parity_schemas_list() {
 
     // List schemas
     let list_request = SchemasListRequest {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         cursor: None,
         limit: None,
     };
@@ -704,8 +703,8 @@ fn parity_evidence_query() {
         params: Some(json!({"timestamp": 0})),
     };
     let evidence_context = EvidenceContext {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: RunId::new("run"),
         scenario_id: ScenarioId::new("scenario"),
         stage_id: StageId::new("stage"),
@@ -759,8 +758,8 @@ fn parity_precheck() {
     // Register a schema for the data shape
     let schema = json!({"type": "object", "properties": {"after": {"type": "boolean"}}});
     let record = DataShapeRecord {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         schema_id: DataShapeId::new("precheck-shape"),
         version: DataShapeVersion::new("1"),
         schema,
@@ -781,8 +780,8 @@ fn parity_precheck() {
 
     // Precheck with asserted evidence
     let precheck_request = PrecheckToolRequest {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         scenario_id: Some(ScenarioId::new("scenario")),
         spec: None,
         stage_id: None,
@@ -825,8 +824,8 @@ fn parity_scenario_status_not_found() {
         scenario_id: ScenarioId::new("scenario"),
         request: StatusRequest {
             run_id: decision_gate_core::RunId::new("non-existent"),
-            tenant_id: TenantId::new("tenant"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             requested_at: Timestamp::Logical(1),
             correlation_id: None,
         },
@@ -859,8 +858,8 @@ fn parity_evidence_query_unknown_provider() {
         params: None,
     };
     let evidence_context = EvidenceContext {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: RunId::new("run"),
         scenario_id: ScenarioId::new("scenario"),
         stage_id: StageId::new("stage"),
@@ -894,8 +893,8 @@ fn parity_schemas_get_not_found() {
     let context = RequestContext::stdio();
 
     let get_request = SchemasGetRequest {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         schema_id: DataShapeId::new("non-existent-schema"),
         version: DataShapeVersion::new("1"),
     };

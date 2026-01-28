@@ -520,17 +520,17 @@ impl ArtifactReader for ObjectStoreArtifactReader {
 
 /// Builds the runpack key prefix for object storage.
 fn runpack_prefix(key: &RunpackObjectKey) -> Result<String, ObjectStoreError> {
-    let tenant = key.tenant_id.as_str();
-    let namespace = key.namespace_id.as_str();
+    let tenant = key.tenant_id.get().to_string();
+    let namespace = key.namespace_id.get().to_string();
     let scenario = key.scenario_id.as_str();
     let run_id = key.run_id.as_str();
     let hash_algorithm = hash_algorithm_label(key.spec_hash.algorithm);
     let hash_value = key.spec_hash.value.as_str();
     for segment in [
         "tenant",
-        tenant,
+        tenant.as_str(),
         "namespace",
-        namespace,
+        namespace.as_str(),
         "scenario",
         scenario,
         "run",

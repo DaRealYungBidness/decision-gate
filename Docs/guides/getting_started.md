@@ -126,7 +126,7 @@ curl -s http://127.0.0.1:4000/rpc \
       "arguments": {
         "scenario_id": "quickstart",
         "run_config": {
-          "tenant_id": "tenant-1",
+          "tenant_id": 1,
           "run_id": "run-1",
           "scenario_id": "quickstart",
           "dispatch_targets": [],

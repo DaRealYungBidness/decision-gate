@@ -53,7 +53,7 @@ use crate::helpers;
 
 fn time_now_spec(scenario_id: &str) -> ScenarioSpec {
     let scenario_id = ScenarioId::new(scenario_id);
-    let namespace_id = NamespaceId::new("default");
+    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
     let stage_id = StageId::new("stage-1");
     let predicate_key = PredicateKey::new("value");
     ScenarioSpec {
@@ -86,13 +86,13 @@ fn time_now_spec(scenario_id: &str) -> ScenarioSpec {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(TenantId::new("tenant-1")),
+        default_tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
     }
 }
 
 fn time_now_in_set_spec(scenario_id: &str, expected: Value) -> ScenarioSpec {
     let scenario_id = ScenarioId::new(scenario_id);
-    let namespace_id = NamespaceId::new("default");
+    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
     let stage_id = StageId::new("stage-1");
     let predicate_key = PredicateKey::new("value");
     ScenarioSpec {
@@ -125,13 +125,13 @@ fn time_now_in_set_spec(scenario_id: &str, expected: Value) -> ScenarioSpec {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(TenantId::new("tenant-1")),
+        default_tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
     }
 }
 
 fn env_contains_spec(scenario_id: &str) -> ScenarioSpec {
     let scenario_id = ScenarioId::new(scenario_id);
-    let namespace_id = NamespaceId::new("default");
+    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
     let stage_id = StageId::new("stage-1");
     let predicate_key = PredicateKey::new("value");
     ScenarioSpec {
@@ -164,13 +164,13 @@ fn env_contains_spec(scenario_id: &str) -> ScenarioSpec {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(TenantId::new("tenant-1")),
+        default_tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
     }
 }
 
 fn strict_provider_spec(scenario_id: &str) -> ScenarioSpec {
     let scenario_id = ScenarioId::new(scenario_id);
-    let namespace_id = NamespaceId::new("default");
+    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
     let stage_id = StageId::new("stage-1");
     let lex_key = PredicateKey::new("lex");
     let deep_key = PredicateKey::new("deep");
@@ -225,7 +225,7 @@ fn strict_provider_spec(scenario_id: &str) -> ScenarioSpec {
         ],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(TenantId::new("tenant-1")),
+        default_tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
     }
 }
 
@@ -248,7 +248,7 @@ async fn strict_validation_precheck_rejects_comparator_mismatch()
     let define_output: ScenarioDefineResponse =
         client.call_tool_typed("scenario_define", define_input).await?;
 
-    let tenant_id = TenantId::new("tenant-1");
+    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
     let record = DataShapeRecord {
         tenant_id: tenant_id.clone(),
         namespace_id: spec.namespace_id.clone(),
@@ -326,7 +326,7 @@ async fn strict_validation_precheck_allows_permissive() -> Result<(), Box<dyn st
     let define_output: ScenarioDefineResponse =
         client.call_tool_typed("scenario_define", define_input).await?;
 
-    let tenant_id = TenantId::new("tenant-1");
+    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
     let record = DataShapeRecord {
         tenant_id: tenant_id.clone(),
         namespace_id: spec.namespace_id.clone(),
@@ -437,7 +437,7 @@ async fn strict_validation_precheck_allows_union_contains() -> Result<(), Box<dy
     let define_output: ScenarioDefineResponse =
         client.call_tool_typed("scenario_define", define_input).await?;
 
-    let tenant_id = TenantId::new("tenant-1");
+    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
     let record = DataShapeRecord {
         tenant_id: tenant_id.clone(),
         namespace_id: spec.namespace_id.clone(),

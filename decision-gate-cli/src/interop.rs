@@ -142,15 +142,15 @@ pub fn validate_inputs(
     if trigger.tenant_id != run_config.tenant_id {
         return Err(format!(
             "tenant_id mismatch: trigger={} run_config={}",
-            trigger.tenant_id.as_str(),
-            run_config.tenant_id.as_str()
+            trigger.tenant_id,
+            run_config.tenant_id
         ));
     }
     if trigger.namespace_id != run_config.namespace_id {
         return Err(format!(
             "namespace_id mismatch: trigger={} run_config={}",
-            trigger.namespace_id.as_str(),
-            run_config.namespace_id.as_str()
+            trigger.namespace_id,
+            run_config.namespace_id
         ));
     }
     Ok(())

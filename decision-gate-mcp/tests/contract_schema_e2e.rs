@@ -180,11 +180,8 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
     assert_valid(&define_schema.output, &define_output, "scenario_define output")?;
     let define_response: ScenarioDefineResponse = serde_json::from_value(define_output)?;
 
-    let run_config = common::sample_run_config_with_ids(
-        "tenant-1",
-        "run-1",
-        define_response.scenario_id.as_str(),
-    );
+    let run_config =
+        common::sample_run_config_with_ids(1, "run-1", define_response.scenario_id.as_str());
     let start_request = ScenarioStartRequest {
         scenario_id: define_response.scenario_id.clone(),
         run_config: run_config.clone(),

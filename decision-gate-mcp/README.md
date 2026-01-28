@@ -182,6 +182,4 @@ cargo test -p decision-gate-mcp --test contract_schema_e2e
 
 Abandon All Ships. (2016). _Loafting_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=V6CiT1tGUMg
 
-Secrets. (2019). _My Mind, Myself & I_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=51xzsGkQIcQ
-
 Secrets. (2022). _Parasite_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=c3o_pLDmdVM

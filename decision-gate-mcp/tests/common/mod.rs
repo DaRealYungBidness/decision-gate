@@ -126,11 +126,11 @@ pub fn sample_config() -> DecisionGateConfig {
         namespace: NamespaceConfig {
             allow_default: true,
             default_tenants: vec![
-                TenantId::new("test-tenant"),
-                TenantId::new("tenant-1"),
-                TenantId::new("tenant-a"),
-                TenantId::new("tenant-b"),
-                TenantId::new("tenant"),
+                TenantId::from_raw(100).expect("nonzero tenantid"),
+                TenantId::from_raw(1).expect("nonzero tenantid"),
+                TenantId::from_raw(1).expect("nonzero tenantid"),
+                TenantId::from_raw(2).expect("nonzero tenantid"),
+                TenantId::from_raw(1).expect("nonzero tenantid"),
             ],
             ..NamespaceConfig::default()
         },
@@ -249,7 +249,6 @@ pub fn router_with_authorizer_usage_and_runpack_storage(
     let runpack_security_context = Some(decision_gate_core::RunpackSecurityContext {
         dev_permissive: config.is_dev_permissive(),
         namespace_authority: "dg_registry".to_string(),
-        namespace_mapping_mode: None,
     });
     let precheck_audit_payloads = config.server.audit.log_precheck_payloads;
     let authz = Arc::new(DefaultToolAuthz::from_config(config.server.auth.as_ref()));
@@ -324,7 +323,7 @@ pub fn sample_spec() -> ScenarioSpec {
 pub fn sample_spec_with_id(id: &str) -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new(id),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -352,7 +351,7 @@ pub fn sample_spec_with_id(id: &str) -> ScenarioSpec {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(TenantId::new("test-tenant")),
+        default_tenant_id: Some(TenantId::from_raw(100).expect("nonzero tenantid")),
     }
 }
 
@@ -382,15 +381,15 @@ pub fn sample_spec_with_two_predicates(id: &str) -> ScenarioSpec {
 /// Creates a run configuration for testing.
 #[must_use]
 pub fn sample_run_config() -> RunConfig {
-    sample_run_config_with_ids("test-tenant", "test-run", "test-scenario")
+    sample_run_config_with_ids(1, "test-run", "test-scenario")
 }
 
 /// Creates a run configuration with specified IDs.
 #[must_use]
-pub fn sample_run_config_with_ids(tenant_id: &str, run_id: &str, scenario_id: &str) -> RunConfig {
+pub fn sample_run_config_with_ids(tenant_id: u64, run_id: &str, scenario_id: &str) -> RunConfig {
     RunConfig {
-        tenant_id: TenantId::new(tenant_id),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(tenant_id).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: RunId::new(run_id),
         scenario_id: ScenarioId::new(scenario_id),
         dispatch_targets: Vec::new(),
@@ -408,8 +407,8 @@ pub fn sample_context() -> EvidenceContext {
 #[must_use]
 pub fn sample_context_with_time(trigger_time: Timestamp) -> EvidenceContext {
     EvidenceContext {
-        tenant_id: TenantId::new("test-tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: RunId::new("test-run"),
         scenario_id: ScenarioId::new("test-scenario"),
         stage_id: StageId::new("test-stage"),
@@ -478,7 +477,7 @@ pub fn setup_scenario_with_run() -> (ToolRouter, ScenarioId, RunId) {
     let router = sample_router();
     let spec = sample_spec();
     let scenario_id = define_scenario(&router, spec).unwrap();
-    let run_config = sample_run_config_with_ids("test-tenant", "test-run", scenario_id.as_str());
+    let run_config = sample_run_config_with_ids(1, "test-run", scenario_id.as_str());
     start_run(&router, &scenario_id, run_config, Timestamp::Logical(1)).unwrap();
     (router, scenario_id, RunId::new("test-run"))
 }

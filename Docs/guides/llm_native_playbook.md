@@ -90,8 +90,8 @@ curl -s http://127.0.0.1:4000/rpc \
       "name": "schemas_register",
       "arguments": {
         "record": {
-          "tenant_id": "tenant-1",
-          "namespace_id": "default",
+          "tenant_id": 1,
+          "namespace_id": 1,
           "schema_id": "llm-precheck",
           "version": "v1",
           "schema": {
@@ -122,8 +122,8 @@ curl -s http://127.0.0.1:4000/rpc \
     "params": {
       "name": "precheck",
       "arguments": {
-        "tenant_id": "tenant-1",
-        "namespace_id": "default",
+        "tenant_id": 1,
+        "namespace_id": 1,
         "scenario_id": "llm-precheck",
         "spec": null,
         "stage_id": "main",
@@ -170,8 +170,8 @@ curl -s http://127.0.0.1:4000/rpc \
           "params": { "file": "/abs/path/report.json", "jsonpath": "$.summary.failed" }
         },
         "context": {
-          "tenant_id": "tenant-1",
-          "namespace_id": "default",
+          "tenant_id": 1,
+          "namespace_id": 1,
           "run_id": "run-1",
           "scenario_id": "llm-precheck",
           "stage_id": "main",

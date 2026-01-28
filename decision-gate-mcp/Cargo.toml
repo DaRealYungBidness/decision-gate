@@ -14,6 +14,7 @@ rust-version = "1.92"
 [dependencies]
 axum = "0.7"
 axum-server = { version = "0.7", features = ["tls-rustls"] }
+async-trait = "0.1"
 aws-config = "1.1"
 aws-sdk-s3 = "1.60"
 base64 = "0.22"

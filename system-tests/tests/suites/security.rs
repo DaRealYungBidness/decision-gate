@@ -226,7 +226,7 @@ async fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Erro
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let scenario_id = ScenarioId::new("policy-scenario");
-    let namespace_id = NamespaceId::new("default");
+    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
     let stage1_id = StageId::new("stage-1");
     let stage2_id = StageId::new("stage-2");
     let predicate_key = PredicateKey::new("after");
@@ -282,7 +282,7 @@ async fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Erro
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(decision_gate_core::TenantId::new("tenant-1")),
+        default_tenant_id: Some(decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid")),
     };
 
     let define_request = ScenarioDefineRequest {
@@ -293,7 +293,7 @@ async fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Erro
         client.call_tool_typed("scenario_define", define_input).await?;
 
     let mut run_config = decision_gate_core::RunConfig {
-        tenant_id: decision_gate_core::TenantId::new("tenant-1"),
+        tenant_id: decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
         namespace_id,
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: define_output.scenario_id.clone(),
@@ -318,8 +318,8 @@ async fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Erro
         scenario_id: define_output.scenario_id.clone(),
         trigger: TriggerEvent {
             run_id: decision_gate_core::RunId::new("run-1"),
-            tenant_id: decision_gate_core::TenantId::new("tenant-1"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             trigger_id: decision_gate_core::TriggerId::new("trigger-1"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
@@ -353,8 +353,8 @@ async fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Erro
         scenario_id: define_output.scenario_id,
         request: decision_gate_core::runtime::StatusRequest {
             run_id: decision_gate_core::RunId::new("run-1"),
-            tenant_id: decision_gate_core::TenantId::new("tenant-1"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             requested_at: Timestamp::Logical(3),
             correlation_id: None,
         },
@@ -419,7 +419,7 @@ async fn policy_error_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let scenario_id = ScenarioId::new("policy-error-scenario");
-    let namespace_id = NamespaceId::new("default");
+    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
     let stage1_id = StageId::new("stage-1");
     let stage2_id = StageId::new("stage-2");
     let predicate_key = PredicateKey::new("after");
@@ -475,7 +475,7 @@ async fn policy_error_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(decision_gate_core::TenantId::new("tenant-1")),
+        default_tenant_id: Some(decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid")),
     };
 
     let define_request = ScenarioDefineRequest {
@@ -486,7 +486,7 @@ async fn policy_error_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
         client.call_tool_typed("scenario_define", define_input).await?;
 
     let mut run_config = decision_gate_core::RunConfig {
-        tenant_id: decision_gate_core::TenantId::new("tenant-1"),
+        tenant_id: decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
         namespace_id,
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: define_output.scenario_id.clone(),
@@ -511,8 +511,8 @@ async fn policy_error_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
         scenario_id: define_output.scenario_id.clone(),
         trigger: TriggerEvent {
             run_id: decision_gate_core::RunId::new("run-1"),
-            tenant_id: decision_gate_core::TenantId::new("tenant-1"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             trigger_id: decision_gate_core::TriggerId::new("trigger-1"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),

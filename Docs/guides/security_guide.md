@@ -34,10 +34,10 @@ Decision Gate defaults to strict mode and explicit namespace allowlists:
   Startup emits warnings so operators can detect non-production posture.
   `server.mode = "dev_permissive"` remains as a legacy alias.
 
-The literal `default` namespace is **never** implicitly allowed. Enable it with:
+The default namespace id (1) is **never** implicitly allowed. Enable it with:
 
 - `namespace.allow_default = true`
-- `namespace.default_tenants = ["tenant-1", ...]`
+- `namespace.default_tenants = [1, ...]`
 
 Dev-permissive does **not** override namespace authority and is disallowed when
 `namespace.authority.mode = "assetcore_http"`.

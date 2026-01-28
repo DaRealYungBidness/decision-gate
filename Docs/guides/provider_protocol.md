@@ -55,7 +55,7 @@ Decision Gate calls the provider with `tools/call`:
         "params": { "key": "DEPLOY_ENV" }
       },
       "context": {
-        "tenant_id": "tenant-1",
+        "tenant_id": 1,
         "run_id": "run-1",
         "scenario_id": "scenario-1",
         "stage_id": "stage-1",

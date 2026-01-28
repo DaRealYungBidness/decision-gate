@@ -283,8 +283,8 @@ impl DataShapeRegistry for SqliteRunStateStore {
                     created_at_json
                  ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
                 params![
-                    record.tenant_id.as_str(),
-                    record.namespace_id.as_str(),
+                    record.tenant_id.to_string(),
+                    record.namespace_id.to_string(),
                     record.schema_id.as_str(),
                     record.version.as_str(),
                     schema_bytes,
@@ -331,8 +331,8 @@ impl DataShapeRegistry for SqliteRunStateStore {
                      data_shapes WHERE tenant_id = ?1 AND namespace_id = ?2 AND schema_id = ?3 \
                      AND version = ?4",
                     params![
-                        tenant_id.as_str(),
-                        namespace_id.as_str(),
+                        tenant_id.to_string(),
+                        namespace_id.to_string(),
                         schema_id.as_str(),
                         version.as_str()
                     ],
@@ -471,9 +471,7 @@ impl SqliteRunStateStore {
                 "run_id mismatch between key and payload".to_string(),
             ));
         }
-        if state.tenant_id.as_str() != tenant_id.as_str()
-            || state.namespace_id.as_str() != namespace_id.as_str()
-        {
+        if state.tenant_id != *tenant_id || state.namespace_id != *namespace_id {
             return Err(SqliteStoreError::Invalid(
                 "tenant/namespace mismatch between key and payload".to_string(),
             ));
@@ -498,8 +496,8 @@ impl SqliteRunStateStore {
                     "SELECT latest_version FROM runs WHERE tenant_id = ?1 AND namespace_id = ?2 \
                      AND run_id = ?3",
                     params![
-                        state.tenant_id.as_str(),
-                        state.namespace_id.as_str(),
+                        state.tenant_id.to_string(),
+                        state.namespace_id.to_string(),
                         state.run_id.as_str()
                     ],
                     |row| row.get(0),
@@ -528,8 +526,8 @@ impl SqliteRunStateStore {
                  ?2, ?3, ?4) ON CONFLICT(tenant_id, namespace_id, run_id) DO UPDATE SET \
                  latest_version = excluded.latest_version",
                 params![
-                    state.tenant_id.as_str(),
-                    state.namespace_id.as_str(),
+                    state.tenant_id.to_string(),
+                    state.namespace_id.to_string(),
                     state.run_id.as_str(),
                     next_version
                 ],
@@ -540,8 +538,8 @@ impl SqliteRunStateStore {
                  state_json, state_hash, hash_algorithm, saved_at) VALUES (?1, ?2, ?3, ?4, ?5, \
                  ?6, ?7, ?8)",
                 params![
-                    state.tenant_id.as_str(),
-                    state.namespace_id.as_str(),
+                    state.tenant_id.to_string(),
+                    state.namespace_id.to_string(),
                     state.run_id.as_str(),
                     next_version,
                     canonical_json,
@@ -553,8 +551,8 @@ impl SqliteRunStateStore {
             .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
             enforce_retention(
                 &tx,
-                state.tenant_id.as_str(),
-                state.namespace_id.as_str(),
+                &state.tenant_id,
+                &state.namespace_id,
                 state.run_id.as_str(),
                 next_version,
                 self.config.max_versions,
@@ -711,8 +709,8 @@ fn initialize_schema(connection: &mut Connection) -> Result<(), SqliteStoreError
 /// Enforces version retention if configured.
 fn enforce_retention(
     tx: &rusqlite::Transaction<'_>,
-    tenant_id: &str,
-    namespace_id: &str,
+    tenant_id: &TenantId,
+    namespace_id: &NamespaceId,
     run_id: &str,
     latest_version: i64,
     max_versions: Option<u64>,
@@ -732,7 +730,7 @@ fn enforce_retention(
         tx.execute(
             "DELETE FROM run_state_versions WHERE tenant_id = ?1 AND namespace_id = ?2 AND run_id \
              = ?3 AND version < ?4",
-            params![tenant_id, namespace_id, run_id, min_version],
+            params![tenant_id.to_string(), namespace_id.to_string(), run_id, min_version],
         )
         .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
     }
@@ -786,7 +784,7 @@ fn fetch_run_state_payload(
             .query_row(
                 "SELECT latest_version FROM runs WHERE tenant_id = ?1 AND namespace_id = ?2 AND \
                  run_id = ?3",
-                params![tenant_id.as_str(), namespace_id.as_str(), run_id.as_str()],
+                params![tenant_id.to_string(), namespace_id.to_string(), run_id.as_str()],
                 |row| row.get(0),
             )
             .optional()
@@ -810,8 +808,8 @@ fn fetch_run_state_payload(
                      run_state_versions WHERE tenant_id = ?1 AND namespace_id = ?2 AND run_id = \
                      ?3 AND version = ?4",
                     params![
-                        tenant_id.as_str(),
-                        namespace_id.as_str(),
+                        tenant_id.to_string(),
+                        namespace_id.to_string(),
                         run_id.as_str(),
                         latest_version
                     ],
@@ -847,8 +845,8 @@ fn fetch_run_state_payload(
                     "SELECT state_json FROM run_state_versions WHERE tenant_id = ?1 AND \
                      namespace_id = ?2 AND run_id = ?3 AND version = ?4",
                     params![
-                        tenant_id.as_str(),
-                        namespace_id.as_str(),
+                        tenant_id.to_string(),
+                        namespace_id.to_string(),
                         run_id.as_str(),
                         latest_version
                     ],
@@ -963,8 +961,8 @@ fn query_schema_rows(
         let rows = stmt
             .query_map(
                 params![
-                    tenant_id.as_str(),
-                    namespace_id.as_str(),
+                    tenant_id.to_string(),
+                    namespace_id.to_string(),
                     cursor.schema_id.as_str(),
                     cursor.version.as_str(),
                     limit
@@ -983,7 +981,7 @@ fn query_schema_rows(
             )
             .map_err(|err| map_registry_error(&err))?;
         let rows = stmt
-            .query_map(params![tenant_id.as_str(), namespace_id.as_str(), limit], map_schema_row)
+            .query_map(params![tenant_id.to_string(), namespace_id.to_string(), limit], map_schema_row)
             .map_err(|err| map_registry_error(&err))?;
         rows.map(|row| row.map_err(|err| map_registry_error(&err))).collect()
     }

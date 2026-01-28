@@ -11,7 +11,6 @@
 
 use decision_gate_mcp::config::AssetCoreNamespaceAuthorityConfig;
 use decision_gate_mcp::config::NamespaceAuthorityMode;
-use decision_gate_mcp::config::NamespaceMappingMode;
 use decision_gate_mcp::config::ServerAuditConfig;
 use helpers::artifacts::TestReporter;
 use helpers::harness::allocate_bind_addr;
@@ -35,8 +34,6 @@ async fn dev_permissive_assetcore_rejected() -> Result<(), Box<dyn std::error::E
         auth_token: None,
         connect_timeout_ms: 500,
         request_timeout_ms: 1_000,
-        mapping: [("default".to_string(), 42)].into_iter().collect(),
-        mapping_mode: NamespaceMappingMode::ExplicitMap,
     });
 
     let audit_path = reporter.artifacts().root().join("audit.log");

@@ -27,6 +27,7 @@
 use decision_gate_core::CorrelationId;
 use decision_gate_core::DecisionId;
 use decision_gate_core::GateId;
+use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketId;
 use decision_gate_core::PolicyId;
 use decision_gate_core::PredicateKey;
@@ -56,7 +57,26 @@ macro_rules! assert_id_roundtrip {
 /// Verifies identifier wrappers expose stable string values and serde.
 #[test]
 fn identifiers_roundtrip_with_serde_and_display() {
-    assert_id_roundtrip!(TenantId, "tenant-1");
+    let tenant_id = TenantId::from_raw(1).expect("nonzero tenant id");
+    assert_eq!(tenant_id.get(), 1);
+    assert_eq!(tenant_id.to_string(), "1");
+
+    let json = serde_json::to_string(&tenant_id).expect("serialize tenant");
+    assert_eq!(json, "1");
+
+    let decoded: TenantId = serde_json::from_str(&json).expect("deserialize tenant");
+    assert_eq!(decoded.get(), 1);
+
+    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespace id");
+    assert_eq!(namespace_id.get(), 1);
+    assert_eq!(namespace_id.to_string(), "1");
+
+    let json = serde_json::to_string(&namespace_id).expect("serialize namespace");
+    assert_eq!(json, "1");
+
+    let decoded: NamespaceId = serde_json::from_str(&json).expect("deserialize namespace");
+    assert_eq!(decoded.get(), 1);
+
     assert_id_roundtrip!(ScenarioId, "scenario-1");
     assert_id_roundtrip!(SpecVersion, "v1");
     assert_id_roundtrip!(RunId, "run-1");

@@ -177,7 +177,7 @@ fn build_spec_with_predicates(predicates: &[(&str, &str)]) -> ScenarioSpec {
 
     ScenarioSpec {
         scenario_id: decision_gate_core::ScenarioId::new("scenario"),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: decision_gate_core::SpecVersion::new("1"),
         stages: vec![decision_gate_core::StageSpec {
             stage_id: decision_gate_core::StageId::new("stage-1"),

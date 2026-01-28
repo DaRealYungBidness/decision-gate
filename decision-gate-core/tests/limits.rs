@@ -127,7 +127,7 @@ impl EvidenceProvider for LargeEvidenceProvider {
 fn minimal_spec() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -180,8 +180,8 @@ fn evidence_payload_size_limit_is_enforced() {
     .expect("control plane");
 
     let run_config = RunConfig {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: ScenarioId::new("scenario"),
         dispatch_targets: vec![],
@@ -192,8 +192,8 @@ fn evidence_payload_size_limit_is_enforced() {
 
     let request = decision_gate_core::runtime::NextRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         trigger_id: TriggerId::new("trigger-1"),
         agent_id: "agent-1".to_string(),
         time: Timestamp::Logical(1),
@@ -221,8 +221,8 @@ fn payload_size_limit_is_enforced() {
     .expect("control plane");
 
     let run_config = RunConfig {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: decision_gate_core::RunId::new("run-2"),
         scenario_id: ScenarioId::new("scenario"),
         dispatch_targets: vec![],
@@ -233,8 +233,8 @@ fn payload_size_limit_is_enforced() {
 
     let request = decision_gate_core::runtime::SubmitRequest {
         run_id: decision_gate_core::RunId::new("run-2"),
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         submission_id: "submission-1".to_string(),
         payload: PacketPayload::Bytes {
             bytes: vec![0u8; MAX_PAYLOAD_BYTES + 1],

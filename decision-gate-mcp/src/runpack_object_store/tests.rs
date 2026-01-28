@@ -11,8 +11,8 @@ use super::*;
 
 fn sample_key() -> RunpackObjectKey {
     RunpackObjectKey {
-        tenant_id: TenantId::from("tenant-001"),
-        namespace_id: NamespaceId::from("namespace-001"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         scenario_id: ScenarioId::from("scenario-001"),
         run_id: RunId::from("run-001"),
         spec_hash: HashDigest {
@@ -51,7 +51,7 @@ fn normalize_prefix_rejects_backslashes() {
 #[test]
 fn runpack_prefix_rejects_invalid_segments() {
     let mut key = sample_key();
-    key.tenant_id = TenantId::from("tenant/evil");
+    key.tenant_id = TenantId::from_raw(100).expect("nonzero tenantid");
     let result = runpack_prefix(&key);
     assert!(result.is_err());
 }

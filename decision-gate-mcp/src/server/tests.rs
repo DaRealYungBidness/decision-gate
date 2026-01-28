@@ -133,8 +133,8 @@ fn sample_config() -> DecisionGateConfig {
                     policy_class: Some("prod".to_string()),
                     roles: vec![PrincipalRoleConfig {
                         name: "TenantAdmin".to_string(),
-                        tenant_id: Some(TenantId::new("test-tenant")),
-                        namespace_id: Some(NamespaceId::new("default")),
+                        tenant_id: Some(TenantId::from_raw(100).expect("nonzero tenantid")),
+                        namespace_id: Some(NamespaceId::from_raw(1).expect("nonzero namespaceid")),
                     }],
                 }],
             }),
@@ -142,7 +142,7 @@ fn sample_config() -> DecisionGateConfig {
         },
         namespace: crate::config::NamespaceConfig {
             allow_default: true,
-            default_tenants: vec![TenantId::new("test-tenant")],
+            default_tenants: vec![TenantId::from_raw(100).expect("nonzero tenantid")],
             ..crate::config::NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
@@ -200,7 +200,6 @@ fn sample_router(config: &DecisionGateConfig) -> ToolRouter {
     let runpack_security_context = Some(decision_gate_core::RunpackSecurityContext {
         dev_permissive: config.is_dev_permissive(),
         namespace_authority: "dg_registry".to_string(),
-        namespace_mapping_mode: None,
     });
     ToolRouter::new(ToolRouterConfig {
         evidence,

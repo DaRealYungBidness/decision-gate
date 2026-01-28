@@ -9,7 +9,6 @@
 //! `AssetCore` alignment tests for Decision Gate system-tests.
 
 
-use std::collections::BTreeMap;
 use std::time::Duration;
 
 use decision_gate_core::AdvanceTo;
@@ -269,7 +268,7 @@ async fn namespace_authority_allows_known_namespace() -> Result<(), Box<dyn std:
     wait_for_server_ready(&client, Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("namespace-allow", "run-allow", 0);
-    fixture.spec.namespace_id = NamespaceId::new("assetcore-test");
+    fixture.spec.namespace_id = NamespaceId::from_raw(10).expect("nonzero namespaceid");
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };
@@ -309,7 +308,7 @@ async fn namespace_authority_denies_unknown_namespace() -> Result<(), Box<dyn st
     wait_for_server_ready(&client, Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("namespace-deny", "run-deny", 0);
-    fixture.spec.namespace_id = NamespaceId::new("assetcore-test");
+    fixture.spec.namespace_id = NamespaceId::from_raw(10).expect("nonzero namespaceid");
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };
@@ -353,7 +352,7 @@ async fn namespace_mismatch_rejected() -> Result<(), Box<dyn std::error::Error>>
     wait_for_server_ready(&client, Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("namespace-mismatch", "run-mismatch", 0);
-    fixture.spec.namespace_id = NamespaceId::new("alpha");
+    fixture.spec.namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };
@@ -362,7 +361,7 @@ async fn namespace_mismatch_rejected() -> Result<(), Box<dyn std::error::Error>>
         client.call_tool_typed("scenario_define", define_input).await?;
 
     let mut run_config = fixture.run_config();
-    run_config.namespace_id = NamespaceId::new("beta");
+    run_config.namespace_id = NamespaceId::from_raw(2).expect("nonzero namespaceid");
     let start_request = ScenarioStartRequest {
         scenario_id: define_output.scenario_id,
         run_config,
@@ -419,7 +418,7 @@ fn assetcore_anchor(namespace_id: u64, commit_id: &str, world_seq: u64) -> Evide
 
 fn assetcore_fixture(scenario: &str, run: &str) -> AssetcoreFixture {
     let scenario_id = ScenarioId::new(scenario);
-    let namespace_id = NamespaceId::new("assetcore-interop");
+    let namespace_id = NamespaceId::from_raw(11).expect("nonzero namespaceid");
     let stage_id = StageId::new("stage-1");
     let predicate_key = PredicateKey::new("slot_occupied");
     let spec = ScenarioSpec {
@@ -457,22 +456,18 @@ fn assetcore_fixture(scenario: &str, run: &str) -> AssetcoreFixture {
     AssetcoreFixture {
         scenario_id,
         run_id: RunId::new(run),
-        tenant_id: TenantId::new("tenant-1"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
         namespace_id,
         spec,
     }
 }
 
 fn assetcore_authority_config(base_url: &str) -> AssetCoreNamespaceAuthorityConfig {
-    let mut mapping = BTreeMap::new();
-    mapping.insert("assetcore-test".to_string(), 1);
     AssetCoreNamespaceAuthorityConfig {
         base_url: base_url.to_string(),
         auth_token: None,
         connect_timeout_ms: 500,
         request_timeout_ms: 2000,
-        mapping,
-        mapping_mode: decision_gate_mcp::config::NamespaceMappingMode::NumericParse,
     }
 }
 

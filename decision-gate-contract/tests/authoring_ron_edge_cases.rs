@@ -28,7 +28,7 @@ use serde_json::json;
 fn minimal_spec_value() -> Value {
     json!({
         "scenario_id": "edge-scenario",
-        "namespace_id": "edge-namespace",
+        "namespace_id": 1,
         "spec_version": "v1",
         "stages": [
             {

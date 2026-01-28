@@ -670,11 +670,6 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
         "Provider IDs exempt from dev-permissive relaxations (e.g., Asset Core providers).",
     ),
     (
-        "mapping_mode",
-        "Namespace mapping strategy for Asset Core authority. explicit_map requires a mapping for \
-         every namespace; numeric_parse allows parsing numeric IDs when no mapping exists.",
-    ),
-    (
         "capabilities_path",
         "Filesystem path to a provider contract JSON (capability contract). The contract declares \
          supported checks, param schemas, and comparator compatibility. The runtime validates \

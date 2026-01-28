@@ -53,7 +53,7 @@ impl ScenarioFixture {
     /// Creates a simple time-based scenario with a single gate.
     pub fn time_after(scenario_id: &str, run_id: &str, threshold: u64) -> Self {
         let scenario_id = ScenarioId::new(scenario_id);
-        let namespace_id = NamespaceId::new("default");
+        let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
         let stage_id = StageId::new("stage-1");
         let predicate_key = PredicateKey::new("after");
         let spec = ScenarioSpec {
@@ -91,7 +91,7 @@ impl ScenarioFixture {
         Self {
             scenario_id,
             run_id: RunId::new(run_id),
-            tenant_id: TenantId::new("tenant-1"),
+            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
             namespace_id,
             stage_id,
             spec,
@@ -106,7 +106,7 @@ impl ScenarioFixture {
         policy_tags: Vec<String>,
     ) -> Self {
         let scenario_id = ScenarioId::new(scenario_id);
-        let namespace_id = NamespaceId::new("default");
+        let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
         let stage_id = StageId::new("stage-1");
         let predicate_key = PredicateKey::new("after");
         let packet = PacketSpec {
@@ -155,7 +155,7 @@ impl ScenarioFixture {
         Self {
             scenario_id,
             run_id: RunId::new(run_id),
-            tenant_id: TenantId::new("tenant-1"),
+            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
             namespace_id,
             stage_id,
             spec,
@@ -165,7 +165,7 @@ impl ScenarioFixture {
     /// Creates a single-stage scenario that fails on timeout.
     pub fn timeout_fail(scenario_id: &str, run_id: &str, timeout_ms: u64) -> Self {
         let scenario_id = ScenarioId::new(scenario_id);
-        let namespace_id = NamespaceId::new("default");
+        let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
         let stage_id = StageId::new("stage-1");
         let predicate_key = PredicateKey::new("after");
         let spec = ScenarioSpec {
@@ -206,7 +206,7 @@ impl ScenarioFixture {
         Self {
             scenario_id,
             run_id: RunId::new(run_id),
-            tenant_id: TenantId::new("tenant-1"),
+            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
             namespace_id,
             stage_id,
             spec,
@@ -216,7 +216,7 @@ impl ScenarioFixture {
     /// Creates a two-stage scenario that advances on timeout with a timeout flag.
     pub fn timeout_advance(scenario_id: &str, run_id: &str, timeout_ms: u64) -> Self {
         let scenario_id = ScenarioId::new(scenario_id);
-        let namespace_id = NamespaceId::new("default");
+        let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
         let stage1_id = StageId::new("stage-1");
         let stage2_id = StageId::new("stage-2");
         let predicate_key = PredicateKey::new("after");
@@ -268,7 +268,7 @@ impl ScenarioFixture {
         Self {
             scenario_id,
             run_id: RunId::new(run_id),
-            tenant_id: TenantId::new("tenant-1"),
+            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
             namespace_id,
             stage_id: stage1_id,
             spec,
@@ -278,7 +278,7 @@ impl ScenarioFixture {
     /// Creates a scenario that routes to an alternate branch on timeout.
     pub fn timeout_alternate_branch(scenario_id: &str, run_id: &str, timeout_ms: u64) -> Self {
         let scenario_id = ScenarioId::new(scenario_id);
-        let namespace_id = NamespaceId::new("default");
+        let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
         let stage1_id = StageId::new("stage-1");
         let stage2_id = StageId::new("stage-alt");
         let predicate_key = PredicateKey::new("after");
@@ -337,7 +337,7 @@ impl ScenarioFixture {
         Self {
             scenario_id,
             run_id: RunId::new(run_id),
-            tenant_id: TenantId::new("tenant-1"),
+            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
             namespace_id,
             stage_id: stage1_id,
             spec,

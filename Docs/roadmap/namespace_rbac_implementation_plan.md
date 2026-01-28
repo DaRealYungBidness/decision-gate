@@ -79,10 +79,12 @@ threat model while remaining easy to use via explicit, well-documented defaults.
 
 ### Namespace Policy
 - `namespace.allow_default = true | false`
-- `namespace.default_tenants = [ ... ]` (required when allow_default is true)
+- `namespace.default_tenants = [1, ... ]` (required when allow_default is true)
 - `namespace.authority.mode = "none" | "assetcore_http"`
-- `namespace.authority.assetcore.mapping_mode = "explicit_map" | "numeric_parse"`
-- `namespace.authority.assetcore.mapping = { <dg_namespace> = <asc_id> }`
+- `namespace.authority.assetcore.base_url = "<url>"`
+- `namespace.authority.assetcore.auth_token = "<token>"` (optional)
+- `namespace.authority.assetcore.connect_timeout_ms = <int>`
+- `namespace.authority.assetcore.request_timeout_ms = <int>`
 
 ### Dev-Permissive
 - `dev.permissive = true | false`
@@ -131,14 +133,13 @@ Implemented:
 ## Required Runpack Metadata
 - `security.dev_permissive: true | false`
 - `security.namespace_authority: dg_registry | assetcore_catalog`
-- `security.namespace_mapping_mode`
 
 ## Tests (Must-Have)
 
 ### Namespace Policy
 - Fail-closed when namespace unknown or authority unreachable.
 - ASC authority cannot be used with dev-permissive.
-- Explicit map required when configured; no implicit fallback.
+- Namespace IDs must be numeric; invalid IDs are rejected.
 
 ### Dev-Permissive
 - Asserted evidence accepted only when enabled.

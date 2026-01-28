@@ -92,7 +92,7 @@ type = "builtin"
 
 fn precheck_spec() -> ScenarioSpec {
     let scenario_id = ScenarioId::new("precheck-audit");
-    let namespace_id = NamespaceId::new("default");
+    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
     let stage_id = StageId::new("stage-1");
     let predicate_key = PredicateKey::new("value");
     ScenarioSpec {
@@ -125,7 +125,7 @@ fn precheck_spec() -> ScenarioSpec {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(TenantId::new("tenant-1")),
+        default_tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
     }
 }
 
@@ -155,12 +155,12 @@ policy_class = "prod"
 
 [[server.auth.principals.roles]]
 name = "TenantAdmin"
-tenant_id = "tenant-1"
-namespace_id = "default"
+tenant_id = 1
+namespace_id = 1
 
 [namespace]
 allow_default = true
-default_tenants = ["tenant-1"]
+default_tenants = [1]
 
 [[providers]]
 name = "time"
@@ -181,7 +181,7 @@ type = "builtin"
     let define_output: ScenarioDefineResponse =
         serde_json::from_value(client.call_tool("scenario_define", define_input).await?)?;
 
-    let tenant_id = TenantId::new("tenant-1");
+    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
     let record = DataShapeRecord {
         tenant_id: tenant_id.clone(),
         namespace_id: spec.namespace_id.clone(),

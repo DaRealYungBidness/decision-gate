@@ -97,6 +97,7 @@ use decision_gate_mcp::tools::SchemasRegisterResponse;
 use ret_logic::TriState;
 use serde_json::json;
 
+use async_trait::async_trait;
 use crate::common::define_scenario;
 use crate::common::local_request_context;
 use crate::common::router_with_authorizer_usage_and_runpack_storage;
@@ -113,8 +114,9 @@ use crate::common::start_run;
 
 struct DenyNamespaceAuthority;
 
+#[async_trait]
 impl NamespaceAuthority for DenyNamespaceAuthority {
-    fn ensure_namespace(
+    async fn ensure_namespace(
         &self,
         _tenant_id: Option<&TenantId>,
         _namespace_id: &NamespaceId,
@@ -130,8 +132,8 @@ impl NamespaceAuthority for DenyNamespaceAuthority {
 
 fn sample_shape_record(schema_id: &str, version: &str) -> DataShapeRecord {
     DataShapeRecord {
-        tenant_id: TenantId::new("test-tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         schema_id: DataShapeId::new(schema_id),
         version: DataShapeVersion::new(version),
         schema: json!({
@@ -305,7 +307,6 @@ fn namespace_authority_denies_tool_call() {
     let runpack_security_context = Some(decision_gate_core::RunpackSecurityContext {
         dev_permissive: config.is_dev_permissive(),
         namespace_authority: "dg_registry".to_string(),
-        namespace_mapping_mode: None,
     });
     let precheck_audit_payloads = config.server.audit.log_precheck_payloads;
     let authz = std::sync::Arc::new(decision_gate_mcp::auth::DefaultToolAuthz::from_config(
@@ -431,7 +432,7 @@ fn scenario_start_creates_run() {
     let spec = sample_spec();
     let scenario_id = define_scenario(&router, spec).unwrap();
 
-    let run_config = sample_run_config_with_ids("tenant", "run-1", scenario_id.as_str());
+    let run_config = sample_run_config_with_ids(1, "run-1", scenario_id.as_str());
     let result = start_run(&router, &scenario_id, run_config, Timestamp::Logical(1));
     assert!(result.is_ok());
 }
@@ -441,7 +442,7 @@ fn scenario_start_creates_run() {
 fn scenario_start_undefined_scenario_fails() {
     let router = sample_router();
     let scenario_id = ScenarioId::new("nonexistent");
-    let run_config = sample_run_config_with_ids("tenant", "run-1", "nonexistent");
+    let run_config = sample_run_config_with_ids(1, "run-1", "nonexistent");
 
     let request = ScenarioStartRequest {
         scenario_id,
@@ -481,8 +482,8 @@ fn scenario_status_returns_status() {
         scenario_id,
         request: StatusRequest {
             run_id,
-            tenant_id: TenantId::new("test-tenant"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             requested_at: Timestamp::Logical(2),
             correlation_id: None,
         },
@@ -508,8 +509,8 @@ fn scenario_status_undefined_scenario_fails() {
         scenario_id: ScenarioId::new("nonexistent"),
         request: StatusRequest {
             run_id: RunId::new("run-1"),
-            tenant_id: TenantId::new("test-tenant"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             requested_at: Timestamp::Logical(1),
             correlation_id: None,
         },
@@ -535,8 +536,8 @@ fn scenario_next_advances_evaluation() {
         scenario_id,
         request: NextRequest {
             run_id,
-            tenant_id: TenantId::new("test-tenant"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             trigger_id: TriggerId::new("trigger-1"),
             agent_id: "test-agent".to_string(),
             time: Timestamp::Logical(2),
@@ -565,8 +566,8 @@ fn scenario_next_undefined_scenario_fails() {
         scenario_id: ScenarioId::new("nonexistent"),
         request: NextRequest {
             run_id: RunId::new("run-1"),
-            tenant_id: TenantId::new("test-tenant"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             trigger_id: TriggerId::new("trigger-1"),
             agent_id: "test-agent".to_string(),
             time: Timestamp::Logical(1),
@@ -594,8 +595,8 @@ fn scenario_submit_accepts_submissions() {
         scenario_id,
         request: SubmitRequest {
             run_id,
-            tenant_id: TenantId::new("test-tenant"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             submission_id: "submission-1".to_string(),
             payload: PacketPayload::Json {
                 value: json!({"artifact": "value"}),
@@ -624,8 +625,8 @@ fn scenario_submit_undefined_scenario_fails() {
         scenario_id: ScenarioId::new("nonexistent"),
         request: SubmitRequest {
             run_id: RunId::new("run-1"),
-            tenant_id: TenantId::new("test-tenant"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             submission_id: "submission-1".to_string(),
             payload: PacketPayload::Json {
                 value: json!({"artifact": "value"}),
@@ -656,8 +657,8 @@ fn scenario_trigger_processes_event() {
         scenario_id,
         trigger: TriggerEvent {
             run_id,
-            tenant_id: TenantId::new("test-tenant"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             trigger_id: TriggerId::new("external-trigger"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
@@ -685,8 +686,8 @@ fn scenario_trigger_undefined_scenario_fails() {
         scenario_id: ScenarioId::new("nonexistent"),
         trigger: TriggerEvent {
             run_id: RunId::new("run-1"),
-            tenant_id: TenantId::new("test-tenant"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             trigger_id: TriggerId::new("trigger-1"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(1),
@@ -805,13 +806,13 @@ fn runpack_export_uses_storage_backend() {
     );
     let spec = sample_spec();
     let scenario_id = define_scenario(&router, spec).unwrap();
-    let run_config = sample_run_config_with_ids("test-tenant", "test-run", scenario_id.as_str());
+    let run_config = sample_run_config_with_ids(1, "test-run", scenario_id.as_str());
     start_run(&router, &scenario_id, run_config, Timestamp::Logical(1)).unwrap();
 
     let request = RunpackExportRequest {
         scenario_id,
-        tenant_id: TenantId::new("test-tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: RunId::new("test-run"),
         output_dir: None,
         manifest_name: Some("manifest.json".to_string()),
@@ -837,8 +838,8 @@ fn runpack_export_uses_storage_backend() {
         )
     };
     assert_eq!(call_count, 1);
-    assert_eq!(tenant_id.as_str(), "test-tenant");
-    assert_eq!(namespace_id.as_str(), "default");
+    assert_eq!(tenant_id.get(), 1);
+    assert_eq!(namespace_id.get(), 1);
     assert_eq!(run_id.as_str(), "test-run");
 }
 
@@ -851,8 +852,8 @@ fn runpack_export_missing_run_fails() {
 
     let request = decision_gate_mcp::tools::RunpackExportRequest {
         scenario_id,
-        tenant_id: TenantId::new("test-tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: RunId::new("nonexistent-run"),
         output_dir: Some("/tmp/test-runpack".to_string()),
         manifest_name: None,
@@ -874,8 +875,8 @@ fn runpack_export_undefined_scenario_fails() {
 
     let request = decision_gate_mcp::tools::RunpackExportRequest {
         scenario_id: ScenarioId::new("nonexistent"),
-        tenant_id: TenantId::new("test-tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: RunId::new("run-1"),
         output_dir: Some("/tmp/test-runpack".to_string()),
         manifest_name: None,
@@ -896,13 +897,13 @@ fn runpack_export_requires_output_dir_without_storage() {
     let router = sample_router();
     let spec = sample_spec();
     let scenario_id = define_scenario(&router, spec).unwrap();
-    let run_config = sample_run_config_with_ids("test-tenant", "test-run", scenario_id.as_str());
+    let run_config = sample_run_config_with_ids(1, "test-run", scenario_id.as_str());
     start_run(&router, &scenario_id, run_config, Timestamp::Logical(1)).unwrap();
 
     let request = decision_gate_mcp::tools::RunpackExportRequest {
         scenario_id,
-        tenant_id: TenantId::new("test-tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: RunId::new("test-run"),
         output_dir: None,
         manifest_name: None,
@@ -969,8 +970,8 @@ fn multiple_scenarios_independent() {
     assert_eq!(id2.as_str(), "scenario-2");
 
     // Start runs on both
-    let config1 = sample_run_config_with_ids("tenant", "run-1", "scenario-1");
-    let config2 = sample_run_config_with_ids("tenant", "run-2", "scenario-2");
+    let config1 = sample_run_config_with_ids(1, "run-1", "scenario-1");
+    let config2 = sample_run_config_with_ids(1, "run-2", "scenario-2");
 
     start_run(&router, &id1, config1, Timestamp::Logical(1)).unwrap();
     start_run(&router, &id2, config2, Timestamp::Logical(1)).unwrap();
@@ -989,8 +990,8 @@ fn scenario_next_idempotent_same_trigger() {
         scenario_id,
         request: NextRequest {
             run_id,
-            tenant_id: TenantId::new("test-tenant"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             trigger_id: TriggerId::new("same-trigger"),
             agent_id: "test-agent".to_string(),
             time: Timestamp::Logical(2),
@@ -1090,8 +1091,8 @@ fn schemas_register_allowed_for_namespace_admin() {
             policy_class: Some("prod".to_string()),
             roles: vec![PrincipalRoleConfig {
                 name: "NamespaceAdmin".to_string(),
-                tenant_id: Some(TenantId::new("test-tenant")),
-                namespace_id: Some(NamespaceId::new("default")),
+                tenant_id: Some(TenantId::from_raw(100).expect("nonzero tenantid")),
+                namespace_id: Some(NamespaceId::from_raw(1).expect("nonzero namespaceid")),
             }],
         }],
     });
@@ -1314,8 +1315,8 @@ fn schemas_register_rejects_when_registry_full() {
 fn schemas_get_missing_rejected() {
     let router = sample_router();
     let request = SchemasGetRequest {
-        tenant_id: TenantId::new("test-tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         schema_id: DataShapeId::new("missing"),
         version: DataShapeVersion::new("v1"),
     };
@@ -1415,8 +1416,8 @@ fn scenarios_list_includes_defined_scenario() {
     let spec = sample_spec_with_id("scenario-list");
     let _ = define_scenario(&router, spec.clone()).unwrap();
     let request = ScenariosListRequest {
-        tenant_id: TenantId::new("test-tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         cursor: None,
         limit: None,
     };
@@ -1679,7 +1680,7 @@ fn precheck_rejects_scenario_id_spec_mismatch() {
 fn precheck_rejects_spec_namespace_mismatch() {
     let router = sample_router();
     let mut record = sample_shape_record("asserted", "v1");
-    record.namespace_id = NamespaceId::new("other");
+    record.namespace_id = NamespaceId::from_raw(2).expect("nonzero namespaceid");
     let tenant_id = record.tenant_id.clone();
     let namespace_id = record.namespace_id.clone();
     let schema_id = record.schema_id.clone();
@@ -1722,7 +1723,7 @@ fn precheck_rejects_spec_namespace_mismatch() {
 fn precheck_rejects_default_tenant_mismatch() {
     let router = sample_router();
     let mut record = sample_shape_record("asserted", "v1");
-    record.tenant_id = TenantId::new("tenant-b");
+    record.tenant_id = TenantId::from_raw(2).expect("nonzero tenantid");
     let tenant_id = record.tenant_id.clone();
     let namespace_id = record.namespace_id.clone();
     let schema_id = record.schema_id.clone();
@@ -1739,7 +1740,7 @@ fn precheck_rejects_default_tenant_mismatch() {
         .unwrap();
 
     let mut spec = sample_spec_with_id("scenario-tenant");
-    spec.default_tenant_id = Some(TenantId::new("tenant-a"));
+    spec.default_tenant_id = Some(TenantId::from_raw(1).expect("nonzero tenantid"));
     let request = PrecheckToolRequest {
         tenant_id,
         namespace_id,
@@ -1766,8 +1767,8 @@ fn precheck_rejects_default_tenant_mismatch() {
 fn precheck_rejects_unknown_schema() {
     let router = sample_router();
     let request = PrecheckToolRequest {
-        tenant_id: TenantId::new("test-tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         scenario_id: Some(ScenarioId::new("scenario-precheck")),
         spec: None,
         stage_id: None,

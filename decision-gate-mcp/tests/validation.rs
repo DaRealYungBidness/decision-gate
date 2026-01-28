@@ -54,7 +54,7 @@ fn spec_with_predicate(
 ) -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("test"),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("1"),
         stages: Vec::new(),
         predicates: vec![PredicateSpec {

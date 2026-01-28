@@ -52,7 +52,7 @@ fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Error>> {
     let predicate_key = decision_gate_core::PredicateKey::new("allow");
     let spec = decision_gate_core::ScenarioSpec {
         scenario_id: scenario_id.clone(),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: decision_gate_core::SpecVersion::new("1"),
         stages: vec![
             decision_gate_core::StageSpec {
@@ -119,8 +119,8 @@ fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     let mut run_config = decision_gate_core::RunConfig {
-        tenant_id: decision_gate_core::TenantId::new("tenant-1"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id,
         dispatch_targets: Vec::new(),

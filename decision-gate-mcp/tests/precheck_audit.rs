@@ -136,7 +136,6 @@ fn build_router(mut config: DecisionGateConfig, audit: Arc<TestAuditSink>) -> To
     let runpack_security_context = Some(decision_gate_core::RunpackSecurityContext {
         dev_permissive: config.is_dev_permissive(),
         namespace_authority: "dg_registry".to_string(),
-        namespace_mapping_mode: None,
     });
     let precheck_audit_payloads = config.server.audit.log_precheck_payloads;
     let principal_resolver = PrincipalResolver::from_config(config.server.auth.as_ref());
@@ -245,8 +244,8 @@ fn precheck_audit_hash_only_by_default() {
     config.server.audit.log_precheck_payloads = false;
     let audit = Arc::new(TestAuditSink::default());
     let router = build_router(config, Arc::clone(&audit));
-    let tenant_id = TenantId::new("test-tenant");
-    let namespace_id = NamespaceId::new("default");
+    let tenant_id = TenantId::from_raw(100).expect("nonzero tenantid");
+    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
     define_scenario(&router);
     register_schema(&router, tenant_id.clone(), namespace_id.clone());
     precheck(&router, tenant_id, namespace_id);
@@ -268,8 +267,8 @@ fn precheck_audit_payloads_opt_in() {
     config.server.audit.log_precheck_payloads = true;
     let audit = Arc::new(TestAuditSink::default());
     let router = build_router(config, Arc::clone(&audit));
-    let tenant_id = TenantId::new("test-tenant");
-    let namespace_id = NamespaceId::new("default");
+    let tenant_id = TenantId::from_raw(100).expect("nonzero tenantid");
+    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
     define_scenario(&router);
     register_schema(&router, tenant_id.clone(), namespace_id.clone());
     precheck(&router, tenant_id, namespace_id);

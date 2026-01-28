@@ -19,6 +19,7 @@ use std::collections::BTreeSet;
 use std::io::Write;
 use std::net::IpAddr;
 
+use async_trait::async_trait;
 use decision_gate_contract::ToolName;
 use decision_gate_core::hashing::HashAlgorithm;
 use decision_gate_core::hashing::hash_bytes;
@@ -191,13 +192,14 @@ pub enum AuthError {
 // ============================================================================
 
 /// Authn/authz interface for MCP tool calls.
+#[async_trait]
 pub trait ToolAuthz: Send + Sync {
     /// Authorize a tool request. Returns an authenticated context on success.
     ///
     /// # Errors
     ///
     /// Returns [`AuthError`] if the caller is unauthenticated or unauthorized.
-    fn authorize(
+    async fn authorize(
         &self,
         ctx: &RequestContext,
         action: AuthAction<'_>,
@@ -265,8 +267,9 @@ impl DefaultToolAuthz {
     }
 }
 
+#[async_trait]
 impl ToolAuthz for DefaultToolAuthz {
-    fn authorize(
+    async fn authorize(
         &self,
         ctx: &RequestContext,
         action: AuthAction<'_>,

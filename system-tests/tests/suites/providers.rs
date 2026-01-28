@@ -210,7 +210,7 @@ async fn json_provider_contains_array_succeeds() -> Result<(), Box<dyn std::erro
     let predicate_key = PredicateKey::new("summary-tags");
     let spec = ScenarioSpec {
         scenario_id: scenario_id.clone(),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: stage_id.clone(),
@@ -241,7 +241,7 @@ async fn json_provider_contains_array_succeeds() -> Result<(), Box<dyn std::erro
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(TenantId::new("tenant-1")),
+        default_tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
     };
 
     let define_request = ScenarioDefineRequest {
@@ -254,8 +254,8 @@ async fn json_provider_contains_array_succeeds() -> Result<(), Box<dyn std::erro
     let start_request = ScenarioStartRequest {
         scenario_id: define_output.scenario_id.clone(),
         run_config: RunConfig {
-            tenant_id: TenantId::new("tenant-1"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             run_id: RunId::new("run-1"),
             scenario_id: define_output.scenario_id.clone(),
             dispatch_targets: Vec::new(),
@@ -272,8 +272,8 @@ async fn json_provider_contains_array_succeeds() -> Result<(), Box<dyn std::erro
         scenario_id: define_output.scenario_id,
         trigger: decision_gate_core::TriggerEvent {
             run_id: RunId::new("run-1"),
-            tenant_id: TenantId::new("tenant-1"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             trigger_id: TriggerId::new("trigger-1"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
@@ -321,7 +321,7 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
     let predicate_key = PredicateKey::new("echo");
     let spec = ScenarioSpec {
         scenario_id: scenario_id.clone(),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: stage_id.clone(),
@@ -349,7 +349,7 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(decision_gate_core::TenantId::new("tenant-1")),
+        default_tenant_id: Some(decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid")),
     };
 
     let define_request = ScenarioDefineRequest {
@@ -362,8 +362,8 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
     let start_request = ScenarioStartRequest {
         scenario_id: define_output.scenario_id.clone(),
         run_config: decision_gate_core::RunConfig {
-            tenant_id: decision_gate_core::TenantId::new("tenant-1"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             run_id: decision_gate_core::RunId::new("run-1"),
             scenario_id: define_output.scenario_id.clone(),
             dispatch_targets: Vec::new(),
@@ -380,8 +380,8 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
         scenario_id: define_output.scenario_id,
         trigger: decision_gate_core::TriggerEvent {
             run_id: decision_gate_core::RunId::new("run-1"),
-            tenant_id: decision_gate_core::TenantId::new("tenant-1"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             trigger_id: TriggerId::new("trigger-1"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),

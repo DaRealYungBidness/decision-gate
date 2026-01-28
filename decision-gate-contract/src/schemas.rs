@@ -51,7 +51,7 @@ pub fn scenario_schema() -> Value {
         ],
         "properties": {
             "scenario_id": schema_for_identifier("Scenario identifier."),
-            "namespace_id": schema_for_identifier("Namespace identifier."),
+            "namespace_id": schema_for_numeric_identifier("Namespace identifier."),
             "spec_version": schema_for_identifier("Specification version identifier."),
             "stages": {
                 "type": "array",
@@ -73,7 +73,7 @@ pub fn scenario_schema() -> Value {
             "default_tenant_id": {
                 "oneOf": [
                     { "type": "null" },
-                    schema_for_identifier("Optional default tenant identifier.")
+                    schema_for_numeric_identifier("Optional default tenant identifier.")
                 ]
             }
         },
@@ -473,8 +473,8 @@ pub fn run_config_schema() -> Value {
             "policy_tags"
         ],
         "properties": {
-            "tenant_id": schema_for_identifier("Tenant identifier."),
-            "namespace_id": schema_for_identifier("Namespace identifier."),
+            "tenant_id": schema_for_numeric_identifier("Tenant identifier."),
+            "namespace_id": schema_for_numeric_identifier("Namespace identifier."),
             "run_id": schema_for_identifier("Run identifier."),
             "scenario_id": schema_for_identifier("Scenario identifier."),
             "dispatch_targets": {
@@ -516,8 +516,8 @@ pub fn data_shape_record_schema() -> Value {
             "created_at"
         ],
         "properties": {
-            "tenant_id": schema_for_identifier("Tenant identifier."),
-            "namespace_id": schema_for_identifier("Namespace identifier."),
+            "tenant_id": schema_for_numeric_identifier("Tenant identifier."),
+            "namespace_id": schema_for_numeric_identifier("Namespace identifier."),
             "schema_id": schema_for_identifier("Data shape identifier."),
             "version": schema_for_identifier("Data shape version identifier."),
             "schema": schema_for_json_value("JSON Schema payload."),
@@ -593,8 +593,8 @@ pub fn trigger_event_schema() -> Value {
         ],
         "properties": {
             "trigger_id": schema_for_identifier("Trigger identifier."),
-            "tenant_id": schema_for_identifier("Tenant identifier."),
-            "namespace_id": schema_for_identifier("Namespace identifier."),
+            "tenant_id": schema_for_numeric_identifier("Tenant identifier."),
+            "namespace_id": schema_for_numeric_identifier("Namespace identifier."),
             "run_id": schema_for_identifier("Run identifier."),
             "kind": trigger_kind_schema(),
             "time": timestamp_schema(),
@@ -623,8 +623,8 @@ pub fn status_request_schema() -> Value {
         "type": "object",
         "required": ["tenant_id", "namespace_id", "run_id", "requested_at"],
         "properties": {
-            "tenant_id": schema_for_identifier("Tenant identifier."),
-            "namespace_id": schema_for_identifier("Namespace identifier."),
+            "tenant_id": schema_for_numeric_identifier("Tenant identifier."),
+            "namespace_id": schema_for_numeric_identifier("Namespace identifier."),
             "run_id": schema_for_identifier("Run identifier."),
             "requested_at": timestamp_schema(),
             "correlation_id": {
@@ -645,8 +645,8 @@ pub fn next_request_schema() -> Value {
         "type": "object",
         "required": ["tenant_id", "namespace_id", "run_id", "trigger_id", "agent_id", "time"],
         "properties": {
-            "tenant_id": schema_for_identifier("Tenant identifier."),
-            "namespace_id": schema_for_identifier("Namespace identifier."),
+            "tenant_id": schema_for_numeric_identifier("Tenant identifier."),
+            "namespace_id": schema_for_numeric_identifier("Namespace identifier."),
             "run_id": schema_for_identifier("Run identifier."),
             "trigger_id": schema_for_identifier("Trigger identifier."),
             "agent_id": schema_for_string("Agent identifier."),
@@ -677,8 +677,8 @@ pub fn submit_request_schema() -> Value {
             "submitted_at"
         ],
         "properties": {
-            "tenant_id": schema_for_identifier("Tenant identifier."),
-            "namespace_id": schema_for_identifier("Namespace identifier."),
+            "tenant_id": schema_for_numeric_identifier("Tenant identifier."),
+            "namespace_id": schema_for_numeric_identifier("Namespace identifier."),
             "run_id": schema_for_identifier("Run identifier."),
             "submission_id": schema_for_string("Submission identifier."),
             "payload": packet_payload_schema(),
@@ -710,7 +710,7 @@ pub fn scenario_status_schema() -> Value {
             "safe_summary"
         ],
         "properties": {
-            "namespace_id": schema_for_identifier("Namespace identifier."),
+            "namespace_id": schema_for_numeric_identifier("Namespace identifier."),
             "run_id": schema_for_identifier("Run identifier."),
             "scenario_id": schema_for_identifier("Scenario identifier."),
             "current_stage_id": schema_for_identifier("Current stage identifier."),
@@ -796,8 +796,8 @@ pub fn run_state_schema() -> Value {
             "tool_calls"
         ],
         "properties": {
-            "tenant_id": schema_for_identifier("Tenant identifier."),
-            "namespace_id": schema_for_identifier("Namespace identifier."),
+            "tenant_id": schema_for_numeric_identifier("Tenant identifier."),
+            "namespace_id": schema_for_numeric_identifier("Namespace identifier."),
             "run_id": schema_for_identifier("Run identifier."),
             "scenario_id": schema_for_identifier("Scenario identifier."),
             "spec_hash": hash_digest_schema(),
@@ -858,8 +858,8 @@ pub fn runpack_manifest_schema() -> Value {
         "properties": {
             "manifest_version": schema_for_string("Runpack manifest version."),
             "generated_at": timestamp_schema(),
-            "tenant_id": schema_for_identifier("Tenant identifier."),
-            "namespace_id": schema_for_identifier("Namespace identifier."),
+            "tenant_id": schema_for_numeric_identifier("Tenant identifier."),
+            "namespace_id": schema_for_numeric_identifier("Namespace identifier."),
             "scenario_id": schema_for_identifier("Scenario identifier."),
             "run_id": schema_for_identifier("Run identifier."),
             "spec_hash": hash_digest_schema(),
@@ -886,8 +886,7 @@ fn runpack_security_context_schema() -> Value {
             "dev_permissive": {
                 "type": "boolean"
             },
-            "namespace_authority": schema_for_string("Namespace authority mode label."),
-            "namespace_mapping_mode": schema_for_string("Namespace mapping mode label.")
+            "namespace_authority": schema_for_string("Namespace authority mode label.")
         },
         "additionalProperties": false
     })
@@ -1062,6 +1061,16 @@ pub fn packet_payload_schema() -> Value {
 #[must_use]
 fn schema_for_identifier(description: &str) -> Value {
     schema_for_string(description)
+}
+
+/// Returns a JSON schema for a numeric identifier (1-based, non-zero).
+#[must_use]
+fn schema_for_numeric_identifier(description: &str) -> Value {
+    json!({
+        "type": "integer",
+        "minimum": 1,
+        "description": description
+    })
 }
 
 /// Returns a JSON schema for a plain string.
@@ -1629,12 +1638,12 @@ fn registry_acl_rule_schema() -> Value {
             },
             "tenants": {
                 "type": "array",
-                "items": schema_for_identifier("Tenant identifier."),
+                "items": schema_for_numeric_identifier("Tenant identifier."),
                 "default": []
             },
             "namespaces": {
                 "type": "array",
-                "items": schema_for_identifier("Namespace identifier."),
+                "items": schema_for_numeric_identifier("Namespace identifier."),
                 "default": []
             },
             "subjects": {
@@ -1824,14 +1833,14 @@ fn principal_role_schema() -> Value {
             "tenant_id": {
                 "oneOf": [
                     { "type": "null" },
-                    schema_for_identifier("Tenant identifier scope.")
+                    schema_for_numeric_identifier("Tenant identifier scope.")
                 ],
                 "default": null
             },
             "namespace_id": {
                 "oneOf": [
                     { "type": "null" },
-                    schema_for_identifier("Namespace identifier scope.")
+                    schema_for_numeric_identifier("Namespace identifier scope.")
                 ],
                 "default": null
             }
@@ -1938,7 +1947,7 @@ fn namespace_config_schema() -> Value {
             },
             "default_tenants": {
                 "type": "array",
-                "items": schema_for_identifier("Tenant identifier allowed for default namespace."),
+                "items": schema_for_numeric_identifier("Tenant identifier allowed for default namespace."),
                 "default": []
             },
             "authority": namespace_authority_schema()
@@ -2025,20 +2034,7 @@ fn assetcore_authority_schema() -> Value {
             "base_url": schema_for_string("Asset Core write-daemon base URL."),
             "auth_token": schema_for_string("Optional bearer token for namespace lookup."),
             "connect_timeout_ms": schema_for_int("Connect timeout in milliseconds."),
-            "request_timeout_ms": schema_for_int("Request timeout in milliseconds."),
-            "mapping_mode": {
-                "type": "string",
-                "enum": ["none", "explicit_map", "numeric_parse"],
-                "default": "numeric_parse"
-            },
-            "mapping": {
-                "type": "object",
-                "additionalProperties": {
-                    "type": "integer",
-                    "minimum": 0
-                },
-                "default": {}
-            }
+            "request_timeout_ms": schema_for_int("Request timeout in milliseconds.")
         },
         "additionalProperties": false
     })

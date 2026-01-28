@@ -127,8 +127,8 @@ pub fn base_http_config(bind: &str) -> DecisionGateConfig {
                 mtls_subjects: Vec::new(),
                 allowed_tools: Vec::new(),
                 principals: vec![
-                    tenant_admin_principal("loopback", "tenant-1", "default"),
-                    tenant_admin_principal("stdio", "tenant-1", "default"),
+                    tenant_admin_principal("loopback", 1, 1),
+                    tenant_admin_principal("stdio", 1, 1),
                 ],
             }),
             tls: None,
@@ -136,7 +136,7 @@ pub fn base_http_config(bind: &str) -> DecisionGateConfig {
         },
         namespace: NamespaceConfig {
             allow_default: true,
-            default_tenants: vec![TenantId::new("tenant-1")],
+            default_tenants: vec![TenantId::from_raw(1).expect("nonzero tenantid")],
             ..NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
@@ -163,7 +163,7 @@ pub fn base_http_config_with_bearer(bind: &str, token: &str) -> DecisionGateConf
         bearer_tokens: vec![token.to_string()],
         mtls_subjects: Vec::new(),
         allowed_tools: Vec::new(),
-        principals: vec![tenant_admin_principal(token_principal(token), "tenant-1", "default")],
+        principals: vec![tenant_admin_principal(token_principal(token), 1, 1)],
     });
     config
 }
@@ -210,7 +210,7 @@ pub fn base_http_config_with_mtls(bind: &str, subject: &str) -> DecisionGateConf
         bearer_tokens: Vec::new(),
         mtls_subjects: vec![subject.to_string()],
         allowed_tools: Vec::new(),
-        principals: vec![tenant_admin_principal(subject, "tenant-1", "default")],
+        principals: vec![tenant_admin_principal(subject, 1, 1)],
     });
     config
 }
@@ -230,8 +230,8 @@ pub fn base_sse_config(bind: &str) -> DecisionGateConfig {
                 mtls_subjects: Vec::new(),
                 allowed_tools: Vec::new(),
                 principals: vec![
-                    tenant_admin_principal("loopback", "tenant-1", "default"),
-                    tenant_admin_principal("stdio", "tenant-1", "default"),
+                    tenant_admin_principal("loopback", 1, 1),
+                    tenant_admin_principal("stdio", 1, 1),
                 ],
             }),
             tls: None,
@@ -239,7 +239,7 @@ pub fn base_sse_config(bind: &str) -> DecisionGateConfig {
         },
         namespace: NamespaceConfig {
             allow_default: true,
-            default_tenants: vec![TenantId::new("tenant-1")],
+            default_tenants: vec![TenantId::from_raw(1).expect("nonzero tenantid")],
             ..NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
@@ -266,7 +266,7 @@ pub fn base_sse_config_with_bearer(bind: &str, token: &str) -> DecisionGateConfi
         bearer_tokens: vec![token.to_string()],
         mtls_subjects: Vec::new(),
         allowed_tools: Vec::new(),
-        principals: vec![tenant_admin_principal(token_principal(token), "tenant-1", "default")],
+        principals: vec![tenant_admin_principal(token_principal(token), 1, 1)],
     });
     config
 }
@@ -352,16 +352,16 @@ fn token_principal(token: &str) -> String {
 
 fn tenant_admin_principal(
     subject: impl Into<String>,
-    tenant_id: &str,
-    namespace_id: &str,
+    tenant_id: u64,
+    namespace_id: u64,
 ) -> PrincipalConfig {
     PrincipalConfig {
         subject: subject.into(),
         policy_class: Some("prod".to_string()),
         roles: vec![PrincipalRoleConfig {
             name: "TenantAdmin".to_string(),
-            tenant_id: Some(TenantId::new(tenant_id)),
-            namespace_id: Some(NamespaceId::new(namespace_id)),
+            tenant_id: Some(TenantId::from_raw(tenant_id).expect("nonzero tenantid")),
+            namespace_id: Some(NamespaceId::from_raw(namespace_id).expect("nonzero namespaceid")),
         }],
     }
 }

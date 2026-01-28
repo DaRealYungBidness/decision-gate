@@ -282,8 +282,8 @@ const fn sample_timestamp() -> Timestamp {
     reason = "Full run state fixture is intentionally verbose for schema coverage."
 )]
 fn sample_run_state() -> RunState {
-    let tenant_id = TenantId::new("tenant-1");
-    let namespace_id = NamespaceId::new("namespace-1");
+    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
+    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
     let run_id = RunId::new("run-1");
     let scenario_id = ScenarioId::new("scenario-1");
     let stage_id = StageId::new("stage-1");
@@ -459,7 +459,7 @@ fn scenario_schema_rejects_empty_stages() -> Result<(), Box<dyn Error>> {
 
     let invalid = json!({
         "scenario_id": "test",
-        "namespace_id": "default",
+        "namespace_id": 1,
         "spec_version": "1",
         "stages": [],
         "predicates": [],
@@ -479,7 +479,7 @@ fn scenario_schema_rejects_missing_scenario_id() -> Result<(), Box<dyn Error>> {
     let scenario_validator = compile_schema(&scenario_schema, &resolver)?;
 
     let invalid = json!({
-        "namespace_id": "default",
+        "namespace_id": 1,
         "spec_version": "1",
         "stages": [{
             "stage_id": "stage-1",
@@ -504,7 +504,7 @@ fn scenario_schema_rejects_empty_stage_id() -> Result<(), Box<dyn Error>> {
 
     let invalid = json!({
         "scenario_id": "test",
-        "namespace_id": "default",
+        "namespace_id": 1,
         "spec_version": "1",
         "stages": [{
             "stage_id": "",
@@ -542,7 +542,7 @@ fn run_config_schema_rejects_missing_tenant_id() -> Result<(), Box<dyn Error>> {
     let run_config_validator = compile_schema(&schemas::run_config_schema(), &resolver)?;
 
     let invalid = json!({
-        "namespace_id": "default",
+        "namespace_id": 1,
         "run_id": "run-1",
         "scenario_id": "scenario-1"
     });
@@ -556,8 +556,8 @@ fn run_config_schema_rejects_missing_run_id() -> Result<(), Box<dyn Error>> {
     let run_config_validator = compile_schema(&schemas::run_config_schema(), &resolver)?;
 
     let invalid = json!({
-        "tenant_id": "tenant-1",
-        "namespace_id": "default",
+        "tenant_id": 1,
+        "namespace_id": 1,
         "scenario_id": "scenario-1"
     });
     assert_invalid(&run_config_validator, &invalid, "run config missing run_id")?;

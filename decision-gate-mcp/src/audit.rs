@@ -196,8 +196,6 @@ pub struct SecurityAuditEvent {
     pub dev_permissive: bool,
     /// Namespace authority mode label.
     pub namespace_authority: String,
-    /// Namespace mapping mode label (if applicable).
-    pub namespace_mapping_mode: Option<String>,
 }
 
 /// Inputs required to construct an audit event.
@@ -329,8 +327,6 @@ pub struct SecurityAuditEventParams {
     pub dev_permissive: bool,
     /// Namespace authority mode label.
     pub namespace_authority: String,
-    /// Namespace mapping mode label (if applicable).
-    pub namespace_mapping_mode: Option<String>,
 }
 
 impl McpAuditEvent {
@@ -460,7 +456,6 @@ impl SecurityAuditEvent {
             message: params.message,
             dev_permissive: params.dev_permissive,
             namespace_authority: params.namespace_authority,
-            namespace_mapping_mode: params.namespace_mapping_mode,
         }
     }
 }

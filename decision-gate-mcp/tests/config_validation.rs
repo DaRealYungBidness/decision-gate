@@ -1133,7 +1133,7 @@ fn strict_mode_requires_explicit_default_namespace_allow() {
     };
     assert!(!config.allow_default_namespace());
     config.namespace.allow_default = true;
-    config.namespace.default_tenants = vec![TenantId::new("test-tenant")];
+    config.namespace.default_tenants = vec![TenantId::from_raw(100).expect("nonzero tenantid")];
     assert!(config.allow_default_namespace());
 }
 
@@ -1527,50 +1527,11 @@ fn namespace_authority_none_rejects_assetcore_config() {
             auth_token: None,
             connect_timeout_ms: 500,
             request_timeout_ms: 1_000,
-            mapping: std::collections::BTreeMap::new(),
-            mapping_mode: decision_gate_mcp::config::NamespaceMappingMode::NumericParse,
         });
     let result = config.validate();
     assert!(result.is_err());
     let error = result.unwrap_err();
     assert!(error.to_string().contains("namespace.authority.assetcore"));
-}
-
-/// Verifies assetcore mapping mode cannot be none.
-#[test]
-fn namespace_authority_rejects_mapping_mode_none() {
-    let mut config = DecisionGateConfig {
-        server: ServerConfig::default(),
-        namespace: NamespaceConfig::default(),
-        dev: decision_gate_mcp::config::DevConfig::default(),
-        trust: TrustConfig::default(),
-        evidence: EvidencePolicyConfig::default(),
-        anchors: AnchorPolicyConfig::default(),
-        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
-        validation: ValidationConfig::default(),
-        policy: PolicyConfig::default(),
-        run_state_store: RunStateStoreConfig::default(),
-        schema_registry: SchemaRegistryConfig::default(),
-        providers: Vec::new(),
-        runpack_storage: None,
-
-        source_modified_at: None,
-    };
-    config.namespace.authority.mode =
-        decision_gate_mcp::config::NamespaceAuthorityMode::AssetcoreHttp;
-    config.namespace.authority.assetcore =
-        Some(decision_gate_mcp::config::AssetCoreNamespaceAuthorityConfig {
-            base_url: "http://127.0.0.1:9000".to_string(),
-            auth_token: None,
-            connect_timeout_ms: 500,
-            request_timeout_ms: 1_000,
-            mapping: std::collections::BTreeMap::new(),
-            mapping_mode: decision_gate_mcp::config::NamespaceMappingMode::None,
-        });
-    let result = config.validate();
-    assert!(result.is_err());
-    let error = result.unwrap_err();
-    assert!(error.to_string().contains("mapping_mode cannot be none"));
 }
 
 /// Verifies dev-permissive is rejected when using assetcore namespace authority.
@@ -1604,8 +1565,6 @@ fn dev_permissive_rejected_with_assetcore_authority() {
             auth_token: None,
             connect_timeout_ms: 500,
             request_timeout_ms: 1_000,
-            mapping: std::collections::BTreeMap::new(),
-            mapping_mode: decision_gate_mcp::config::NamespaceMappingMode::NumericParse,
         });
     let result = config.validate();
     assert!(result.is_err());

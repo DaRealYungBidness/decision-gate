@@ -16,31 +16,30 @@
 // SECTION: Imports
 // ============================================================================
 
-use std::collections::BTreeMap;
 use std::time::Duration;
 
+use async_trait::async_trait;
 use decision_gate_core::NamespaceId;
 use decision_gate_core::TenantId;
+use reqwest::Client;
 use reqwest::StatusCode;
-use reqwest::blocking::Client;
 use reqwest::header::HeaderMap;
 use reqwest::header::HeaderValue;
 use thiserror::Error;
-
-use crate::config::NamespaceMappingMode;
 
 // ============================================================================
 // SECTION: Public Types
 // ============================================================================
 
 /// Namespace authority interface.
+#[async_trait]
 pub trait NamespaceAuthority: Send + Sync {
     /// Ensures the namespace is known and allowed.
     ///
     /// # Errors
     ///
     /// Returns [`NamespaceAuthorityError`] when validation fails.
-    fn ensure_namespace(
+    async fn ensure_namespace(
         &self,
         tenant_id: Option<&TenantId>,
         namespace_id: &NamespaceId,
@@ -51,8 +50,9 @@ pub trait NamespaceAuthority: Send + Sync {
 /// No-op authority for standalone deployments.
 pub struct NoopNamespaceAuthority;
 
+#[async_trait]
 impl NamespaceAuthority for NoopNamespaceAuthority {
-    fn ensure_namespace(
+    async fn ensure_namespace(
         &self,
         _tenant_id: Option<&TenantId>,
         _namespace_id: &NamespaceId,
@@ -70,10 +70,6 @@ pub struct AssetCoreNamespaceAuthority {
     auth_token: Option<String>,
     /// HTTP client configured with timeouts.
     client: Client,
-    /// Optional namespace id mappings for non-numeric IDs.
-    mapping: BTreeMap<String, u64>,
-    /// Mapping mode selection.
-    mapping_mode: NamespaceMappingMode,
 }
 
 impl AssetCoreNamespaceAuthority {
@@ -87,8 +83,6 @@ impl AssetCoreNamespaceAuthority {
         auth_token: Option<String>,
         connect_timeout: Duration,
         request_timeout: Duration,
-        mapping: BTreeMap<String, u64>,
-        mapping_mode: NamespaceMappingMode,
     ) -> Result<Self, NamespaceAuthorityError> {
         let client = Client::builder()
             .connect_timeout(connect_timeout)
@@ -101,35 +95,7 @@ impl AssetCoreNamespaceAuthority {
             base_url,
             auth_token,
             client,
-            mapping,
-            mapping_mode,
         })
-    }
-
-    /// Resolves a namespace identifier to a numeric Asset Core id.
-    fn resolve_namespace_id(
-        &self,
-        namespace_id: &NamespaceId,
-    ) -> Result<u64, NamespaceAuthorityError> {
-        if let Some(mapped) = self.mapping.get(namespace_id.as_str()) {
-            return Ok(*mapped);
-        }
-        match self.mapping_mode {
-            NamespaceMappingMode::ExplicitMap => Err(NamespaceAuthorityError::InvalidNamespace(
-                format!("namespace_id must be mapped for Asset Core: {}", namespace_id.as_str()),
-            )),
-            NamespaceMappingMode::NumericParse => {
-                namespace_id.as_str().parse::<u64>().map_err(|_| {
-                    NamespaceAuthorityError::InvalidNamespace(format!(
-                        "namespace_id must be mapped or numeric for Asset Core: {}",
-                        namespace_id.as_str()
-                    ))
-                })
-            }
-            NamespaceMappingMode::None => Err(NamespaceAuthorityError::Unavailable(
-                "namespace mapping mode none is unsupported".to_string(),
-            )),
-        }
     }
 
     /// Builds headers for Asset Core namespace authority requests.
@@ -157,20 +123,20 @@ impl AssetCoreNamespaceAuthority {
 }
 
 impl NamespaceAuthority for AssetCoreNamespaceAuthority {
-    fn ensure_namespace(
+    async fn ensure_namespace(
         &self,
         _tenant_id: Option<&TenantId>,
         namespace_id: &NamespaceId,
         request_id: Option<&str>,
     ) -> Result<(), NamespaceAuthorityError> {
-        let resolved = self.resolve_namespace_id(namespace_id)?;
-        let url = format!("{}/v1/write/namespaces/{}", self.base_url, resolved);
+        let url = format!("{}/v1/write/namespaces/{}", self.base_url, namespace_id.get());
         let headers = self.build_headers(request_id)?;
         let response = self
             .client
             .get(url)
             .headers(headers)
             .send()
+            .await
             .map_err(|err| NamespaceAuthorityError::Unavailable(err.to_string()))?;
         match response.status() {
             StatusCode::OK => Ok(()),

@@ -63,8 +63,8 @@ async fn registry_security_audit_events() -> Result<(), Box<dyn std::error::Erro
             policy_class: Some("prod".to_string()),
             roles: vec![PrincipalRoleConfig {
                 name: "TenantAdmin".to_string(),
-                tenant_id: Some(TenantId::new("tenant-1")),
-                namespace_id: Some(NamespaceId::new("default")),
+                tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
+                namespace_id: Some(NamespaceId::from_raw(1).expect("nonzero namespaceid")),
             }],
         }],
     });
@@ -74,8 +74,8 @@ async fn registry_security_audit_events() -> Result<(), Box<dyn std::error::Erro
     wait_for_server_ready(&allowed, Duration::from_secs(5)).await?;
 
     let record = DataShapeRecord {
-        tenant_id: TenantId::new("tenant-1"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         schema_id: DataShapeId::new("audit-schema"),
         version: DataShapeVersion::new("v1"),
         schema: json!({

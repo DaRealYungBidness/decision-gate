@@ -104,7 +104,7 @@ impl PolicyDecider for PermitAllPolicy {
 fn submission_spec() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -145,8 +145,8 @@ fn submission_idempotent_returns_existing_record() {
     .unwrap();
 
     let run_config = RunConfig {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: ScenarioId::new("scenario"),
         dispatch_targets: vec![DispatchTarget::Agent {
@@ -159,8 +159,8 @@ fn submission_idempotent_returns_existing_record() {
 
     let request = SubmitRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         submission_id: "submission-1".to_string(),
         payload: PacketPayload::Json {
             value: json!({"artifact": "attestation"}),
@@ -177,8 +177,8 @@ fn submission_idempotent_returns_existing_record() {
 
     let state = store
         .load(
-            &TenantId::new("tenant"),
-            &NamespaceId::new("default"),
+            &TenantId::from_raw(1).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             &decision_gate_core::RunId::new("run-1"),
         )
         .unwrap()
@@ -201,8 +201,8 @@ fn submission_idempotent_conflict_returns_error() {
     .unwrap();
 
     let run_config = RunConfig {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: ScenarioId::new("scenario"),
         dispatch_targets: vec![DispatchTarget::Agent {
@@ -215,8 +215,8 @@ fn submission_idempotent_conflict_returns_error() {
 
     let first = SubmitRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         submission_id: "submission-1".to_string(),
         payload: PacketPayload::Json {
             value: json!({"artifact": "attestation"}),
@@ -229,8 +229,8 @@ fn submission_idempotent_conflict_returns_error() {
 
     let conflicting = SubmitRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         submission_id: "submission-1".to_string(),
         payload: PacketPayload::Json {
             value: json!({"artifact": "different"}),
@@ -250,8 +250,8 @@ fn submission_idempotent_conflict_returns_error() {
 
     let state = store
         .load(
-            &TenantId::new("tenant"),
-            &NamespaceId::new("default"),
+            &TenantId::from_raw(1).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             &decision_gate_core::RunId::new("run-1"),
         )
         .unwrap()

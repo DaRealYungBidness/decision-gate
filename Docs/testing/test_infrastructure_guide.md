@@ -26,22 +26,23 @@ python scripts/test_runner.py --category runpack
 
 ## Category Index
 
-| Category | Description | Quick |
-| --- | --- | --- |
-| smoke | Fast sanity checks | yes |
-| functional | Feature validation and workflows | yes |
-| providers | Evidence providers and federation | yes |
-| mcp_transport | MCP transport validation | yes |
-| runpack | Runpack export/verify integrity | yes |
-| reliability | Determinism and idempotency | no |
-| security | Disclosure and policy enforcement | yes |
-| contract | Schema and contract conformance | yes |
-| operations | Startup and configuration validation | no |
-| performance | Performance smoke checks | no |
+| Category      | Description                          | Quick |
+| ------------- | ------------------------------------ | ----- |
+| smoke         | Fast sanity checks                   | yes   |
+| functional    | Feature validation and workflows     | yes   |
+| providers     | Evidence providers and federation    | yes   |
+| mcp_transport | MCP transport validation             | yes   |
+| runpack       | Runpack export/verify integrity      | yes   |
+| reliability   | Determinism and idempotency          | no    |
+| security      | Disclosure and policy enforcement    | yes   |
+| contract      | Schema and contract conformance      | yes   |
+| operations    | Startup and configuration validation | no    |
+| performance   | Performance smoke checks             | no    |
 
 ## Artifact Contract
 
 Each system-test emits at least:
+
 - `summary.json`
 - `summary.md`
 - `tool_transcript.json`

@@ -322,7 +322,7 @@ impl AssetcoreFixture {
 
 fn assetcore_fixture(scenario: &str, run: &str) -> AssetcoreFixture {
     let scenario_id = ScenarioId::new(scenario);
-    let namespace_id = NamespaceId::new("assetcore-interop");
+    let namespace_id = NamespaceId::from_raw(11).expect("nonzero namespaceid");
     let stage_id = StageId::new("stage-1");
     let predicate_key = PredicateKey::new("slot_occupied");
     let spec = ScenarioSpec {
@@ -361,7 +361,7 @@ fn assetcore_fixture(scenario: &str, run: &str) -> AssetcoreFixture {
     AssetcoreFixture {
         scenario_id,
         run_id: RunId::new(run),
-        tenant_id: TenantId::new("tenant-1"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
         namespace_id,
         spec,
     }

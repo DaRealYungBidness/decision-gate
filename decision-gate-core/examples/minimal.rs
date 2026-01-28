@@ -187,7 +187,7 @@ impl ArtifactReader for InMemoryArtifacts {
 fn build_spec() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("example"),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -242,8 +242,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     let run_config = RunConfig {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: ScenarioId::new("example"),
         dispatch_targets: vec![DispatchTarget::Agent {
@@ -256,8 +256,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let next_request = NextRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         trigger_id: TriggerId::new("trigger-1"),
         agent_id: "agent-1".to_string(),
         time: Timestamp::Logical(1),
@@ -267,8 +267,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let status_request = decision_gate_core::runtime::StatusRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         requested_at: Timestamp::Logical(2),
         correlation_id: None,
     };
@@ -278,8 +278,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let run_state = store
         .load(
-            &TenantId::new("tenant"),
-            &NamespaceId::new("default"),
+            &TenantId::from_raw(1).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             &decision_gate_core::RunId::new("run-1"),
         )?
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "run state missing"))?;

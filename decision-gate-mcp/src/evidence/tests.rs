@@ -79,8 +79,8 @@ fn read_framed_accepts_payload_at_limit() {
 #[test]
 fn request_id_uses_correlation_id_when_present() {
     let context = EvidenceContext {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("namespace"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(100).expect("nonzero namespaceid"),
         run_id: RunId::new("run"),
         scenario_id: ScenarioId::new("scenario"),
         stage_id: StageId::new("stage"),
@@ -97,8 +97,8 @@ fn request_id_uses_correlation_id_when_present() {
 #[test]
 fn request_id_increments_without_correlation_id() {
     let context = EvidenceContext {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("namespace"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(100).expect("nonzero namespaceid"),
         run_id: RunId::new("run"),
         scenario_id: ScenarioId::new("scenario"),
         stage_id: StageId::new("stage"),

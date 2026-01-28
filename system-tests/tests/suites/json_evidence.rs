@@ -94,9 +94,9 @@ async fn json_evidence_playbook_templates_pass() -> Result<(), Box<dyn std::erro
     write_json(&quality_path, json!({"checks": {"lint_ok": true, "format_ok": true}}))?;
 
     let scenario_id = ScenarioId::new("json-evidence-playbook");
-    let namespace_id = NamespaceId::new("default");
+    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
     let stage_id = StageId::new("main");
-    let tenant_id = TenantId::new("tenant-1");
+    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
 
     let tests_ok = PredicateKey::new("tests_ok");
     let coverage_ok = PredicateKey::new("coverage_ok");
@@ -247,9 +247,9 @@ async fn llm_native_precheck_payload_flow() -> Result<(), Box<dyn std::error::Er
     wait_for_server_ready(&client, Duration::from_secs(5)).await?;
 
     let scenario_id = ScenarioId::new("llm-precheck");
-    let namespace_id = NamespaceId::new("default");
+    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
     let stage_id = StageId::new("main");
-    let tenant_id = TenantId::new("tenant-1");
+    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
 
     let predicate_key = PredicateKey::new("report_ok");
     let spec = ScenarioSpec {

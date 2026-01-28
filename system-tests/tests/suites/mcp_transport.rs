@@ -82,12 +82,12 @@ policy_class = "prod"
 
 [[server.auth.principals.roles]]
 name = "TenantAdmin"
-tenant_id = "tenant-1"
-namespace_id = "default"
+tenant_id = 1
+namespace_id = 1
 
 [namespace]
 allow_default = true
-default_tenants = ["tenant-1"]
+default_tenants = [1]
 
 [[providers]]
 name = "time"

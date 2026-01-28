@@ -35,8 +35,8 @@ use tempfile::TempDir;
 
 fn sample_record(schema_id: &str, version: &str) -> DataShapeRecord {
     DataShapeRecord {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         schema_id: DataShapeId::new(schema_id),
         version: DataShapeVersion::new(version),
         schema: json!({"type": "object"}),
@@ -164,7 +164,7 @@ fn sqlite_registry_respects_namespace_isolation() {
     let store = &fixture.store;
     let record_default = sample_record("schema-a", "v1");
     let record_other = DataShapeRecord {
-        namespace_id: NamespaceId::new("other"),
+        namespace_id: NamespaceId::from_raw(2).expect("nonzero namespaceid"),
         ..sample_record("schema-a", "v2")
     };
     store.register(record_default.clone()).unwrap();
@@ -228,8 +228,8 @@ fn sqlite_registry_same_schema_different_tenants_both_persist() {
     let fixture = sqlite_fixture();
     let store = &fixture.store;
     let tenant1_record = DataShapeRecord {
-        tenant_id: TenantId::new("tenant-1"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         schema_id: DataShapeId::new("schema-a"),
         version: DataShapeVersion::new("v1"),
         schema: json!({"type": "object", "tenant": 1}),
@@ -238,8 +238,8 @@ fn sqlite_registry_same_schema_different_tenants_both_persist() {
         signing: None,
     };
     let tenant2_record = DataShapeRecord {
-        tenant_id: TenantId::new("tenant-2"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(2).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         schema_id: DataShapeId::new("schema-a"),
         version: DataShapeVersion::new("v1"),
         schema: json!({"type": "object", "tenant": 2}),
@@ -260,8 +260,8 @@ fn sqlite_registry_same_schema_different_tenants_both_persist() {
             &tenant1_record.version,
         )
         .unwrap()
-        .expect("tenant-1 record");
-    assert_eq!(fetched1.tenant_id.as_str(), "tenant-1");
+        .expect("tenant 1 record");
+    assert_eq!(fetched1.tenant_id.get(), 1);
 
     let fetched2 = store
         .get(
@@ -272,7 +272,7 @@ fn sqlite_registry_same_schema_different_tenants_both_persist() {
         )
         .unwrap()
         .expect("tenant-2 record");
-    assert_eq!(fetched2.tenant_id.as_str(), "tenant-2");
+    assert_eq!(fetched2.tenant_id.get(), 2);
 }
 
 #[test]
@@ -280,8 +280,8 @@ fn sqlite_registry_list_filters_by_tenant() {
     let fixture = sqlite_fixture();
     let store = &fixture.store;
     let tenant1_record = DataShapeRecord {
-        tenant_id: TenantId::new("tenant-1"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         schema_id: DataShapeId::new("schema-a"),
         version: DataShapeVersion::new("v1"),
         schema: json!({"type": "object"}),
@@ -290,8 +290,8 @@ fn sqlite_registry_list_filters_by_tenant() {
         signing: None,
     };
     let tenant2_record = DataShapeRecord {
-        tenant_id: TenantId::new("tenant-2"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(2).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         schema_id: DataShapeId::new("schema-b"),
         version: DataShapeVersion::new("v1"),
         schema: json!({"type": "object"}),
@@ -303,17 +303,17 @@ fn sqlite_registry_list_filters_by_tenant() {
     store.register(tenant1_record).unwrap();
     store.register(tenant2_record).unwrap();
 
-    // List for tenant-1 should only return tenant-1's schema
+    // List for tenant 1 should only return tenant 1's schema
     let page1 =
-        store.list(&TenantId::new("tenant-1"), &NamespaceId::new("default"), None, 10).unwrap();
+        store.list(&TenantId::from_raw(1).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), None, 10).unwrap();
     assert_eq!(page1.items.len(), 1);
-    assert_eq!(page1.items[0].tenant_id.as_str(), "tenant-1");
+    assert_eq!(page1.items[0].tenant_id.get(), 1);
 
     // List for tenant-2 should only return tenant-2's schema
     let page2 =
-        store.list(&TenantId::new("tenant-2"), &NamespaceId::new("default"), None, 10).unwrap();
+        store.list(&TenantId::from_raw(2).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), None, 10).unwrap();
     assert_eq!(page2.items.len(), 1);
-    assert_eq!(page2.items[0].tenant_id.as_str(), "tenant-2");
+    assert_eq!(page2.items[0].tenant_id.get(), 2);
 }
 
 #[test]
@@ -321,8 +321,8 @@ fn sqlite_registry_get_requires_exact_tenant_match() {
     let fixture = sqlite_fixture();
     let store = &fixture.store;
     let record = DataShapeRecord {
-        tenant_id: TenantId::new("tenant-1"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         schema_id: DataShapeId::new("schema-a"),
         version: DataShapeVersion::new("v1"),
         schema: json!({"type": "object"}),
@@ -335,8 +335,8 @@ fn sqlite_registry_get_requires_exact_tenant_match() {
     // Wrong tenant returns None
     let wrong_tenant = store
         .get(
-            &TenantId::new("tenant-2"),
-            &NamespaceId::new("default"),
+            &TenantId::from_raw(2).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             &DataShapeId::new("schema-a"),
             &DataShapeVersion::new("v1"),
         )
@@ -355,8 +355,8 @@ fn sqlite_registry_versions_sorted_lexicographically() {
     // Register in random order
     store
         .register(DataShapeRecord {
-            tenant_id: TenantId::new("tenant"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             schema_id: DataShapeId::new("schema-a"),
             version: DataShapeVersion::new("v2"),
             schema: json!({"type": "object"}),
@@ -367,8 +367,8 @@ fn sqlite_registry_versions_sorted_lexicographically() {
         .unwrap();
     store
         .register(DataShapeRecord {
-            tenant_id: TenantId::new("tenant"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             schema_id: DataShapeId::new("schema-a"),
             version: DataShapeVersion::new("v10"),
             schema: json!({"type": "object"}),
@@ -379,8 +379,8 @@ fn sqlite_registry_versions_sorted_lexicographically() {
         .unwrap();
     store
         .register(DataShapeRecord {
-            tenant_id: TenantId::new("tenant"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             schema_id: DataShapeId::new("schema-a"),
             version: DataShapeVersion::new("v1"),
             schema: json!({"type": "object"}),
@@ -391,7 +391,7 @@ fn sqlite_registry_versions_sorted_lexicographically() {
         .unwrap();
 
     let page =
-        store.list(&TenantId::new("tenant"), &NamespaceId::new("default"), None, 10).unwrap();
+        store.list(&TenantId::from_raw(1).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), None, 10).unwrap();
 
     let versions: Vec<&str> = page.items.iter().map(|r| r.version.as_str()).collect();
     // Lexicographic: "v1" < "v10" < "v2"
@@ -424,8 +424,8 @@ fn sqlite_registry_concurrent_writes_different_schemas_no_deadlock() {
             let store = SqliteRunStateStore::new(config).expect("store");
             for j in 0 .. 3u64 {
                 let record = DataShapeRecord {
-                    tenant_id: TenantId::new("tenant"),
-                    namespace_id: NamespaceId::new("default"),
+                    tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+                    namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
                     schema_id: DataShapeId::new(format!("schema-{i}-{j}")),
                     version: DataShapeVersion::new("v1"),
                     schema: json!({"type": "object", "thread": i, "index": j}),
@@ -446,7 +446,7 @@ fn sqlite_registry_concurrent_writes_different_schemas_no_deadlock() {
     // Verify all 15 schemas are registered
     let page = fixture
         .store
-        .list(&TenantId::new("tenant"), &NamespaceId::new("default"), None, 20)
+        .list(&TenantId::from_raw(1).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), None, 20)
         .unwrap();
     assert_eq!(page.items.len(), 15);
 }
@@ -462,8 +462,8 @@ fn sqlite_registry_concurrent_read_write_consistent() {
     // Pre-register some schemas
     for i in 0 .. 5u64 {
         let record = DataShapeRecord {
-            tenant_id: TenantId::new("tenant"),
-            namespace_id: NamespaceId::new("default"),
+            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             schema_id: DataShapeId::new(format!("initial-{i}")),
             version: DataShapeVersion::new("v1"),
             schema: json!({"type": "object"}),
@@ -490,8 +490,8 @@ fn sqlite_registry_concurrent_read_write_consistent() {
             let store = SqliteRunStateStore::new(config).expect("store");
             for j in 0 .. 5u64 {
                 let record = DataShapeRecord {
-                    tenant_id: TenantId::new("tenant"),
-                    namespace_id: NamespaceId::new("default"),
+                    tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+                    namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
                     schema_id: DataShapeId::new(format!("concurrent-{i}-{j}")),
                     version: DataShapeVersion::new("v1"),
                     schema: json!({"type": "object"}),
@@ -519,7 +519,7 @@ fn sqlite_registry_concurrent_read_write_consistent() {
             let store = SqliteRunStateStore::new(config).expect("store");
             for _ in 0 .. 10 {
                 let result =
-                    store.list(&TenantId::new("tenant"), &NamespaceId::new("default"), None, 100);
+                    store.list(&TenantId::from_raw(1).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), None, 100);
                 // Should never fail
                 assert!(result.is_ok());
             }
@@ -600,8 +600,8 @@ fn sqlite_registry_empty_schema_persists() {
     let fixture = sqlite_fixture();
     let store = &fixture.store;
     let record = DataShapeRecord {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         schema_id: DataShapeId::new("empty"),
         version: DataShapeVersion::new("v1"),
         schema: json!({}),
@@ -643,8 +643,8 @@ fn sqlite_registry_deeply_nested_schema_persists() {
         }
     });
     let record = DataShapeRecord {
-        tenant_id: TenantId::new("tenant"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         schema_id: DataShapeId::new("nested"),
         version: DataShapeVersion::new("v1"),
         schema: nested.clone(),

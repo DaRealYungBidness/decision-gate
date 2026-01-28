@@ -86,9 +86,6 @@ pub struct RunpackSecurityContext {
     pub dev_permissive: bool,
     /// Namespace authority mode label.
     pub namespace_authority: String,
-    /// Namespace mapping mode label (if applicable).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub namespace_mapping_mode: Option<String>,
 }
 
 /// Runpack integrity metadata.

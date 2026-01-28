@@ -2,20 +2,21 @@
 // ============================================================================
 // Module: Decision Gate Identifiers
 // Description: Canonical opaque identifiers for Decision Gate specifications and runs.
-// Purpose: Provide strongly typed, serializable IDs with stable string forms.
+// Purpose: Provide strongly typed, serializable numeric IDs with stable wire forms.
 // Dependencies: serde
 // ============================================================================
 
 //! ## Overview
-//! This module defines the canonical string-based identifiers used throughout
-//! Decision Gate. Identifiers are opaque and serialize as strings. Validation is handled
-//! at scenario or runtime boundaries rather than within these simple wrappers.
+//! This module defines the canonical numeric identifiers used throughout
+//! Decision Gate. Identifiers are opaque and serialize as numbers on the wire.
+//! Validation (non-zero, 1-based) is handled at construction boundaries.
 
 // ============================================================================
 // SECTION: Imports
 // ============================================================================
 
 use std::fmt;
+use std::num::NonZeroU64;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -25,76 +26,70 @@ use serde::Serialize;
 // ============================================================================
 
 /// Tenant identifier scoped to Decision Gate runs.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+///
+/// # Invariants
+/// - Always >= 1 (non-zero, 1-based).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct TenantId(String);
+pub struct TenantId(NonZeroU64);
 
 impl TenantId {
-    /// Creates a new tenant identifier.
+    /// Creates a new tenant identifier from a non-zero value.
     #[must_use]
-    pub fn new(id: impl Into<String>) -> Self {
-        Self(id.into())
+    pub const fn new(id: NonZeroU64) -> Self {
+        Self(id)
     }
 
-    /// Returns the identifier as a string slice.
+    /// Creates a tenant identifier from a raw value (returns `None` if zero).
     #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.0
+    pub fn from_raw(raw: u64) -> Option<Self> {
+        NonZeroU64::new(raw).map(Self)
+    }
+
+    /// Returns the raw identifier value (always >= 1).
+    #[must_use]
+    pub const fn get(self) -> u64 {
+        self.0.get()
     }
 }
 
 impl fmt::Display for TenantId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-impl From<&str> for TenantId {
-    fn from(value: &str) -> Self {
-        Self::new(value)
-    }
-}
-
-impl From<String> for TenantId {
-    fn from(value: String) -> Self {
-        Self::new(value)
+        self.0.get().fmt(f)
     }
 }
 
 /// Namespace identifier scoped within a tenant.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+///
+/// # Invariants
+/// - Always >= 1 (non-zero, 1-based).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct NamespaceId(String);
+pub struct NamespaceId(NonZeroU64);
 
 impl NamespaceId {
-    /// Creates a new namespace identifier.
+    /// Creates a new namespace identifier from a non-zero value.
     #[must_use]
-    pub fn new(id: impl Into<String>) -> Self {
-        Self(id.into())
+    pub const fn new(id: NonZeroU64) -> Self {
+        Self(id)
     }
 
-    /// Returns the identifier as a string slice.
+    /// Creates a namespace identifier from a raw value (returns `None` if zero).
     #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.0
+    pub fn from_raw(raw: u64) -> Option<Self> {
+        NonZeroU64::new(raw).map(Self)
+    }
+
+    /// Returns the raw identifier value (always >= 1).
+    #[must_use]
+    pub const fn get(self) -> u64 {
+        self.0.get()
     }
 }
 
 impl fmt::Display for NamespaceId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-impl From<&str> for NamespaceId {
-    fn from(value: &str) -> Self {
-        Self::new(value)
-    }
-}
-
-impl From<String> for NamespaceId {
-    fn from(value: String) -> Self {
-        Self::new(value)
+        self.0.get().fmt(f)
     }
 }
 

@@ -49,8 +49,8 @@ async fn registry_acl_builtin_matrix() -> Result<(), Box<dyn std::error::Error>>
     let bind = allocate_bind_addr()?.to_string();
     let mut config = base_http_config(&bind);
 
-    let tenant_id = TenantId::new("tenant-1");
-    let namespace_id = NamespaceId::new("default");
+    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
+    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
 
     let mut cases = vec![
         RoleCase::new("tenant_admin", vec!["TenantAdmin"], "prod", true, true),
@@ -173,8 +173,8 @@ async fn registry_acl_builtin_matrix() -> Result<(), Box<dyn std::error::Error>>
 #[allow(clippy::too_many_lines, reason = "Multiple auth transports are validated in one pass.")]
 async fn registry_acl_principal_subject_mapping() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("registry_acl_principal_subject_mapping")?;
-    let tenant_id = TenantId::new("tenant-1");
-    let namespace_id = NamespaceId::new("default");
+    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
+    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
     let record = build_schema_record(&tenant_id, &namespace_id, "subject-map", "v1", None);
     let mut transcripts = Vec::new();
 
@@ -186,11 +186,11 @@ async fn registry_acl_principal_subject_mapping() -> Result<(), Box<dyn std::err
             "[server]\ntransport = \"stdio\"\nmode = \"strict\"\n\n[server.auth]\nmode = \
              \"local_only\"\n\n[[server.auth.principals]]\nsubject = \"stdio\"\npolicy_class = \
              \"prod\"\n\n[[server.auth.principals.roles]]\nname = \"TenantAdmin\"\ntenant_id = \
-             \"{}\"\nnamespace_id = \"{}\"\n\n[namespace]\nallow_default = true\ndefault_tenants \
-             = [\"{}\"]\n\n[[providers]]\nname = \"time\"\ntype = \"builtin\"\n",
-            tenant_id.as_str(),
-            namespace_id.as_str(),
-            tenant_id.as_str(),
+             {}\nnamespace_id = {}\n\n[namespace]\nallow_default = true\ndefault_tenants \
+             = [{}]\n\n[[providers]]\nname = \"time\"\ntype = \"builtin\"\n",
+            &tenant_id.to_string(),
+            &namespace_id.to_string(),
+            &tenant_id.to_string(),
         );
         std::fs::write(&config_path, config_contents)?;
         let stderr_path = reporter.artifacts().root().join("stdio-allowed.stderr.log");
@@ -212,11 +212,11 @@ async fn registry_acl_principal_subject_mapping() -> Result<(), Box<dyn std::err
             "[server]\ntransport = \"stdio\"\nmode = \"strict\"\n\n[server.auth]\nmode = \
              \"local_only\"\n\n[[server.auth.principals]]\nsubject = \"loopback\"\npolicy_class = \
              \"prod\"\n\n[[server.auth.principals.roles]]\nname = \"TenantAdmin\"\ntenant_id = \
-             \"{}\"\nnamespace_id = \"{}\"\n\n[namespace]\nallow_default = true\ndefault_tenants \
-             = [\"{}\"]\n\n[[providers]]\nname = \"time\"\ntype = \"builtin\"\n",
-            tenant_id.as_str(),
-            namespace_id.as_str(),
-            tenant_id.as_str(),
+             {}\nnamespace_id = {}\n\n[namespace]\nallow_default = true\ndefault_tenants \
+             = [{}]\n\n[[providers]]\nname = \"time\"\ntype = \"builtin\"\n",
+            &tenant_id.to_string(),
+            &namespace_id.to_string(),
+            &tenant_id.to_string(),
         );
         std::fs::write(&config_path, config_contents)?;
         let stderr_path = reporter.artifacts().root().join("stdio-denied.stderr.log");
@@ -399,8 +399,8 @@ async fn registry_acl_principal_subject_mapping() -> Result<(), Box<dyn std::err
 async fn registry_acl_signing_required_memory_and_sqlite() -> Result<(), Box<dyn std::error::Error>>
 {
     let mut reporter = TestReporter::new("registry_acl_signing_required_memory_and_sqlite")?;
-    let tenant_id = TenantId::new("tenant-1");
-    let namespace_id = NamespaceId::new("default");
+    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
+    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
 
     let mut transcripts = Vec::new();
 

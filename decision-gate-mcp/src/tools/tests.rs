@@ -203,7 +203,7 @@ fn sample_config() -> DecisionGateConfig {
         },
         namespace: NamespaceConfig {
             allow_default: true,
-            default_tenants: vec![TenantId::new("tenant-1")],
+            default_tenants: vec![TenantId::from_raw(1).expect("nonzero tenantid")],
             ..NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
@@ -244,7 +244,7 @@ fn builtin_provider(name: &str) -> ProviderConfig {
 fn sample_spec() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("scenario-1"),
-        namespace_id: NamespaceId::new("default"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -272,7 +272,7 @@ fn sample_spec() -> ScenarioSpec {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(TenantId::new("tenant-1")),
+        default_tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
     }
 }
 
@@ -351,8 +351,8 @@ fn setup_router_with_run(
         .define_scenario(&context, ScenarioDefineRequest { spec: spec.clone() })
         .expect("define scenario");
     let run_config = RunConfig {
-        tenant_id: TenantId::new("tenant-1"),
-        namespace_id: NamespaceId::new("default"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: RunId::new("run-1"),
         scenario_id: spec.scenario_id.clone(),
         dispatch_targets: Vec::<DispatchTarget>::new(),
