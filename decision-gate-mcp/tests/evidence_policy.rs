@@ -142,6 +142,7 @@ fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
         tenant_authorizer: std::sync::Arc::new(NoopTenantAuthorizer),
         usage_meter: std::sync::Arc::new(NoopUsageMeter),
         runpack_storage: None,
+        runpack_object_store: None,
         audit,
         trust_requirement,
         anchor_policy,

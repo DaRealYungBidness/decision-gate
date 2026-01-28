@@ -115,6 +115,15 @@ require_provider_opt_in = true
 [policy]
 engine = "permit_all"
 
+[runpack_storage]
+type = "object_store"
+provider = "s3"
+bucket = "decision-gate-runpacks"
+prefix = "decision-gate/runpacks"
+# endpoint = "https://s3.example.com"
+# force_path_style = false
+# allow_http = false
+
 [run_state_store]
 type = "sqlite"
 path = "decision-gate.db"

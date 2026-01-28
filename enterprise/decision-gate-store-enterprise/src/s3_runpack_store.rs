@@ -14,7 +14,11 @@ use std::sync::Arc;
 use aws_config::BehaviorVersion;
 use aws_config::Region;
 use aws_sdk_s3::Client;
+use aws_sdk_s3::types::ObjectLockLegalHoldStatus;
+use aws_sdk_s3::types::ObjectLockMode;
 use aws_sdk_s3::types::ServerSideEncryption;
+use aws_smithy_types::DateTime;
+use aws_smithy_types::date_time::Format;
 use decision_gate_core::hashing::HashAlgorithm;
 use decision_gate_core::hashing::HashDigest;
 use serde::Deserialize;
@@ -57,6 +61,60 @@ impl S3ServerSideEncryption {
     }
 }
 
+/// Object lock modes supported for WORM storage.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum S3ObjectLockMode {
+    /// Governance mode.
+    Governance,
+    /// Compliance mode.
+    Compliance,
+}
+
+impl S3ObjectLockMode {
+    /// Converts to the AWS SDK object lock mode enum.
+    const fn as_sdk(self) -> ObjectLockMode {
+        match self {
+            Self::Governance => ObjectLockMode::Governance,
+            Self::Compliance => ObjectLockMode::Compliance,
+        }
+    }
+}
+
+/// Object lock legal hold status.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum S3ObjectLockLegalHold {
+    /// Enable legal hold.
+    On,
+    /// Disable legal hold.
+    Off,
+}
+
+impl S3ObjectLockLegalHold {
+    /// Converts to the AWS SDK legal hold enum.
+    const fn as_sdk(self) -> ObjectLockLegalHoldStatus {
+        match self {
+            Self::On => ObjectLockLegalHoldStatus::On,
+            Self::Off => ObjectLockLegalHoldStatus::Off,
+        }
+    }
+}
+
+/// Object lock configuration for WORM compliance.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct S3ObjectLockConfig {
+    /// Object lock mode (requires `retain_until`).
+    #[serde(default)]
+    pub mode: Option<S3ObjectLockMode>,
+    /// Retention expiry in RFC-3339 format (requires mode).
+    #[serde(default)]
+    pub retain_until: Option<String>,
+    /// Legal hold status (optional).
+    #[serde(default)]
+    pub legal_hold: Option<S3ObjectLockLegalHold>,
+}
+
 /// Configuration for S3-backed runpack storage.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct S3RunpackStoreConfig {
@@ -83,6 +141,9 @@ pub struct S3RunpackStoreConfig {
     /// Optional maximum archive size in bytes.
     #[serde(default)]
     pub max_archive_bytes: Option<u64>,
+    /// Optional object lock (WORM) configuration.
+    #[serde(default)]
+    pub object_lock: Option<S3ObjectLockConfig>,
 }
 
 /// S3-backed runpack store.
@@ -95,6 +156,8 @@ pub struct S3RunpackStore {
     prefix: String,
     /// Store configuration.
     config: S3RunpackStoreConfig,
+    /// Parsed object lock configuration.
+    object_lock: Option<ParsedObjectLockConfig>,
     /// Tokio runtime for blocking S3 calls.
     runtime: Option<Arc<Runtime>>,
 }
@@ -125,6 +188,7 @@ impl S3RunpackStore {
             ));
         }
         let prefix = normalize_prefix(config.prefix.as_deref())?;
+        let object_lock = parse_object_lock_config(&config)?;
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
@@ -149,6 +213,7 @@ impl S3RunpackStore {
             bucket: config.bucket.clone(),
             prefix,
             config,
+            object_lock,
             runtime: Some(Arc::new(runtime)),
         })
     }
@@ -315,6 +380,17 @@ impl RunpackStore for S3RunpackStore {
                 if let Some(key_id) = kms_key_id {
                     request = request.ssekms_key_id(key_id);
                 }
+                if let Some(lock) = &self.object_lock {
+                    if let Some(mode) = lock.mode.clone() {
+                        request = request.object_lock_mode(mode);
+                    }
+                    if let Some(retain_until) = lock.retain_until {
+                        request = request.object_lock_retain_until_date(retain_until);
+                    }
+                    if let Some(legal_hold) = lock.legal_hold.clone() {
+                        request = request.object_lock_legal_hold_status(legal_hold);
+                    }
+                }
                 request.send().await.map_err(|err| RunpackStoreError::Io(err.to_string()))?;
                 Ok(())
             })
@@ -382,6 +458,50 @@ pub(crate) fn normalize_prefix(prefix: Option<&str>) -> Result<String, RunpackSt
         validate_segment(segment)?;
     }
     Ok(format!("{trimmed}/"))
+}
+
+#[derive(Debug, Clone)]
+/// Parsed object lock settings ready for S3 requests.
+struct ParsedObjectLockConfig {
+    /// Object lock mode for the object.
+    mode: Option<ObjectLockMode>,
+    /// Retention expiry date.
+    retain_until: Option<DateTime>,
+    /// Legal hold status for the object.
+    legal_hold: Option<ObjectLockLegalHoldStatus>,
+}
+
+/// Parses and validates object lock configuration.
+fn parse_object_lock_config(
+    config: &S3RunpackStoreConfig,
+) -> Result<Option<ParsedObjectLockConfig>, RunpackStoreError> {
+    let Some(object_lock) = &config.object_lock else {
+        return Ok(None);
+    };
+    let mode = object_lock.mode;
+    let retain_until = object_lock.retain_until.as_deref();
+    if mode.is_some() ^ retain_until.is_some() {
+        return Err(RunpackStoreError::Invalid(
+            "object_lock requires both mode and retain_until".to_string(),
+        ));
+    }
+    let parsed_retain_until = match (mode, retain_until) {
+        (Some(_), Some(value)) => Some(
+            DateTime::from_str(value, Format::DateTimeWithOffset)
+                .map_err(|err| RunpackStoreError::Invalid(err.to_string()))?,
+        ),
+        _ => None,
+    };
+    let legal_hold = object_lock.legal_hold.map(S3ObjectLockLegalHold::as_sdk);
+    let parsed_mode = mode.map(S3ObjectLockMode::as_sdk);
+    if parsed_mode.is_none() && parsed_retain_until.is_none() && legal_hold.is_none() {
+        return Ok(None);
+    }
+    Ok(Some(ParsedObjectLockConfig {
+        mode: parsed_mode,
+        retain_until: parsed_retain_until,
+        legal_hold,
+    }))
 }
 
 /// Recursively appends directory contents to a tar builder.

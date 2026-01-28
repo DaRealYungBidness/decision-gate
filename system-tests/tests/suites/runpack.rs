@@ -9,13 +9,20 @@
 //! Runpack validation tests for Decision Gate system-tests.
 
 
+use decision_gate_core::ArtifactReader;
 use decision_gate_core::RunpackManifest;
+use decision_gate_core::RunpackVerifier;
 use decision_gate_core::Timestamp;
 use decision_gate_core::TriggerId;
 use decision_gate_core::TriggerKind;
 use decision_gate_mcp::config::AssetCoreNamespaceAuthorityConfig;
 use decision_gate_mcp::config::NamespaceAuthorityMode;
 use decision_gate_mcp::config::NamespaceMappingMode;
+use decision_gate_mcp::config::ObjectStoreConfig;
+use decision_gate_mcp::config::ObjectStoreProvider;
+use decision_gate_mcp::config::RunpackStorageConfig;
+use decision_gate_mcp::runpack_object_store::ObjectStoreRunpackBackend;
+use decision_gate_mcp::runpack_object_store::RunpackObjectKey;
 use decision_gate_mcp::tools::RunpackExportRequest;
 use decision_gate_mcp::tools::RunpackVerifyRequest;
 use decision_gate_mcp::tools::ScenarioDefineRequest;
@@ -23,12 +30,15 @@ use decision_gate_mcp::tools::ScenarioDefineResponse;
 use decision_gate_mcp::tools::ScenarioStartRequest;
 use decision_gate_mcp::tools::ScenarioTriggerRequest;
 use helpers::artifacts::TestReporter;
+use helpers::env::set_var as set_env;
 use helpers::harness::allocate_bind_addr;
 use helpers::harness::base_http_config;
 use helpers::harness::spawn_mcp_server;
+use helpers::infra::S3Fixture;
 use helpers::namespace_authority_stub::spawn_namespace_authority_stub;
 use helpers::readiness::wait_for_server_ready;
 use helpers::scenarios::ScenarioFixture;
+use tokio::io::AsyncReadExt;
 
 use crate::helpers;
 
@@ -115,6 +125,172 @@ async fn runpack_export_verify_happy_path() -> Result<(), Box<dyn std::error::Er
             "summary.md".to_string(),
             "tool_transcript.json".to_string(),
             "runpack/".to_string(),
+        ],
+    )?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn runpack_export_object_store_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("runpack_export_object_store_roundtrip")?;
+
+    let s3 = S3Fixture::start().await?;
+    set_env("AWS_EC2_METADATA_DISABLED", "true");
+    set_env("AWS_ACCESS_KEY_ID", &s3.access_key);
+    set_env("AWS_SECRET_ACCESS_KEY", &s3.secret_key);
+    set_env("AWS_REGION", &s3.region);
+
+    let bind = allocate_bind_addr()?.to_string();
+    let mut config = base_http_config(&bind);
+    config.runpack_storage = Some(RunpackStorageConfig::ObjectStore(ObjectStoreConfig {
+        provider: ObjectStoreProvider::S3,
+        bucket: s3.bucket.clone(),
+        region: Some(s3.region.clone()),
+        endpoint: Some(s3.endpoint.clone()),
+        prefix: Some("dg/runpacks".to_string()),
+        force_path_style: s3.force_path_style,
+        allow_http: true,
+    }));
+
+    let server = spawn_mcp_server(config.clone()).await?;
+    let client = server.client(std::time::Duration::from_secs(5))?;
+    wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
+
+    let mut fixture = ScenarioFixture::time_after("runpack-object-store", "run-1", 0);
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+
+    let define_request = ScenarioDefineRequest {
+        spec: fixture.spec.clone(),
+    };
+    let define_input = serde_json::to_value(&define_request)?;
+    let define_output: ScenarioDefineResponse =
+        client.call_tool_typed("scenario_define", define_input).await?;
+
+    let start_request = ScenarioStartRequest {
+        scenario_id: define_output.scenario_id.clone(),
+        run_config: fixture.run_config(),
+        started_at: Timestamp::Logical(1),
+        issue_entry_packets: false,
+    };
+    let start_input = serde_json::to_value(&start_request)?;
+    let _state: decision_gate_core::RunState =
+        client.call_tool_typed("scenario_start", start_input).await?;
+
+    let trigger_request = ScenarioTriggerRequest {
+        scenario_id: define_output.scenario_id.clone(),
+        trigger: decision_gate_core::TriggerEvent {
+            run_id: fixture.run_id.clone(),
+            tenant_id: fixture.tenant_id.clone(),
+            namespace_id: fixture.namespace_id.clone(),
+            trigger_id: TriggerId::new("trigger-1"),
+            kind: TriggerKind::ExternalEvent,
+            time: Timestamp::Logical(2),
+            source_id: "runpack".to_string(),
+            payload: None,
+            correlation_id: None,
+        },
+    };
+    let trigger_input = serde_json::to_value(&trigger_request)?;
+    let _trigger: decision_gate_core::runtime::TriggerResult =
+        client.call_tool_typed("scenario_trigger", trigger_input).await?;
+
+    let export_request = RunpackExportRequest {
+        scenario_id: define_output.scenario_id.clone(),
+        tenant_id: fixture.tenant_id.clone(),
+        namespace_id: fixture.namespace_id.clone(),
+        run_id: fixture.run_id.clone(),
+        output_dir: None,
+        manifest_name: Some("manifest.json".to_string()),
+        generated_at: Timestamp::Logical(3),
+        include_verification: true,
+    };
+    let export_input = serde_json::to_value(&export_request)?;
+    let exported: decision_gate_mcp::tools::RunpackExportResponse =
+        client.call_tool_typed("runpack_export", export_input).await?;
+    if exported.storage_uri.is_none() {
+        return Err("expected storage_uri from object store export".into());
+    }
+
+    let object_store = ObjectStoreConfig {
+        provider: ObjectStoreProvider::S3,
+        bucket: s3.bucket.clone(),
+        region: Some(s3.region.clone()),
+        endpoint: Some(s3.endpoint.clone()),
+        prefix: Some("dg/runpacks".to_string()),
+        force_path_style: s3.force_path_style,
+        allow_http: true,
+    };
+    let backend = ObjectStoreRunpackBackend::new(&object_store)?;
+    let spec_hash =
+        fixture.spec.canonical_hash_with(decision_gate_core::hashing::HashAlgorithm::Sha256)?;
+    let key = RunpackObjectKey {
+        tenant_id: fixture.tenant_id.clone(),
+        namespace_id: fixture.namespace_id.clone(),
+        scenario_id: define_output.scenario_id.clone(),
+        run_id: fixture.run_id.clone(),
+        spec_hash,
+    };
+    let reader = backend.reader(&key)?;
+    let manifest_bytes = reader.read_with_limit(
+        "manifest.json",
+        decision_gate_core::runtime::runpack::MAX_RUNPACK_ARTIFACT_BYTES,
+    )?;
+    let manifest: RunpackManifest = serde_json::from_slice(&manifest_bytes)?;
+    let verifier = RunpackVerifier::new(manifest.hash_algorithm);
+    let report = verifier.verify_manifest(&reader, &manifest)?;
+    if report.status != decision_gate_core::runtime::VerificationStatus::Pass {
+        return Err(format!("expected verification pass, got {:?}", report.status).into());
+    }
+
+    let s3_client = s3.client().await?;
+    let root_prefix = object_store.prefix.as_deref().unwrap_or("").trim_matches('/');
+    let root_prefix =
+        if root_prefix.is_empty() { String::new() } else { format!("{root_prefix}/") };
+    let runpack_prefix = format!(
+        "tenant/{}/namespace/{}/scenario/{}/run/{}/spec/{}/{}/",
+        fixture.tenant_id.as_str(),
+        fixture.namespace_id.as_str(),
+        define_output.scenario_id.as_str(),
+        fixture.run_id.as_str(),
+        match manifest.spec_hash.algorithm {
+            decision_gate_core::hashing::HashAlgorithm::Sha256 => "sha256",
+        },
+        manifest.spec_hash.value.as_str(),
+    );
+    let tamper_path = manifest
+        .integrity
+        .file_hashes
+        .iter()
+        .find(|entry| entry.path != "manifest.json")
+        .map(|entry| entry.path.clone())
+        .ok_or("no artifacts to tamper")?;
+    let object_key = format!("{root_prefix}{runpack_prefix}{tamper_path}");
+    let output = s3_client.get_object().bucket(&s3.bucket).key(&object_key).send().await?;
+    let mut stream = output.body.into_async_read();
+    let mut bytes = Vec::new();
+    stream.read_to_end(&mut bytes).await?;
+    bytes.extend_from_slice(b"tampered");
+    s3_client
+        .put_object()
+        .bucket(&s3.bucket)
+        .key(&object_key)
+        .body(aws_sdk_s3::primitives::ByteStream::from(bytes))
+        .send()
+        .await?;
+
+    let report = verifier.verify_manifest(&backend.reader(&key)?, &manifest)?;
+    if report.status != decision_gate_core::runtime::VerificationStatus::Fail {
+        return Err(format!("expected verification fail, got {:?}", report.status).into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["object-store runpack verification passed and tamper detected".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
         ],
     )?;
     Ok(())

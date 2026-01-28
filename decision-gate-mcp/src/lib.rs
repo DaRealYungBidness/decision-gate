@@ -24,6 +24,7 @@ pub mod namespace_authority;
 pub mod policy;
 pub mod registry_acl;
 pub mod runpack;
+pub mod runpack_object_store;
 pub mod runpack_storage;
 pub mod server;
 pub mod telemetry;

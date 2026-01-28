@@ -1148,9 +1148,12 @@ dependencies = [
 name = "decision-gate-mcp"
 version = "0.1.0"
 dependencies = [
+ "aws-config",
+ "aws-sdk-s3",
  "axum",
  "axum-server",
  "base64 0.22.1",
+ "bytes",
  "decision-gate-contract",
  "decision-gate-core",
  "decision-gate-providers",
@@ -1195,6 +1198,7 @@ version = "0.1.0"
 dependencies = [
  "aws-config",
  "aws-sdk-s3",
+ "aws-smithy-types",
  "decision-gate-core",
  "decision-gate-store-sqlite",
  "postgres",
@@ -3367,6 +3371,8 @@ dependencies = [
 name = "system-tests"
 version = "0.1.0"
 dependencies = [
+ "aws-config",
+ "aws-sdk-s3",
  "axum",
  "decision-gate-cli",
  "decision-gate-contract",
@@ -3374,6 +3380,7 @@ dependencies = [
  "decision-gate-mcp",
  "decision-gate-store-sqlite",
  "jsonschema",
+ "once_cell",
  "reqwest",
  "ret-logic",
  "rustls 0.23.36",
@@ -3381,6 +3388,7 @@ dependencies = [
  "serde_jcs",
  "serde_json",
  "tempfile",
+ "testcontainers",
  "tokio",
  "toml",
  "url",

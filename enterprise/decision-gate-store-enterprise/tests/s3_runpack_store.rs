@@ -9,6 +9,9 @@
 
 #![cfg(feature = "s3")]
 
+use decision_gate_store_enterprise::s3_runpack_store::S3ObjectLockConfig;
+use decision_gate_store_enterprise::s3_runpack_store::S3ObjectLockLegalHold;
+use decision_gate_store_enterprise::s3_runpack_store::S3ObjectLockMode;
 use decision_gate_store_enterprise::s3_runpack_store::S3RunpackStore;
 use decision_gate_store_enterprise::s3_runpack_store::S3RunpackStoreConfig;
 use decision_gate_store_enterprise::s3_runpack_store::S3ServerSideEncryption;
@@ -23,6 +26,7 @@ fn base_config() -> S3RunpackStoreConfig {
         server_side_encryption: None,
         kms_key_id: None,
         max_archive_bytes: Some(10 * 1024 * 1024),
+        object_lock: None,
     }
 }
 
@@ -47,6 +51,69 @@ fn s3_store_rejects_kms_without_key() {
 fn s3_store_rejects_invalid_prefix() {
     let mut config = base_config();
     config.prefix = Some("invalid/../prefix".to_string());
+    let result = S3RunpackStore::new(config);
+    assert!(result.is_err());
+}
+
+#[test]
+fn s3_store_accepts_object_lock_with_mode_and_retain_until() {
+    let mut config = base_config();
+    config.object_lock = Some(S3ObjectLockConfig {
+        mode: Some(S3ObjectLockMode::Governance),
+        retain_until: Some("2030-01-01T00:00:00Z".to_string()),
+        legal_hold: None,
+    });
+    let result = S3RunpackStore::new(config);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn s3_store_accepts_object_lock_legal_hold_only() {
+    let mut config = base_config();
+    config.object_lock = Some(S3ObjectLockConfig {
+        mode: None,
+        retain_until: None,
+        legal_hold: Some(S3ObjectLockLegalHold::On),
+    });
+    let result = S3RunpackStore::new(config);
+    assert!(result.is_ok());
+}
+
+#[test]
+fn s3_store_rejects_object_lock_without_mode() {
+    let mut config = base_config();
+    config.object_lock =
+        Some(decision_gate_store_enterprise::s3_runpack_store::S3ObjectLockConfig {
+            mode: None,
+            retain_until: Some("2030-01-01T00:00:00Z".to_string()),
+            legal_hold: None,
+        });
+    let result = S3RunpackStore::new(config);
+    assert!(result.is_err());
+}
+
+#[test]
+fn s3_store_rejects_object_lock_without_retain_until() {
+    let mut config = base_config();
+    config.object_lock =
+        Some(decision_gate_store_enterprise::s3_runpack_store::S3ObjectLockConfig {
+            mode: Some(S3ObjectLockMode::Governance),
+            retain_until: None,
+            legal_hold: None,
+        });
+    let result = S3RunpackStore::new(config);
+    assert!(result.is_err());
+}
+
+#[test]
+fn s3_store_rejects_invalid_object_lock_date() {
+    let mut config = base_config();
+    config.object_lock =
+        Some(decision_gate_store_enterprise::s3_runpack_store::S3ObjectLockConfig {
+            mode: Some(S3ObjectLockMode::Compliance),
+            retain_until: Some("not-a-date".to_string()),
+            legal_hold: None,
+        });
     let result = S3RunpackStore::new(config);
     assert!(result.is_err());
 }

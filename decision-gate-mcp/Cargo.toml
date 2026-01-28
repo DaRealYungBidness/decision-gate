@@ -13,7 +13,10 @@ rust-version = "1.92"
 [dependencies]
 axum = "0.7"
 axum-server = { version = "0.7", features = ["tls-rustls"] }
+aws-config = "1.1"
+aws-sdk-s3 = "1.60"
 base64 = "0.22"
+bytes = "1.6"
 decision-gate-core = { path = "../decision-gate-core" }
 decision-gate-contract = { path = "../decision-gate-contract" }
 decision-gate-providers = { path = "../decision-gate-providers" }

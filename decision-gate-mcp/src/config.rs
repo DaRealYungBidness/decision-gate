@@ -19,6 +19,7 @@ use std::collections::BTreeMap;
 use std::env;
 use std::fs;
 use std::net::SocketAddr;
+use std::path::Component;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::SystemTime;
@@ -155,6 +156,9 @@ pub struct DecisionGateConfig {
     /// Evidence provider configuration entries.
     #[serde(default)]
     pub providers: Vec<ProviderConfig>,
+    /// Optional runpack storage configuration.
+    #[serde(default)]
+    pub runpack_storage: Option<RunpackStorageConfig>,
     /// Optional config source metadata (not serialized).
     #[serde(skip)]
     pub source_modified_at: Option<SystemTime>,
@@ -197,6 +201,9 @@ impl DecisionGateConfig {
         self.schema_registry.validate()?;
         self.anchors.validate()?;
         self.provider_discovery.validate()?;
+        if let Some(storage) = &self.runpack_storage {
+            storage.validate()?;
+        }
         for provider in &self.providers {
             provider.validate()?;
         }
@@ -227,6 +234,81 @@ impl DecisionGateConfig {
     #[must_use]
     pub fn is_dev_permissive(&self) -> bool {
         self.dev.permissive || self.server.mode == ServerMode::DevPermissive
+    }
+}
+
+/// Runpack storage configuration.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum RunpackStorageConfig {
+    /// Object-store backed runpack storage.
+    ObjectStore(ObjectStoreConfig),
+}
+
+impl RunpackStorageConfig {
+    /// Validates runpack storage configuration.
+    fn validate(&self) -> Result<(), ConfigError> {
+        match self {
+            Self::ObjectStore(config) => config.validate(),
+        }
+    }
+}
+
+/// Supported object-store providers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ObjectStoreProvider {
+    /// Amazon S3 compatible object storage.
+    S3,
+}
+
+/// Object-store configuration for runpack storage.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ObjectStoreConfig {
+    /// Provider selection for the object store.
+    pub provider: ObjectStoreProvider,
+    /// Bucket name for runpack storage.
+    pub bucket: String,
+    /// Optional region (S3-only, defaults to environment).
+    #[serde(default)]
+    pub region: Option<String>,
+    /// Optional object-store endpoint (S3-compatible).
+    #[serde(default)]
+    pub endpoint: Option<String>,
+    /// Optional key prefix inside the bucket.
+    #[serde(default)]
+    pub prefix: Option<String>,
+    /// Force path-style addressing (S3-compatible).
+    #[serde(default)]
+    pub force_path_style: bool,
+    /// Allow non-TLS endpoints (explicit opt-in).
+    #[serde(default)]
+    pub allow_http: bool,
+}
+
+impl ObjectStoreConfig {
+    /// Validates object-store configuration.
+    pub(crate) fn validate(&self) -> Result<(), ConfigError> {
+        if self.bucket.trim().is_empty() {
+            return Err(ConfigError::Invalid("runpack_storage.bucket must be set".to_string()));
+        }
+        if let Some(endpoint) = &self.endpoint {
+            let trimmed = endpoint.trim();
+            if !(trimmed.starts_with("https://") || trimmed.starts_with("http://")) {
+                return Err(ConfigError::Invalid(
+                    "runpack_storage.endpoint must include http:// or https://".to_string(),
+                ));
+            }
+            if trimmed.starts_with("http://") && !self.allow_http {
+                return Err(ConfigError::Invalid(
+                    "runpack_storage.endpoint uses http:// without allow_http".to_string(),
+                ));
+            }
+        }
+        if let Some(prefix) = &self.prefix {
+            validate_object_store_prefix(prefix)?;
+        }
+        Ok(())
     }
 }
 
@@ -1677,6 +1759,50 @@ fn validate_path_string(field: &str, value: &str) -> Result<(), ConfigError> {
         let component_value = component.as_os_str().to_string_lossy();
         if component_value.len() > MAX_PATH_COMPONENT_LENGTH {
             return Err(ConfigError::Invalid(format!("{field} path component too long")));
+        }
+    }
+    Ok(())
+}
+
+/// Validates the object-store prefix string.
+fn validate_object_store_prefix(value: &str) -> Result<(), ConfigError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(ConfigError::Invalid("runpack_storage.prefix must be non-empty".to_string()));
+    }
+    if trimmed.contains('\\') {
+        return Err(ConfigError::Invalid(
+            "runpack_storage.prefix must not contain backslashes".to_string(),
+        ));
+    }
+    if trimmed.len() > MAX_TOTAL_PATH_LENGTH {
+        return Err(ConfigError::Invalid("runpack_storage.prefix exceeds max length".to_string()));
+    }
+    if trimmed.starts_with('/') {
+        return Err(ConfigError::Invalid("runpack_storage.prefix must be relative".to_string()));
+    }
+    let normalized = trimmed.strip_suffix('/').unwrap_or(trimmed);
+    let path = Path::new(normalized);
+    for component in path.components() {
+        match component {
+            Component::Normal(value) => {
+                let segment = value.to_string_lossy();
+                if segment.len() > MAX_PATH_COMPONENT_LENGTH {
+                    return Err(ConfigError::Invalid(
+                        "runpack_storage.prefix segment too long".to_string(),
+                    ));
+                }
+                if segment == "." || segment == ".." || segment.contains(['/', '\\']) {
+                    return Err(ConfigError::Invalid(
+                        "runpack_storage.prefix segment invalid".to_string(),
+                    ));
+                }
+            }
+            _ => {
+                return Err(ConfigError::Invalid(
+                    "runpack_storage.prefix must be relative without traversal".to_string(),
+                ));
+            }
         }
     }
     Ok(())

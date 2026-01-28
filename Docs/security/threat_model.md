@@ -43,7 +43,7 @@ agent conversations.
 - Provider contracts (capability contracts) and schemas.
 - Configuration files, provider auth tokens, and signature verification keys.
 - Run state store (SQLite/Postgres) and runpack output directory.
-- Object storage buckets for runpack archives (S3-compatible).
+- Object storage buckets for runpack artifacts and archives (S3-compatible).
 
 ## Adversary Model
 - Nation-state adversaries with full knowledge of Decision Gate behavior.
@@ -61,7 +61,8 @@ agent conversations.
   external and must fail closed.
 - Provider contracts and configuration files on disk.
 - Run state store and runpack artifacts: treat storage as untrusted.
-- Runpack object storage (S3) and metadata: treat as untrusted and verify hashes.
+- Runpack object storage (S3-compatible) and metadata: treat as untrusted and
+  verify hashes for every artifact.
 - Broker sources (http/file/inline) and sinks (external systems).
 - Dispatch targets and downstream systems receiving disclosures.
 - Offline verification environment and artifact readers.
@@ -176,3 +177,5 @@ agent conversations.
 ## Threat Model Delta
 - Added MCP tool call authn/authz with local-only defaults, bearer/mTLS modes,
   and audit logging.
+- Added OSS object-store runpack exports with deterministic key derivation and
+  size-limited artifact reads.

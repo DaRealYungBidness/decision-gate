@@ -40,29 +40,7 @@ explicitly revised.
 **Status**: None currently open. Security audit is clean and transport hardening
 is complete.
 
-### 1) [P1] Precheck Hash-Only Audit Logging
-**What**: Emit hash-only audit records for precheck requests/responses by
-default (no raw payload).
-**Why**: Precheck is read-only but still handles asserted data; audit must be
-privacy-preserving by default.
-**Status**: Open.
-**Where**:
-- `decision-gate-mcp/src/audit.rs`
-- `decision-gate-mcp/src/tools.rs` (precheck handler)
-
-### 2) [P1] Durable Runpack Storage Beyond Filesystem
-**What**: Add production-grade `ArtifactSink` and `ArtifactReader` backends
-for object storage or WORM storage.
-**Why**: Filesystem runpacks are implemented, but cloud-native durability
-requires blob store adapters.
-**Status**: Partial (file-backed sink/reader implemented).
-**Where**:
-- `decision-gate-mcp/src/runpack.rs` (file-backed sink/reader)
-- `decision-gate-core/src/interfaces/mod.rs` (ArtifactSink/Reader traits)
-**How**: Implement object store adapters with strict path validation and
-typed errors.
-
-### 3) [P2] Scenario Examples for Hold/Unknown/Branch Outcomes
+### 1) [P2] Scenario Examples for Hold/Unknown/Branch Outcomes
 **What**: Add canonical scenarios that demonstrate unknown outcomes, hold
 decisions, and branch routing for true/false/unknown.
 **Why**: Scenario authors need precise, audited examples that show how
@@ -70,29 +48,20 @@ tri-state outcomes affect routing and hold behavior.
 **Status**: Partial (only happy-path examples today).
 **Where**: `Docs/generated/decision-gate/examples/`
 
-### 4) [P2] Run Lifecycle Guide
-**What**: Create a single guide that maps tool calls to run state transitions
-and runpack artifacts.
-**Why**: Integrators need a mental model that ties `scenario_define` →
-`scenario_start` → `scenario_next`/`scenario_trigger` → `runpack_export` to
-state mutations and artifacts.
-**Status**: Missing.
-**Where**: `Docs/guides/run_lifecycle.md` (new).
-
-### 5) [P2] Agent Progress vs Plan State Guidance
+### 2) [P2] Agent Progress vs Plan State Guidance
 **What**: Clarify that Decision Gate evaluates evidence and run state, while
 agent planning is external. Progress signals should be modeled as evidence or
 submissions.
 **Why**: Keeps Decision Gate deterministic and avoids embedding agent logic.
 **Status**: Open (guidance).
 
-### 6) [P2] Runpack Verification with Evidence Replay (Optional)
+### 3) [P2] Runpack Verification with Evidence Replay (Optional)
 **What**: Optional CLI/MCP flow to re-query evidence and compare against
 runpack anchors/hashes during verification.
 **Why**: Provides an additional audit mode when evidence sources are stable.
 **Status**: Open (not implemented).
 
-### 7) [P2] ASC Integration Collateral Placeholders (Lead Example + Recipes)
+### 4) [P2] ASC Integration Collateral Placeholders (Lead Example + Recipes)
 **What**: Replace placeholders with a real lead example and validated
 deployment guidance for DG+ASC integration.
 **Why**: Integration docs are visible and referenced as canonical; placeholders
@@ -172,6 +141,11 @@ is disallowed when `namespace.authority.mode = "assetcore_http"`.
 `schema_registry.acl` (builtin or custom), backed by `server.auth.principals`
 role mappings. Registry allow/deny decisions emit audit events, and signing
 metadata can be required for schema writes.
+
+### N) Durable Runpack Storage Beyond Filesystem
+**Status**: Implemented. OSS object-store sink/reader and configuration are in
+place, with strict key validation and size limits. Enterprise S3 adapters
+support optional Object Lock (WORM) retention and legal hold.
 
 ## Notes on Structural Readiness
 Evidence, storage, and dispatch interfaces already exist in

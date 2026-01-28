@@ -332,6 +332,7 @@ fn namespace_authority_denies_tool_call() {
         tenant_authorizer: std::sync::Arc::new(NoopTenantAuthorizer),
         usage_meter: std::sync::Arc::new(NoopUsageMeter),
         runpack_storage: None,
+        runpack_object_store: None,
         audit,
         trust_requirement,
         anchor_policy,

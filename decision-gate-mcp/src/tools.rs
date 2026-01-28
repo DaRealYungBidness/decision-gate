@@ -124,7 +124,10 @@ use crate::registry_acl::RegistryAcl;
 use crate::registry_acl::RegistryAclDecision;
 use crate::runpack::FileArtifactReader;
 use crate::runpack::FileArtifactSink;
+use crate::runpack_object_store::ObjectStoreRunpackBackend;
+use crate::runpack_object_store::RunpackObjectKey;
 use crate::runpack_storage::RunpackStorage;
+use crate::runpack_storage::RunpackStorageError;
 use crate::runpack_storage::RunpackStorageKey;
 use crate::tenant_authz::TenantAccessRequest;
 use crate::tenant_authz::TenantAuthorizer;
@@ -189,6 +192,8 @@ pub struct ToolRouter {
     usage_meter: Arc<dyn UsageMeter>,
     /// Optional runpack storage backend for managed deployments.
     runpack_storage: Option<Arc<dyn RunpackStorage>>,
+    /// Optional object-store backend for runpack export/verify.
+    runpack_object_store: Option<Arc<ObjectStoreRunpackBackend>>,
     /// Audit sink for auth decisions.
     audit: Arc<dyn AuthAuditSink>,
     /// Audit sink for precheck events.
@@ -237,6 +242,8 @@ pub struct ToolRouterConfig {
     pub usage_meter: Arc<dyn UsageMeter>,
     /// Optional runpack storage backend for managed deployments.
     pub runpack_storage: Option<Arc<dyn RunpackStorage>>,
+    /// Optional object-store backend for runpack export/verify.
+    pub runpack_object_store: Option<Arc<ObjectStoreRunpackBackend>>,
     /// Audit sink for auth decisions.
     pub audit: Arc<dyn AuthAuditSink>,
     /// Minimum trust requirement for evidence evaluation.
@@ -283,6 +290,7 @@ impl ToolRouter {
             tenant_authorizer: config.tenant_authorizer,
             usage_meter: config.usage_meter,
             runpack_storage: config.runpack_storage,
+            runpack_object_store: config.runpack_object_store,
             audit: config.audit,
             trust_requirement: config.trust_requirement,
             anchor_policy: config.anchor_policy,
@@ -954,6 +962,9 @@ impl ToolRouter {
     }
 }
 
+#[cfg(test)]
+mod tests;
+
 // ============================================================================
 // SECTION: Tool Requests and Responses
 // ============================================================================
@@ -1563,6 +1574,10 @@ impl ToolRouter {
     }
 
     /// Exports a runpack for the specified run.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "Runpack export handles all backend modes and audit paths."
+    )]
     fn export_runpack(
         &self,
         context: &RequestContext,
@@ -1571,31 +1586,6 @@ impl ToolRouter {
         self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)?;
         let runtime = self.runtime_for(&request.scenario_id)?;
         let manifest_name = request.manifest_name.as_deref().unwrap_or("manifest.json");
-        let temp_dir = if self.runpack_storage.is_some() {
-            Some(
-                tempfile::Builder::new()
-                    .prefix("decision-gate-runpack-")
-                    .tempdir()
-                    .map_err(|err| ToolError::Runpack(err.to_string()))?,
-            )
-        } else {
-            None
-        };
-        let output_dir = match (self.runpack_storage.as_ref(), request.output_dir.as_ref()) {
-            (Some(_), _) => temp_dir
-                .as_ref()
-                .ok_or_else(|| ToolError::Runpack("runpack temp dir unavailable".to_string()))?
-                .path()
-                .to_path_buf(),
-            (None, Some(path)) => PathBuf::from(path),
-            (None, None) => {
-                return Err(ToolError::Runpack(
-                    "output_dir is required when runpack storage is not configured".to_string(),
-                ));
-            }
-        };
-        let mut sink = FileArtifactSink::new(output_dir.clone(), manifest_name)
-            .map_err(|err| ToolError::Runpack(err.to_string()))?;
         let state = runtime
             .store
             .load(&request.tenant_id, &request.namespace_id, &request.run_id)
@@ -1605,8 +1595,104 @@ impl ToolRouter {
         if let Some(context) = self.runpack_security_context.clone() {
             builder = builder.with_security_context(context);
         }
+        if let Some(storage) = &self.runpack_storage {
+            let temp_dir = tempfile::Builder::new()
+                .prefix("decision-gate-runpack-")
+                .tempdir()
+                .map_err(|err| ToolError::Runpack(err.to_string()))?;
+            let output_dir = temp_dir.path().to_path_buf();
+            let mut sink = FileArtifactSink::new(output_dir.clone(), manifest_name)
+                .map_err(|err| ToolError::Runpack(err.to_string()))?;
+            if request.include_verification {
+                let reader = FileArtifactReader::new(output_dir.clone())
+                    .map_err(|err| ToolError::Runpack(err.to_string()))?;
+                let (manifest, report) = builder
+                    .build_with_verification(
+                        &mut sink,
+                        &reader,
+                        &runtime.spec,
+                        &state,
+                        request.generated_at,
+                    )
+                    .map_err(|err| ToolError::Runpack(err.to_string()))?;
+                let storage_uri = Self::store_runpack(storage, request, &output_dir)
+                    .map_err(|err| ToolError::Runpack(err.to_string()))?;
+                return Ok(RunpackExportResponse {
+                    manifest,
+                    report: Some(report),
+                    storage_uri,
+                });
+            }
+            let manifest = builder
+                .build(&mut sink, &runtime.spec, &state, request.generated_at)
+                .map_err(|err| ToolError::Runpack(err.to_string()))?;
+            let storage_uri = Self::store_runpack(storage, request, &output_dir)
+                .map_err(|err| ToolError::Runpack(err.to_string()))?;
+            return Ok(RunpackExportResponse {
+                manifest,
+                report: None,
+                storage_uri,
+            });
+        }
+
+        if let Some(backend) = &self.runpack_object_store {
+            let spec_hash = runtime
+                .spec
+                .canonical_hash_with(DEFAULT_HASH_ALGORITHM)
+                .map_err(|err| ToolError::Runpack(err.to_string()))?;
+            let key = RunpackObjectKey {
+                tenant_id: request.tenant_id.clone(),
+                namespace_id: request.namespace_id.clone(),
+                scenario_id: request.scenario_id.clone(),
+                run_id: request.run_id.clone(),
+                spec_hash,
+            };
+            let mut sink = backend
+                .sink(&key, manifest_name)
+                .map_err(|err| ToolError::Runpack(err.to_string()))?;
+            if request.include_verification {
+                let reader =
+                    backend.reader(&key).map_err(|err| ToolError::Runpack(err.to_string()))?;
+                let (manifest, report) = builder
+                    .build_with_verification(
+                        &mut sink,
+                        &reader,
+                        &runtime.spec,
+                        &state,
+                        request.generated_at,
+                    )
+                    .map_err(|err| ToolError::Runpack(err.to_string()))?;
+                let storage_uri = Some(
+                    backend.storage_uri(&key).map_err(|err| ToolError::Runpack(err.to_string()))?,
+                );
+                return Ok(RunpackExportResponse {
+                    manifest,
+                    report: Some(report),
+                    storage_uri,
+                });
+            }
+            let manifest = builder
+                .build(&mut sink, &runtime.spec, &state, request.generated_at)
+                .map_err(|err| ToolError::Runpack(err.to_string()))?;
+            let storage_uri =
+                Some(backend.storage_uri(&key).map_err(|err| ToolError::Runpack(err.to_string()))?);
+            return Ok(RunpackExportResponse {
+                manifest,
+                report: None,
+                storage_uri,
+            });
+        }
+
+        let output_dir = request.output_dir.as_ref().ok_or_else(|| {
+            ToolError::Runpack(
+                "output_dir is required when runpack storage is not configured".to_string(),
+            )
+        })?;
+        let output_dir = PathBuf::from(output_dir);
+        let mut sink = FileArtifactSink::new(output_dir.clone(), manifest_name)
+            .map_err(|err| ToolError::Runpack(err.to_string()))?;
         if request.include_verification {
-            let reader = FileArtifactReader::new(output_dir.clone())
+            let reader = FileArtifactReader::new(output_dir)
                 .map_err(|err| ToolError::Runpack(err.to_string()))?;
             let (manifest, report) = builder
                 .build_with_verification(
@@ -1617,43 +1703,34 @@ impl ToolRouter {
                     request.generated_at,
                 )
                 .map_err(|err| ToolError::Runpack(err.to_string()))?;
-            let storage_uri = self.store_runpack_if_needed(request, &output_dir)?;
             return Ok(RunpackExportResponse {
                 manifest,
                 report: Some(report),
-                storage_uri,
+                storage_uri: None,
             });
         }
         let manifest = builder
             .build(&mut sink, &runtime.spec, &state, request.generated_at)
             .map_err(|err| ToolError::Runpack(err.to_string()))?;
-        let storage_uri = self.store_runpack_if_needed(request, &output_dir)?;
         Ok(RunpackExportResponse {
             manifest,
             report: None,
-            storage_uri,
+            storage_uri: None,
         })
     }
 
-    /// Stores the runpack in configured external storage if enabled.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ToolError`] when storage fails.
-    fn store_runpack_if_needed(
-        &self,
+    /// Stores the runpack directory using the configured storage backend.
+    fn store_runpack(
+        storage: &Arc<dyn RunpackStorage>,
         request: &RunpackExportRequest,
         output_dir: &Path,
-    ) -> Result<Option<String>, ToolError> {
-        let Some(storage) = &self.runpack_storage else {
-            return Ok(None);
-        };
+    ) -> Result<Option<String>, RunpackStorageError> {
         let key = RunpackStorageKey {
             tenant_id: request.tenant_id.clone(),
             namespace_id: request.namespace_id.clone(),
             run_id: request.run_id.clone(),
         };
-        storage.store_runpack(&key, output_dir).map_err(|err| ToolError::Runpack(err.to_string()))
+        storage.store_runpack(&key, output_dir)
     }
 
     /// Verifies a runpack manifest and artifacts.

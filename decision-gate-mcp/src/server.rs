@@ -82,6 +82,7 @@ use crate::config::DecisionGateConfig;
 use crate::config::ProviderType;
 use crate::config::RateLimitConfig;
 use crate::config::RunStateStoreType;
+use crate::config::RunpackStorageConfig;
 use crate::config::SchemaRegistryType;
 use crate::config::ServerAuditConfig;
 use crate::config::ServerAuthMode;
@@ -95,6 +96,7 @@ use crate::namespace_authority::NamespaceAuthorityError;
 use crate::namespace_authority::NoopNamespaceAuthority;
 use crate::registry_acl::PrincipalResolver;
 use crate::registry_acl::RegistryAcl;
+use crate::runpack_object_store::ObjectStoreRunpackBackend;
 use crate::runpack_storage::RunpackStorage;
 use crate::telemetry::McpMethod;
 use crate::telemetry::McpMetricEvent;
@@ -237,6 +239,8 @@ impl McpServer {
         let runpack_security_context = Some(build_runpack_security_context(&config));
         let tenant_authorizer = tenant_authorizer.unwrap_or_else(|| Arc::new(NoopTenantAuthorizer));
         let usage_meter = usage_meter.unwrap_or_else(|| Arc::new(NoopUsageMeter));
+        let runpack_object_store =
+            if runpack_storage.is_some() { None } else { build_runpack_object_store(&config)? };
         let router = ToolRouter::new(ToolRouterConfig {
             evidence,
             evidence_policy: config.evidence.clone(),
@@ -252,6 +256,7 @@ impl McpServer {
             tenant_authorizer,
             usage_meter,
             runpack_storage,
+            runpack_object_store,
             audit: auth_audit,
             trust_requirement: config.effective_trust_requirement(),
             anchor_policy: config.anchors.to_policy(),
@@ -416,6 +421,22 @@ fn build_schema_registry_limits(
         max_schema_bytes: config.schema_registry.max_schema_bytes,
         max_entries,
     })
+}
+
+/// Builds the optional object-store runpack backend from config.
+fn build_runpack_object_store(
+    config: &DecisionGateConfig,
+) -> Result<Option<Arc<ObjectStoreRunpackBackend>>, McpServerError> {
+    let Some(storage) = &config.runpack_storage else {
+        return Ok(None);
+    };
+    match storage {
+        RunpackStorageConfig::ObjectStore(config) => {
+            let backend = ObjectStoreRunpackBackend::new(config)
+                .map_err(|err| McpServerError::Init(err.to_string()))?;
+            Ok(Some(Arc::new(backend)))
+        }
+    }
 }
 
 /// Builds per-provider trust overrides (used for dev-permissive scopes).

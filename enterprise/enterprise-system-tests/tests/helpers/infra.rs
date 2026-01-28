@@ -96,6 +96,7 @@ impl S3Fixture {
             .with_env_var("MINIO_ROOT_USER", access_key.clone())
             .with_env_var("MINIO_ROOT_PASSWORD", secret_key.clone())
             .with_env_var("MINIO_REGION", region.clone())
+            .with_env_var("MINIO_OBJECT_LOCK", "on")
             .with_env_var("MINIO_KMS_SECRET_KEY", kms_secret_key.clone())
             .with_env_var("MINIO_KMS_AUTO_ENCRYPTION", "on")
             .with_exposed_port(9000)
@@ -146,7 +147,12 @@ impl S3Fixture {
 
     async fn seed_bucket(&self) -> Result<(), String> {
         let client = self.client().await?;
-        let _ = client.create_bucket().bucket(self.bucket.clone()).send().await;
+        let _ = client
+            .create_bucket()
+            .bucket(self.bucket.clone())
+            .object_lock_enabled_for_bucket(true)
+            .send()
+            .await;
         Ok(())
     }
 }

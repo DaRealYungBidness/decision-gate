@@ -182,10 +182,10 @@ contracts, and docs freely to reach the best design.
 ### Phase 6: Documentation and Examples (P2 but required for world-class)
 **Features**:
 - Add canonical examples for hold/unknown/branch outcomes.
-- Add a run lifecycle guide with tool-call timeline and runpack artifacts.
+- Expand evidence flow/execution model with tool-call timeline + runpack artifacts.
 
 **Primary docs**:
-- `Docs/guides/run_lifecycle.md` (new)
+- `Docs/guides/evidence_flow_and_execution_model.md` (expanded)
 - `Docs/generated/decision-gate/examples/` (new examples)
 - `Docs/guides/predicate_authoring.md` (examples reference)
 

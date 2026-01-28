@@ -156,6 +156,7 @@ fn build_router(mut config: DecisionGateConfig, audit: Arc<TestAuditSink>) -> To
         tenant_authorizer: Arc::new(NoopTenantAuthorizer),
         usage_meter: Arc::new(NoopUsageMeter),
         runpack_storage: None,
+        runpack_object_store: None,
         audit: auth_audit,
         trust_requirement,
         anchor_policy,

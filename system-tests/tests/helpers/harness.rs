@@ -149,6 +149,8 @@ pub fn base_http_config(bind: &str) -> DecisionGateConfig {
         schema_registry: SchemaRegistryConfig::default(),
         providers: builtin_providers(),
         dev: decision_gate_mcp::config::DevConfig::default(),
+        runpack_storage: None,
+
         source_modified_at: None,
     }
 }
@@ -250,6 +252,8 @@ pub fn base_sse_config(bind: &str) -> DecisionGateConfig {
         schema_registry: SchemaRegistryConfig::default(),
         providers: builtin_providers(),
         dev: decision_gate_mcp::config::DevConfig::default(),
+        runpack_storage: None,
+
         source_modified_at: None,
     }
 }

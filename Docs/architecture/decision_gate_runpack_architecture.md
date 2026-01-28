@@ -11,6 +11,8 @@ Dependencies:
   - decision-gate-core/src/runtime/runpack.rs
   - decision-gate-mcp/src/tools.rs
   - decision-gate-mcp/src/runpack.rs
+  - decision-gate-mcp/src/runpack_object_store.rs
+  - decision-gate-mcp/src/config.rs
 ============================================================================
 Last Updated: 2026-01-27 (UTC)
 ============================================================================
@@ -19,7 +21,7 @@ Last Updated: 2026-01-27 (UTC)
 # Decision Gate Runpack Architecture
 
 > **Audience:** Engineers implementing runpack export/verification and
-> filesystem artifact handling.
+> filesystem/object-store artifact handling.
 
 ---
 
@@ -31,8 +33,9 @@ Last Updated: 2026-01-27 (UTC)
 4. [Artifact Integrity Model](#artifact-integrity-model)
 5. [Runpack Verification Flow](#runpack-verification-flow)
 6. [Filesystem Sink/Reader Safety](#filesystem-sinkreader-safety)
-7. [Enterprise Runpack Storage](#enterprise-runpack-storage)
-8. [File-by-File Cross Reference](#file-by-file-cross-reference)
+7. [Object Store Sink/Reader Safety](#object-store-sinkreader-safety)
+8. [Enterprise Runpack Storage](#enterprise-runpack-storage)
+9. [File-by-File Cross Reference](#file-by-file-cross-reference)
 
 ---
 
@@ -44,6 +47,11 @@ hashes for every file, plus a root hash over the file hash list. Verification
 replays integrity checks, validates decision log uniqueness, and optionally
 validates evidence anchors when an anchor policy is present.
 [F:decision-gate-core/src/runtime/runpack.rs L80-L365]
+
+Runpack exports select a sink based on configuration: filesystem by default,
+OSS object-store when configured, or an enterprise override that uploads
+bundled archives.
+[F:decision-gate-mcp/src/tools.rs L1565-L1715]
 
 ---
 
@@ -72,10 +80,16 @@ Runpack export is initiated via the MCP tool `runpack_export`:
 1. Tool router loads run state from the configured store.
 2. A `RunpackBuilder` is created with the active anchor policy and optional
    security context metadata.
-3. Artifacts are written via a filesystem sink.
+3. Artifacts are written via filesystem or object-store sinks depending on
+   configuration.
 4. Optional in-line verification can be requested during export.
 
 [F:decision-gate-mcp/src/tools.rs L888-L929]
+[F:decision-gate-mcp/src/runpack_object_store.rs L1-L287]
+
+When a managed runpack storage override is configured, MCP builds the runpack
+on disk and uploads via the override. Otherwise, object-store exports write
+per-artifact objects directly; filesystem exports require `output_dir`.
 
 The builder writes deterministic JSON artifacts for:
 
@@ -134,6 +148,20 @@ Filesystem artifacts are handled by hardened sink/reader implementations:
 
 ---
 
+## Object Store Sink/Reader Safety
+
+Object-store runpack adapters enforce the same safety guarantees as filesystem
+storage:
+
+- Keys are derived from tenant/namespace/scenario/run/spec_hash.
+- Path segments are validated and length-bounded.
+- Artifacts are capped at `MAX_RUNPACK_ARTIFACT_BYTES`.
+- Reads fail closed when size limits are exceeded.
+
+[F:decision-gate-mcp/src/runpack_object_store.rs L1-L340]
+
+---
+
 ## Enterprise Runpack Storage
 
 Enterprise deployments can persist runpacks to object storage using a
@@ -142,12 +170,17 @@ configured with a runpack storage backend, `runpack_export` builds the
 runpack in a temporary directory and uploads it before returning the
 manifest (and optional storage URI).
 
+OSS object-store exports write per-artifact objects directly; the enterprise
+adapter remains the path for WORM/compliance workflows.
+
 The S3-backed store:
 
 - Packages runpacks as `.tar` archives with strict path validation.
 - Rejects symlinks and special entries to prevent path traversal.
 - Stores SHA-256 metadata alongside objects for integrity verification.
 - Supports SSE-S3 or SSE-KMS encryption with optional KMS key ids.
+- Supports optional S3 Object Lock (governance/compliance) for WORM retention.
+  Configuration lives under `runpacks.s3.object_lock` in the enterprise config.
 
 The object storage wiring lives in MCP and enterprise crates.
 [F:decision-gate-mcp/src/runpack_storage.rs L1-L60]
@@ -165,4 +198,5 @@ The object storage wiring lives in MCP and enterprise crates.
 | Builder + verifier | `decision-gate-core/src/runtime/runpack.rs` | Artifact writing and verification logic. |
 | Tool integration | `decision-gate-mcp/src/tools.rs` | runpack_export/runpack_verify flows. |
 | Filesystem IO | `decision-gate-mcp/src/runpack.rs` | Safe artifact sink/reader with path validation. |
+| Object store IO | `decision-gate-mcp/src/runpack_object_store.rs` | Object-store sink/reader for runpack artifacts. |
 | Enterprise S3 store | `enterprise/decision-gate-store-enterprise/src/s3_runpack_store.rs` | Object storage backend for managed deployments. |

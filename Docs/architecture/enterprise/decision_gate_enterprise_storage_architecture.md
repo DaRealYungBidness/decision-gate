@@ -45,6 +45,9 @@ with private implementations for Postgres and S3-compatible object storage.
 Storage backends are configured via enterprise config and injected via server
 overrides, preserving OSS semantics and determinism.
 
+OSS now supports per-artifact object-store runpacks; enterprise adapters remain
+the path for WORM/compliance workflows and bundled archive storage.
+
 ---
 
 ## Run State + Schema Registry Stores
@@ -70,6 +73,17 @@ fallback or early managed-deployment option.
 - Uses S3-compatible object storage with per-tenant prefixes.
 - Supports server-side encryption (SSE-S3 or SSE-KMS).
 - Enforces archive size limits and path safety for runpack bundles.
+
+### WORM and Compliance (Enterprise Only)
+- WORM retention and legal hold are enforced via S3 Object Lock on upload.
+- Configuration lives under `runpacks.s3.object_lock`:
+  - `mode` (`governance` or `compliance`) + `retain_until` (RFC-3339) are
+    required together for retention.
+  - `legal_hold` is optional and can be used independently.
+- Buckets must have Object Lock enabled and credentials must allow the
+  `s3:PutObjectRetention`/`s3:PutObjectLegalHold` permissions as applicable.
+- Compliance attestations beyond Object Lock metadata are not emitted in OSS
+  logs; enterprise audit pipelines may extend this.
 
 ### MCP Adapter
 The enterprise runpack storage adapter bridges the S3 store to the MCP

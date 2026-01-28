@@ -10,6 +10,7 @@ Current scaffolding includes:
 - `FilesystemRunpackStore` as a local runpack backend.
 - `PostgresStore` for durable multi-tenant run state + schema registry storage.
 - `S3RunpackStore` for object storage runpacks (feature: `s3`).
+- Optional WORM/object-lock support for S3 runpacks via config.
 - `shared_postgres_store` helper for wiring Postgres into shared store wrappers.
 
 ## Architecture

@@ -144,6 +144,8 @@ pub fn sample_config() -> DecisionGateConfig {
         schema_registry: SchemaRegistryConfig::default(),
         providers: builtin_providers(),
         dev: decision_gate_mcp::config::DevConfig::default(),
+        runpack_storage: None,
+
         source_modified_at: None,
     }
 }
@@ -270,6 +272,7 @@ pub fn router_with_authorizer_usage_and_runpack_storage(
         tenant_authorizer,
         usage_meter,
         runpack_storage,
+        runpack_object_store: None,
         audit,
         trust_requirement,
         anchor_policy,

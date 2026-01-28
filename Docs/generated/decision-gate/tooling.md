@@ -569,6 +569,7 @@ Output:
 {
   "result": {
     "content_type": "text/plain",
+    "error": null,
     "evidence_anchor": {
       "anchor_type": "env",
       "anchor_value": "DEPLOY_ENV"

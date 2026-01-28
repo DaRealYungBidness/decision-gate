@@ -155,6 +155,8 @@ fn sample_config() -> DecisionGateConfig {
         schema_registry: SchemaRegistryConfig::default(),
         providers: builtin_providers(),
         dev: crate::config::DevConfig::default(),
+        runpack_storage: None,
+
         source_modified_at: None,
     }
 }
@@ -215,6 +217,7 @@ fn sample_router(config: &DecisionGateConfig) -> ToolRouter {
         tenant_authorizer: Arc::new(NoopTenantAuthorizer),
         usage_meter: Arc::new(NoopUsageMeter),
         runpack_storage: None,
+        runpack_object_store: None,
         audit,
         trust_requirement: config.effective_trust_requirement(),
         anchor_policy: config.anchors.to_policy(),

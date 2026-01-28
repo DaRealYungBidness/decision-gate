@@ -109,6 +109,7 @@ async fn enterprise_config_wiring_postgres_s3() -> Result<(), Box<dyn std::error
                 server_side_encryption: None,
                 kms_key_id: None,
                 max_archive_bytes: None,
+                object_lock: None,
             }),
         },
         usage: EnterpriseUsageConfig {

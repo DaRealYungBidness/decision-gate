@@ -15,6 +15,8 @@ use std::path::Path;
 
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::types::MetadataDirective;
+use aws_sdk_s3::types::ObjectLockLegalHoldStatus;
+use aws_sdk_s3::types::ObjectLockMode;
 use aws_sdk_s3::types::ServerSideEncryption;
 use decision_gate_core::NamespaceId;
 use decision_gate_core::RunId;
@@ -24,6 +26,9 @@ use decision_gate_core::hashing::hash_bytes;
 use decision_gate_store_enterprise::runpack_store::RunpackKey;
 use decision_gate_store_enterprise::runpack_store::RunpackStore;
 use decision_gate_store_enterprise::runpack_store::RunpackStoreError;
+use decision_gate_store_enterprise::s3_runpack_store::S3ObjectLockConfig;
+use decision_gate_store_enterprise::s3_runpack_store::S3ObjectLockLegalHold;
+use decision_gate_store_enterprise::s3_runpack_store::S3ObjectLockMode;
 use decision_gate_store_enterprise::s3_runpack_store::S3RunpackStore;
 use decision_gate_store_enterprise::s3_runpack_store::S3RunpackStoreConfig;
 use decision_gate_store_enterprise::s3_runpack_store::S3ServerSideEncryption;
@@ -149,6 +154,73 @@ async fn s3_runpack_encryption_enforced() -> Result<(), Box<dyn std::error::Erro
     reporter.finish(
         "pass",
         vec!["s3 SSE enforcement verified".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+        ],
+    )?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn s3_runpack_object_lock_applied() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("s3_runpack_object_lock_applied")?;
+
+    let s3 = S3Fixture::start().await?;
+    set_s3_env(&s3);
+    let client = s3.client().await?;
+
+    let source_dir = TempDir::new()?;
+    fs::write(source_dir.path().join("a.txt"), b"alpha")?;
+    let key = runpack_key("tenant-1", "default", "run-1");
+    let store_key = key.clone();
+    let retain_until = "2030-01-01T00:00:00Z".to_string();
+    let config = S3RunpackStoreConfig {
+        bucket: s3.bucket.clone(),
+        region: Some(s3.region.clone()),
+        prefix: Some("object-lock".to_string()),
+        endpoint: Some(s3.endpoint.clone()),
+        force_path_style: s3.force_path_style,
+        server_side_encryption: None,
+        kms_key_id: None,
+        max_archive_bytes: None,
+        object_lock: Some(S3ObjectLockConfig {
+            mode: Some(S3ObjectLockMode::Governance),
+            retain_until: Some(retain_until.clone()),
+            legal_hold: Some(S3ObjectLockLegalHold::On),
+        }),
+    };
+    let source_path = source_dir.path().to_path_buf();
+    with_s3_store(config, move |store| {
+        store.put_dir(&store_key, &source_path)?;
+        Ok(())
+    })?;
+
+    let object_key = runpack_object_key("object-lock", &key);
+    let head = client.head_object().bucket(&s3.bucket).key(&object_key).send().await?;
+    if head.object_lock_mode().map(|mode| mode.as_str())
+        != Some(ObjectLockMode::Governance.as_str())
+    {
+        return Err("expected object lock governance mode".into());
+    }
+    if head.object_lock_legal_hold_status().map(|status| status.as_str())
+        != Some(ObjectLockLegalHoldStatus::On.as_str())
+    {
+        return Err("expected object lock legal hold status ON".into());
+    }
+    let retain_until_value = head
+        .object_lock_retain_until_date()
+        .map(|value| value.to_string())
+        .ok_or("expected object lock retain-until date")?;
+    if retain_until_value != retain_until {
+        return Err(format!("expected retain_until {retain_until} got {retain_until_value}").into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &Vec::<serde_json::Value>::new())?;
+    reporter.finish(
+        "pass",
+        vec!["s3 object lock headers present".to_string()],
         vec![
             "summary.json".to_string(),
             "summary.md".to_string(),
@@ -329,6 +401,7 @@ fn store_config(
         server_side_encryption: sse,
         kms_key_id: None,
         max_archive_bytes,
+        object_lock: None,
     }
 }
 

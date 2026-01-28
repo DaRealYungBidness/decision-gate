@@ -63,6 +63,8 @@ fn base_config() -> DecisionGateConfig {
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
         dev: decision_gate_mcp::config::DevConfig::default(),
+        runpack_storage: None,
+
         source_modified_at: None,
     }
 }

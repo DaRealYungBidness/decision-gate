@@ -35,12 +35,15 @@ use decision_gate_mcp::config::AnchorPolicyConfig;
 use decision_gate_mcp::config::AnchorProviderConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::config::NamespaceConfig;
+use decision_gate_mcp::config::ObjectStoreConfig;
+use decision_gate_mcp::config::ObjectStoreProvider;
 use decision_gate_mcp::config::PolicyConfig;
 use decision_gate_mcp::config::ProviderConfig;
 use decision_gate_mcp::config::ProviderTimeoutConfig;
 use decision_gate_mcp::config::ProviderType;
 use decision_gate_mcp::config::RegistryAclConfig;
 use decision_gate_mcp::config::RunStateStoreConfig;
+use decision_gate_mcp::config::RunpackStorageConfig;
 use decision_gate_mcp::config::SchemaRegistryConfig;
 use decision_gate_mcp::config::ServerAuditConfig;
 use decision_gate_mcp::config::ServerAuthConfig;
@@ -77,6 +80,8 @@ fn validate_server_config(
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     config.validate()
@@ -99,6 +104,8 @@ fn validate_provider_config(
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: vec![provider],
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     config.validate()
@@ -123,6 +130,8 @@ fn policy_static_requires_config() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     let result = config.validate();
@@ -167,6 +176,8 @@ fn policy_static_rejects_empty_rule() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     let result = config.validate();
@@ -211,6 +222,8 @@ fn policy_static_error_requires_message() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     let result = config.validate();
@@ -260,6 +273,8 @@ fn policy_static_rejects_external_target_id() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     let result = config.validate();
@@ -309,6 +324,8 @@ fn policy_static_rejects_agent_with_system() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     let result = config.validate();
@@ -925,6 +942,8 @@ fn schema_registry_memory_rejects_path() {
             acl: RegistryAclConfig::default(),
         },
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     let result = config.validate();
@@ -956,6 +975,8 @@ fn schema_registry_sqlite_requires_path() {
             acl: RegistryAclConfig::default(),
         },
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     let result = config.validate();
@@ -987,6 +1008,8 @@ fn validation_strict_disabled_requires_allow_permissive() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     let result = config.validate();
@@ -1020,6 +1043,8 @@ fn dev_permissive_forces_asserted_trust_lane() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     assert_eq!(config.effective_trust_requirement().min_lane, TrustLane::Asserted);
@@ -1046,6 +1071,8 @@ fn strict_mode_uses_configured_trust_lane() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     assert_eq!(config.effective_trust_requirement().min_lane, TrustLane::Asserted);
@@ -1072,6 +1099,8 @@ fn dev_permissive_does_not_override_default_namespace() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     assert!(!config.allow_default_namespace());
@@ -1098,6 +1127,8 @@ fn strict_mode_requires_explicit_default_namespace_allow() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     assert!(!config.allow_default_namespace());
@@ -1124,6 +1155,8 @@ fn allow_default_namespace_requires_default_tenants() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     let error = config.validate().unwrap_err();
@@ -1151,6 +1184,8 @@ fn schema_registry_rejects_zero_max_schema_bytes() {
             ..SchemaRegistryConfig::default()
         },
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     let result = config.validate();
@@ -1176,6 +1211,8 @@ fn schema_registry_rejects_zero_max_entries() {
             ..SchemaRegistryConfig::default()
         },
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     let result = config.validate();
@@ -1209,6 +1246,8 @@ fn run_state_store_sqlite_requires_path() {
         },
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     let result = config.validate();
@@ -1240,6 +1279,8 @@ fn run_state_store_memory_rejects_path() {
         },
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     let result = config.validate();
@@ -1269,6 +1310,8 @@ fn run_state_store_sqlite_accepts_path() {
         },
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     let result = config.validate();
@@ -1298,6 +1341,8 @@ fn run_state_store_sqlite_rejects_zero_retention() {
         },
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     let result = config.validate();
@@ -1442,6 +1487,8 @@ fn namespace_authority_assetcore_requires_config() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     config.namespace.authority.mode =
@@ -1469,6 +1516,8 @@ fn namespace_authority_none_rejects_assetcore_config() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     config.namespace.authority.mode = decision_gate_mcp::config::NamespaceAuthorityMode::None;
@@ -1503,6 +1552,8 @@ fn namespace_authority_rejects_mapping_mode_none() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     config.namespace.authority.mode =
@@ -1541,6 +1592,8 @@ fn dev_permissive_rejected_with_assetcore_authority() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     config.namespace.authority.mode =
@@ -1590,6 +1643,8 @@ fn anchors_require_required_fields() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     let result = config.validate();
@@ -1621,6 +1676,8 @@ fn provider_discovery_rejects_empty_entries() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     let result = config.validate();
@@ -1648,10 +1705,221 @@ fn provider_discovery_rejects_zero_max_bytes() {
         run_state_store: RunStateStoreConfig::default(),
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
+        runpack_storage: None,
+
         source_modified_at: None,
     };
     let result = config.validate();
     assert!(result.is_err());
     let error = result.unwrap_err();
     assert!(error.to_string().contains("provider_discovery.max_response_bytes"));
+}
+
+#[test]
+fn runpack_storage_object_store_requires_bucket() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+        runpack_storage: Some(RunpackStorageConfig::ObjectStore(ObjectStoreConfig {
+            provider: ObjectStoreProvider::S3,
+            bucket: " ".to_string(),
+            region: None,
+            endpoint: None,
+            prefix: None,
+            force_path_style: false,
+            allow_http: false,
+        })),
+        source_modified_at: None,
+    };
+    let err = config.validate().expect_err("invalid bucket");
+    assert!(err.to_string().contains("bucket"));
+}
+
+#[test]
+fn runpack_storage_object_store_rejects_http_without_allow() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+        runpack_storage: Some(RunpackStorageConfig::ObjectStore(ObjectStoreConfig {
+            provider: ObjectStoreProvider::S3,
+            bucket: "runpacks".to_string(),
+            region: None,
+            endpoint: Some("http://localhost:9000".to_string()),
+            prefix: None,
+            force_path_style: true,
+            allow_http: false,
+        })),
+        source_modified_at: None,
+    };
+    let err = config.validate().expect_err("http endpoint without allow_http");
+    assert!(err.to_string().contains("allow_http"));
+}
+
+#[test]
+fn runpack_storage_object_store_accepts_https_endpoint() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+        runpack_storage: Some(RunpackStorageConfig::ObjectStore(ObjectStoreConfig {
+            provider: ObjectStoreProvider::S3,
+            bucket: "runpacks".to_string(),
+            region: None,
+            endpoint: Some("https://s3.example.com".to_string()),
+            prefix: Some("dg/runpacks".to_string()),
+            force_path_style: false,
+            allow_http: false,
+        })),
+        source_modified_at: None,
+    };
+    config.validate().expect("valid object store config");
+}
+
+#[test]
+fn runpack_storage_object_store_rejects_prefix_with_backslash() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+        runpack_storage: Some(RunpackStorageConfig::ObjectStore(ObjectStoreConfig {
+            provider: ObjectStoreProvider::S3,
+            bucket: "runpacks".to_string(),
+            region: None,
+            endpoint: Some("https://s3.example.com".to_string()),
+            prefix: Some("bad\\prefix".to_string()),
+            force_path_style: false,
+            allow_http: false,
+        })),
+        source_modified_at: None,
+    };
+    let err = config.validate().expect_err("prefix contains backslash");
+    assert!(err.to_string().contains("backslashes"));
+}
+
+#[test]
+fn runpack_storage_object_store_rejects_prefix_traversal() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+        runpack_storage: Some(RunpackStorageConfig::ObjectStore(ObjectStoreConfig {
+            provider: ObjectStoreProvider::S3,
+            bucket: "runpacks".to_string(),
+            region: None,
+            endpoint: Some("https://s3.example.com".to_string()),
+            prefix: Some("../escape".to_string()),
+            force_path_style: false,
+            allow_http: false,
+        })),
+        source_modified_at: None,
+    };
+    let err = config.validate().expect_err("prefix traversal");
+    assert!(err.to_string().contains("traversal") || err.to_string().contains("segment"));
+}
+
+#[test]
+fn runpack_storage_object_store_rejects_absolute_prefix() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+        runpack_storage: Some(RunpackStorageConfig::ObjectStore(ObjectStoreConfig {
+            provider: ObjectStoreProvider::S3,
+            bucket: "runpacks".to_string(),
+            region: None,
+            endpoint: Some("https://s3.example.com".to_string()),
+            prefix: Some("/absolute".to_string()),
+            force_path_style: false,
+            allow_http: false,
+        })),
+        source_modified_at: None,
+    };
+    let err = config.validate().expect_err("absolute prefix");
+    assert!(err.to_string().contains("relative"));
+}
+
+#[test]
+fn runpack_storage_object_store_rejects_empty_prefix() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+        runpack_storage: Some(RunpackStorageConfig::ObjectStore(ObjectStoreConfig {
+            provider: ObjectStoreProvider::S3,
+            bucket: "runpacks".to_string(),
+            region: None,
+            endpoint: Some("https://s3.example.com".to_string()),
+            prefix: Some("   ".to_string()),
+            force_path_style: false,
+            allow_http: false,
+        })),
+        source_modified_at: None,
+    };
+    let err = config.validate().expect_err("empty prefix");
+    assert!(err.to_string().contains("prefix must be non-empty"));
 }

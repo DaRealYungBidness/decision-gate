@@ -10,7 +10,9 @@
 
 pub mod artifacts;
 pub mod auth_proxy;
+pub mod env;
 pub mod harness;
+pub mod infra;
 pub mod mcp_client;
 pub mod namespace_authority_stub;
 pub mod provider_stub;

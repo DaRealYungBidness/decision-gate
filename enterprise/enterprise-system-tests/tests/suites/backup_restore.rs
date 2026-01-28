@@ -113,6 +113,7 @@ async fn enterprise_backup_restore_validation() -> Result<(), Box<dyn std::error
                 server_side_encryption: None,
                 kms_key_id: None,
                 max_archive_bytes: None,
+                object_lock: None,
             }),
         },
         usage: EnterpriseUsageConfig {
@@ -308,6 +309,7 @@ async fn enterprise_backup_restore_validation() -> Result<(), Box<dyn std::error
             server_side_encryption: None,
             kms_key_id: None,
             max_archive_bytes: None,
+            object_lock: None,
         })
         .map_err(io_error)?;
         let dest_dir = tempfile::TempDir::new().map_err(io_error)?;

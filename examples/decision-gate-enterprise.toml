@@ -16,6 +16,11 @@ prefix = "dg/runpacks"
 server_side_encryption = "aws_kms"
 kms_key_id = "alias/decision-gate-runpacks"
 force_path_style = false
+# Optional WORM configuration (requires bucket object lock).
+# [runpacks.s3.object_lock]
+# mode = "compliance"          # "governance" or "compliance"
+# retain_until = "2030-01-01T00:00:00Z"
+# legal_hold = "on"            # "on" or "off"
 
 [usage.ledger]
 ledger_type = "sqlite"
