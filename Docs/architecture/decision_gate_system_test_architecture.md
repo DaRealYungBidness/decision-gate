@@ -12,12 +12,8 @@ Dependencies:
   - system-tests/TEST_MATRIX.md
   - system-tests/test_registry.toml
   - system-tests/test_gaps.toml
-  - Asset-Core/enterprise-system-tests/README.md
-  - Asset-Core/enterprise-system-tests/AGENTS.md
-  - Asset-Core/enterprise-system-tests/test_registry.toml
-  - Asset-Core/enterprise-system-tests/test_gaps.toml
 ============================================================================
-Last Updated: 2026-01-27 (UTC)
+Last Updated: 2026-01-28 (UTC)
 ============================================================================
 -->
 
@@ -33,12 +29,11 @@ Last Updated: 2026-01-27 (UTC)
 1. [Executive Overview](#executive-overview)
 2. [System Test Contract](#system-test-contract)
 3. [Registry-Driven Test Inventory](#registry-driven-test-inventory)
-4. [Enterprise System Tests](#enterprise-system-tests)
-5. [Coverage Matrix](#coverage-matrix)
-6. [Gap Tracking](#gap-tracking)
-7. [Artifacts and Determinism](#artifacts-and-determinism)
-8. [Execution Workflow](#execution-workflow)
-9. [File-by-File Cross Reference](#file-by-file-cross-reference)
+4. [Coverage Matrix](#coverage-matrix)
+5. [Gap Tracking](#gap-tracking)
+6. [Artifacts and Determinism](#artifacts-and-determinism)
+7. [Execution Workflow](#execution-workflow)
+8. [File-by-File Cross Reference](#file-by-file-cross-reference)
 
 ---
 
@@ -48,11 +43,6 @@ The `system-tests` crate provides the highest-rigor end-to-end validation layer
 for OSS Decision Gate. Tests execute against a live MCP server and emit auditable
 artifacts. Coverage is tracked in a registry file and a formal gap list.
 [F:system-tests/README.md L10-L87]
-
-Enterprise-only behavior is validated in `Asset-Core/enterprise-system-tests`.
-These tests mirror production enterprise deployments (tenant authz, usage,
-managed storage, audit chains) and maintain their own registry + gap list.
-[F:Asset-Core/enterprise-system-tests/README.md L1-L31]
 
 ---
 
@@ -88,19 +78,6 @@ under `system-tests/tests/suites/`. This reduces test binary proliferation while
 preserving category-driven inventory in the registry. Each registry
 `run_command` targets the suite binary with `--test <suite> -- --exact <module>::<test>`.
 
-## Enterprise System Tests
-
-Enterprise system-tests live in the private Asset Core monorepo under
-`Asset-Core/enterprise-system-tests` and follow the same deterministic artifact
-contract, registry-driven inventory, and gap tracking, but are isolated from
-OSS crates.
-
-- Registry: `Asset-Core/enterprise-system-tests/test_registry.toml`
-- Gaps: `Asset-Core/enterprise-system-tests/test_gaps.toml`
-- Governance: `Asset-Core/enterprise-system-tests/AGENTS.md`
-
-[F:Asset-Core/enterprise-system-tests/README.md L1-L31]
-
 ---
 
 ## Coverage Matrix
@@ -118,9 +95,6 @@ It provides a durable backlog for high-priority security, reliability, and audit
 coverage gaps.
 [F:system-tests/test_gaps.toml L1-L101]
 
-Enterprise gaps are tracked separately to enforce the OSS/enterprise boundary.
-[F:Asset-Core/enterprise-system-tests/test_gaps.toml L1-L40]
-
 ---
 
 ## Artifacts and Determinism
@@ -129,12 +103,6 @@ Every system test writes deterministic artifacts under a per-test run root. The
 run root is supplied by `DECISION_GATE_SYSTEM_TEST_RUN_ROOT` and each test must
 emit canonical JSON artifacts plus a tool transcript.
 [F:system-tests/README.md L74-L82][F:system-tests/AGENTS.md L63-L67]
-
-Enterprise system-tests use `DECISION_GATE_ENTERPRISE_SYSTEM_TEST_RUN_ROOT` (or
-fall back to `DECISION_GATE_SYSTEM_TEST_RUN_ROOT`) and the same artifact contract.
-[F:Asset-Core/enterprise-system-tests/AGENTS.md L48-L55]
-
----
 
 ## Execution Workflow
 
@@ -145,8 +113,6 @@ passes. Use explicit features or the registry-driven runner.
 
 - `cargo test -p system-tests --features system-tests`
 - `cargo nextest run -p system-tests --features system-tests`
-- `Asset-Core: cargo test -p enterprise-system-tests --features enterprise-system-tests`
-- `Asset-Core: cargo nextest run -p enterprise-system-tests --features enterprise-system-tests`
 - `python scripts/test_runner.py --priority P0`
 
 Tests should be registered and coverage docs regenerated when changes occur.
@@ -163,7 +129,3 @@ Tests should be registered and coverage docs regenerated when changes occur.
 | Coverage matrix | `system-tests/TEST_MATRIX.md` | P0/P1/P2 summary. |
 | Test registry | `system-tests/test_registry.toml` | Inventory + metadata. |
 | Gap tracking | `system-tests/test_gaps.toml` | Missing coverage + acceptance criteria. |
-| Enterprise test contract | `Asset-Core/enterprise-system-tests/AGENTS.md` | Enterprise determinism + audit requirements. |
-| Enterprise usage/workflow | `Asset-Core/enterprise-system-tests/README.md` | Running enterprise tests and artifacts. |
-| Enterprise test registry | `Asset-Core/enterprise-system-tests/test_registry.toml` | Enterprise inventory + metadata. |
-| Enterprise gap tracking | `Asset-Core/enterprise-system-tests/test_gaps.toml` | Enterprise coverage backlog. |

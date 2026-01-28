@@ -46,6 +46,8 @@ predicate algebra used by the engine.
 - [Security](#security)
 - [Formatting](#formatting)
 - [Quick Start](#quick-start)
+- [Contributing](#contributing)
+- [Authors](#authors)
 - [References](#references)
 
 ## Overview
@@ -571,6 +573,23 @@ Do not use `cargo fmt` in this repo.
   - `cargo run -p decision-gate-cli -- serve --config decision-gate.toml`
 - Durable run state: configure `run_state_store` in `decision-gate.toml` to use
   the SQLite backend (see `Docs/configuration/decision-gate.toml.md`).
+
+## Contributing
+
+This project is not currently accepting pull requests. The codebase evolves
+rapidly and is undergoing internal review to establish long-term contribution
+standards.
+
+Please open an issue if you want to report a bug, propose a feature, or start a
+discussion. See `CONTRIBUTING.md` for details.
+
+## Authors
+
+Decision Gate is built by Michael "Yung Bidness" Campbell.
+
+- AssetCore: [assetcore.io](https://assetcore.io)
+- Personal site: [yungbidness.dev](https://yungbidness.dev)
+- LinkedIn: [Michael Campbell](https://www.linkedin.com/in/michael-campbell-73159b5a/)
 
 ## References
 

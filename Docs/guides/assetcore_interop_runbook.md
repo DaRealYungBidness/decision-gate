@@ -7,7 +7,7 @@ Purpose: Provide deterministic, reproducible steps for offline and live interop 
 Dependencies:
   - system-tests/tests/fixtures/assetcore/interop/*
   - decision-gate-cli interop subcommand
-  - Asset-Core starter-pack docker image bundle
+  - AssetCore starter-pack docker image bundle
 ============================================================================
 -->
 
@@ -21,7 +21,7 @@ paths:
 - **Live mode:** Decision Gate evaluates predicates against a running AssetCore
   Docker stack using the interop runner.
 
-The fixture map and provider contract are generated in Asset-Core and synced
+The fixture map and provider contract are generated in AssetCore and synced
 into this repository under `system-tests/tests/fixtures/assetcore`.
 Anchor policy enforcement is enabled in the AssetCore test config; evidence
 must include the canonical ASC anchor set.
@@ -31,7 +31,7 @@ For integration framing and architecture context, see
 
 ## Prerequisites
 - Docker installed and running.
-- Asset-Core repository available for live mode and fixture refresh.
+- AssetCore repository available for live mode and fixture refresh.
 - Decision Gate CLI built (`cargo build -p decision-gate-cli`) for interop runs.
 
 ## Offline Fixture Validation (Recommended)
@@ -53,14 +53,14 @@ Artifacts are written under the system-tests run root:
 - `interop_decision.json`
 
 ## Live Mode (AssetCore Docker)
-1) Load the Asset-Core image bundle (pinned by digest):
+1) Load the AssetCore image bundle (pinned by digest):
 
 ```bash
-cd /path/to/Asset-Core
+cd <ASSETCORE_REPO_ROOT>
 starter-pack/scripts/load_images.sh --bundle starter-pack/docker-images
 ```
 
-2) Start Asset-Core using the starter-pack compose file:
+2) Start AssetCore using the starter-pack compose file:
 
 ```bash
 docker compose --env-file starter-pack/docker/images.env -f starter-pack/docker/docker-compose.yml up -d
@@ -85,36 +85,36 @@ cargo run -p decision-gate-cli -- interop eval \
   --trigger system-tests/tests/fixtures/assetcore/interop/triggers/assetcore-interop-full.json
 ```
 
-5) Tear down the Asset-Core stack:
+5) Tear down the AssetCore stack:
 
 ```bash
 docker compose --env-file starter-pack/docker/images.env -f starter-pack/docker/docker-compose.yml down
 ```
 
-## Refreshing Fixtures from Asset-Core
-In Asset-Core, regenerate the Decision Gate artifacts and copy the outputs into
+## Refreshing Fixtures from AssetCore
+In AssetCore, regenerate the Decision Gate artifacts and copy the outputs into
 this repository:
 
 ```bash
-# In Asset-Core
+# In the AssetCore repo
 cargo run --bin generate-decision-gate
 
 # From the decision-gate repo root
-cp /path/to/Asset-Core/Docs/generated/decision-gate/interop/fixture_map.json \
+cp <ASSETCORE_GENERATED_DIR>/decision-gate/interop/fixture_map.json \
   system-tests/tests/fixtures/assetcore/interop/fixture_map.json
-cp /path/to/Asset-Core/Docs/generated/decision-gate/interop/seed_plan.json \
+cp <ASSETCORE_GENERATED_DIR>/decision-gate/interop/seed_plan.json \
   system-tests/tests/fixtures/assetcore/interop/seed_plan.json
-cp /path/to/Asset-Core/Docs/generated/decision-gate/interop/scenarios/assetcore-interop-full.json \
+cp <ASSETCORE_GENERATED_DIR>/decision-gate/interop/scenarios/assetcore-interop-full.json \
   system-tests/tests/fixtures/assetcore/interop/scenarios/assetcore-interop-full.json
-cp /path/to/Asset-Core/Docs/generated/decision-gate/interop/run-configs/assetcore-interop-full.json \
+cp <ASSETCORE_GENERATED_DIR>/decision-gate/interop/run-configs/assetcore-interop-full.json \
   system-tests/tests/fixtures/assetcore/interop/run-configs/assetcore-interop-full.json
-cp /path/to/Asset-Core/Docs/generated/decision-gate/interop/triggers/assetcore-interop-full.json \
+cp <ASSETCORE_GENERATED_DIR>/decision-gate/interop/triggers/assetcore-interop-full.json \
   system-tests/tests/fixtures/assetcore/interop/triggers/assetcore-interop-full.json
-cp /path/to/Asset-Core/Docs/generated/decision-gate/providers/assetcore_read.json \
+cp <ASSETCORE_GENERATED_DIR>/decision-gate/providers/assetcore_read.json \
   system-tests/tests/fixtures/assetcore/providers/assetcore_read.json
 ```
 
 ## Notes
 - All interop inputs are deterministic and must remain ASCII-only.
-- Live mode assumes the Asset-Core MCP adapter is exposed on `http://127.0.0.1:8088/rpc`.
+- Live mode assumes the AssetCore MCP adapter is exposed on `http://127.0.0.1:8088/rpc`.
 - If any predicate output diverges from the fixture map, the test must fail closed.

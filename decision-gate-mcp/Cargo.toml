@@ -7,6 +7,7 @@
 [package]
 name = "decision-gate-mcp"
 version = { workspace = true }
+license = { workspace = true }
 edition = "2024"
 rust-version = "1.92"
 

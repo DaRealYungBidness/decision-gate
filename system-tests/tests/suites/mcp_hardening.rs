@@ -10,7 +10,6 @@
 
 
 use std::fs;
-use std::path::PathBuf;
 use std::time::Duration;
 
 use decision_gate_mcp::config::RateLimitConfig;
@@ -26,23 +25,6 @@ use helpers::readiness::wait_for_server_ready;
 use serde_json::Value;
 
 use crate::helpers;
-
-struct TlsFixtures {
-    ca_pem: PathBuf,
-    server_cert: PathBuf,
-    server_key: PathBuf,
-    client_identity: PathBuf,
-}
-
-fn tls_fixtures() -> TlsFixtures {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tls");
-    TlsFixtures {
-        ca_pem: root.join("ca.pem"),
-        server_cert: root.join("server.pem"),
-        server_key: root.join("server.key"),
-        client_identity: root.join("client.identity.pem"),
-    }
-}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn http_rate_limit_enforced() -> Result<(), Box<dyn std::error::Error>> {
@@ -101,7 +83,7 @@ async fn http_rate_limit_enforced() -> Result<(), Box<dyn std::error::Error>> {
 async fn http_tls_handshake_success() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("http_tls_handshake_success")?;
     let bind = allocate_bind_addr()?.to_string();
-    let fixtures = tls_fixtures();
+    let fixtures = helpers::tls::generate_tls_fixtures()?;
     let config = base_http_config_with_tls(&bind, &fixtures.server_cert, &fixtures.server_key);
     let server = spawn_mcp_server(config).await?;
 
@@ -136,7 +118,7 @@ async fn http_tls_handshake_success() -> Result<(), Box<dyn std::error::Error>> 
 async fn http_mtls_client_cert_required() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("http_mtls_client_cert_required")?;
     let bind = allocate_bind_addr()?.to_string();
-    let fixtures = tls_fixtures();
+    let fixtures = helpers::tls::generate_tls_fixtures()?;
     let config = base_http_config_with_mtls_tls(
         &bind,
         &fixtures.server_cert,

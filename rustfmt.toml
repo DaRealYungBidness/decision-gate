@@ -1,6 +1,6 @@
 # rustfmt.toml
 # ============================================================================
-# Project: Asset-Core (LLM/agent-friendly formatting)
+# Project: Decision Gate (LLM/agent-friendly formatting)
 # Purpose: Deterministic layout; imports split & grouped; narrow, consistent lines
 # ============================================================================
 # --- Core Layout -------------------------------------------------------------
