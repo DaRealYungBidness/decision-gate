@@ -12,10 +12,10 @@ Dependencies:
   - system-tests/TEST_MATRIX.md
   - system-tests/test_registry.toml
   - system-tests/test_gaps.toml
-  - enterprise/enterprise-system-tests/README.md
-  - enterprise/enterprise-system-tests/AGENTS.md
-  - enterprise/enterprise-system-tests/test_registry.toml
-  - enterprise/enterprise-system-tests/test_gaps.toml
+  - Asset-Core/enterprise-system-tests/README.md
+  - Asset-Core/enterprise-system-tests/AGENTS.md
+  - Asset-Core/enterprise-system-tests/test_registry.toml
+  - Asset-Core/enterprise-system-tests/test_gaps.toml
 ============================================================================
 Last Updated: 2026-01-27 (UTC)
 ============================================================================
@@ -49,10 +49,10 @@ for OSS Decision Gate. Tests execute against a live MCP server and emit auditabl
 artifacts. Coverage is tracked in a registry file and a formal gap list.
 [F:system-tests/README.md L10-L87]
 
-Enterprise-only behavior is validated in `enterprise/enterprise-system-tests`.
+Enterprise-only behavior is validated in `Asset-Core/enterprise-system-tests`.
 These tests mirror production enterprise deployments (tenant authz, usage,
 managed storage, audit chains) and maintain their own registry + gap list.
-[F:enterprise/enterprise-system-tests/README.md L1-L31]
+[F:Asset-Core/enterprise-system-tests/README.md L1-L31]
 
 ---
 
@@ -90,15 +90,16 @@ preserving category-driven inventory in the registry. Each registry
 
 ## Enterprise System Tests
 
-Enterprise system-tests live under `enterprise/enterprise-system-tests` and
-follow the same deterministic artifact contract, registry-driven inventory, and
-gap tracking, but are isolated from OSS crates.
+Enterprise system-tests live in the private Asset Core monorepo under
+`Asset-Core/enterprise-system-tests` and follow the same deterministic artifact
+contract, registry-driven inventory, and gap tracking, but are isolated from
+OSS crates.
 
-- Registry: `enterprise/enterprise-system-tests/test_registry.toml`
-- Gaps: `enterprise/enterprise-system-tests/test_gaps.toml`
-- Governance: `enterprise/enterprise-system-tests/AGENTS.md`
+- Registry: `Asset-Core/enterprise-system-tests/test_registry.toml`
+- Gaps: `Asset-Core/enterprise-system-tests/test_gaps.toml`
+- Governance: `Asset-Core/enterprise-system-tests/AGENTS.md`
 
-[F:enterprise/enterprise-system-tests/README.md L1-L31]
+[F:Asset-Core/enterprise-system-tests/README.md L1-L31]
 
 ---
 
@@ -118,7 +119,7 @@ coverage gaps.
 [F:system-tests/test_gaps.toml L1-L101]
 
 Enterprise gaps are tracked separately to enforce the OSS/enterprise boundary.
-[F:enterprise/enterprise-system-tests/test_gaps.toml L1-L40]
+[F:Asset-Core/enterprise-system-tests/test_gaps.toml L1-L40]
 
 ---
 
@@ -131,7 +132,7 @@ emit canonical JSON artifacts plus a tool transcript.
 
 Enterprise system-tests use `DECISION_GATE_ENTERPRISE_SYSTEM_TEST_RUN_ROOT` (or
 fall back to `DECISION_GATE_SYSTEM_TEST_RUN_ROOT`) and the same artifact contract.
-[F:enterprise/enterprise-system-tests/AGENTS.md L48-L55]
+[F:Asset-Core/enterprise-system-tests/AGENTS.md L48-L55]
 
 ---
 
@@ -143,9 +144,9 @@ System test crates are feature-gated to avoid running in default unit-test
 passes. Use explicit features or the registry-driven runner.
 
 - `cargo test -p system-tests --features system-tests`
-- `cargo test -p enterprise-system-tests --features enterprise-system-tests`
 - `cargo nextest run -p system-tests --features system-tests`
-- `cargo nextest run -p enterprise-system-tests --features enterprise-system-tests`
+- `Asset-Core: cargo test -p enterprise-system-tests --features enterprise-system-tests`
+- `Asset-Core: cargo nextest run -p enterprise-system-tests --features enterprise-system-tests`
 - `python scripts/test_runner.py --priority P0`
 
 Tests should be registered and coverage docs regenerated when changes occur.
@@ -162,7 +163,7 @@ Tests should be registered and coverage docs regenerated when changes occur.
 | Coverage matrix | `system-tests/TEST_MATRIX.md` | P0/P1/P2 summary. |
 | Test registry | `system-tests/test_registry.toml` | Inventory + metadata. |
 | Gap tracking | `system-tests/test_gaps.toml` | Missing coverage + acceptance criteria. |
-| Enterprise test contract | `enterprise/enterprise-system-tests/AGENTS.md` | Enterprise determinism + audit requirements. |
-| Enterprise usage/workflow | `enterprise/enterprise-system-tests/README.md` | Running enterprise tests and artifacts. |
-| Enterprise test registry | `enterprise/enterprise-system-tests/test_registry.toml` | Enterprise inventory + metadata. |
-| Enterprise gap tracking | `enterprise/enterprise-system-tests/test_gaps.toml` | Enterprise coverage backlog. |
+| Enterprise test contract | `Asset-Core/enterprise-system-tests/AGENTS.md` | Enterprise determinism + audit requirements. |
+| Enterprise usage/workflow | `Asset-Core/enterprise-system-tests/README.md` | Running enterprise tests and artifacts. |
+| Enterprise test registry | `Asset-Core/enterprise-system-tests/test_registry.toml` | Enterprise inventory + metadata. |
+| Enterprise gap tracking | `Asset-Core/enterprise-system-tests/test_gaps.toml` | Enterprise coverage backlog. |

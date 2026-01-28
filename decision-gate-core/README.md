@@ -1,118 +1,269 @@
+<!--
+decision-gate-core README
+============================================================================
+Document: Decision Gate Core Library
+Description: Deterministic checkpoint and requirement-evaluation engine.
+Purpose: Core runtime, schemas, and runpack tooling for Decision Gate.
+Dependencies:
+  - ../../README.md (Decision Gate overview)
+  - ../../Docs/architecture/decision_gate_scenario_state_architecture.md
+  - ../../Docs/architecture/decision_gate_evidence_trust_anchor_architecture.md
+  - ../../Docs/architecture/decision_gate_runpack_architecture.md
+  - ../../Docs/security/threat_model.md
+============================================================================
+-->
+
 # Decision Gate Core
 
-## IMPORTANT: Active Design Phase
+Deterministic evaluation engine for Decision Gate. This crate defines the
+canonical data model, trust enforcement, gate evaluation logic, and runpack
+building utilities. Transport layers (MCP/HTTP) live elsewhere.
 
-Decision Gate is in an active design and stabilization phase.
+## Table of Contents
 
-- **Backwards compatibility is not guaranteed.**
-- **Core semantics are still stabilizing.**
-- **Feedback and usage reports are welcome, but code contributions to the core are closed**
-  until a stable phase is explicitly announced.
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Core Capabilities](#core-capabilities)
+- [Evidence Sourcing Model](#evidence-sourcing-model)
+- [Module Structure](#module-structure)
+- [API Reference](#api-reference)
+- [Usage Examples](#usage-examples)
+- [Testing](#testing)
+- [Relationship to RET Logic](#relationship-to-ret-logic)
+- [References](#references)
 
 ## Overview
 
-Decision Gate is a deterministic checkpoint and requirement-evaluation system
-for gated steps, controlled disclosure, and stage advancement. It does **not**
-run agent conversations; it ingests triggers, evaluates evidence-backed gates,
-dispatches controlled disclosures into whatever agent SDK or workflow the host
-application uses, and exports runpacks for offline verification. In the
-operational sense, this is LLM/task evaluation: a run cannot advance until its
-requirements pass.
+`decision-gate-core` is the deterministic control plane. It:
 
-The core does not execute arbitrary tasks. It evaluates evidence produced by
-providers or supplied via precheck and applies comparators + RET to decide gate
-outcomes.
+- Evaluates gates using RET logic and comparators.
+- Enforces trust lanes (`verified` vs `asserted`).
+- Records run state and decisions for audit and replay.
+- Builds runpacks for offline verification.
 
-## AssetCore Integration
-DG integrates with AssetCore through explicit interfaces for deterministic
-evidence and replay. Integration is optional and does not introduce code
-coupling. See `Docs/integrations/assetcore/` for the canonical integration hub.
+It does not provide transports or persistence implementations. Those are
+supplied via traits (`EvidenceProvider`, `RunStateStore`, `Dispatcher`,
+`ArtifactSink`, `DataShapeRegistry`).
 
-## Product State (Current)
+## Architecture
 
-Decision Gate core is implemented end-to-end as a backend-agnostic control-plane
-engine. It includes canonical schemas, deterministic evaluation, trust lanes,
-and offline-verifiable runpacks. Production integration (HTTP/MCP services,
-persistent storage, and policy engines) is intentionally external to this crate.
+```mermaid
+sequenceDiagram
+  participant Client as Caller
+  participant CP as ControlPlane
+  participant Store as RunStateStore
+  participant Provider as EvidenceProvider
+  participant Dispatcher as Dispatcher
 
-## Evidence Sourcing Model (Core View)
-Decision Gate core evaluates evidence from three sources:
+  Client->>CP: start_run(RunConfig)
+  CP->>Store: save RunState
+  Store-->>CP: ok
 
-1) **Provider-pulled evidence (live runs)**  
-Evidence is fetched by an `EvidenceProvider` implementation (built-in or
-external MCP via the MCP layer).
-
-2) **Asserted evidence (precheck only)**  
-Precheck accepts caller-supplied evidence payloads validated against data
-shapes, and evaluates gates without mutating run state.
-
-3) **Audit submissions (scenario.submit)**  
-Submissions are stored with hashes for audit, but they do not affect gate
-evaluation.
-
-The evaluation model is the same in all cases: evidence → comparator →
-tri-state → RET gate outcome.
-
-## Governance and Standards
-
-This crate follows the same documentation and enforcement posture as the
-Decision Gate repository:
-
-- `Docs/standards/codebase_formatting_standards.md`
-- `Docs/standards/codebase_engineering_standards.md`
-- `Docs/security/threat_model.md`
-
-All configuration is centralized, schema-driven, and must pass a Zero Trust
-review. Decision Gate assumes nation-state adversaries by default.
-
-## Relationship to Requirements Crate
-
-Decision Gate uses the vendored `ret-logic/` crate (RET: Requirement Evaluation Tree) as
-its universal gate algebra and evaluation kernel. Evidence anchoring, runpack
-artifacts, and disclosure policy remain Decision Gate responsibilities.
+  Client->>CP: scenario_next(NextRequest)
+  CP->>Store: load RunState
+  CP->>Provider: query evidence
+  Provider-->>CP: EvidenceResult
+  CP->>CP: evaluate gates + trust
+  CP->>Dispatcher: dispatch packets
+  CP->>Store: save RunState
+  CP-->>Client: NextResult
+```
 
 ## Core Capabilities
 
-- Deterministic trigger ingestion, gate evaluation, and decision logging.
-- Precheck evaluation (read-only) that never mutates run state.
-- Trust lanes (verified vs asserted) enforced at gate/predicate level.
-- Runpack generation with RFC 8785 canonical hashing and offline verifier.
-- Schema registry traits and in-memory registry for data shapes.
+- **Gate evaluation**: RET trees with tri-state logic and comparator rules.
+- **Trust lanes**: gate/predicate enforcement of verified vs asserted evidence.
+- **Run state**: deterministic state transitions and audit logs.
+- **Runpacks**: deterministic manifest + artifact bundles.
+- **Schema registry interfaces**: trait definitions used by MCP tooling.
 
-## Canonical Source of Truth
+## Evidence Sourcing Model
 
-All external surfaces (HTTP, MCP, SDKs) must call the same control-plane engine
-codepath. No adapter may implement divergent logic. This preserves invariance
-and ensures that tool-calls, HTTP requests, and batch triggers yield identical
-results for the same inputs.
+The core evaluates evidence in three modes:
 
-## Current Implementation Scope
+1. **Provider-pulled evidence** (live runs): fetched via `EvidenceProvider`.
+2. **Asserted evidence** (precheck): caller supplies `EvidenceResult` values.
+3. **Submissions** (`scenario_submit`): stored for audit, not gate evaluation.
 
-Implemented in `decision-gate-core`:
+Schema validation and asserted payload ingestion live in the MCP layer.
 
-- Canonical schemas: scenario specs, stages, packets, triggers, decisions, run state.
-- Evidence contract: queries, results, anchors, comparators, tri-state outcomes.
-- Deterministic engine: idempotent trigger handling, gate evaluation, safe summaries.
-- Control-plane API: `scenario.status`, `scenario.next`, `scenario.submit`, `precheck`.
-- Runpack builder + offline verifier with RFC 8785 canonical JSON hashing.
-- In-memory run state store and in-memory artifact sink for tests/examples.
-- In-memory schema registry for data shapes.
+## Module Structure
 
-Not implemented here (explicitly missing today):
+- `core/` - scenario specs, run state, evidence types, hashing
+- `interfaces/` - traits for providers, dispatchers, stores
+- `runtime/` - control plane engine, gate evaluation, runpack builder
 
-- HTTP/MCP services and transport adapters.
-- Durable run state storage (database-backed store).
-- Durable runpack storage (filesystem/blob store adapters).
-- Policy engine integration beyond the `PolicyDecider` trait.
-- Scenario registry persistence (MCP holds this in memory today).
-- Scenario-level trust policies (only global + gate/predicate are enforced).
+## API Reference
 
-## Getting Started
+### ControlPlane
 
-- Example runner: `cargo run -p decision-gate-core --example minimal`
-- Unit tests: `cargo test -p decision-gate-core`
+Constructed with a single `ScenarioSpec` and trait implementations:
 
-## Stability Notes
+```rust
+use decision_gate_core::runtime::ControlPlane;
+use decision_gate_core::runtime::ControlPlaneConfig;
 
-The core is functional and deterministic, but still in a stabilization phase.
-Backwards compatibility is not guaranteed until a stable release is announced.
+let control_plane = ControlPlane::new(
+    scenario_spec,
+    evidence_provider,
+    dispatcher,
+    run_state_store,
+    None, // Optional PolicyDecider
+    ControlPlaneConfig::default(),
+)?;
+```
+
+Key methods:
+- `start_run(run_config, started_at, dispatch_initial)`
+- `scenario_status(status_request)`
+- `scenario_next(next_request)`
+- `scenario_submit(submit_request)`
+- `trigger(trigger_event)`
+- `precheck(precheck_request)`
+
+### EvidenceProvider
+
+```rust
+use decision_gate_core::{EvidenceProvider, EvidenceQuery, EvidenceResult, EvidenceContext};
+
+impl EvidenceProvider for MyProvider {
+    fn query(&self, query: &EvidenceQuery, ctx: &EvidenceContext)
+        -> Result<EvidenceResult, decision_gate_core::EvidenceError> {
+        // fetch evidence and return EvidenceResult
+    }
+
+    fn validate_providers(&self, _spec: &ScenarioSpec)
+        -> Result<(), decision_gate_core::ProviderMissingError> {
+        Ok(())
+    }
+}
+```
+
+### Dispatcher
+
+```rust
+use decision_gate_core::{Dispatcher, DispatchTarget, PacketEnvelope, PacketPayload};
+
+impl Dispatcher for MyDispatcher {
+    fn dispatch(
+        &self,
+        target: &DispatchTarget,
+        envelope: &PacketEnvelope,
+        payload: &PacketPayload,
+    ) -> Result<decision_gate_core::DispatchReceipt, decision_gate_core::DispatchError> {
+        // deliver packet
+    }
+}
+```
+
+### RunStateStore
+
+```rust
+use decision_gate_core::{RunStateStore, RunState, RunId, TenantId, NamespaceId};
+
+impl RunStateStore for MyStore {
+    fn load(
+        &self,
+        tenant_id: &TenantId,
+        namespace_id: &NamespaceId,
+        run_id: &RunId,
+    ) -> Result<Option<RunState>, decision_gate_core::StoreError> {
+        // load state
+    }
+
+    fn save(&self, state: &RunState) -> Result<(), decision_gate_core::StoreError> {
+        // save state
+    }
+}
+```
+
+## Usage Examples
+
+### Basic Scenario Execution (Abridged)
+
+```rust
+use decision_gate_core::*;
+use decision_gate_core::runtime::*;
+
+let spec = build_spec(); // ScenarioSpec
+let control_plane = ControlPlane::new(spec, provider, dispatcher, store, None, ControlPlaneConfig::default())?;
+
+let run_state = control_plane.start_run(
+    RunConfig {
+        tenant_id: TenantId::new("tenant"),
+        namespace_id: NamespaceId::new("default"),
+        run_id: RunId::new("run-1"),
+        scenario_id: ScenarioId::new("scenario"),
+        dispatch_targets: vec![],
+        policy_tags: vec![],
+    },
+    Timestamp::Logical(1),
+    false,
+)?;
+
+let next = control_plane.scenario_next(&NextRequest {
+    tenant_id: run_state.tenant_id.clone(),
+    namespace_id: run_state.namespace_id.clone(),
+    run_id: run_state.run_id.clone(),
+    trigger_id: TriggerId::new("trigger-1"),
+    agent_id: "agent-1".to_string(),
+    time: Timestamp::Logical(2),
+    correlation_id: None,
+})?;
+```
+
+### Precheck (Asserted Evidence)
+
+```rust
+use decision_gate_core::{EvidenceResult, EvidenceValue, TrustLane};
+use decision_gate_core::runtime::PrecheckRequest;
+use serde_json::json;
+
+let mut evidence = std::collections::BTreeMap::new();
+evidence.insert(
+    "deploy_env".into(),
+    EvidenceResult {
+        value: Some(EvidenceValue::Json(json!("production"))),
+        lane: TrustLane::Asserted,
+        error: None,
+        evidence_hash: None,
+        evidence_ref: None,
+        evidence_anchor: None,
+        signature: None,
+        content_type: Some("application/json".to_string()),
+    },
+);
+
+let result = control_plane.precheck(&PrecheckRequest {
+    stage_id: None,
+    evidence,
+})?;
+```
+
+### Runpack Build + Verify (Abridged)
+
+```rust
+use decision_gate_core::runtime::{RunpackBuilder, RunpackVerifier};
+
+let manifest = RunpackBuilder::default()
+    .build(&mut artifact_sink, &spec, &run_state, Timestamp::Logical(3))?;
+
+let report = RunpackVerifier::verify_manifest(&manifest, &artifact_reader)?;
+```
+
+## Testing
+
+```bash
+cargo test -p decision-gate-core
+```
+
+## Relationship to RET Logic
+
+Decision Gate uses `ret-logic` as its predicate algebra engine. RET evaluates
+boolean and tri-state requirement trees; Decision Gate supplies domain semantics
+(evidence, trust, disclosure, runpacks).
+
+See `../../ret-logic/README.md` for RET implementation details.
+
+## References
+

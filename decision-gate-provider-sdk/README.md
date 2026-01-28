@@ -2,36 +2,90 @@
 decision-gate-provider-sdk/README.md
 ============================================================================
 Document: Decision Gate Provider SDK Templates
-Description: Language templates and specs for MCP evidence providers.
-Purpose: Provide starter implementations for the Decision Gate evidence protocol.
+Description: Language templates for MCP evidence providers.
+Purpose: Provide starter implementations of the evidence_query protocol.
 Dependencies:
-  - Docs/roadmap/decision_gate_mcp_roadmap.md
+  - ../../Docs/configuration/decision-gate.toml.md
+  - ./spec/evidence_provider_protocol.md
 ============================================================================
 -->
 
 # Decision Gate Provider SDK
 
-## Overview
-This folder contains templates for building MCP evidence providers that
-implement the `evidence_query` tool used by Decision Gate. Each template
-handles JSON-RPC 2.0 framing, tool dispatch, and EvidenceResult responses.
-Providers should also publish a capabilities contract (JSON) that Decision Gate
-loads via `capabilities_path` in the MCP config.
+Language templates for building MCP evidence providers that implement the
+`evidence_query` tool used by Decision Gate.
 
-External providers are optional. Decision Gate ships built-in providers
-(time/env/json/http) that cover most local workflows, especially when tools can
-emit JSON artifacts for the `json` provider to read.
+## Table of Contents
+
+- [Overview](#overview)
+- [Layout](#layout)
+- [Protocol](#protocol)
+- [Integrating with Decision Gate](#integrating-with-decision-gate)
+- [Getting Started](#getting-started)
+- [References](#references)
+
+## Overview
+
+External evidence providers are optional: Decision Gate ships built-in providers
+(time, env, json, http). Use an external provider when evidence must be queried
+from a custom backend (databases, SaaS APIs, internal services).
+
+Each template:
+- Implements JSON-RPC 2.0 framing over stdio.
+- Exposes `tools/list` and `tools/call` for `evidence_query`.
+- Returns `EvidenceResult` objects compatible with Decision Gate contracts.
 
 ## Layout
-- `spec/` - Protocol reference for the `evidence_query` tool contract.
-- `typescript/` - Node/TypeScript template for a stdio MCP provider.
-- `python/` - Python template for a stdio MCP provider.
-- `go/` - Go template for a stdio MCP provider.
+
+- `spec/` - protocol reference for `evidence_query`.
+- `typescript/` - Node/TypeScript stdio provider template.
+- `python/` - Python stdio provider template.
+- `go/` - Go stdio provider template.
+
+## Protocol
+
+The authoritative protocol definition is in:
+`decision-gate-provider-sdk/spec/evidence_provider_protocol.md`.
+
+Providers must:
+- Advertise the `evidence_query` tool via `tools/list`.
+- Accept `EvidenceQuery` + `EvidenceContext` payloads via `tools/call`.
+- Return an `EvidenceResult` with `lane`, `value`, and optional metadata.
+
+## Integrating with Decision Gate
+
+Register a provider in `decision-gate.toml`:
+
+```toml
+[[providers]]
+name = "custom"
+type = "mcp"
+command = ["python", "provider.py"]
+capabilities_path = "contracts/custom_provider.json"
+```
+
+HTTP MCP provider example:
+
+```toml
+[[providers]]
+name = "custom"
+type = "mcp"
+url = "https://provider.example.com/rpc"
+allow_insecure_http = false
+auth = { bearer_token = "${PROVIDER_TOKEN}" }
+capabilities_path = "contracts/custom_provider.json"
+```
+
+See `Docs/configuration/decision-gate.toml.md` for full provider configuration
+options and built-in provider configs.
 
 ## Getting Started
-1. Choose the language template.
-2. Replace the `handleEvidenceQuery` implementation with real provider logic.
-3. Emit a provider capabilities file describing predicates and params.
-4. Run the provider over stdio or wrap it behind an HTTP handler.
 
-For protocol details, see `decision-gate-provider-sdk/spec/evidence_provider_protocol.md`.
+1. Choose a language template.
+2. Replace the `handleEvidenceQuery`/`handle_evidence_query` implementation with
+   real provider logic.
+3. Generate a provider contract JSON describing predicates and params.
+4. Register the provider with `decision-gate.toml`.
+
+## References
+

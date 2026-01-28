@@ -5,24 +5,53 @@ Document: Go Evidence Provider Template
 Description: Go MCP provider template for Decision Gate.
 Purpose: Provide a minimal stdio JSON-RPC 2.0 provider implementation.
 Dependencies:
-  - decision-gate-provider-sdk/spec/evidence_provider_protocol.md
+  - ../spec/evidence_provider_protocol.md
 ============================================================================
 -->
 
 # Go Provider Template
 
+Minimal Go MCP provider that implements `tools/list` and `tools/call` for
+`evidence_query` over stdio.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Files](#files)
+- [Run](#run)
+- [Customization](#customization)
+- [Framing Limits](#framing-limits)
+- [References](#references)
+
 ## Overview
-This template implements a stdio MCP server that supports `tools/list` and
-`tools/call` for `evidence_query`. Replace `handleEvidenceQuery` with real
-provider logic.
+
+This template uses Content-Length framing and replies with JSON-RPC 2.0
+responses. Replace `handleEvidenceQuery` with provider-specific logic and keep
+`tools/list` aligned with your contract.
+
+## Files
+
+- `main.go` - JSON-RPC framing + tool handlers.
 
 ## Run
+
 ```bash
 go run .
 ```
 
-## Notes
-- Uses Content-Length framing over stdio.
-- Frames larger than 1 MiB or headers over 8 KiB are rejected.
-- Returns JSON-RPC errors for invalid requests.
-- Publish a capabilities JSON file and keep `tools/list` aligned with it.
+## Customization
+
+1. Define predicates and parameters in `handleEvidenceQuery`.
+2. Populate `tools/list` with the `evidence_query` tool metadata.
+3. Generate a provider contract JSON and register it in `decision-gate.toml`.
+
+## Framing Limits
+
+The template enforces:
+- Maximum header size: 8 KiB
+- Maximum body size: 1 MiB
+
+Requests exceeding these limits are rejected with JSON-RPC errors.
+
+## References
+

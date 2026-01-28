@@ -4,77 +4,179 @@ Decision Gate MCP README
 Document: decision-gate-mcp
 Description: MCP server and evidence federation for Decision Gate.
 Purpose: Expose the Decision Gate control plane over JSON-RPC 2.0.
+Dependencies:
+  - ../../README.md (Decision Gate overview)
+  - ../decision-gate-core/README.md
+  - ../../Docs/configuration/decision-gate.toml.md
+  - ../../Docs/security/threat_model.md
 ============================================================================
 -->
 
 # decision-gate-mcp
 
+MCP server and evidence federation layer for Decision Gate. Exposes the control
+plane as JSON-RPC 2.0 tools over stdio, HTTP, or SSE.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [MCP Tool Surface](#mcp-tool-surface)
+- [Transports](#transports)
+- [Evidence Federation](#evidence-federation)
+- [Configuration](#configuration)
+- [Usage Examples](#usage-examples)
+- [Current Limits](#current-limits)
+- [Testing](#testing)
+- [References](#references)
+
 ## Overview
-`decision-gate-mcp` exposes Decision Gate as an MCP JSON-RPC 2.0 server over
-stdio, HTTP, or SSE. Decision Gate is a deterministic checkpoint and
-requirement-evaluation system for gating plan progression, and this crate is
-its canonical tool surface for scenario operations, provider-backed evidence
-queries, schema registry access, and precheck.
 
-This crate is a thin transport and policy layer over the control plane in
-`decision-gate-core`. It must never implement divergent behavior.
+`decision-gate-mcp` is the canonical tool surface for Decision Gate. It provides
+scenario lifecycle tools, evidence queries, schema registry access, precheck,
+and runpack operations. The core evaluation logic lives in
+`decision-gate-core`; this crate is a transport and policy layer.
 
-Decision Gate does not require external MCP providers to be useful. Built-in
-providers (time, env, json, http) are available out of the box, and the `json`
-provider enables gating any tool that can emit JSON artifacts.
+## Architecture
 
-## AssetCore Integration
-DG integrates with AssetCore for deterministic evidence and replay without
-coupling the codebases. See `Docs/integrations/assetcore/` for the canonical
-integration hub and `Docs/architecture/decision_gate_assetcore_integration_contract.md`
-for the contract.
+```mermaid
+flowchart TB
+  Client[MCP client] --> Transport[Transport: stdio/HTTP/SSE]
+  Transport --> Auth[Auth + policy]
+  Auth --> Tools[Tool router (17 tools)]
 
-## Capabilities
-- MCP tools: scenario lifecycle, evidence_query, runpack export/verify.
-- Discovery tools: providers_list, provider_contract_get, provider_schema_get,
-  schemas_list/get, scenarios_list.
-- Schema registry: register/list/get for versioned data shapes.
-- Precheck: schema-validated, read-only evaluation of asserted data.
-- Security controls: bearer or mTLS auth, tool allowlist, rate limits,
-  inflight limits, audit logging.
+  Tools --> Core[ControlPlane]
+  Tools --> Registry[Schema registry]
+  Tools --> Evidence[Federated evidence provider]
 
-## Evidence Sourcing Modes
-Evidence can come from:
-- **Built-in providers** (time, env, json, http).
-- **External MCP providers** (stdio or HTTP, configured in `decision-gate.toml`).
-- **Asserted evidence** via `precheck` (schema-validated, read-only).
+  Evidence --> Builtins[Built-in providers]
+  Evidence --> External[External MCP providers]
 
-Decision Gate does not execute arbitrary tasks; it evaluates evidence produced
-by providers or supplied to precheck. For local workflows, run tools outside DG
-and point the `json` provider at the resulting artifacts.
+  Core --> Store[RunStateStore]
+  Core --> Dispatcher[Dispatcher]
+```
 
-## Current Limits and Gaps
-- No explicit dev-permissive toggle; trust is controlled by `trust.min_lane`.
-- No registry RBAC/ACL beyond tool allowlist.
-- Precheck audit is request-level; hash-only audit policy is not enforced.
+## MCP Tool Surface
 
-## Configuration Highlights
-- `server.transport`: `stdio`, `http`, or `sse`.
-- `server.auth`: `bearer_token` or `mtls` with tool allowlists.
-- `server.limits`: inflight and rate limiting.
-- `schema_registry`: memory or sqlite backend with size/entry limits.
-- `trust.min_lane`: global trust lane requirement.
+Tool definitions are generated in `Docs/generated/decision-gate/tooling.json`.
+The tool list includes:
 
-## Tool Surface (MCP)
-- scenario_define, scenario_start, scenario_status, scenario_next
-- scenario_submit, scenario_trigger
-- evidence_query
-- providers_list, provider_contract_get, provider_schema_get
-- schemas_register, schemas_list, schemas_get, scenarios_list
-- precheck
-- runpack_export, runpack_verify
+- Scenario lifecycle: `scenario_define`, `scenario_start`, `scenario_status`,
+  `scenario_next`, `scenario_submit`, `scenario_trigger`, `scenarios_list`
+- Evidence and providers: `evidence_query`, `providers_list`,
+  `provider_contract_get`, `provider_schema_get`
+- Schema registry: `schemas_register`, `schemas_list`, `schemas_get`
+- Runpacks: `runpack_export`, `runpack_verify`
+- Precheck: `precheck`
+
+## Transports
+
+- **Stdio**: Content-Length framing over stdin/stdout.
+- **HTTP**: JSON-RPC 2.0 via `POST /rpc`.
+- **SSE**: JSON-RPC 2.0 via `POST /rpc`, responses returned as SSE events.
+
+## Evidence Federation
+
+Evidence queries are routed to built-in providers or external MCP providers
+based on the provider registry in `decision-gate.toml`.
+
+```mermaid
+sequenceDiagram
+  participant Client as MCP Client
+  participant MCP as decision-gate-mcp
+  participant Core as ControlPlane
+  participant Fed as FederatedEvidenceProvider
+  participant Builtin as Built-in Provider
+  participant External as External MCP
+
+  Client->>MCP: evidence_query
+  MCP->>Core: validate + route
+  Core->>Fed: query(EvidenceQuery)
+  alt built-in
+    Fed->>Builtin: query
+    Builtin-->>Fed: EvidenceResult
+  else external
+    Fed->>External: MCP JSON-RPC call
+    External-->>Fed: EvidenceResult
+  end
+  Fed-->>Core: EvidenceResult
+  Core-->>MCP: response
+  MCP-->>Client: JSON-RPC result
+```
+
+## Configuration
+
+`decision-gate.toml` is the authoritative configuration format. See
+`Docs/configuration/decision-gate.toml.md` for full details.
+
+Minimal HTTP server example:
+
+```toml
+[server]
+transport = "http"
+bind = "127.0.0.1:8080"
+max_body_bytes = 1048576
+
+[server.auth]
+mode = "bearer_token"
+bearer_tokens = ["token-1"]
+allowed_tools = ["scenario_define", "scenario_start", "scenario_next"]
+
+[server.limits]
+max_inflight = 100
+```
+
+Provider registration:
+
+```toml
+[[providers]]
+name = "time"
+type = "builtin"
+
+[[providers]]
+name = "custom"
+type = "mcp"
+command = ["python", "provider.py"]
+capabilities_path = "contracts/custom_provider.json"
+```
+
+Evidence disclosure policy (raw values via `evidence_query`):
+
+```toml
+[evidence]
+allow_raw_values = false
+require_provider_opt_in = true
+```
+
+## Usage Examples
+
+Start the MCP server:
+
+```bash
+cargo run -p decision-gate-cli -- serve --config decision-gate.toml
+```
+
+Make an HTTP JSON-RPC call:
+
+```bash
+curl -X POST http://127.0.0.1:8080/rpc \
+  -H "Authorization: Bearer token-1" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+## Current Limits
+
+- External MCP provider retries are not built in.
+- Evidence raw values are redacted by default unless explicitly enabled.
+- SSE responses are delivered as single-event streams (one response per request).
 
 ## Testing
+
 ```bash
 cargo test -p decision-gate-mcp
+cargo test -p decision-gate-mcp --test contract_schema_e2e
 ```
 
 ## References
-- Docs/security/threat_model.md
-- Docs/roadmap/trust_lanes_registry_plan.md
-- decision-gate-core/README.md
+

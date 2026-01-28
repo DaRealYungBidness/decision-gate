@@ -5,26 +5,58 @@ Document: TypeScript Evidence Provider Template
 Description: Node/TypeScript MCP provider template for Decision Gate.
 Purpose: Provide a minimal stdio JSON-RPC 2.0 provider implementation.
 Dependencies:
-  - decision-gate-provider-sdk/spec/evidence_provider_protocol.md
+  - ../spec/evidence_provider_protocol.md
 ============================================================================
 -->
 
 # TypeScript Provider Template
 
+Minimal Node/TypeScript MCP provider that implements `tools/list` and
+`tools/call` for `evidence_query` over stdio.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Files](#files)
+- [Build and Run](#build-and-run)
+- [Customization](#customization)
+- [Framing Limits](#framing-limits)
+- [References](#references)
+
 ## Overview
-This template implements a stdio MCP server that handles `tools/list` and
-`tools/call` for the `evidence_query` tool. Replace the stubbed
-`handleEvidenceQuery` logic with real evidence access.
+
+This template implements Content-Length framing over stdio and responds with
+JSON-RPC 2.0 envelopes. Replace the stubbed `handleEvidenceQuery` with your
+provider logic and keep `tools/list` aligned with your contract JSON.
+
+## Files
+
+- `src/index.ts` - JSON-RPC framing + tool handlers.
+- `package.json` - build script (`tsc`).
+- `tsconfig.json` - TypeScript compiler config.
 
 ## Build and Run
+
 ```bash
 npm install
 npm run build
 node dist/index.js
 ```
 
-## Notes
-- This template uses Content-Length framing over stdio.
-- Frames larger than 1 MiB or headers over 8 KiB are rejected.
-- Return JSON-RPC errors for unsupported predicates.
-- Publish a capabilities JSON file and keep `tools/list` aligned with it.
+## Customization
+
+1. Define predicates and parameters in `handleEvidenceQuery`.
+2. Populate `tools/list` with the `evidence_query` tool metadata.
+3. Generate a provider contract JSON (capabilities) and register it in
+   `decision-gate.toml` via `capabilities_path`.
+
+## Framing Limits
+
+The template enforces:
+- Maximum header size: 8 KiB
+- Maximum body size: 1 MiB
+
+Requests exceeding these limits are rejected with JSON-RPC errors.
+
+## References
+

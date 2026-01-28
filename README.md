@@ -73,18 +73,20 @@ integration hub lives at `Docs/integrations/assetcore/`.
 
 ## Current Status (Accuracy Notes)
 
-Implemented:
+Decision Gate is in active development; APIs and config may change.
+
+Implemented in OSS:
 
 - Trust lanes (verified vs asserted) with gate/predicate enforcement.
-- Schema registry (versioned data shapes) and discovery tools.
-- Precheck tool (read-only evaluation of asserted payloads).
+- Schema registry with ACLs, audit events, and discovery tools.
+- Namespace authority checks (including optional AssetCore HTTP authority).
+- Dev-permissive mode for asserted evidence (scoped, warning-emitting).
+- Precheck tool with schema validation (via MCP).
 
-Not yet implemented:
+Operational limits:
 
-- Dev-permissive/untrusted mode toggle with explicit warnings.
-- Registry RBAC/ACL beyond tool allowlists.
-- Precheck audit hash-only enforcement.
-- Default namespace policy for non-Asset-Core deployments.
+- External MCP provider retries are not built in.
+- Raw evidence values are redacted by default unless explicitly enabled.
 
 ## Architecture at a Glance
 
@@ -180,7 +182,7 @@ the same; only the source and trust lane differ.
 2. **Asserted evidence (precheck only)**  
    The caller supplies evidence payloads for a precheck request. Payloads are
    schema-validated against a registered data shape, but precheck does not mutate
-   run state. This is useful for trusted agents or fast “what if” checks.
+   run state. This is useful for trusted agents or fast "what if" checks.
 
 3. **Audit submissions (scenario_submit)**  
    Submissions are stored with hashes for audit, but do not affect gate evaluation.
@@ -190,7 +192,7 @@ Decision Gate does not execute arbitrary tasks. If you need to run a tool
 
 ## Why Built-ins + JSON Go Far
 
-Most “has X been done?” questions can be expressed as data:
+Most "has X been done?" questions can be expressed as data:
 
 - If a tool can emit JSON, the **json** provider can gate it.
 - If data lives behind an API, the **http** provider can fetch a bounded signal.
@@ -200,10 +202,10 @@ Most “has X been done?” questions can be expressed as data:
 This pattern avoids arbitrary execution inside DG while still covering most
 workflow gates:
 
-- lint/format checks → tool writes JSON report → `json` provider validates fields
-- tests/coverage → test runner emits JSON → comparator checks `failed == 0`
-- security scans → JSON output → comparator checks severity counts
-- release metadata → JSON file or HTTP endpoint → comparator checks version
+- lint/format checks -> tool writes JSON report -> `json` provider validates fields
+- tests/coverage -> test runner emits JSON -> comparator checks `failed == 0`
+- security scans -> JSON output -> comparator checks severity counts
+- release metadata -> JSON file or HTTP endpoint -> comparator checks version
 
 If you need richer sources (databases, SaaS APIs), implement an external MCP
 provider; the core evaluation model stays the same.
@@ -572,8 +574,10 @@ Do not use `cargo fmt` in this repo.
 
 ## References
 
-Kublai Khan. (2017). _The Hammer_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=8GGMdMo61_o
+The Amity Affliction. (2014). _Pittsburgh_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=vu3xGr-lNVI
+
+Kublai Khan TX. (2017). _The Hammer_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=8GGMdMo61_o
 
 Paleface Swiss. (2023). _The Gallow_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=ThvEJXMeYOA
 
-The Amity Affliction. (2014). _Pittsburgh_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=vu3xGr-lNVI
+Upon A Burning Body. (2016). _You Don't Own Me_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=5GEzTkYWCFQ

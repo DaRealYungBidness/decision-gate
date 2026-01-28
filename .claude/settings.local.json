@@ -7,7 +7,10 @@
       "Bash(ls -la \"c:\\\\Users\\\\Micha\\\\Documents\\\\GitHub\\\\decision-gate\\\\decision-gate-core\\\\src\\\\core\"\" | grep \".rs \")",
       "Bash(Get-ChildItem -Recurse \"c:\\\\Users\\\\Micha\\\\Documents\\\\GitHub\\\\decision-gate\\\\decision-gate-mcp\\\\src\" -Name)",
       "Bash(ls:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(powershell -Command \"Get-Content ''C:\\\\Users\\\\Micha\\\\Documents\\\\GitHub\\\\decision-gate\\\\decision-gate-providers\\\\README.md'' | Measure-Object -Line\")",
+      "Bash(powershell -Command \"$content = Get-Content ''decision-gate-providers\\\\README.md'' -Raw; $content\")",
+      "Bash(cargo run:*)"
     ]
   }
 }

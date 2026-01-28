@@ -39,7 +39,7 @@ nation-state adversaries. The following standards govern all work:
    - Required file headers, overview blocks, sectioning, and cross-references.
 3. **OSS vs Enterprise Boundary (Authoritative)**:
    - `AGENTS.md` in this repo
-   - No enterprise deps in OSS crates; enterprise code under `enterprise/`;
+   - No enterprise deps in OSS crates; enterprise code lives in Asset-Core;
      seams, not forks; OSS stays deterministic and auditable.
 4. **Threat Model Alignment**:
    - `Docs/security/threat_model.md` must be updated when new storage
@@ -69,7 +69,7 @@ without changing core semantics or OSS determinism.
   (`runpacks.s3.object_lock`).
 - Compliance metadata capture and attestation.
 - Multi-region durability or replication policy integration.
-- Enterprise-only system tests under `enterprise/`.
+- Enterprise-only system tests in `Asset-Core/enterprise-system-tests`.
 
 ## World-Class Decisions (Locked)
 These are the agreed implementation decisions for OSS and enterprise layering.

@@ -3,20 +3,47 @@ Decision Gate File Disclosure Example README
 ============================================================================
 Document: examples/file-disclosure
 Description: File-backed payload disclosure using broker sources/sinks.
+Purpose: Demonstrate external payload resolution via the broker.
+Dependencies:
+  - ../../decision-gate-core/README.md
+  - ../../decision-gate-broker/README.md
 ============================================================================
 -->
 
 # File Disclosure Example
 
+Demonstrates file-backed payload disclosure using the broker's `FileSource` and
+`LogSink` implementations.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [What It Demonstrates](#what-it-demonstrates)
+- [Run](#run)
+- [Notes](#notes)
+- [References](#references)
+
 ## Overview
-Demonstrates a file-backed disclosure payload using `FileSource` and `LogSink`
-from `decision-gate-broker`.
+
+This example builds a scenario that emits a packet with an external file
+reference. The broker resolves the file and logs the disclosure.
+
+## What It Demonstrates
+
+- `PacketPayload::External` with `file://` URIs.
+- Broker source resolution and sink dispatch.
+- Deterministic packet hashing and receipts.
 
 ## Run
+
 ```bash
 cargo run -p decision-gate-example-file-disclosure
 ```
 
 ## Notes
-- Uses the broker for payload resolution and logging.
-- Intended for validation of source/sink wiring.
+
+- Uses a temporary directory for the file payload.
+- Intended as a wiring example for source/sink resolution.
+
+## References
+

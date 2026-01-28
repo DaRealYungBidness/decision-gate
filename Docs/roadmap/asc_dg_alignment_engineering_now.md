@@ -188,4 +188,4 @@ The test suite must be exhaustive (not minimal). Required categories:
 
 ## Validation (Executed)
 - `cargo test -p system-tests --features system-tests`
-- `cargo test --workspace --exclude system-tests --exclude enterprise-system-tests`
+- `cargo test --workspace --exclude system-tests`

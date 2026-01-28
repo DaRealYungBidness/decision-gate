@@ -17,6 +17,7 @@
 // SECTION: Imports
 // ============================================================================
 
+use std::future::Future;
 use std::path::Component;
 use std::path::Path;
 use std::sync::Arc;
@@ -41,7 +42,9 @@ use decision_gate_core::ScenarioId;
 use decision_gate_core::TenantId;
 use decision_gate_core::runtime::runpack::MAX_RUNPACK_ARTIFACT_BYTES;
 use tokio::io::AsyncReadExt;
+use tokio::runtime::Handle;
 use tokio::runtime::Runtime;
+use tokio::runtime::RuntimeFlavor;
 
 // ============================================================================
 // SECTION: Constants
@@ -51,6 +54,34 @@ use tokio::runtime::Runtime;
 const MAX_PATH_COMPONENT_LENGTH: usize = 255;
 /// Maximum total key length.
 const MAX_TOTAL_PATH_LENGTH: usize = 4096;
+
+// ============================================================================ 
+// SECTION: Runtime Helpers
+// ============================================================================ 
+
+fn block_on_with_runtime<F, T>(runtime: &Runtime, future: F) -> Result<T, ObjectStoreError>
+where
+    F: Future<Output = Result<T, ObjectStoreError>> + Send + 'static,
+    T: Send + 'static,
+{
+    if let Ok(handle) = Handle::try_current() {
+        if matches!(handle.runtime_flavor(), RuntimeFlavor::MultiThread) {
+            return tokio::task::block_in_place(|| handle.block_on(future));
+        }
+        let (tx, rx) = std::sync::mpsc::sync_channel(1);
+        std::thread::spawn(move || {
+            let result = Runtime::new()
+                .map_err(|err| ObjectStoreError::Io(err.to_string()))
+                .and_then(|runtime| runtime.block_on(future));
+            let _ = tx.send(result);
+        });
+        return rx
+            .recv()
+            .unwrap_or_else(|_| Err(ObjectStoreError::Io("object store thread join failed".to_string())));
+    }
+
+    runtime.block_on(future)
+}
 
 use crate::config::ObjectStoreConfig;
 use crate::config::ObjectStoreProvider;
@@ -145,16 +176,18 @@ impl S3ObjectStoreClient {
         config.validate().map_err(|err| ObjectStoreError::Invalid(err.to_string()))?;
         let prefix = normalize_prefix(config.prefix.as_deref().unwrap_or(""))?;
         let runtime = Runtime::new().map_err(|err| ObjectStoreError::Io(err.to_string()))?;
-        let shared_config = runtime.block_on(async {
+        let region = config.region.clone();
+        let endpoint = config.endpoint.clone();
+        let shared_config = block_on_with_runtime(&runtime, async {
             let mut loader = aws_config::defaults(BehaviorVersion::latest());
-            if let Some(region) = &config.region {
-                loader = loader.region(Region::new(region.clone()));
+            if let Some(region) = region {
+                loader = loader.region(Region::new(region));
             }
-            if let Some(endpoint) = &config.endpoint {
+            if let Some(endpoint) = endpoint {
                 loader = loader.endpoint_url(endpoint);
             }
-            loader.load().await
-        });
+            Ok(loader.load().await)
+        })?;
         let mut s3_builder = aws_sdk_s3::config::Builder::from(&shared_config);
         if config.force_path_style {
             s3_builder = s3_builder.force_path_style(true);
@@ -192,7 +225,8 @@ impl ObjectStoreClient for S3ObjectStoreClient {
         let bucket = self.bucket.clone();
         let key = self.prefixed_key(key);
         let client = self.client.clone();
-        self.runtime()?.block_on(async {
+        let content_type = content_type.map(str::to_string);
+        block_on_with_runtime(self.runtime()?, async move {
             let body = ByteStream::from(bytes);
             let mut request = client.put_object().bucket(bucket).key(key).body(body);
             if let Some(content_type) = content_type {
@@ -207,7 +241,7 @@ impl ObjectStoreClient for S3ObjectStoreClient {
         let bucket = self.bucket.clone();
         let key = self.prefixed_key(key);
         let client = self.client.clone();
-        self.runtime()?.block_on(async {
+        block_on_with_runtime(self.runtime()?, async move {
             let output = client
                 .get_object()
                 .bucket(bucket)
@@ -644,4 +678,3 @@ impl ObjectStoreClient for InMemoryObjectStore {
 
 #[cfg(test)]
 mod tests;
-

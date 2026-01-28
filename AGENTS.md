@@ -32,11 +32,11 @@ When adding enterprise functionality, follow these rules:
 
 - **No enterprise deps in OSS crates.** OSS crates may define traits/interfaces
   but must not depend on enterprise crates.
-- **Enterprise code lives under `enterprise/` only.** Keep private crates and
-  tests isolated in that subtree.
+- **Enterprise code lives in the private Asset Core monorepo.** Keep private
+  crates and tests isolated there; this OSS repo contains no enterprise code.
 - **OSS remains deterministic and auditable.** Enterprise features must not
   change core semantics or weaken security defaults.
 - **Seams, not forks.** Extend via traits/config (authz, stores, audit sinks)
   instead of modifying OSS behavior for enterprise needs.
 - **Tests stay split.** OSS system tests remain in `system-tests/`. Enterprise
-  system tests live in `enterprise/enterprise-system-tests/` once created.
+  system tests live in the private monorepo.

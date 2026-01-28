@@ -5,8 +5,8 @@ Document: DG + AssetCore Integration Hub
 Description: Canonical entry point for DG/ASC overlap and positioning.
 Purpose: Explain how DG integrates with ASC without implying dependency.
 Dependencies:
-  - Docs/architecture/decision_gate_assetcore_integration_contract.md
-  - Docs/guides/assetcore_interop_runbook.md
+  - ../architecture/decision_gate_assetcore_integration_contract.md
+  - ../guides/assetcore_interop_runbook.md
 ============================================================================
 -->
 
@@ -17,38 +17,56 @@ for deterministic evidence.
 
 **Compatibility**: Compatible with AssetCore.
 
+## Table of Contents
+
+- [Positioning](#positioning)
+- [Integration Boundaries](#integration-boundaries)
+- [Data Flow](#data-flow)
+- [When to Use ASC](#when-to-use-asc)
+- [Starting Points](#starting-points)
+- [References](#references)
+
 ## Positioning
-- **DG is standalone**: A deterministic checkpoint and requirement-evaluation
-  control plane.
-- **ASC is standalone**: A proprietary world-state substrate.
-- **Integration is optional**: Use ASC when deterministic evidence, replay, or
-  audited world-state proofs are required.
 
-## What Integration Means (At a Glance)
-- **DG integrates with ASC** through explicit interfaces (no code coupling).
-- **ASC remains the source of truth** for world-state and namespaces.
-- **DG remains the source of truth** for decisions, gates, and runpacks.
+- **Decision Gate**: deterministic checkpoint and requirement-evaluation control
+  plane.
+- **AssetCore**: proprietary world-state substrate (namespaces, proofs, replay).
+- **Integration**: optional and explicit; no code coupling between repos.
 
-## Integration Patterns
-- **Read-only evidence**: DG queries ASC read daemon for predicates.
-- **Namespace authority**: DG validates namespaces against ASC (fail-closed).
-- **Evidence anchors**: ASC anchors (`namespace_id`, `commit_id`, `world_seq`)
-  are recorded in runpacks for offline verification.
-- **Auth mapping**: ASC principals are mapped to DG tool permissions by an
-  integration layer (DG does not parse ASC auth tokens).
+## Integration Boundaries
 
-## When to Use ASC with DG
-| Use DG with ASC when... | Use DG without ASC when... |
-| --- | --- |
-| You need deterministic evidence and replay across world-state snapshots. | Evidence comes from non-ASC providers or simple asserted inputs. |
-| You require audit-grade anchors tied to a stateful substrate. | You only need lightweight gating for internal workflows. |
-| Namespace authority must be enforced against a system of record. | Namespace authority can be handled by DG's own registry. |
+- DG remains authoritative for scenarios, gates, decisions, and runpacks.
+- ASC remains authoritative for world-state and namespace validity.
+- Auth tokens from ASC are not parsed by DG; an integration layer maps
+  principals to DG tool permissions.
 
-## Where to Start
-- Canonical contract: `Docs/architecture/decision_gate_assetcore_integration_contract.md`
-- Implementation runbook: `Docs/guides/assetcore_interop_runbook.md`
+## Data Flow
+
+```mermaid
+flowchart TB
+  Client[Caller] --> DG[Decision Gate]
+  DG -->|namespace check| ASC[AssetCore namespace authority]
+  DG -->|evidence query| ASCRead[AssetCore read daemon]
+  DG --> Runpack[Runpack artifacts]
+  ASCRead --> DG
+```
+
+## When to Use ASC
+
+Use DG with ASC when:
+- Evidence must be replayable against a deterministic world-state snapshot.
+- Namespace authority must be enforced by a system of record.
+- Auditable anchors must reference ASC commit or sequence metadata.
+
+Use DG without ASC when:
+- Evidence comes from local artifacts or non-ASC services.
+- A lightweight gating layer is sufficient.
+
+## Starting Points
+
+- Contract: `Docs/architecture/decision_gate_assetcore_integration_contract.md`
+- Runbook: `Docs/guides/assetcore_interop_runbook.md`
 - Architecture diagrams: `Docs/integrations/assetcore/architecture.md`
 
-## Lead Example
-**TODO (placeholder)**: Select and document a world-class example that proves
-DG value and naturally motivates ASC adoption.
+## References
+

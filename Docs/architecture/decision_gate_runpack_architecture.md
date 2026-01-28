@@ -185,8 +185,8 @@ The S3-backed store:
 The object storage wiring lives in MCP and enterprise crates.
 [F:decision-gate-mcp/src/runpack_storage.rs L1-L60]
 [F:decision-gate-mcp/src/tools.rs L1350-L1445]
-[F:enterprise/decision-gate-enterprise/src/runpack_storage.rs L1-L80]
-[F:enterprise/decision-gate-store-enterprise/src/s3_runpack_store.rs L1-L380]
+[F:Asset-Core/decision-gate-enterprise/src/runpack_storage.rs L1-L80]
+[F:Asset-Core/decision-gate-store-enterprise/src/s3_runpack_store.rs L1-L380]
 
 ---
 
@@ -199,4 +199,4 @@ The object storage wiring lives in MCP and enterprise crates.
 | Tool integration | `decision-gate-mcp/src/tools.rs` | runpack_export/runpack_verify flows. |
 | Filesystem IO | `decision-gate-mcp/src/runpack.rs` | Safe artifact sink/reader with path validation. |
 | Object store IO | `decision-gate-mcp/src/runpack_object_store.rs` | Object-store sink/reader for runpack artifacts. |
-| Enterprise S3 store | `enterprise/decision-gate-store-enterprise/src/s3_runpack_store.rs` | Object storage backend for managed deployments. |
+| Enterprise S3 store | `Asset-Core/decision-gate-store-enterprise/src/s3_runpack_store.rs` | Object storage backend for managed deployments. |

@@ -2,53 +2,121 @@
 Decision Gate CLI README
 ============================================================================
 Document: decision-gate-cli
-Description: CLI for MCP server and runpack workflows.
-Purpose: Provide operational entry points for Decision Gate.
+Description: CLI entry point for running the MCP server and offline utilities.
+Purpose: Provide operational commands for serving and validating Decision Gate.
+Dependencies:
+  - ../../README.md (Decision Gate overview)
+  - ../decision-gate-mcp/README.md
+  - ../../Docs/configuration/decision-gate.toml.md
 ============================================================================
 -->
 
 # decision-gate-cli
 
+Command-line entry point for running the Decision Gate MCP server and executing
+offline utilities (runpack export/verify, authoring validation, config checks,
+and provider discovery helpers).
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Command Groups](#command-groups)
+- [Configuration](#configuration)
+- [Usage Examples](#usage-examples)
+- [Interop Evaluation](#interop-evaluation)
+- [Testing](#testing)
+- [References](#references)
+
 ## Overview
-`decision-gate-cli` is the command-line entry point for running the MCP server
-and managing runpacks and authoring utilities for Decision Gate's deterministic
-checkpoint and requirement-evaluation workflows.
 
-The CLI runs the MCP server with built-in providers enabled by default
-(time/env/json/http). For local workflows, a common pattern is: run a tool,
-emit a JSON artifact, and gate it with the `json` provider—no external MCP
-provider required.
+`decision-gate-cli` wraps the MCP server in `decision-gate-mcp` and exposes
+utility commands powered by `decision-gate-core` and `decision-gate-contract`.
+The installed binary name is `decision-gate`. When run via Cargo, use:
+`cargo run -p decision-gate-cli -- <args>`.
 
-## AssetCore Integration
-DG integrates with AssetCore via explicit interop workflows. The canonical
-integration hub lives at `Docs/integrations/assetcore/`, with implementation
-details in `Docs/guides/assetcore_interop_runbook.md`.
+## Command Groups
 
-## Commands
-- `serve`: run the MCP server (stdio, HTTP, or SSE).
-- `runpack export`: export a runpack for a run.
-- `runpack verify`: verify a runpack manifest and artifacts.
-- `authoring validate`: validate scenario specs.
-- `authoring normalize`: normalize scenario specs.
-- `config validate`: validate Decision Gate config.
-- `provider contract get`: fetch provider contract JSON.
-- `provider schema get`: fetch predicate schema details for a provider.
+- `serve` - start the MCP server using `decision-gate.toml`.
+- `runpack export` - build a runpack from a scenario spec and run state.
+- `runpack verify` - verify a runpack manifest against artifacts.
+- `authoring validate` - validate `ScenarioSpec` authoring inputs (JSON/RON).
+- `authoring normalize` - normalize authoring inputs to canonical JSON.
+- `config validate` - validate `decision-gate.toml`.
+- `provider contract get` - fetch provider contract JSON from the registry.
+- `provider schema get` - fetch predicate schema details for a provider.
+- `interop eval` - drive an MCP server via HTTP JSON-RPC for integration checks.
 
-## Examples
+Run `decision-gate --help` (or `cargo run -p decision-gate-cli -- --help`) for
+full flag details.
+
+## Configuration
+
+`serve`, `provider`, and `interop` commands read `decision-gate.toml`. The
+config path is optional; if not supplied, the CLI uses the default resolution
+rules documented in `Docs/configuration/decision-gate.toml.md`.
+
+## Usage Examples
+
+Start the MCP server:
+
 ```bash
-# Start MCP server with config
 cargo run -p decision-gate-cli -- serve --config decision-gate.toml
+```
 
-# Export a runpack
-cargo run -p decision-gate-cli -- runpack export --config decision-gate.toml \
-  --scenario-id scenario-1 --run-id run-1 --out ./runpack
+Export a runpack from a spec and run state:
+
+```bash
+cargo run -p decision-gate-cli -- runpack export \
+  --spec ./spec.json \
+  --state ./run_state.json \
+  --output-dir ./runpack
+```
+
+Verify a runpack manifest:
+
+```bash
+cargo run -p decision-gate-cli -- runpack verify \
+  --manifest ./runpack/runpack.json
+```
+
+Normalize authoring input (RON -> JSON):
+
+```bash
+cargo run -p decision-gate-cli -- authoring normalize \
+  --input ./scenario.ron \
+  --format ron \
+  --output ./scenario.json
+```
+
+Fetch provider schema details:
+
+```bash
+cargo run -p decision-gate-cli -- provider schema get \
+  --provider json \
+  --predicate path \
+  --config decision-gate.toml
+```
+
+## Interop Evaluation
+
+`interop eval` drives a remote MCP server over HTTP JSON-RPC and validates
+expected run status. It is designed for integration and smoke validation, not
+for load testing.
+
+```bash
+cargo run -p decision-gate-cli -- interop eval \
+  --mcp-url http://127.0.0.1:8080/rpc \
+  --spec ./scenario.json \
+  --run-config ./run_config.json \
+  --trigger ./trigger.json \
+  --expect-status completed
 ```
 
 ## Testing
+
 ```bash
 cargo test -p decision-gate-cli
 ```
 
 ## References
-- Docs/guides/getting_started.md
-- decision-gate-mcp/README.md
+

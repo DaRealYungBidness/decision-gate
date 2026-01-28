@@ -5,24 +5,53 @@ Document: Python Evidence Provider Template
 Description: Python MCP provider template for Decision Gate.
 Purpose: Provide a minimal stdio JSON-RPC 2.0 provider implementation.
 Dependencies:
-  - decision-gate-provider-sdk/spec/evidence_provider_protocol.md
+  - ../spec/evidence_provider_protocol.md
 ============================================================================
 -->
 
 # Python Provider Template
 
+Minimal Python MCP provider that implements `tools/list` and `tools/call` for
+`evidence_query` over stdio.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Files](#files)
+- [Run](#run)
+- [Customization](#customization)
+- [Framing Limits](#framing-limits)
+- [References](#references)
+
 ## Overview
-This template implements a stdio MCP server that supports `tools/list` and
-`tools/call` for `evidence_query`. Replace `handle_evidence_query` with
-real provider logic.
+
+This template uses Content-Length framing and responds with JSON-RPC 2.0
+messages. Replace `handle_evidence_query` with provider-specific logic and
+keep the advertised tool metadata aligned with your contract.
+
+## Files
+
+- `provider.py` - JSON-RPC framing + tool handlers.
 
 ## Run
+
 ```bash
-python provider.py
+python3 provider.py
 ```
 
-## Notes
-- Uses Content-Length framing over stdio.
-- Frames larger than 1 MiB or headers over 8 KiB are rejected.
-- Returns JSON-RPC errors for invalid requests.
-- Publish a capabilities JSON file and keep `tools/list` aligned with it.
+## Customization
+
+1. Define predicates and parameters in `handle_evidence_query`.
+2. Populate `tools/list` with the `evidence_query` tool metadata.
+3. Generate a provider contract JSON and register it in `decision-gate.toml`.
+
+## Framing Limits
+
+The template enforces:
+- Maximum header size: 8 KiB
+- Maximum body size: 1 MiB
+
+Requests exceeding these limits are rejected with JSON-RPC errors.
+
+## References
+
