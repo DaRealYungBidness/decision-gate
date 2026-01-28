@@ -354,10 +354,10 @@ impl ToolRouter {
             ToolName::RunpackVerify => Self::handle_runpack_verify(payload),
             ToolName::ProvidersList => self.handle_providers_list(payload),
             ToolName::ProviderContractGet => {
-                self.handle_provider_contract_get(context, &auth_ctx, payload).await
+                self.handle_provider_contract_get(context, &auth_ctx, payload)
             }
             ToolName::ProviderSchemaGet => {
-                self.handle_provider_schema_get(context, &auth_ctx, payload).await
+                self.handle_provider_schema_get(context, &auth_ctx, payload)
             }
             ToolName::SchemasRegister => {
                 self.handle_schemas_register(context, &auth_ctx, payload).await
@@ -380,8 +380,8 @@ impl ToolRouter {
     ) -> Result<Value, ToolError> {
         let tool = ToolName::ScenarioDefine;
         let request = decode::<ScenarioDefineRequest>(payload)?;
-        let tenant_id = request.spec.default_tenant_id.clone();
-        let namespace_id = request.spec.namespace_id.clone();
+        let tenant_id = request.spec.default_tenant_id;
+        let namespace_id = request.spec.namespace_id;
         self.ensure_tool_call_allowed(
             context,
             auth_ctx,
@@ -411,8 +411,8 @@ impl ToolRouter {
     ) -> Result<Value, ToolError> {
         let tool = ToolName::ScenarioStart;
         let request = decode::<ScenarioStartRequest>(payload)?;
-        let tenant_id = request.run_config.tenant_id.clone();
-        let namespace_id = request.run_config.namespace_id.clone();
+        let tenant_id = request.run_config.tenant_id;
+        let namespace_id = request.run_config.namespace_id;
         self.ensure_tool_call_allowed(
             context,
             auth_ctx,
@@ -500,9 +500,17 @@ impl ToolRouter {
             &request.request.namespace_id,
         )
         .await?;
-        let response = self.next(context, &request)?;
+        let router = self.clone();
+        let context = context.clone();
+        let context_for_next = context.clone();
+        let request_for_next = request.clone();
+        let response = tokio::task::spawn_blocking(move || {
+            router.next(&context_for_next, &request_for_next)
+        })
+        .await
+        .map_err(|err| ToolError::Internal(format!("scenario next join failed: {err}")))??;
         self.record_tool_call_usage(
-            context,
+            &context,
             auth_ctx,
             tool,
             Some(&request.request.tenant_id),
@@ -566,9 +574,17 @@ impl ToolRouter {
             &request.trigger.namespace_id,
         )
         .await?;
-        let response = self.trigger(context, &request)?;
+        let router = self.clone();
+        let context = context.clone();
+        let context_for_trigger = context.clone();
+        let request_for_trigger = request.clone();
+        let response = tokio::task::spawn_blocking(move || {
+            router.trigger(&context_for_trigger, &request_for_trigger)
+        })
+        .await
+        .map_err(|err| ToolError::Internal(format!("scenario trigger join failed: {err}")))??;
         self.record_tool_call_usage(
-            context,
+            &context,
             auth_ctx,
             tool,
             Some(&request.trigger.tenant_id),
@@ -608,16 +624,24 @@ impl ToolRouter {
             UsageMetric::EvidenceQueries,
             1,
         )?;
-        let response = self.query_evidence(context, &request)?;
+        let router = self.clone();
+        let context = context.clone();
+        let context_for_query = context.clone();
+        let request_for_query = request.clone();
+        let response = tokio::task::spawn_blocking(move || {
+            router.query_evidence(&context_for_query, &request_for_query)
+        })
+            .await
+            .map_err(|err| ToolError::Internal(format!("evidence query join failed: {err}")))??;
         self.record_tool_call_usage(
-            context,
+            &context,
             auth_ctx,
             tool,
             Some(&request.context.tenant_id),
             Some(&request.context.namespace_id),
         );
         self.record_usage(
-            context,
+            &context,
             auth_ctx,
             tool,
             Some(&request.context.tenant_id),
@@ -690,7 +714,7 @@ impl ToolRouter {
     }
 
     /// Handles provider contract discovery requests.
-    async fn handle_provider_contract_get(
+    fn handle_provider_contract_get(
         &self,
         _context: &RequestContext,
         _auth_ctx: &AuthContext,
@@ -714,7 +738,7 @@ impl ToolRouter {
     }
 
     /// Handles provider predicate schema discovery requests.
-    async fn handle_provider_schema_get(
+    fn handle_provider_schema_get(
         &self,
         _context: &RequestContext,
         _auth_ctx: &AuthContext,
@@ -1672,8 +1696,8 @@ impl ToolRouter {
                 .canonical_hash_with(DEFAULT_HASH_ALGORITHM)
                 .map_err(|err| ToolError::Runpack(err.to_string()))?;
             let key = RunpackObjectKey {
-                tenant_id: request.tenant_id.clone(),
-                namespace_id: request.namespace_id.clone(),
+                tenant_id: request.tenant_id,
+                namespace_id: request.namespace_id,
                 scenario_id: request.scenario_id.clone(),
                 run_id: request.run_id.clone(),
                 spec_hash,
@@ -1757,8 +1781,8 @@ impl ToolRouter {
         output_dir: &Path,
     ) -> Result<Option<String>, RunpackStorageError> {
         let key = RunpackStorageKey {
-            tenant_id: request.tenant_id.clone(),
-            namespace_id: request.namespace_id.clone(),
+            tenant_id: request.tenant_id,
+            namespace_id: request.namespace_id,
             run_id: request.run_id.clone(),
         };
         storage.store_runpack(&key, output_dir)
@@ -1815,8 +1839,8 @@ impl ToolRouter {
             context,
             auth_ctx,
             RegistryAclAction::Register,
-            &request.record.tenant_id,
-            &request.record.namespace_id,
+            request.record.tenant_id,
+            request.record.namespace_id,
             Some((&request.record.schema_id, &request.record.version)),
         )?;
         self.validate_schema_signing(&request.record)?;
@@ -1839,8 +1863,8 @@ impl ToolRouter {
             context,
             auth_ctx,
             RegistryAclAction::List,
-            &request.tenant_id,
-            &request.namespace_id,
+            request.tenant_id,
+            request.namespace_id,
             None,
         )?;
         let limit = normalize_limit(request.limit)?;
@@ -1867,8 +1891,8 @@ impl ToolRouter {
             context,
             auth_ctx,
             RegistryAclAction::Get,
-            &request.tenant_id,
-            &request.namespace_id,
+            request.tenant_id,
+            request.namespace_id,
             Some((&request.schema_id, &request.version)),
         )?;
         let record = self
@@ -1910,7 +1934,7 @@ impl ToolRouter {
                         .map_err(|err| ToolError::Internal(err.to_string()))?;
                     Ok(ScenarioSummary {
                         scenario_id: runtime.spec.scenario_id.clone(),
-                        namespace_id: runtime.spec.namespace_id.clone(),
+                        namespace_id: runtime.spec.namespace_id,
                         spec_hash,
                     })
                 })
@@ -2144,12 +2168,14 @@ impl ToolRouter {
         context: &RequestContext,
         auth_ctx: &AuthContext,
         action: RegistryAclAction,
-        tenant_id: &TenantId,
-        namespace_id: &NamespaceId,
+        tenant_id: TenantId,
+        namespace_id: NamespaceId,
         schema: Option<(&DataShapeId, &DataShapeVersion)>,
     ) -> Result<(), ToolError> {
         let principal = self.principal_resolver.resolve(auth_ctx);
-        let decision = self.registry_acl.authorize(&principal, action, tenant_id, namespace_id);
+        let decision =
+            self.registry_acl
+                .authorize(&principal, action, &tenant_id, &namespace_id);
         self.record_registry_audit(
             context,
             &principal,
@@ -2300,8 +2326,8 @@ impl ToolRouter {
         context: &RequestContext,
         principal: &crate::registry_acl::RegistryPrincipal,
         action: RegistryAclAction,
-        tenant_id: &TenantId,
-        namespace_id: &NamespaceId,
+        tenant_id: TenantId,
+        namespace_id: NamespaceId,
         schema: Option<(&DataShapeId, &DataShapeVersion)>,
         decision: &RegistryAclDecision,
     ) {

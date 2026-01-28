@@ -322,10 +322,6 @@ Override filename for the runpack manifest. Defaults to 'manifest.json'. Customi
 
 Path to the manifest file inside the runpack directory. Used by runpack_verify to locate the manifest. Typically 'manifest.json' at the runpack root. The verifier reads this file first to discover all other artifacts.
 
-## `mapping_mode`
-
-Namespace mapping strategy for Asset Core authority. explicit_map requires a mapping for every namespace; numeric_parse allows parsing numeric IDs when no mapping exists.
-
 ## `max_body_bytes`
 
 Maximum request body size in bytes for JSON-RPC requests. Prevents oversized payloads from exhausting server resources. Requests exceeding this are rejected before processing. Configure based on expected payload sizes.

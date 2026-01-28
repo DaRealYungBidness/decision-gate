@@ -1,6 +1,6 @@
 {
     "default_tenant_id": (),
-    "namespace_id": "default",
+    "namespace_id": 1,
     "policies": [],
     "predicates": [
         {

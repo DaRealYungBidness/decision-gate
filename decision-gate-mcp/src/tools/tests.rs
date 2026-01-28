@@ -308,7 +308,7 @@ fn router_with_backends(
     let registry_acl = RegistryAcl::new(&config.schema_registry.acl);
     let principal_resolver = PrincipalResolver::from_config(config.server.auth.as_ref());
     let default_namespace_tenants =
-        config.namespace.default_tenants.iter().map(ToString::to_string).collect::<BTreeSet<_>>();
+        config.namespace.default_tenants.iter().cloned().collect::<BTreeSet<_>>();
     ToolRouter::new(ToolRouterConfig {
         evidence,
         evidence_policy: config.evidence.clone(),

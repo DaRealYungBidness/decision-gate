@@ -41,6 +41,8 @@ use decision_gate_mcp::config::AnchorProviderConfig;
 use decision_gate_mcp::config::AssetCoreNamespaceAuthorityConfig;
 use decision_gate_mcp::config::NamespaceAuthorityConfig;
 use decision_gate_mcp::config::NamespaceAuthorityMode;
+use decision_gate_mcp::config::PrincipalConfig;
+use decision_gate_mcp::config::PrincipalRoleConfig;
 use decision_gate_mcp::tools::ScenarioDefineRequest;
 use decision_gate_mcp::tools::ScenarioDefineResponse;
 use decision_gate_mcp::tools::ScenarioStartRequest;
@@ -268,7 +270,8 @@ async fn namespace_authority_allows_known_namespace() -> Result<(), Box<dyn std:
     wait_for_server_ready(&client, Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("namespace-allow", "run-allow", 0);
-    fixture.spec.namespace_id = NamespaceId::from_raw(10).expect("nonzero namespaceid");
+    fixture.spec.namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+    fixture.spec.default_tenant_id = Some(TenantId::from_raw(1).expect("nonzero tenantid"));
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };
@@ -308,7 +311,8 @@ async fn namespace_authority_denies_unknown_namespace() -> Result<(), Box<dyn st
     wait_for_server_ready(&client, Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("namespace-deny", "run-deny", 0);
-    fixture.spec.namespace_id = NamespaceId::from_raw(10).expect("nonzero namespaceid");
+    fixture.spec.namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+    fixture.spec.default_tenant_id = Some(TenantId::from_raw(1).expect("nonzero tenantid"));
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };
@@ -346,13 +350,30 @@ async fn namespace_authority_denies_unknown_namespace() -> Result<(), Box<dyn st
 async fn namespace_mismatch_rejected() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("namespace_mismatch_rejected")?;
     let bind = allocate_bind_addr()?.to_string();
-    let config = base_http_config(&bind);
+    let mut config = base_http_config(&bind);
+    if let Some(auth) = config.server.auth.as_mut() {
+        let role = PrincipalRoleConfig {
+            name: "TenantAdmin".to_string(),
+            tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
+            namespace_id: Some(NamespaceId::from_raw(2).expect("nonzero namespaceid")),
+        };
+        if let Some(principal) = auth.principals.iter_mut().find(|p| p.subject == "loopback") {
+            principal.roles.push(role);
+        } else {
+            auth.principals.push(PrincipalConfig {
+                subject: "loopback".to_string(),
+                policy_class: Some("prod".to_string()),
+                roles: vec![role],
+            });
+        }
+    }
     let server = spawn_mcp_server(config).await?;
     let client = server.client(Duration::from_secs(5))?;
     wait_for_server_ready(&client, Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("namespace-mismatch", "run-mismatch", 0);
     fixture.spec.namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+    fixture.spec.default_tenant_id = Some(TenantId::from_raw(1).expect("nonzero tenantid"));
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };

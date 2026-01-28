@@ -138,6 +138,8 @@ When an anchor requirement is configured for a provider:
 - Evidence results must include `evidence_anchor`.
 - `anchor_type` must match the requirement.
 - `anchor_value` must be canonical JSON object with required scalar fields.
+- Gate evaluation evidence records are stored in canonical predicate order to
+  keep runpack artifacts deterministic across executions.
 
 Invalid anchors result in an `anchor_invalid` provider error and the evidence
 result is converted to an empty verified result for evaluation.
@@ -180,4 +182,3 @@ Precheck uses **asserted** evidence without contacting providers:
 | Provider signature policy | `decision-gate-mcp/src/evidence.rs` | TrustPolicy parsing + signature enforcement. |
 | Evidence disclosure policy | `decision-gate-mcp/src/tools.rs` | Raw evidence redaction for evidence_query. |
 | Config surface | `decision-gate-mcp/src/config.rs` | evidence.* and anchors.* configuration. |
-

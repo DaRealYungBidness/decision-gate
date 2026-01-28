@@ -113,12 +113,12 @@ impl RunStateStore for InMemoryRunStateStore {
             .runs
             .lock()
             .map_err(|_| StoreError::Store("run state store mutex poisoned".to_string()))?;
-        let key = run_key(tenant_id, namespace_id, run_id);
+        let key = run_key(*tenant_id, *namespace_id, run_id);
         Ok(guard.get(&key).cloned())
     }
 
     fn save(&self, state: &RunState) -> Result<(), StoreError> {
-        let key = run_key(&state.tenant_id, &state.namespace_id, &state.run_id);
+        let key = run_key(state.tenant_id, state.namespace_id, &state.run_id);
         self.runs
             .lock()
             .map_err(|_| StoreError::Store("run state store mutex poisoned".to_string()))?
@@ -139,7 +139,7 @@ impl DataShapeRegistry for InMemoryDataShapeRegistry {
             )));
         }
         let key =
-            schema_key(&record.tenant_id, &record.namespace_id, &record.schema_id, &record.version);
+            schema_key(record.tenant_id, record.namespace_id, &record.schema_id, &record.version);
         let mut guard = self.records.lock().map_err(|_| {
             DataShapeRegistryError::Io("schema registry mutex poisoned".to_string())
         })?;
@@ -168,7 +168,7 @@ impl DataShapeRegistry for InMemoryDataShapeRegistry {
         let guard = self.records.lock().map_err(|_| {
             DataShapeRegistryError::Io("schema registry mutex poisoned".to_string())
         })?;
-        let key = schema_key(tenant_id, namespace_id, schema_id, version);
+        let key = schema_key(*tenant_id, *namespace_id, schema_id, version);
         Ok(guard.get(&key).cloned())
     }
 
@@ -328,14 +328,14 @@ impl DataShapeRegistry for SharedDataShapeRegistry {
 }
 
 /// Builds a unique run key for the in-memory store.
-fn run_key(tenant_id: &TenantId, namespace_id: &NamespaceId, run_id: &RunId) -> String {
+fn run_key(tenant_id: TenantId, namespace_id: NamespaceId, run_id: &RunId) -> String {
     format!("{tenant_id}/{namespace_id}/{run_id}")
 }
 
 /// Builds a unique schema key for the in-memory registry.
 fn schema_key(
-    tenant_id: &TenantId,
-    namespace_id: &NamespaceId,
+    tenant_id: TenantId,
+    namespace_id: NamespaceId,
     schema_id: &DataShapeId,
     version: &DataShapeVersion,
 ) -> String {

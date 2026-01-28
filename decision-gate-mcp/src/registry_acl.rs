@@ -124,8 +124,8 @@ impl PrincipalRole {
     fn from_config(config: &PrincipalRoleConfig) -> Self {
         Self {
             name: config.name.clone(),
-            tenant_id: config.tenant_id.clone(),
-            namespace_id: config.namespace_id.clone(),
+            tenant_id: config.tenant_id,
+            namespace_id: config.namespace_id,
         }
     }
 }
@@ -181,13 +181,13 @@ impl RegistryAcl {
     ) -> RegistryAclDecision {
         match self.mode {
             RegistryAclMode::Builtin => {
-                builtin_decision(principal, action, tenant_id, namespace_id)
+                builtin_decision(principal, action, *tenant_id, *namespace_id)
             }
             RegistryAclMode::Custom => custom_decision(
                 principal,
                 action,
-                tenant_id,
-                namespace_id,
+                *tenant_id,
+                *namespace_id,
                 &self.rules,
                 self.default_effect,
             ),
@@ -199,8 +199,8 @@ impl RegistryAcl {
 fn builtin_decision(
     principal: &RegistryPrincipal,
     action: RegistryAclAction,
-    tenant_id: &TenantId,
-    namespace_id: &NamespaceId,
+    tenant_id: TenantId,
+    namespace_id: NamespaceId,
 ) -> RegistryAclDecision {
     let policy_class = principal.policy_class.as_deref().unwrap_or("prod").to_ascii_lowercase();
     let is_prod = policy_class == "prod";
@@ -261,8 +261,8 @@ fn builtin_decision(
 fn custom_decision(
     principal: &RegistryPrincipal,
     action: RegistryAclAction,
-    tenant_id: &TenantId,
-    namespace_id: &NamespaceId,
+    tenant_id: TenantId,
+    namespace_id: NamespaceId,
     rules: &[RegistryAclRule],
     default_effect: RegistryAclDefault,
 ) -> RegistryAclDecision {
@@ -270,10 +270,10 @@ fn custom_decision(
         if !rule.actions.is_empty() && !rule.actions.contains(&action) {
             continue;
         }
-        if !rule.tenants.is_empty() && !rule.tenants.iter().any(|t| t == tenant_id) {
+        if !rule.tenants.is_empty() && !rule.tenants.contains(&tenant_id) {
             continue;
         }
-        if !rule.namespaces.is_empty() && !rule.namespaces.iter().any(|n| n == namespace_id) {
+        if !rule.namespaces.is_empty() && !rule.namespaces.contains(&namespace_id) {
             continue;
         }
         if !rule.subjects.is_empty() && !rule.subjects.iter().any(|s| s == &principal.principal_id)
@@ -324,22 +324,28 @@ fn custom_decision(
 /// Returns true when the principal has the requested role within scope.
 fn principal_has_role(
     principal: &RegistryPrincipal,
-    tenant_id: &TenantId,
-    namespace_id: &NamespaceId,
+    tenant_id: TenantId,
+    namespace_id: NamespaceId,
     role_name: &str,
 ) -> bool {
     principal.roles.iter().any(|role| {
         role.name == role_name
-            && role.tenant_id.as_ref().is_none_or(|tenant| tenant == tenant_id)
-            && role.namespace_id.as_ref().is_none_or(|namespace| namespace == namespace_id)
+            && role
+                .tenant_id
+                .as_ref()
+                .is_none_or(|tenant| *tenant == tenant_id)
+            && role
+                .namespace_id
+                .as_ref()
+                .is_none_or(|namespace| *namespace == namespace_id)
     })
 }
 
 /// Returns true when the principal has any of the requested roles in scope.
 fn has_any_role(
     principal: &RegistryPrincipal,
-    tenant_id: &TenantId,
-    namespace_id: &NamespaceId,
+    tenant_id: TenantId,
+    namespace_id: NamespaceId,
     roles: &[&str],
 ) -> bool {
     roles.iter().any(|role| principal_has_role(principal, tenant_id, namespace_id, role))

@@ -239,7 +239,8 @@ impl RunStateStore for SqliteRunStateStore {
         namespace_id: &NamespaceId,
         run_id: &RunId,
     ) -> Result<Option<RunState>, StoreError> {
-        self.load_state(tenant_id, namespace_id, run_id).map_err(StoreError::from)
+        self.load_state(*tenant_id, *namespace_id, run_id)
+            .map_err(StoreError::from)
     }
 
     fn save(&self, state: &RunState) -> Result<(), StoreError> {
@@ -388,8 +389,8 @@ impl DataShapeRegistry for SqliteRunStateStore {
             .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
         let signing = build_signing(signing_key_id, signing_signature, signing_algorithm);
         Ok(Some(DataShapeRecord {
-            tenant_id: tenant_id.clone(),
-            namespace_id: namespace_id.clone(),
+            tenant_id: *tenant_id,
+            namespace_id: *namespace_id,
             schema_id: schema_id.clone(),
             version: version.clone(),
             schema,
@@ -420,10 +421,11 @@ impl DataShapeRegistry for SqliteRunStateStore {
         let records = {
             let tx =
                 guard.transaction().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
-            let rows = query_schema_rows(&tx, tenant_id, namespace_id, cursor.as_ref(), limit)?;
+            let rows =
+                query_schema_rows(&tx, *tenant_id, *namespace_id, cursor.as_ref(), limit)?;
             let records = rows
                 .into_iter()
-                .map(|row| build_schema_record(tenant_id, namespace_id, row))
+                .map(|row| build_schema_record(*tenant_id, *namespace_id, row))
                 .collect::<Result<Vec<_>, _>>()?;
             tx.commit().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
             records
@@ -447,8 +449,8 @@ impl SqliteRunStateStore {
     /// Loads run state for the provided run identifier.
     fn load_state(
         &self,
-        tenant_id: &TenantId,
-        namespace_id: &NamespaceId,
+        tenant_id: TenantId,
+        namespace_id: NamespaceId,
         run_id: &RunId,
     ) -> Result<Option<RunState>, SqliteStoreError> {
         let payload =
@@ -471,7 +473,7 @@ impl SqliteRunStateStore {
                 "run_id mismatch between key and payload".to_string(),
             ));
         }
-        if state.tenant_id != *tenant_id || state.namespace_id != *namespace_id {
+        if state.tenant_id != tenant_id || state.namespace_id != namespace_id {
             return Err(SqliteStoreError::Invalid(
                 "tenant/namespace mismatch between key and payload".to_string(),
             ));
@@ -551,8 +553,8 @@ impl SqliteRunStateStore {
             .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
             enforce_retention(
                 &tx,
-                &state.tenant_id,
-                &state.namespace_id,
+                state.tenant_id,
+                state.namespace_id,
                 state.run_id.as_str(),
                 next_version,
                 self.config.max_versions,
@@ -709,8 +711,8 @@ fn initialize_schema(connection: &mut Connection) -> Result<(), SqliteStoreError
 /// Enforces version retention if configured.
 fn enforce_retention(
     tx: &rusqlite::Transaction<'_>,
-    tenant_id: &TenantId,
-    namespace_id: &NamespaceId,
+    tenant_id: TenantId,
+    namespace_id: NamespaceId,
     run_id: &str,
     latest_version: i64,
     max_versions: Option<u64>,
@@ -772,8 +774,8 @@ struct RunStatePayload {
 /// Fetches the latest run state payload for the provided run identifiers.
 fn fetch_run_state_payload(
     connection: &Mutex<Connection>,
-    tenant_id: &TenantId,
-    namespace_id: &NamespaceId,
+    tenant_id: TenantId,
+    namespace_id: NamespaceId,
     run_id: &RunId,
 ) -> Result<Option<RunStatePayload>, SqliteStoreError> {
     let mut guard =
@@ -943,8 +945,8 @@ fn build_signing(
 /// Queries schema rows for the provided tenant and namespace.
 fn query_schema_rows(
     tx: &rusqlite::Transaction<'_>,
-    tenant_id: &TenantId,
-    namespace_id: &NamespaceId,
+    tenant_id: TenantId,
+    namespace_id: NamespaceId,
     cursor: Option<&RegistryCursor>,
     limit: i64,
 ) -> Result<Vec<SchemaRow>, DataShapeRegistryError> {
@@ -988,11 +990,11 @@ fn query_schema_rows(
 }
 
 /// Builds a validated schema record from stored row data.
-fn build_schema_record(
-    tenant_id: &TenantId,
-    namespace_id: &NamespaceId,
-    row: SchemaRow,
-) -> Result<DataShapeRecord, DataShapeRegistryError> {
+    fn build_schema_record(
+        tenant_id: TenantId,
+        namespace_id: NamespaceId,
+        row: SchemaRow,
+    ) -> Result<DataShapeRecord, DataShapeRegistryError> {
     let SchemaRow {
         schema_id,
         version,
@@ -1017,8 +1019,8 @@ fn build_schema_record(
         .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
     let signing = build_signing(signing_key_id, signing_signature, signing_algorithm);
     Ok(DataShapeRecord {
-        tenant_id: tenant_id.clone(),
-        namespace_id: namespace_id.clone(),
+        tenant_id,
+        namespace_id,
         schema_id: DataShapeId::from(schema_id),
         version: DataShapeVersion::from(version),
         schema,

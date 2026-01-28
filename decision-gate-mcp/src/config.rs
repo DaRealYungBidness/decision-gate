@@ -15,7 +15,6 @@
 // SECTION: Imports
 // ============================================================================
 
-use std::collections::BTreeMap;
 use std::env;
 use std::fs;
 use std::net::SocketAddr;
@@ -212,13 +211,9 @@ impl DecisionGateConfig {
     #[must_use]
     pub fn effective_trust_requirement(&self) -> TrustRequirement {
         if self.is_dev_permissive() {
-            TrustRequirement {
-                min_lane: TrustLane::Asserted,
-            }
+            TrustRequirement { min_lane: TrustLane::Asserted }
         } else {
-            TrustRequirement {
-                min_lane: self.trust.min_lane,
-            }
+            TrustRequirement { min_lane: self.trust.min_lane }
         }
     }
 
@@ -487,10 +482,7 @@ pub struct ServerLimitsConfig {
 
 impl Default for ServerLimitsConfig {
     fn default() -> Self {
-        Self {
-            max_inflight: default_max_inflight(),
-            rate_limit: None,
-        }
+        Self { max_inflight: default_max_inflight(), rate_limit: None }
     }
 }
 
@@ -593,11 +585,7 @@ pub struct ServerAuditConfig {
 
 impl Default for ServerAuditConfig {
     fn default() -> Self {
-        Self {
-            enabled: default_audit_enabled(),
-            path: None,
-            log_precheck_payloads: false,
-        }
+        Self { enabled: default_audit_enabled(), path: None, log_precheck_payloads: false }
     }
 }
 
@@ -814,10 +802,7 @@ pub struct TrustConfig {
 
 impl Default for TrustConfig {
     fn default() -> Self {
-        Self {
-            default_policy: TrustPolicy::Audit,
-            min_lane: default_trust_lane(),
-        }
+        Self { default_policy: TrustPolicy::Audit, min_lane: default_trust_lane() }
     }
 }
 
@@ -876,10 +861,7 @@ pub struct NamespaceAuthorityConfig {
 
 impl Default for NamespaceAuthorityConfig {
     fn default() -> Self {
-        Self {
-            mode: NamespaceAuthorityMode::None,
-            assetcore: None,
-        }
+        Self { mode: NamespaceAuthorityMode::None, assetcore: None }
     }
 }
 
@@ -1028,10 +1010,7 @@ pub struct EvidencePolicyConfig {
 
 impl Default for EvidencePolicyConfig {
     fn default() -> Self {
-        Self {
-            allow_raw_values: false,
-            require_provider_opt_in: true,
-        }
+        Self { allow_raw_values: false, require_provider_opt_in: true }
     }
 }
 
@@ -1124,9 +1103,7 @@ impl AnchorPolicyConfig {
                 },
             });
         }
-        EvidenceAnchorPolicy {
-            providers,
-        }
+        EvidenceAnchorPolicy { providers }
     }
 }
 

@@ -43,6 +43,16 @@ artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runpack/"]
 estimated_runtime_sec = 15
 
 [[tests]]
+name = "golden_runpack_cross_os"
+category = "runpack"
+priority = "P0"
+description = "Compare runpack export against committed golden artifacts (cross-OS deterministic)."
+files = ["system-tests/tests/suites/golden_runpacks.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test golden_runpacks -- --exact golden_runpacks::golden_runpack_cross_os"
+artifacts = ["summary.json", "summary.md"]
+estimated_runtime_sec = 20
+
+[[tests]]
 name = "schema_conformance_all_tools"
 category = "contract"
 priority = "P0"
@@ -153,6 +163,16 @@ artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runpack/"]
 estimated_runtime_sec = 15
 
 [[tests]]
+name = "metamorphic_concurrent_runs_identical_runpacks"
+category = "reliability"
+priority = "P0"
+description = "Concurrent runs with identical inputs yield identical runpack root hashes."
+files = ["system-tests/tests/suites/metamorphic.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test reliability -- --exact metamorphic::metamorphic_concurrent_runs_identical_runpacks"
+artifacts = ["summary.json", "summary.md", "run_a_manifest.json", "run_b_manifest.json"]
+estimated_runtime_sec = 20
+
+[[tests]]
 name = "idempotent_submission"
 category = "reliability"
 priority = "P0"
@@ -235,6 +255,16 @@ files = ["system-tests/tests/suites/validation.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test functional -- --exact validation::strict_validation_precheck_rejects_comparator_mismatch"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
+
+[[tests]]
+name = "precheck_read_only_does_not_mutate_run_state"
+category = "functional"
+priority = "P0"
+description = "Precheck does not mutate run state for existing runs."
+files = ["system-tests/tests/suites/precheck.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test functional -- --exact precheck::precheck_read_only_does_not_mutate_run_state"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 10
 
 [[tests]]
 name = "strict_validation_precheck_allows_permissive"
@@ -344,6 +374,266 @@ description = "JSON provider returns structured error metadata for missing JSONP
 files = ["system-tests/tests/suites/providers.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::json_provider_missing_jsonpath_returns_error_metadata"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "json_provider_rejects_path_outside_root"
+category = "providers"
+priority = "P1"
+description = "JSON provider rejects file paths outside configured root."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::json_provider_rejects_path_outside_root"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "json_provider_enforces_size_limit"
+category = "providers"
+priority = "P1"
+description = "JSON provider enforces max_bytes file size limits."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::json_provider_enforces_size_limit"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "json_provider_rejects_symlink_escape"
+category = "providers"
+priority = "P1"
+description = "JSON provider blocks symlink escapes outside the configured root."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::json_provider_rejects_symlink_escape"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "json_provider_invalid_jsonpath_rejected"
+category = "providers"
+priority = "P1"
+description = "JSON provider rejects invalid JSONPath expressions."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::json_provider_invalid_jsonpath_rejected"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "http_provider_blocks_http_scheme_by_default"
+category = "providers"
+priority = "P1"
+description = "HTTP provider blocks cleartext HTTP when allow_http is false."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::http_provider_blocks_http_scheme_by_default"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "http_provider_enforces_allowlist"
+category = "providers"
+priority = "P1"
+description = "HTTP provider enforces host allowlist."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::http_provider_enforces_allowlist"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "http_provider_redirect_not_followed"
+category = "providers"
+priority = "P1"
+description = "HTTP provider returns redirect status without following."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::http_provider_redirect_not_followed"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "http_provider_body_hash_matches"
+category = "providers"
+priority = "P1"
+description = "HTTP provider body_hash returns canonical hash."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::http_provider_body_hash_matches"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "http_provider_response_size_limit_enforced"
+category = "providers"
+priority = "P1"
+description = "HTTP provider enforces response size limits."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::http_provider_response_size_limit_enforced"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "http_provider_timeout_enforced"
+category = "providers"
+priority = "P1"
+description = "HTTP provider request timeouts are enforced."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::http_provider_timeout_enforced"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "http_provider_tls_failure_fails_closed"
+category = "providers"
+priority = "P1"
+description = "HTTP provider fails closed on TLS errors."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::http_provider_tls_failure_fails_closed"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "env_provider_missing_key_returns_empty"
+category = "providers"
+priority = "P1"
+description = "Env provider returns empty result for missing keys."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::env_provider_missing_key_returns_empty"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "env_provider_denylist_blocks"
+category = "providers"
+priority = "P1"
+description = "Env provider denylist blocks access."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::env_provider_denylist_blocks"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "env_provider_allowlist_blocks_unlisted"
+category = "providers"
+priority = "P1"
+description = "Env provider allowlist blocks unlisted keys."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::env_provider_allowlist_blocks_unlisted"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "env_provider_value_size_limit_enforced"
+category = "providers"
+priority = "P1"
+description = "Env provider enforces value size limits."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::env_provider_value_size_limit_enforced"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "env_provider_key_size_limit_enforced"
+category = "providers"
+priority = "P1"
+description = "Env provider enforces key size limits."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::env_provider_key_size_limit_enforced"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "time_provider_rejects_logical_when_disabled"
+category = "providers"
+priority = "P1"
+description = "Time provider rejects logical timestamps when disabled."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::time_provider_rejects_logical_when_disabled"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "time_provider_rfc3339_parsing"
+category = "providers"
+priority = "P1"
+description = "Time provider parses RFC3339 timestamps."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::time_provider_rfc3339_parsing"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "time_provider_invalid_rfc3339_rejected"
+category = "providers"
+priority = "P1"
+description = "Time provider rejects invalid RFC3339 strings."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::time_provider_invalid_rfc3339_rejected"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "mcp_provider_malformed_jsonrpc_response"
+category = "providers"
+priority = "P1"
+description = "Malformed MCP provider JSON-RPC responses fail closed."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::mcp_provider_malformed_jsonrpc_response"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "echo_provider_contract.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "mcp_provider_text_content_rejected"
+category = "providers"
+priority = "P1"
+description = "MCP provider text responses are rejected for evidence queries."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::mcp_provider_text_content_rejected"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "echo_provider_contract.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "mcp_provider_empty_result_rejected"
+category = "providers"
+priority = "P1"
+description = "MCP provider empty tool results fail closed."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::mcp_provider_empty_result_rejected"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "echo_provider_contract.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "mcp_provider_flaky_response"
+category = "providers"
+priority = "P1"
+description = "Flaky MCP providers fail closed and recover deterministically."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::mcp_provider_flaky_response"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "echo_provider_contract.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "mcp_provider_wrong_namespace_rejected"
+category = "providers"
+priority = "P1"
+description = "MCP provider rejects requests for the wrong namespace."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::mcp_provider_wrong_namespace_rejected"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "echo_provider_contract.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "mcp_provider_missing_signature_rejected"
+category = "providers"
+priority = "P1"
+description = "Signature-required MCP provider rejects unsigned evidence."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::mcp_provider_missing_signature_rejected"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "echo_provider_contract.json"]
+estimated_runtime_sec = 10
+
+[[tests]]
+name = "mcp_provider_contract_mismatch_rejected"
+category = "providers"
+priority = "P1"
+description = "MCP provider contract mismatches are rejected at startup."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::mcp_provider_contract_mismatch_rejected"
+artifacts = ["summary.json", "summary.md", "bad_contract.json"]
 estimated_runtime_sec = 8
 
 [[tests]]

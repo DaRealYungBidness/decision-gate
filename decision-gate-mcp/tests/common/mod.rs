@@ -83,8 +83,11 @@ use decision_gate_mcp::registry_acl::PrincipalResolver;
 use decision_gate_mcp::registry_acl::RegistryAcl;
 use decision_gate_mcp::tools::ProviderTransport;
 use decision_gate_mcp::tools::SchemaRegistryLimits;
+use decision_gate_mcp::tools::ToolDefinition;
+use decision_gate_mcp::tools::ToolError;
 use decision_gate_mcp::tools::ToolRouterConfig;
 use serde_json::json;
+use serde_json::Value;
 
 // ============================================================================
 // SECTION: Test Fixtures
@@ -225,7 +228,7 @@ pub fn router_with_authorizer_usage_and_runpack_storage(
     let trust_requirement = config.effective_trust_requirement();
     let allow_default_namespace = config.allow_default_namespace();
     let default_namespace_tenants =
-        config.namespace.default_tenants.iter().map(ToString::to_string).collect::<BTreeSet<_>>();
+        config.namespace.default_tenants.iter().cloned().collect::<BTreeSet<_>>();
     let evidence_policy = config.evidence.clone();
     let validation = config.validation.clone();
     let anchor_policy = config.anchors.to_policy();
@@ -428,6 +431,36 @@ pub const fn local_request_context() -> RequestContext {
 // SECTION: Test Helper Functions
 // ============================================================================
 
+pub trait ToolRouterSyncExt {
+    fn handle_tool_call_sync(
+        &self,
+        context: &RequestContext,
+        name: &str,
+        payload: Value,
+    ) -> Result<Value, ToolError>;
+
+    fn list_tools_sync(&self, context: &RequestContext) -> Result<Vec<ToolDefinition>, ToolError>;
+}
+
+impl ToolRouterSyncExt for ToolRouter {
+    fn handle_tool_call_sync(
+        &self,
+        context: &RequestContext,
+        name: &str,
+        payload: Value,
+    ) -> Result<Value, ToolError> {
+        tokio::runtime::Runtime::new()
+            .expect("runtime")
+            .block_on(self.handle_tool_call(context, name, payload))
+    }
+
+    fn list_tools_sync(&self, context: &RequestContext) -> Result<Vec<ToolDefinition>, ToolError> {
+        tokio::runtime::Runtime::new()
+            .expect("runtime")
+            .block_on(self.list_tools(context))
+    }
+}
+
 /// Defines a scenario using the tool router.
 ///
 /// Returns the scenario ID on success.
@@ -435,12 +468,13 @@ pub fn define_scenario(router: &ToolRouter, spec: ScenarioSpec) -> Result<Scenar
     let request = decision_gate_mcp::tools::ScenarioDefineRequest {
         spec,
     };
-    let result = router
-        .handle_tool_call(
+    let result = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.handle_tool_call(
             &local_request_context(),
             "scenario_define",
             serde_json::to_value(&request).unwrap(),
-        )
+        ))
         .map_err(|e| e.to_string())?;
     let response: decision_gate_mcp::tools::ScenarioDefineResponse =
         serde_json::from_value(result).map_err(|e| e.to_string())?;
@@ -460,12 +494,13 @@ pub fn start_run(
         started_at,
         issue_entry_packets: false,
     };
-    let result = router
-        .handle_tool_call(
+    let result = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.handle_tool_call(
             &local_request_context(),
             "scenario_start",
             serde_json::to_value(&request).unwrap(),
-        )
+        ))
         .map_err(|e| e.to_string())?;
     let response: decision_gate_core::RunState =
         serde_json::from_value(result).map_err(|e| e.to_string())?;

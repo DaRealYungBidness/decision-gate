@@ -33,7 +33,33 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `http_transport_end_to_end` | mcp_transport | HTTP JSON-RPC transport works end-to-end. |
 | `federated_provider_echo` | providers | External MCP provider integration works. |
 | `json_provider_missing_jsonpath_returns_error_metadata` | providers | JSON provider emits structured error metadata for missing JSONPath. |
+| `json_provider_rejects_path_outside_root` | providers | JSON provider blocks path traversal outside configured root. |
+| `json_provider_enforces_size_limit` | providers | JSON provider enforces max_bytes file size limit. |
+| `json_provider_rejects_symlink_escape` | providers | JSON provider blocks symlink escapes outside root. |
+| `json_provider_invalid_jsonpath_rejected` | providers | JSON provider rejects invalid JSONPath expressions. |
 | `json_provider_contains_array_succeeds` | providers | JSON provider path + contains comparator evaluates end-to-end. |
+| `http_provider_blocks_http_scheme_by_default` | providers | HTTP provider blocks cleartext HTTP by default. |
+| `http_provider_enforces_allowlist` | providers | HTTP provider enforces host allowlist. |
+| `http_provider_redirect_not_followed` | providers | HTTP provider returns redirect status without following. |
+| `http_provider_body_hash_matches` | providers | HTTP provider body_hash returns canonical hash. |
+| `http_provider_response_size_limit_enforced` | providers | HTTP provider enforces response size limits. |
+| `http_provider_timeout_enforced` | providers | HTTP provider request timeouts are enforced. |
+| `http_provider_tls_failure_fails_closed` | providers | HTTP provider fails closed on TLS errors. |
+| `env_provider_missing_key_returns_empty` | providers | Env provider returns empty result for missing keys. |
+| `env_provider_denylist_blocks` | providers | Env provider denylist blocks access. |
+| `env_provider_allowlist_blocks_unlisted` | providers | Env provider allowlist blocks unlisted keys. |
+| `env_provider_value_size_limit_enforced` | providers | Env provider enforces value size limits. |
+| `env_provider_key_size_limit_enforced` | providers | Env provider enforces key size limits. |
+| `time_provider_rejects_logical_when_disabled` | providers | Time provider rejects logical timestamps when disabled. |
+| `time_provider_rfc3339_parsing` | providers | Time provider parses RFC3339 timestamps. |
+| `time_provider_invalid_rfc3339_rejected` | providers | Time provider rejects invalid RFC3339 strings. |
+| `mcp_provider_malformed_jsonrpc_response` | providers | MCP provider malformed responses fail closed. |
+| `mcp_provider_text_content_rejected` | providers | MCP provider text responses are rejected. |
+| `mcp_provider_empty_result_rejected` | providers | MCP provider empty results fail closed. |
+| `mcp_provider_flaky_response` | providers | Flaky MCP providers fail closed and recover. |
+| `mcp_provider_wrong_namespace_rejected` | providers | MCP provider rejects wrong namespace. |
+| `mcp_provider_missing_signature_rejected` | providers | Signature-required MCP providers reject unsigned evidence. |
+| `mcp_provider_contract_mismatch_rejected` | providers | MCP provider contract mismatches are rejected. |
 | `assetcore_interop_fixtures` | providers | AssetCore interop fixture map executes via provider stub. |
 | `assetcore_anchor_missing_fails_closed` | providers | Missing AssetCore anchors fail closed for evidence queries. |
 | `assetcore_correlation_id_passthrough` | providers | Correlation IDs are preserved for AssetCore evidence queries. |
@@ -46,6 +72,7 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `strict_mode_rejects_default_namespace` | security | Strict mode rejects default namespace. |
 | `dev_permissive_emits_warning` | operations | Dev-permissive mode emits explicit warning. |
 | `precheck_audit_hash_only` | operations | Precheck audit logs are hash-only by default. |
+| `precheck_read_only_does_not_mutate_run_state` | functional | Precheck leaves run state unchanged. |
 | `policy_denies_dispatch_targets` | security | Static policy engine denies disclosure and fails the run. |
 | `policy_error_fails_closed` | security | Policy engine errors fail closed with explicit reason. |
 | `runpack_tamper_detection` | runpack | Tampered runpack fails verification. |

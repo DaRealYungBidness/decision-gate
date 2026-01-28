@@ -1,6 +1,6 @@
 {
-  "tenant_id": "tenant-001",
-  "namespace_id": "default",
+  "tenant_id": 1,
+  "namespace_id": 1,
   "run_id": "run-0001",
   "scenario_id": "example-scenario",
   "dispatch_targets": [

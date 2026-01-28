@@ -79,9 +79,12 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 
 **Implementation**
 - Golden runpacks stored under:
-  - `system-tests/tests/fixtures/runpacks/golden/<scenario>/<os>/`
+  - `system-tests/tests/fixtures/runpacks/golden/<scenario>/`
 - One canonical manifest hash per scenario.
 - Include a verification report and `runpack_verify` transcript.
+- Golden scenario set (OSS-only, no OS-specific evidence):
+  - `golden_time_after_pass` (time provider, deterministic completion)
+  - `golden_visibility_packet` (entry packet + visibility metadata)
 
 **Tests**
 - New system-test: `golden_runpack_cross_os`
@@ -134,8 +137,8 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 - `decision-gate-core/tests/precheck.rs`
 - `decision-gate-core/tests/trust_lane.rs`
 
-**Missing**
-- System-test coverage for precheck read-only behavior.
+**Coverage**
+- `system-tests/tests/suites/precheck.rs` (precheck read-only system test)
 
 ---
 
@@ -156,6 +159,14 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 - All failure modes return explicit, structured errors.
 - Run state remains stable.
 - Errors never silently downgrade to success.
+
+**Coverage (so far)**
+- JSON provider path traversal, symlink escape, invalid JSONPath, size limits.
+- HTTP provider scheme enforcement, allowlist, redirects, timeouts, size limits, TLS failure.
+- Env provider missing keys, allow/deny list, key/value size limits.
+- Time provider logical/Unix enforcement + RFC3339 parsing.
+- MCP provider malformed responses, text/empty results, flaky failures, namespace mismatch,
+  signature-required failures, contract mismatch.
 
 ---
 
@@ -295,4 +306,3 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 
 This roadmap is OSS-only. Any enterprise/DG-E platform work is explicitly
 out-of-scope and must live in the private monorepo.
-

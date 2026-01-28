@@ -67,6 +67,7 @@ use tempfile::TempDir;
 use url::Url;
 
 use crate::common::local_request_context;
+use crate::common::ToolRouterSyncExt;
 
 #[derive(Clone)]
 struct ContractSchemaResolver {
@@ -176,7 +177,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
     let define_schema = tool_schema(&tool_schemas, ToolName::ScenarioDefine)?;
     assert_valid(&define_schema.input, &define_input, "scenario_define input")?;
     let define_output =
-        router.handle_tool_call(&local_request_context(), "scenario_define", define_input)?;
+        router.handle_tool_call_sync(&local_request_context(), "scenario_define", define_input)?;
     assert_valid(&define_schema.output, &define_output, "scenario_define output")?;
     let define_response: ScenarioDefineResponse = serde_json::from_value(define_output)?;
 
@@ -192,7 +193,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
     let start_schema = tool_schema(&tool_schemas, ToolName::ScenarioStart)?;
     assert_valid(&start_schema.input, &start_input, "scenario_start input")?;
     let start_output =
-        router.handle_tool_call(&local_request_context(), "scenario_start", start_input)?;
+        router.handle_tool_call_sync(&local_request_context(), "scenario_start", start_input)?;
     assert_valid(&start_schema.output, &start_output, "scenario_start output")?;
 
     let status_request = ScenarioStatusRequest {
@@ -209,7 +210,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
     let status_schema = tool_schema(&tool_schemas, ToolName::ScenarioStatus)?;
     assert_valid(&status_schema.input, &status_input, "scenario_status input")?;
     let status_output =
-        router.handle_tool_call(&local_request_context(), "scenario_status", status_input)?;
+        router.handle_tool_call_sync(&local_request_context(), "scenario_status", status_input)?;
     assert_valid(&status_schema.output, &status_output, "scenario_status output")?;
 
     let next_request = ScenarioNextRequest {
@@ -228,7 +229,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
     let next_schema = tool_schema(&tool_schemas, ToolName::ScenarioNext)?;
     assert_valid(&next_schema.input, &next_input, "scenario_next input")?;
     let next_output =
-        router.handle_tool_call(&local_request_context(), "scenario_next", next_input)?;
+        router.handle_tool_call_sync(&local_request_context(), "scenario_next", next_input)?;
     assert_valid(&next_schema.output, &next_output, "scenario_next output")?;
 
     let submit_request = ScenarioSubmitRequest {
@@ -250,7 +251,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
     let submit_schema = tool_schema(&tool_schemas, ToolName::ScenarioSubmit)?;
     assert_valid(&submit_schema.input, &submit_input, "scenario_submit input")?;
     let submit_output =
-        router.handle_tool_call(&local_request_context(), "scenario_submit", submit_input)?;
+        router.handle_tool_call_sync(&local_request_context(), "scenario_submit", submit_input)?;
     assert_valid(&submit_schema.output, &submit_output, "scenario_submit output")?;
 
     let trigger_request = ScenarioTriggerRequest {
@@ -271,7 +272,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
     let trigger_schema = tool_schema(&tool_schemas, ToolName::ScenarioTrigger)?;
     assert_valid(&trigger_schema.input, &trigger_input, "scenario_trigger input")?;
     let trigger_output =
-        router.handle_tool_call(&local_request_context(), "scenario_trigger", trigger_input)?;
+        router.handle_tool_call_sync(&local_request_context(), "scenario_trigger", trigger_input)?;
     assert_valid(&trigger_schema.output, &trigger_output, "scenario_trigger output")?;
 
     let context = EvidenceContext {
@@ -296,7 +297,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
     let evidence_schema = tool_schema(&tool_schemas, ToolName::EvidenceQuery)?;
     assert_valid(&evidence_schema.input, &evidence_input, "evidence_query input")?;
     let evidence_output =
-        router.handle_tool_call(&local_request_context(), "evidence_query", evidence_input)?;
+        router.handle_tool_call_sync(&local_request_context(), "evidence_query", evidence_input)?;
     assert_valid(&evidence_schema.output, &evidence_output, "evidence_query output")?;
 
     let contract_request = ProviderContractGetRequest {
@@ -305,7 +306,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
     let contract_input = serde_json::to_value(&contract_request)?;
     let contract_schema = tool_schema(&tool_schemas, ToolName::ProviderContractGet)?;
     assert_valid(&contract_schema.input, &contract_input, "provider_contract_get input")?;
-    let contract_output = router.handle_tool_call(
+    let contract_output = router.handle_tool_call_sync(
         &local_request_context(),
         "provider_contract_get",
         contract_input,
@@ -320,7 +321,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
     let schema_schema = tool_schema(&tool_schemas, ToolName::ProviderSchemaGet)?;
     assert_valid(&schema_schema.input, &schema_input, "provider_schema_get input")?;
     let schema_output =
-        router.handle_tool_call(&local_request_context(), "provider_schema_get", schema_input)?;
+        router.handle_tool_call_sync(&local_request_context(), "provider_schema_get", schema_input)?;
     assert_valid(&schema_schema.output, &schema_output, "provider_schema_get output")?;
 
     let temp_dir = TempDir::new()?;
@@ -340,7 +341,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
     let export_schema = tool_schema(&tool_schemas, ToolName::RunpackExport)?;
     assert_valid(&export_schema.input, &export_input, "runpack_export input")?;
     let export_output =
-        router.handle_tool_call(&local_request_context(), "runpack_export", export_input)?;
+        router.handle_tool_call_sync(&local_request_context(), "runpack_export", export_input)?;
     assert_valid(&export_schema.output, &export_output, "runpack_export output")?;
 
     let verify_request = RunpackVerifyRequest {
@@ -351,7 +352,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
     let verify_schema = tool_schema(&tool_schemas, ToolName::RunpackVerify)?;
     assert_valid(&verify_schema.input, &verify_input, "runpack_verify input")?;
     let verify_output =
-        router.handle_tool_call(&local_request_context(), "runpack_verify", verify_input)?;
+        router.handle_tool_call_sync(&local_request_context(), "runpack_verify", verify_input)?;
     assert_valid(&verify_schema.output, &verify_output, "runpack_verify output")?;
 
     Ok(())

@@ -3197,6 +3197,7 @@ dependencies = [
  "decision-gate-core",
  "decision-gate-mcp",
  "decision-gate-store-sqlite",
+ "ed25519-dalek",
  "jsonschema",
  "once_cell",
  "rcgen",

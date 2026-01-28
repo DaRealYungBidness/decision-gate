@@ -57,6 +57,7 @@ use serde_json::json;
 
 use crate::common::local_request_context;
 use crate::common::sample_spec;
+use crate::common::ToolRouterSyncExt;
 
 #[derive(Default)]
 struct TestAuditSink {
@@ -111,7 +112,7 @@ fn build_router(mut config: DecisionGateConfig, audit: Arc<TestAuditSink>) -> To
         .namespace
         .default_tenants
         .iter()
-        .map(ToString::to_string)
+        .cloned()
         .collect::<std::collections::BTreeSet<_>>();
     let evidence_policy = config.evidence.clone();
     let validation = config.validation.clone();
@@ -193,7 +194,7 @@ fn register_schema(router: &ToolRouter, tenant_id: TenantId, namespace_id: Names
         record,
     };
     let _ = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_register",
             serde_json::to_value(&request).unwrap(),
@@ -206,7 +207,7 @@ fn define_scenario(router: &ToolRouter) {
         spec: sample_spec(),
     };
     let _ = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "scenario_define",
             serde_json::to_value(&request).unwrap(),
@@ -229,7 +230,7 @@ fn precheck(router: &ToolRouter, tenant_id: TenantId, namespace_id: NamespaceId)
         payload: json!({"after": true}),
     };
     let result = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "precheck",
             serde_json::to_value(&request).unwrap(),

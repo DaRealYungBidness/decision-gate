@@ -68,7 +68,7 @@ Input:
 {
   "spec": {
     "default_tenant_id": null,
-    "namespace_id": "default",
+    "namespace_id": 1,
     "policies": [],
     "predicates": [
       {
@@ -208,11 +208,11 @@ Input:
         "kind": "agent"
       }
     ],
-    "namespace_id": "default",
+    "namespace_id": 1,
     "policy_tags": [],
     "run_id": "run-0001",
     "scenario_id": "example-scenario",
-    "tenant_id": "tenant-001"
+    "tenant_id": 1
   },
   "scenario_id": "example-scenario",
   "started_at": {
@@ -233,7 +233,7 @@ Output:
     }
   ],
   "gate_evals": [],
-  "namespace_id": "namespace-001",
+  "namespace_id": 1,
   "packets": [],
   "run_id": "run-0001",
   "scenario_id": "example-scenario",
@@ -247,7 +247,7 @@ Output:
   },
   "status": "active",
   "submissions": [],
-  "tenant_id": "tenant-001",
+  "tenant_id": 1,
   "tool_calls": [],
   "triggers": []
 }
@@ -287,13 +287,13 @@ Input:
 {
   "request": {
     "correlation_id": null,
-    "namespace_id": "namespace-001",
+    "namespace_id": 1,
     "requested_at": {
       "kind": "unix_millis",
       "value": 1710000000000
     },
     "run_id": "run-0001",
-    "tenant_id": "tenant-001"
+    "tenant_id": 1
   },
   "scenario_id": "example-scenario"
 }
@@ -341,9 +341,9 @@ Input:
   "request": {
     "agent_id": "agent-alpha",
     "correlation_id": null,
-    "namespace_id": "namespace-001",
+    "namespace_id": 1,
     "run_id": "run-0001",
-    "tenant_id": "tenant-001",
+    "tenant_id": 1,
     "time": {
       "kind": "unix_millis",
       "value": 1710000000000
@@ -404,7 +404,7 @@ Input:
   "request": {
     "content_type": "application/json",
     "correlation_id": null,
-    "namespace_id": "namespace-001",
+    "namespace_id": 1,
     "payload": {
       "kind": "json",
       "value": {
@@ -418,7 +418,7 @@ Input:
       "kind": "unix_millis",
       "value": 1710000000000
     },
-    "tenant_id": "tenant-001"
+    "tenant_id": 1
   },
   "scenario_id": "example-scenario"
 }
@@ -481,11 +481,11 @@ Input:
   "trigger": {
     "correlation_id": null,
     "kind": "tick",
-    "namespace_id": "namespace-001",
+    "namespace_id": 1,
     "payload": null,
     "run_id": "run-0001",
     "source_id": "scheduler-01",
-    "tenant_id": "tenant-001",
+    "tenant_id": 1,
     "time": {
       "kind": "unix_millis",
       "value": 1710000000000
@@ -544,11 +544,11 @@ Input:
 {
   "context": {
     "correlation_id": null,
-    "namespace_id": "namespace-001",
+    "namespace_id": 1,
     "run_id": "run-0001",
     "scenario_id": "example-scenario",
     "stage_id": "main",
-    "tenant_id": "tenant-001",
+    "tenant_id": 1,
     "trigger_id": "trigger-0001",
     "trigger_time": {
       "kind": "unix_millis",
@@ -628,11 +628,11 @@ Input:
   },
   "include_verification": false,
   "manifest_name": "manifest.json",
-  "namespace_id": "namespace-001",
+  "namespace_id": 1,
   "output_dir": "/var/lib/decision-gate/runpacks/run-0001",
   "run_id": "run-0001",
   "scenario_id": "example-scenario",
-  "tenant_id": "tenant-001"
+  "tenant_id": 1
 }
 ```
 Output:
@@ -673,14 +673,14 @@ Output:
       }
     },
     "manifest_version": "v1",
-    "namespace_id": "namespace-001",
+    "namespace_id": 1,
     "run_id": "run-0001",
     "scenario_id": "example-scenario",
     "spec_hash": {
       "algorithm": "sha256",
       "value": "5c3a5b6bce0f4a2c9e22c4fa6a1e6d8d90b0f2dfed1b7f1e9b3d3b3d1f0c9b21"
     },
-    "tenant_id": "tenant-001",
+    "tenant_id": 1,
     "verifier_mode": "offline_strict"
   },
   "report": null,
@@ -941,7 +941,7 @@ Input:
       "value": 1710000000000
     },
     "description": "Asserted payload schema.",
-    "namespace_id": "namespace-001",
+    "namespace_id": 1,
     "schema": {
       "additionalProperties": false,
       "properties": {
@@ -955,7 +955,7 @@ Input:
       "type": "object"
     },
     "schema_id": "asserted_payload",
-    "tenant_id": "tenant-001",
+    "tenant_id": 1,
     "version": "v1"
   }
 }
@@ -969,7 +969,7 @@ Output:
       "value": 1710000000000
     },
     "description": "Asserted payload schema.",
-    "namespace_id": "namespace-001",
+    "namespace_id": 1,
     "schema": {
       "additionalProperties": false,
       "properties": {
@@ -983,7 +983,7 @@ Output:
       "type": "object"
     },
     "schema_id": "asserted_payload",
-    "tenant_id": "tenant-001",
+    "tenant_id": 1,
     "version": "v1"
   }
 }
@@ -1018,8 +1018,8 @@ Input:
 {
   "cursor": null,
   "limit": 50,
-  "namespace_id": "namespace-001",
-  "tenant_id": "tenant-001"
+  "namespace_id": 1,
+  "tenant_id": 1
 }
 ```
 Output:
@@ -1032,7 +1032,7 @@ Output:
         "value": 1710000000000
       },
       "description": "Asserted payload schema.",
-      "namespace_id": "namespace-001",
+      "namespace_id": 1,
       "schema": {
         "additionalProperties": false,
         "properties": {
@@ -1046,7 +1046,7 @@ Output:
         "type": "object"
       },
       "schema_id": "asserted_payload",
-      "tenant_id": "tenant-001",
+      "tenant_id": 1,
       "version": "v1"
     }
   ],
@@ -1080,9 +1080,9 @@ Fetch a data shape by identifier and version.
 Input:
 ```json
 {
-  "namespace_id": "namespace-001",
+  "namespace_id": 1,
   "schema_id": "asserted_payload",
-  "tenant_id": "tenant-001",
+  "tenant_id": 1,
   "version": "v1"
 }
 ```
@@ -1095,7 +1095,7 @@ Output:
       "value": 1710000000000
     },
     "description": "Asserted payload schema.",
-    "namespace_id": "namespace-001",
+    "namespace_id": 1,
     "schema": {
       "additionalProperties": false,
       "properties": {
@@ -1109,7 +1109,7 @@ Output:
       "type": "object"
     },
     "schema_id": "asserted_payload",
-    "tenant_id": "tenant-001",
+    "tenant_id": 1,
     "version": "v1"
   }
 }
@@ -1144,8 +1144,8 @@ Input:
 {
   "cursor": null,
   "limit": 50,
-  "namespace_id": "namespace-001",
-  "tenant_id": "tenant-001"
+  "namespace_id": 1,
+  "tenant_id": 1
 }
 ```
 Output:
@@ -1153,7 +1153,7 @@ Output:
 {
   "items": [
     {
-      "namespace_id": "namespace-001",
+      "namespace_id": 1,
       "scenario_id": "example-scenario",
       "spec_hash": {
         "algorithm": "sha256",
@@ -1199,14 +1199,14 @@ Input:
     "schema_id": "asserted_payload",
     "version": "v1"
   },
-  "namespace_id": "namespace-001",
+  "namespace_id": 1,
   "payload": {
     "deploy_env": "production"
   },
   "scenario_id": "example-scenario",
   "spec": null,
   "stage_id": null,
-  "tenant_id": "tenant-001"
+  "tenant_id": 1
 }
 ```
 Output:

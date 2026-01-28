@@ -1,6 +1,6 @@
 {
-  "default_tenant_id": null,
-  "namespace_id": "assetcore-interop",
+  "default_tenant_id": 1,
+  "namespace_id": 1,
   "policies": [],
   "predicates": [
     {

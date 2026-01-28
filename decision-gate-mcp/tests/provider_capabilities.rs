@@ -26,6 +26,7 @@ use decision_gate_mcp::tools::ToolError;
 use serde_json::json;
 
 use crate::common::local_request_context;
+use crate::common::ToolRouterSyncExt;
 
 #[test]
 fn scenario_define_rejects_disallowed_comparator() {
@@ -36,7 +37,7 @@ fn scenario_define_rejects_disallowed_comparator() {
     let request = ScenarioDefineRequest {
         spec,
     };
-    let result = router.handle_tool_call(
+    let result = router.handle_tool_call_sync(
         &local_request_context(),
         "scenario_define",
         serde_json::to_value(&request).unwrap(),
@@ -59,7 +60,7 @@ fn scenario_define_rejects_expected_schema_mismatch() {
     let request = ScenarioDefineRequest {
         spec,
     };
-    let result = router.handle_tool_call(
+    let result = router.handle_tool_call_sync(
         &local_request_context(),
         "scenario_define",
         serde_json::to_value(&request).unwrap(),
@@ -83,7 +84,7 @@ fn scenario_define_rejects_in_set_without_array_expected() {
     let request = ScenarioDefineRequest {
         spec,
     };
-    let result = router.handle_tool_call(
+    let result = router.handle_tool_call_sync(
         &local_request_context(),
         "scenario_define",
         serde_json::to_value(&request).unwrap(),
@@ -108,7 +109,7 @@ fn evidence_query_rejects_missing_params() {
         },
         context: common::sample_context(),
     };
-    let result = router.handle_tool_call(
+    let result = router.handle_tool_call_sync(
         &local_request_context(),
         "evidence_query",
         serde_json::to_value(&request).unwrap(),
@@ -133,7 +134,7 @@ fn evidence_query_rejects_invalid_params() {
         },
         context: common::sample_context(),
     };
-    let result = router.handle_tool_call(
+    let result = router.handle_tool_call_sync(
         &local_request_context(),
         "evidence_query",
         serde_json::to_value(&request).unwrap(),

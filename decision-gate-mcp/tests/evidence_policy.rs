@@ -51,6 +51,7 @@ use serde_json::json;
 
 use crate::common::local_request_context;
 use crate::common::sample_context;
+use crate::common::ToolRouterSyncExt;
 
 // ============================================================================
 // SECTION: Test Fixtures
@@ -95,7 +96,7 @@ fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
         .namespace
         .default_tenants
         .iter()
-        .map(ToString::to_string)
+        .cloned()
         .collect::<std::collections::BTreeSet<_>>();
     let evidence_policy = config.evidence.clone();
     let validation = config.validation.clone();
@@ -167,7 +168,7 @@ fn query_time_now(router: &ToolRouter) -> EvidenceQueryResponse {
         context: sample_context(),
     };
     let result = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "evidence_query",
             serde_json::to_value(&request).unwrap(),
@@ -186,7 +187,7 @@ fn query_env_path(router: &ToolRouter) -> EvidenceQueryResponse {
         context: sample_context(),
     };
     let result = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "evidence_query",
             serde_json::to_value(&request).unwrap(),

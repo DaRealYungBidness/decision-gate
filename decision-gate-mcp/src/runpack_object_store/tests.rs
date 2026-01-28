@@ -26,7 +26,7 @@ fn sample_key() -> RunpackObjectKey {
 fn runpack_prefix_is_deterministic() {
     let key = sample_key();
     let prefix = runpack_prefix(&key).expect("prefix");
-    assert!(prefix.contains("tenant/tenant-001"));
+    assert!(prefix.contains("tenant/1"));
     assert!(prefix.ends_with('/'));
 }
 
@@ -51,7 +51,7 @@ fn normalize_prefix_rejects_backslashes() {
 #[test]
 fn runpack_prefix_rejects_invalid_segments() {
     let mut key = sample_key();
-    key.tenant_id = TenantId::from_raw(100).expect("nonzero tenantid");
+    key.run_id = RunId::from("bad/run");
     let result = runpack_prefix(&key);
     assert!(result.is_err());
 }
@@ -62,7 +62,7 @@ fn storage_uri_contains_bucket_and_prefix() {
     let backend = ObjectStoreRunpackBackend::from_client("unit-bucket", store);
     let key = sample_key();
     let uri = backend.storage_uri(&key).expect("uri");
-    assert!(uri.starts_with("memory://unit-bucket/tenant/tenant-001"));
+    assert!(uri.starts_with("memory://unit-bucket/tenant/1"));
     assert!(uri.ends_with('/'));
 }
 

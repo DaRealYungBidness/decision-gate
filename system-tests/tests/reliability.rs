@@ -14,6 +14,8 @@ mod helpers;
 mod determinism;
 #[path = "suites/reliability.rs"]
 mod reliability;
+#[path = "suites/metamorphic.rs"]
+mod metamorphic;
 #[path = "suites/store_persistence.rs"]
 mod store_persistence;
 #[path = "suites/stress.rs"]

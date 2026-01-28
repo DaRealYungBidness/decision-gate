@@ -226,7 +226,7 @@ impl McpServer {
         let provider_transports = build_provider_transports(&config);
         let schema_registry_limits = build_schema_registry_limits(&config)?;
         let default_namespace_tenants =
-            config.namespace.default_tenants.iter().cloned().collect::<BTreeSet<_>>();
+            config.namespace.default_tenants.iter().copied().collect::<BTreeSet<_>>();
         let namespace_authority = match namespace_authority {
             Some(authority) => authority,
             None => build_namespace_authority(&config)
@@ -320,7 +320,8 @@ impl McpServer {
                 Arc::clone(&self.metrics),
                 Arc::clone(&self.audit),
                 &self.config.server,
-            ),
+            )
+            .await,
             ServerTransport::Http => {
                 serve_http(self.config, self.router, self.metrics, self.audit).await
             }
@@ -597,7 +598,7 @@ fn load_root_store(path: &str) -> Result<RootCertStore, McpServerError> {
 // ============================================================================
 
 /// Serves JSON-RPC requests over stdin/stdout.
-fn serve_stdio(
+async fn serve_stdio(
     router: &ToolRouter,
     metrics: Arc<dyn McpMetrics>,
     audit: Arc<dyn McpAuditSink>,
@@ -609,7 +610,7 @@ fn serve_stdio(
     loop {
         let bytes = read_framed(&mut reader, server.max_body_bytes)?;
         let context = RequestContext::stdio();
-        let response = parse_request(&state, &context, &Bytes::from(bytes));
+        let response = parse_request(&state, &context, &Bytes::from(bytes)).await;
         let payload = serde_json::to_vec(&response.1)
             .map_err(|_| McpServerError::Transport("json-rpc serialization failed".to_string()))?;
         write_framed(&mut writer, &payload)?;
@@ -817,7 +818,7 @@ async fn handle_http(
     bytes: Bytes,
 ) -> impl IntoResponse {
     let context = http_request_context(ServerTransport::Http, peer, &headers);
-    let response = parse_request(&state, &context, &bytes);
+    let response = parse_request(&state, &context, &bytes).await;
     (response.0, axum::Json(response.1))
 }
 
@@ -829,7 +830,7 @@ async fn handle_sse(
     bytes: Bytes,
 ) -> impl IntoResponse {
     let context = http_request_context(ServerTransport::Sse, peer, &headers);
-    let response = parse_request(&state, &context, &bytes);
+    let response = parse_request(&state, &context, &bytes).await;
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<Event, Infallible>>(1);
     let payload = serde_json::to_string(&response.1).unwrap_or_else(|_| {
         "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32060,\"message\":\"serialization \
@@ -1141,7 +1142,7 @@ fn reject_request(
 }
 
 /// Parses and validates a JSON-RPC request payload.
-fn parse_request(
+async fn parse_request(
     state: &ServerState,
     context: &RequestContext,
     bytes: &Bytes,

@@ -240,8 +240,8 @@ where
             let trigger_id = TriggerId::new("init");
             let init_trigger = TriggerEvent {
                 trigger_id: trigger_id.clone(),
-                tenant_id: state.tenant_id.clone(),
-                namespace_id: state.namespace_id.clone(),
+                tenant_id: state.tenant_id,
+                namespace_id: state.namespace_id,
                 run_id: state.run_id.clone(),
                 kind: TriggerKind::ExternalEvent,
                 time: started_at,
@@ -286,8 +286,7 @@ where
         &self,
         request: &StatusRequest,
     ) -> Result<ScenarioStatus, ControlPlaneError> {
-        let mut state =
-            self.load_run(&request.tenant_id, &request.namespace_id, &request.run_id)?;
+        let mut state = self.load_run(request.tenant_id, request.namespace_id, &request.run_id)?;
         let status = ScenarioStatus::from_state(&state);
         let call_id = format!("call-{}", state.tool_calls.len() + 1);
         let tool_record = build_tool_call_record(
@@ -312,8 +311,8 @@ where
     pub fn scenario_next(&self, request: &NextRequest) -> Result<NextResult, ControlPlaneError> {
         let trigger = TriggerEvent {
             trigger_id: request.trigger_id.clone(),
-            tenant_id: request.tenant_id.clone(),
-            namespace_id: request.namespace_id.clone(),
+            tenant_id: request.tenant_id,
+            namespace_id: request.namespace_id,
             run_id: request.run_id.clone(),
             kind: TriggerKind::AgentRequestNext,
             time: request.time,
@@ -322,8 +321,7 @@ where
             correlation_id: request.correlation_id.clone(),
         };
 
-        let mut state =
-            self.load_run(&request.tenant_id, &request.namespace_id, &request.run_id)?;
+        let mut state = self.load_run(request.tenant_id, request.namespace_id, &request.run_id)?;
         if let Err(err) = self.evidence.validate_providers(&self.spec) {
             let tool_error = provider_missing_tool_error(&err);
             let call_id = format!("call-{}", state.tool_calls.len() + 1);
@@ -368,8 +366,7 @@ where
         &self,
         request: &SubmitRequest,
     ) -> Result<SubmitResult, ControlPlaneError> {
-        let mut state =
-            self.load_run(&request.tenant_id, &request.namespace_id, &request.run_id)?;
+        let mut state = self.load_run(request.tenant_id, request.namespace_id, &request.run_id)?;
         if let Some(existing) = state
             .submissions
             .iter()
@@ -454,8 +451,7 @@ where
     ///
     /// Returns [`ControlPlaneError`] when trigger evaluation fails.
     pub fn trigger(&self, trigger: &TriggerEvent) -> Result<TriggerResult, ControlPlaneError> {
-        let mut state =
-            self.load_run(&trigger.tenant_id, &trigger.namespace_id, &trigger.run_id)?;
+        let mut state = self.load_run(trigger.tenant_id, trigger.namespace_id, &trigger.run_id)?;
         if let Err(err) = self.evidence.validate_providers(&self.spec) {
             let tool_error = provider_missing_tool_error(&err);
             let call_id = format!("call-{}", state.tool_calls.len() + 1);
@@ -592,7 +588,7 @@ where
             let gate_requirement =
                 default_requirement.stricter(gate.trust.unwrap_or(default_requirement));
             let gate_evidence = evidence_for_gate(evidence_records, gate);
-            let adjusted_evidence: Vec<EvidenceRecord> = gate_evidence
+            let mut adjusted_evidence: Vec<EvidenceRecord> = gate_evidence
                 .into_iter()
                 .map(|record| {
                     let predicate_requirement = predicate_requirements
@@ -603,6 +599,9 @@ where
                     apply_trust_requirement(record, effective_requirement)
                 })
                 .collect();
+            adjusted_evidence.sort_by(|left, right| {
+                left.predicate.as_str().cmp(right.predicate.as_str())
+            });
             let snapshot = EvidenceSnapshot::new(adjusted_evidence);
             let evaluation = evaluator.evaluate_gate(gate, &snapshot);
             gate_outcomes.push((gate.gate_id.clone(), evaluation.status));
@@ -724,7 +723,7 @@ where
             let gate_requirement =
                 default_requirement.stricter(gate.trust.unwrap_or(default_requirement));
             let gate_evidence = evidence_for_gate(&evidence_records, gate);
-            let adjusted_evidence: Vec<EvidenceRecord> = gate_evidence
+            let mut adjusted_evidence: Vec<EvidenceRecord> = gate_evidence
                 .into_iter()
                 .map(|record| {
                     let predicate_requirement = predicate_requirements
@@ -735,6 +734,9 @@ where
                     apply_trust_requirement(record, effective_requirement)
                 })
                 .collect();
+            adjusted_evidence.sort_by(|left, right| {
+                left.predicate.as_str().cmp(right.predicate.as_str())
+            });
             let snapshot = EvidenceSnapshot::new(adjusted_evidence.clone());
             let evaluation = evaluator.evaluate_gate(gate, &snapshot);
             gate_outcomes.push((gate.gate_id.clone(), evaluation.status));
@@ -1135,12 +1137,12 @@ where
     /// Loads the run state or returns an error if missing.
     fn load_run(
         &self,
-        tenant_id: &TenantId,
-        namespace_id: &NamespaceId,
+        tenant_id: TenantId,
+        namespace_id: NamespaceId,
         run_id: &RunId,
     ) -> Result<RunState, ControlPlaneError> {
         self.store
-            .load(tenant_id, namespace_id, run_id)?
+            .load(&tenant_id, &namespace_id, run_id)?
             .ok_or_else(|| ControlPlaneError::RunNotFound(run_id.to_string()))
     }
 }
@@ -1518,8 +1520,8 @@ fn record_trigger(state: &mut RunState, trigger: &TriggerEvent) -> Result<(), Co
 /// Builds evidence context from the run state and trigger metadata.
 fn build_evidence_context(state: &RunState, trigger: &TriggerEvent) -> EvidenceContext {
     EvidenceContext {
-        tenant_id: state.tenant_id.clone(),
-        namespace_id: state.namespace_id.clone(),
+        tenant_id: state.tenant_id,
+        namespace_id: state.namespace_id,
         run_id: state.run_id.clone(),
         scenario_id: state.scenario_id.clone(),
         stage_id: state.current_stage_id.clone(),

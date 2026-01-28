@@ -122,6 +122,7 @@ impl AssetCoreNamespaceAuthority {
     }
 }
 
+#[async_trait]
 impl NamespaceAuthority for AssetCoreNamespaceAuthority {
     async fn ensure_namespace(
         &self,

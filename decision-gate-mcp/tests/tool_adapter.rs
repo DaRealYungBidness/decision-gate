@@ -21,6 +21,8 @@
     reason = "Test-only output and panic-based assertions are permitted."
 )]
 
+mod common;
+
 use std::sync::Arc;
 
 use decision_gate_core::AdvanceTo;
@@ -78,6 +80,7 @@ use decision_gate_mcp::config::TrustConfig;
 use decision_gate_mcp::config::ValidationConfig;
 use decision_gate_mcp::namespace_authority::NoopNamespaceAuthority;
 use decision_gate_mcp::tools::ToolRouterConfig;
+use common::ToolRouterSyncExt;
 use serde_json::json;
 
 struct NoopDispatcher;
@@ -198,7 +201,7 @@ fn build_router(config: &DecisionGateConfig) -> ToolRouter {
         .namespace
         .default_tenants
         .iter()
-        .map(ToString::to_string)
+        .cloned()
         .collect::<std::collections::BTreeSet<_>>();
     let provider_trust_overrides = if config.is_dev_permissive() {
         config
@@ -301,7 +304,7 @@ fn mcp_tools_match_core_control_plane() {
         spec: sample_spec(),
     };
     let _ = router
-        .handle_tool_call(&context, "scenario_define", serde_json::to_value(&define).unwrap())
+        .handle_tool_call_sync(&context, "scenario_define", serde_json::to_value(&define).unwrap())
         .unwrap();
 
     let run_config = RunConfig {
@@ -319,7 +322,7 @@ fn mcp_tools_match_core_control_plane() {
         issue_entry_packets: false,
     };
     let _ = router
-        .handle_tool_call(&context, "scenario_start", serde_json::to_value(&start_request).unwrap())
+        .handle_tool_call_sync(&context, "scenario_start", serde_json::to_value(&start_request).unwrap())
         .unwrap();
 
     let next_request = NextRequest {
@@ -336,7 +339,7 @@ fn mcp_tools_match_core_control_plane() {
         request: next_request.clone(),
     };
     let tool_result = router
-        .handle_tool_call(&context, "scenario_next", serde_json::to_value(&tool_request).unwrap())
+        .handle_tool_call_sync(&context, "scenario_next", serde_json::to_value(&tool_request).unwrap())
         .unwrap();
     let mcp_result: NextResult = serde_json::from_value(tool_result).unwrap();
 
@@ -415,7 +418,7 @@ fn parity_scenario_status() {
         spec: sample_spec(),
     };
     router
-        .handle_tool_call(&context, "scenario_define", serde_json::to_value(&define).unwrap())
+        .handle_tool_call_sync(&context, "scenario_define", serde_json::to_value(&define).unwrap())
         .unwrap();
 
     let run_config = RunConfig {
@@ -433,7 +436,7 @@ fn parity_scenario_status() {
         issue_entry_packets: false,
     };
     router
-        .handle_tool_call(&context, "scenario_start", serde_json::to_value(&start_request).unwrap())
+        .handle_tool_call_sync(&context, "scenario_start", serde_json::to_value(&start_request).unwrap())
         .unwrap();
 
     // Query status via MCP
@@ -448,7 +451,7 @@ fn parity_scenario_status() {
         },
     };
     let mcp_result = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &context,
             "scenario_status",
             serde_json::to_value(&status_request).unwrap(),
@@ -475,7 +478,7 @@ fn parity_providers_list() {
 
     let request = ProvidersListRequest {};
     let mcp_result = router
-        .handle_tool_call(&context, "providers_list", serde_json::to_value(&request).unwrap())
+        .handle_tool_call_sync(&context, "providers_list", serde_json::to_value(&request).unwrap())
         .unwrap();
     let response: ProvidersListResponse = serde_json::from_value(mcp_result).unwrap();
 
@@ -498,7 +501,7 @@ fn parity_provider_contract_get() {
         provider_id: "time".to_string(),
     };
     let mcp_result = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &context,
             "provider_contract_get",
             serde_json::to_value(&request).unwrap(),
@@ -524,7 +527,7 @@ fn parity_provider_schema_get() {
         predicate: "after".to_string(),
     };
     let mcp_result = router
-        .handle_tool_call(&context, "provider_schema_get", serde_json::to_value(&request).unwrap())
+        .handle_tool_call_sync(&context, "provider_schema_get", serde_json::to_value(&request).unwrap())
         .unwrap();
     let response: ProviderSchemaGetResponse = serde_json::from_value(mcp_result).unwrap();
     assert_eq!(response.provider_id, "time");
@@ -547,7 +550,7 @@ fn parity_scenarios_list() {
         spec: sample_spec(),
     };
     router
-        .handle_tool_call(&context, "scenario_define", serde_json::to_value(&define).unwrap())
+        .handle_tool_call_sync(&context, "scenario_define", serde_json::to_value(&define).unwrap())
         .unwrap();
 
     // List scenarios
@@ -558,7 +561,7 @@ fn parity_scenarios_list() {
         limit: None,
     };
     let mcp_result = router
-        .handle_tool_call(&context, "scenarios_list", serde_json::to_value(&request).unwrap())
+        .handle_tool_call_sync(&context, "scenarios_list", serde_json::to_value(&request).unwrap())
         .unwrap();
     let response: ScenariosListResponse = serde_json::from_value(mcp_result).unwrap();
 
@@ -602,7 +605,7 @@ fn parity_schemas_register_get() {
         record: record.clone(),
     };
     let register_result = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &context,
             "schemas_register",
             serde_json::to_value(&register_request).unwrap(),
@@ -620,7 +623,7 @@ fn parity_schemas_register_get() {
         version: DataShapeVersion::new("1"),
     };
     let get_result = router
-        .handle_tool_call(&context, "schemas_get", serde_json::to_value(&get_request).unwrap())
+        .handle_tool_call_sync(&context, "schemas_get", serde_json::to_value(&get_request).unwrap())
         .unwrap();
     let get_response: SchemasGetResponse = serde_json::from_value(get_result).unwrap();
     assert_eq!(get_response.record.schema, schema);
@@ -657,7 +660,7 @@ fn parity_schemas_list() {
         record,
     };
     router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &context,
             "schemas_register",
             serde_json::to_value(&register_request).unwrap(),
@@ -672,7 +675,7 @@ fn parity_schemas_list() {
         limit: None,
     };
     let list_result = router
-        .handle_tool_call(&context, "schemas_list", serde_json::to_value(&list_request).unwrap())
+        .handle_tool_call_sync(&context, "schemas_list", serde_json::to_value(&list_request).unwrap())
         .unwrap();
     let list_response: SchemasListResponse = serde_json::from_value(list_result).unwrap();
 
@@ -718,7 +721,7 @@ fn parity_evidence_query() {
         context: evidence_context,
     };
     let mcp_result = router
-        .handle_tool_call(&context, "evidence_query", serde_json::to_value(&request).unwrap())
+        .handle_tool_call_sync(&context, "evidence_query", serde_json::to_value(&request).unwrap())
         .unwrap();
     let response: EvidenceQueryResponse = serde_json::from_value(mcp_result).unwrap();
 
@@ -752,7 +755,7 @@ fn parity_precheck() {
         spec,
     };
     router
-        .handle_tool_call(&context, "scenario_define", serde_json::to_value(&define).unwrap())
+        .handle_tool_call_sync(&context, "scenario_define", serde_json::to_value(&define).unwrap())
         .unwrap();
 
     // Register a schema for the data shape
@@ -771,7 +774,7 @@ fn parity_precheck() {
         record,
     };
     router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &context,
             "schemas_register",
             serde_json::to_value(&register_request).unwrap(),
@@ -792,7 +795,7 @@ fn parity_precheck() {
         payload: json!({"after": true}),
     };
     let mcp_result = router
-        .handle_tool_call(&context, "precheck", serde_json::to_value(&precheck_request).unwrap())
+        .handle_tool_call_sync(&context, "precheck", serde_json::to_value(&precheck_request).unwrap())
         .unwrap();
     let response: PrecheckToolResponse = serde_json::from_value(mcp_result).unwrap();
 
@@ -816,7 +819,7 @@ fn parity_scenario_status_not_found() {
         spec: sample_spec(),
     };
     router
-        .handle_tool_call(&context, "scenario_define", serde_json::to_value(&define).unwrap())
+        .handle_tool_call_sync(&context, "scenario_define", serde_json::to_value(&define).unwrap())
         .unwrap();
 
     // Query status for non-existent run
@@ -830,7 +833,7 @@ fn parity_scenario_status_not_found() {
             correlation_id: None,
         },
     };
-    let result = router.handle_tool_call(
+    let result = router.handle_tool_call_sync(
         &context,
         "scenario_status",
         serde_json::to_value(&status_request).unwrap(),
@@ -872,7 +875,7 @@ fn parity_evidence_query_unknown_provider() {
         query,
         context: evidence_context,
     };
-    let result = router.handle_tool_call(
+    let result = router.handle_tool_call_sync(
         &context,
         "evidence_query",
         serde_json::to_value(&request).unwrap(),
@@ -898,7 +901,7 @@ fn parity_schemas_get_not_found() {
         schema_id: DataShapeId::new("non-existent-schema"),
         version: DataShapeVersion::new("1"),
     };
-    let result = router.handle_tool_call(
+    let result = router.handle_tool_call_sync(
         &context,
         "schemas_get",
         serde_json::to_value(&get_request).unwrap(),

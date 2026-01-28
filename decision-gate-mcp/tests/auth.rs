@@ -26,17 +26,28 @@ use decision_gate_mcp::ToolAuthz;
 use decision_gate_mcp::auth::AuthAction;
 use decision_gate_mcp::auth::AuthAuditEvent;
 use decision_gate_mcp::auth::AuthContext;
+use decision_gate_mcp::auth::AuthError;
 use decision_gate_mcp::auth::AuthMethod;
 use decision_gate_mcp::config::ServerAuthConfig;
 use decision_gate_mcp::config::ServerAuthMode;
 use decision_gate_mcp::config::ServerTransport;
 use serde_json::Value;
 
+fn authorize_sync(
+    authz: &DefaultToolAuthz,
+    context: &RequestContext,
+    action: AuthAction<'_>,
+) -> Result<AuthContext, AuthError> {
+    tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(authz.authorize(context, action))
+}
+
 #[test]
 fn local_only_allows_stdio() {
     let authz = DefaultToolAuthz::from_config(None);
     let context = RequestContext::stdio();
-    let result = authz.authorize(&context, AuthAction::ListTools);
+    let result = authorize_sync(&authz, &context, AuthAction::ListTools);
     assert!(result.is_ok());
 }
 
@@ -45,7 +56,7 @@ fn local_only_rejects_remote_http() {
     let authz = DefaultToolAuthz::from_config(None);
     let context =
         RequestContext::http(ServerTransport::Http, Some(IpAddr::from([10, 0, 0, 1])), None, None);
-    let result = authz.authorize(&context, AuthAction::ListTools);
+    let result = authorize_sync(&authz, &context, AuthAction::ListTools);
     assert!(result.is_err());
 }
 
@@ -61,7 +72,7 @@ fn bearer_auth_requires_token() {
     let authz = DefaultToolAuthz::from_config(Some(&config));
     let context =
         RequestContext::http(ServerTransport::Http, Some(IpAddr::from([127, 0, 0, 1])), None, None);
-    let result = authz.authorize(&context, AuthAction::ListTools);
+    let result = authorize_sync(&authz, &context, AuthAction::ListTools);
     assert!(result.is_err());
 }
 
@@ -81,7 +92,7 @@ fn bearer_auth_accepts_valid_token() {
         Some("Bearer token-1".to_string()),
         None,
     );
-    let result = authz.authorize(&context, AuthAction::ListTools);
+    let result = authorize_sync(&authz, &context, AuthAction::ListTools);
     assert!(result.is_ok());
 }
 
@@ -101,9 +112,9 @@ fn tool_allowlist_denies_disallowed_tool() {
         Some("Bearer token-1".to_string()),
         None,
     );
-    let allowed = authz.authorize(&context, AuthAction::CallTool(&ToolName::ScenarioDefine));
+    let allowed = authorize_sync(&authz, &context, AuthAction::CallTool(&ToolName::ScenarioDefine));
     assert!(allowed.is_ok());
-    let denied = authz.authorize(&context, AuthAction::CallTool(&ToolName::ScenarioStatus));
+    let denied = authorize_sync(&authz, &context, AuthAction::CallTool(&ToolName::ScenarioStatus));
     assert!(denied.is_err());
 }
 
@@ -123,7 +134,7 @@ fn bearer_auth_rejects_invalid_scheme() {
         Some("Basic token-1".to_string()),
         None,
     );
-    let result = authz.authorize(&context, AuthAction::ListTools);
+    let result = authorize_sync(&authz, &context, AuthAction::ListTools);
     assert!(result.is_err());
 }
 
@@ -144,7 +155,7 @@ fn bearer_auth_rejects_oversized_header() {
         Some(oversized),
         None,
     );
-    let result = authz.authorize(&context, AuthAction::ListTools);
+    let result = authorize_sync(&authz, &context, AuthAction::ListTools);
     assert!(result.is_err());
 }
 
@@ -160,7 +171,7 @@ fn mtls_requires_subject_header() {
     let authz = DefaultToolAuthz::from_config(Some(&config));
     let context =
         RequestContext::http(ServerTransport::Http, Some(IpAddr::from([127, 0, 0, 1])), None, None);
-    let result = authz.authorize(&context, AuthAction::ListTools);
+    let result = authorize_sync(&authz, &context, AuthAction::ListTools);
     assert!(result.is_err());
 }
 
@@ -180,7 +191,7 @@ fn mtls_rejects_unlisted_subject() {
         None,
         Some("CN=other".to_string()),
     );
-    let result = authz.authorize(&context, AuthAction::ListTools);
+    let result = authorize_sync(&authz, &context, AuthAction::ListTools);
     assert!(result.is_err());
 }
 

@@ -21,6 +21,7 @@ decision-gate-core = { path = "../decision-gate-core" }
 decision-gate-cli = { path = "../decision-gate-cli" }
 decision-gate-mcp = { path = "../decision-gate-mcp" }
 decision-gate-store-sqlite = { path = "../decision-gate-store-sqlite" }
+ed25519-dalek = { version = "2.1", features = ["std"] }
 jsonschema = { version = "0.18", features = ["draft202012"] }
 once_cell = "1.19"
 rcgen = "0.13"
@@ -90,4 +91,9 @@ required-features = ["system-tests"]
 [[test]]
 name = "performance"
 path = "tests/performance.rs"
+required-features = ["system-tests"]
+
+[[test]]
+name = "golden_runpacks"
+path = "tests/golden_runpacks.rs"
 required-features = ["system-tests"]

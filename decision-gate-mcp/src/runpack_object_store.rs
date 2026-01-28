@@ -55,10 +55,11 @@ const MAX_PATH_COMPONENT_LENGTH: usize = 255;
 /// Maximum total key length.
 const MAX_TOTAL_PATH_LENGTH: usize = 4096;
 
-// ============================================================================ 
+// ============================================================================
 // SECTION: Runtime Helpers
-// ============================================================================ 
+// ============================================================================
 
+/// Blocks on an object-store future using a compatible runtime.
 fn block_on_with_runtime<F, T>(runtime: &Runtime, future: F) -> Result<T, ObjectStoreError>
 where
     F: Future<Output = Result<T, ObjectStoreError>> + Send + 'static,

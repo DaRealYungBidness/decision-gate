@@ -49,6 +49,8 @@ use decision_gate_core::SharedRunStateStore;
 use decision_gate_core::TenantId;
 use serde_json::json;
 
+use super::JsonRpcResponse;
+use super::ServerState;
 use super::build_provider_transports;
 use super::build_schema_registry_limits;
 use super::build_server_state;
@@ -174,12 +176,8 @@ fn sample_router(config: &DecisionGateConfig) -> ToolRouter {
         crate::registry_acl::PrincipalResolver::from_config(config.server.auth.as_ref());
     let registry_acl = crate::registry_acl::RegistryAcl::new(&config.schema_registry.acl);
     let audit = Arc::new(NoopAuditSink);
-    let default_namespace_tenants = config
-        .namespace
-        .default_tenants
-        .iter()
-        .map(ToString::to_string)
-        .collect::<std::collections::BTreeSet<_>>();
+    let default_namespace_tenants =
+        config.namespace.default_tenants.iter().cloned().collect::<std::collections::BTreeSet<_>>();
     let provider_trust_overrides = if config.is_dev_permissive() {
         config
             .dev
@@ -188,9 +186,7 @@ fn sample_router(config: &DecisionGateConfig) -> ToolRouter {
             .map(|id| {
                 (
                     id.clone(),
-                    decision_gate_core::TrustRequirement {
-                        min_lane: config.trust.min_lane,
-                    },
+                    decision_gate_core::TrustRequirement { min_lane: config.trust.min_lane },
                 )
             })
             .collect()
@@ -257,6 +253,14 @@ fn builtin_provider(name: &str) -> ProviderConfig {
     }
 }
 
+fn parse_request_sync(
+    state: &ServerState,
+    context: &RequestContext,
+    bytes: &Bytes,
+) -> (StatusCode, JsonRpcResponse) {
+    tokio::runtime::Runtime::new().expect("runtime").block_on(parse_request(state, context, bytes))
+}
+
 // ============================================================================
 // SECTION: Tests
 // ============================================================================
@@ -297,7 +301,7 @@ fn metrics_recorded_for_tools_list() {
         "method": "tools/list",
     });
     let bytes = Bytes::from(serde_json::to_vec(&payload).expect("payload bytes"));
-    let response = parse_request(&state, &context, &bytes);
+    let response = parse_request_sync(&state, &context, &bytes);
     assert_eq!(response.0, StatusCode::OK);
 
     let events = metrics.events.lock().expect("events lock");
@@ -340,7 +344,7 @@ fn metrics_recorded_for_unauthenticated_list() {
         "method": "tools/list",
     });
     let bytes = Bytes::from(serde_json::to_vec(&payload).expect("payload bytes"));
-    let response = parse_request(&state, &context, &bytes);
+    let response = parse_request_sync(&state, &context, &bytes);
     assert_eq!(response.0, StatusCode::UNAUTHORIZED);
 
     let events = metrics.events.lock().expect("events lock");
@@ -356,11 +360,8 @@ fn metrics_recorded_for_unauthenticated_list() {
 #[test]
 fn rate_limit_rejects_after_threshold() {
     let mut config = sample_config();
-    config.server.limits.rate_limit = Some(RateLimitConfig {
-        max_requests: 1,
-        window_ms: 60_000,
-        max_entries: 8,
-    });
+    config.server.limits.rate_limit =
+        Some(RateLimitConfig { max_requests: 1, window_ms: 60_000, max_entries: 8 });
     let metrics = Arc::new(TestMetrics::default());
     let audit = Arc::new(TestAudit::default());
     let state = build_server_state(sample_router(&config), &config.server, metrics, audit);
@@ -376,9 +377,9 @@ fn rate_limit_rejects_after_threshold() {
         "method": "tools/list",
     });
     let bytes = Bytes::from(serde_json::to_vec(&payload).expect("payload bytes"));
-    let first = parse_request(&state, &context, &bytes);
+    let first = parse_request_sync(&state, &context, &bytes);
     assert_eq!(first.0, StatusCode::OK);
-    let second = parse_request(&state, &context, &bytes);
+    let second = parse_request_sync(&state, &context, &bytes);
     assert_eq!(second.0, StatusCode::TOO_MANY_REQUESTS);
     let error = second.1.error.expect("rate limit error");
     assert_eq!(error.code, -32071);
@@ -409,7 +410,7 @@ fn inflight_limit_rejects_when_exhausted() {
         "method": "tools/list",
     });
     let bytes = Bytes::from(serde_json::to_vec(&payload).expect("payload bytes"));
-    let response = parse_request(&state, &context, &bytes);
+    let response = parse_request_sync(&state, &context, &bytes);
     drop(permit);
     assert_eq!(response.0, StatusCode::SERVICE_UNAVAILABLE);
     let error = response.1.error.expect("inflight error");
@@ -436,7 +437,7 @@ fn audit_records_evidence_redaction() {
         }
     });
     let bytes = Bytes::from(serde_json::to_vec(&payload).expect("payload bytes"));
-    let _ = parse_request(&state, &context, &bytes);
+    let _ = parse_request_sync(&state, &context, &bytes);
     let events = audit.events.lock().expect("events lock");
     assert_eq!(events.len(), 1);
     let event = &events[0];

@@ -129,6 +129,8 @@ Tool behavior enforces capability and disclosure policy:
 
 - `scenario_define` validates the spec against capabilities before registering.
 - `evidence_query` validates queries and applies raw evidence redaction policy.
+- `evidence_query` execution is offloaded to a blocking task to isolate
+  blocking providers (HTTP) from the async MCP runtime.
 - `provider_contract_get` / `provider_schema_get` apply disclosure policy and
   return canonical provider contracts or predicate schemas.
 - Comparator allow-lists are enforced from provider contracts; `json.path`

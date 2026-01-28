@@ -109,6 +109,7 @@ The builder writes deterministic JSON artifacts for:
 For each artifact, the builder:
 
 - Serializes using JCS
+- Rejects non-finite floats during canonicalization (NaN/±Infinity)
 - Computes a file hash
 - Adds a file hash entry and artifact record
 

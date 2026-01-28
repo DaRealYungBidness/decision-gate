@@ -23,6 +23,7 @@ use common::local_request_context;
 use common::router_with_authorizer;
 use common::sample_config;
 use common::sample_spec;
+use common::ToolRouterSyncExt;
 use decision_gate_mcp::TenantAccessRequest;
 use decision_gate_mcp::TenantAuthorizer;
 use decision_gate_mcp::TenantAuthzAction;
@@ -52,7 +53,7 @@ fn tenant_authz_denies_tool_call() {
         spec: sample_spec(),
     };
     let error = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "scenario_define",
             serde_json::to_value(&request).unwrap(),
@@ -89,7 +90,7 @@ fn tenant_authz_receives_tool_action() {
         spec: sample_spec(),
     };
     router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "scenario_define",
             serde_json::to_value(&request).unwrap(),

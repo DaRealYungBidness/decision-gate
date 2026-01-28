@@ -5,9 +5,9 @@
       "kind": "agent"
     }
   ],
-  "namespace_id": "assetcore-interop",
+  "namespace_id": 1,
   "policy_tags": [],
   "run_id": "assetcore-interop-run",
   "scenario_id": "assetcore-interop-full",
-  "tenant_id": "assetcore-interop-tenant"
+  "tenant_id": 1
 }

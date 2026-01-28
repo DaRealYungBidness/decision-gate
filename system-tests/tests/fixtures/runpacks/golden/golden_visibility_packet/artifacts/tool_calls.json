@@ -1,0 +1,1 @@
+[{"call_id":"call-1","called_at":{"kind":"logical","value":2},"correlation_id":null,"error":null,"method":"scenario.trigger","request_hash":{"algorithm":"sha256","value":"28b56787b07fbd2854b3fc64549e6b4f200056179a2b4ee7bd4cfcb07bdb7cfb"},"response_hash":{"algorithm":"sha256","value":"88d9c2fdf0d910d4fd9a334d0f352cbbb32ea4777d880345c767b82794fd7855"}}]

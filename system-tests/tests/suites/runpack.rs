@@ -37,12 +37,17 @@ use helpers::infra::S3Fixture;
 use helpers::namespace_authority_stub::spawn_namespace_authority_stub;
 use helpers::readiness::wait_for_server_ready;
 use helpers::scenarios::ScenarioFixture;
+use once_cell::sync::Lazy;
+use std::sync::Mutex;
 use tokio::io::AsyncReadExt;
 
 use crate::helpers;
 
+static RUNPACK_TEST_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
 #[tokio::test(flavor = "multi_thread")]
 async fn runpack_export_verify_happy_path() -> Result<(), Box<dyn std::error::Error>> {
+    let _guard = RUNPACK_TEST_MUTEX.lock().expect("runpack test mutex");
     let mut reporter = TestReporter::new("runpack_export_verify_happy_path")?;
     let bind = allocate_bind_addr()?.to_string();
     let config = base_http_config(&bind);
@@ -131,9 +136,23 @@ async fn runpack_export_verify_happy_path() -> Result<(), Box<dyn std::error::Er
 
 #[tokio::test(flavor = "multi_thread")]
 async fn runpack_export_object_store_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
+    let _guard = RUNPACK_TEST_MUTEX.lock().expect("runpack test mutex");
     let mut reporter = TestReporter::new("runpack_export_object_store_roundtrip")?;
 
-    let s3 = S3Fixture::start().await?;
+    let s3 = match S3Fixture::start().await {
+        Ok(fixture) => fixture,
+        Err(err) => {
+            if err.contains("docker info failed") {
+                reporter.finish(
+                    "skip",
+                    vec![format!("object store fixture unavailable: {err}")],
+                    vec!["summary.json".to_string(), "summary.md".to_string()],
+                )?;
+                return Ok(());
+            }
+            return Err(err.into());
+        }
+    };
     set_env("AWS_EC2_METADATA_DISABLED", "true");
     set_env("AWS_ACCESS_KEY_ID", &s3.access_key);
     set_env("AWS_SECRET_ACCESS_KEY", &s3.secret_key);
@@ -297,6 +316,7 @@ async fn runpack_export_object_store_roundtrip() -> Result<(), Box<dyn std::erro
 
 #[tokio::test(flavor = "multi_thread")]
 async fn runpack_tamper_detection() -> Result<(), Box<dyn std::error::Error>> {
+    let _guard = RUNPACK_TEST_MUTEX.lock().expect("runpack test mutex");
     let mut reporter = TestReporter::new("runpack_tamper_detection")?;
     let bind = allocate_bind_addr()?.to_string();
     let config = base_http_config(&bind);
@@ -394,6 +414,7 @@ async fn runpack_tamper_detection() -> Result<(), Box<dyn std::error::Error>> {
 #[tokio::test(flavor = "multi_thread")]
 #[allow(clippy::too_many_lines, reason = "Security context checks cover two configurations.")]
 async fn runpack_export_includes_security_context() -> Result<(), Box<dyn std::error::Error>> {
+    let _guard = RUNPACK_TEST_MUTEX.lock().expect("runpack test mutex");
     let mut reporter = TestReporter::new("runpack_export_includes_security_context")?;
     let mut transcripts = Vec::new();
 
@@ -484,7 +505,7 @@ async fn runpack_export_includes_security_context() -> Result<(), Box<dyn std::e
 
     // Case 2: AssetCore authority emits security context metadata.
     {
-        let authority = spawn_namespace_authority_stub(vec![99]).await?;
+        let authority = spawn_namespace_authority_stub(vec![1]).await?;
         let bind = allocate_bind_addr()?.to_string();
         let mut config = base_http_config(&bind);
         config.namespace.authority.mode = NamespaceAuthorityMode::AssetcoreHttp;

@@ -37,8 +37,9 @@ explicitly revised.
 ## Open Items (Current)
 
 ### P0) Release Blockers
-**Status**: None currently open. Security audit is clean and transport hardening
-is complete.
+**Status**: Foundational correctness gates are active and launch-blocking.
+See `Docs/roadmap/foundational_correctness_roadmap.md` for the complete
+gate checklist and cross-OS determinism requirements.
 
 ### 1) [P2] Scenario Examples for Hold/Unknown/Branch Outcomes
 **What**: Add canonical scenarios that demonstrate unknown outcomes, hold

@@ -111,6 +111,7 @@ use crate::common::sample_spec_with_id;
 use crate::common::sample_spec_with_two_predicates;
 use crate::common::setup_scenario_with_run;
 use crate::common::start_run;
+use crate::common::ToolRouterSyncExt;
 
 struct DenyNamespaceAuthority;
 
@@ -153,7 +154,7 @@ fn sample_shape_record(schema_id: &str, version: &str) -> DataShapeRecord {
 #[test]
 fn list_tools_returns_all_seventeen_tools() {
     let router = sample_router();
-    let tools = router.list_tools(&local_request_context()).unwrap();
+    let tools = router.list_tools_sync(&local_request_context()).unwrap();
 
     let names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
     assert!(names.contains(&"scenario_define"));
@@ -184,7 +185,7 @@ fn list_tools_returns_all_seventeen_tools() {
 #[test]
 fn unknown_tool_returns_error() {
     let router = sample_router();
-    let result = router.handle_tool_call(&local_request_context(), "nonexistent_tool", json!({}));
+    let result = router.handle_tool_call_sync(&local_request_context(), "nonexistent_tool", json!({}));
     assert!(result.is_err());
     let error = result.unwrap_err();
     assert!(error.to_string().contains("unknown tool"));
@@ -206,7 +207,7 @@ fn strict_mode_rejects_default_namespace() {
         spec,
     };
     let error = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "scenario_define",
             serde_json::to_value(&request).unwrap(),
@@ -227,7 +228,7 @@ fn dev_permissive_does_not_override_default_namespace() {
         spec,
     };
     let error = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "scenario_define",
             serde_json::to_value(&request).unwrap(),
@@ -285,7 +286,7 @@ fn namespace_authority_denies_tool_call() {
         .namespace
         .default_tenants
         .iter()
-        .map(ToString::to_string)
+        .cloned()
         .collect::<std::collections::BTreeSet<_>>();
     let provider_trust_overrides = if config.is_dev_permissive() {
         config
@@ -351,7 +352,7 @@ fn namespace_authority_denies_tool_call() {
         spec: sample_spec(),
     };
     let error = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "scenario_define",
             serde_json::to_value(&request).unwrap(),
@@ -382,7 +383,7 @@ fn scenario_define_returns_id_and_hash() {
         spec,
     };
     let result = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "scenario_define",
             serde_json::to_value(&request).unwrap(),
@@ -411,7 +412,7 @@ fn scenario_define_duplicate_returns_conflict() {
 #[test]
 fn scenario_define_invalid_params_rejected() {
     let router = sample_router();
-    let result = router.handle_tool_call(
+    let result = router.handle_tool_call_sync(
         &local_request_context(),
         "scenario_define",
         json!({"invalid": "params"}),
@@ -450,7 +451,7 @@ fn scenario_start_undefined_scenario_fails() {
         started_at: Timestamp::Logical(1),
         issue_entry_packets: false,
     };
-    let result = router.handle_tool_call(
+    let result = router.handle_tool_call_sync(
         &local_request_context(),
         "scenario_start",
         serde_json::to_value(&request).unwrap(),
@@ -465,7 +466,7 @@ fn scenario_start_undefined_scenario_fails() {
 fn scenario_start_invalid_params_rejected() {
     let router = sample_router();
     let result =
-        router.handle_tool_call(&local_request_context(), "scenario_start", json!({"bad": "data"}));
+        router.handle_tool_call_sync(&local_request_context(), "scenario_start", json!({"bad": "data"}));
     assert!(result.is_err());
 }
 
@@ -482,14 +483,14 @@ fn scenario_status_returns_status() {
         scenario_id,
         request: StatusRequest {
             run_id,
-            tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
             namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             requested_at: Timestamp::Logical(2),
             correlation_id: None,
         },
     };
     let result = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "scenario_status",
             serde_json::to_value(&request).unwrap(),
@@ -515,7 +516,7 @@ fn scenario_status_undefined_scenario_fails() {
             correlation_id: None,
         },
     };
-    let result = router.handle_tool_call(
+    let result = router.handle_tool_call_sync(
         &local_request_context(),
         "scenario_status",
         serde_json::to_value(&request).unwrap(),
@@ -536,7 +537,7 @@ fn scenario_next_advances_evaluation() {
         scenario_id,
         request: NextRequest {
             run_id,
-            tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
             namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             trigger_id: TriggerId::new("trigger-1"),
             agent_id: "test-agent".to_string(),
@@ -545,7 +546,7 @@ fn scenario_next_advances_evaluation() {
         },
     };
     let result = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "scenario_next",
             serde_json::to_value(&request).unwrap(),
@@ -574,7 +575,7 @@ fn scenario_next_undefined_scenario_fails() {
             correlation_id: None,
         },
     };
-    let result = router.handle_tool_call(
+    let result = router.handle_tool_call_sync(
         &local_request_context(),
         "scenario_next",
         serde_json::to_value(&request).unwrap(),
@@ -595,7 +596,7 @@ fn scenario_submit_accepts_submissions() {
         scenario_id,
         request: SubmitRequest {
             run_id,
-            tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
             namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             submission_id: "submission-1".to_string(),
             payload: PacketPayload::Json {
@@ -607,7 +608,7 @@ fn scenario_submit_accepts_submissions() {
         },
     };
     let result = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "scenario_submit",
             serde_json::to_value(&request).unwrap(),
@@ -636,7 +637,7 @@ fn scenario_submit_undefined_scenario_fails() {
             correlation_id: None,
         },
     };
-    let result = router.handle_tool_call(
+    let result = router.handle_tool_call_sync(
         &local_request_context(),
         "scenario_submit",
         serde_json::to_value(&request).unwrap(),
@@ -657,7 +658,7 @@ fn scenario_trigger_processes_event() {
         scenario_id,
         trigger: TriggerEvent {
             run_id,
-            tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
             namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             trigger_id: TriggerId::new("external-trigger"),
             kind: TriggerKind::ExternalEvent,
@@ -668,7 +669,7 @@ fn scenario_trigger_processes_event() {
         },
     };
     let result = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "scenario_trigger",
             serde_json::to_value(&request).unwrap(),
@@ -696,7 +697,7 @@ fn scenario_trigger_undefined_scenario_fails() {
             correlation_id: None,
         },
     };
-    let result = router.handle_tool_call(
+    let result = router.handle_tool_call_sync(
         &local_request_context(),
         "scenario_trigger",
         serde_json::to_value(&request).unwrap(),
@@ -722,7 +723,7 @@ fn evidence_query_returns_time_now() {
         context: sample_context(),
     };
     let result = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "evidence_query",
             serde_json::to_value(&request).unwrap(),
@@ -747,7 +748,7 @@ fn evidence_query_unknown_provider_fails() {
         },
         context: sample_context(),
     };
-    let result = router.handle_tool_call(
+    let result = router.handle_tool_call_sync(
         &local_request_context(),
         "evidence_query",
         serde_json::to_value(&request).unwrap(),
@@ -759,7 +760,7 @@ fn evidence_query_unknown_provider_fails() {
 #[test]
 fn evidence_query_invalid_params_rejected() {
     let router = sample_router();
-    let result = router.handle_tool_call(
+    let result = router.handle_tool_call_sync(
         &local_request_context(),
         "evidence_query",
         json!({"bad": "request"}),
@@ -811,7 +812,7 @@ fn runpack_export_uses_storage_backend() {
 
     let request = RunpackExportRequest {
         scenario_id,
-        tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
         namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         run_id: RunId::new("test-run"),
         output_dir: None,
@@ -820,7 +821,7 @@ fn runpack_export_uses_storage_backend() {
         include_verification: false,
     };
     let response_value = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "runpack_export",
             serde_json::to_value(&request).unwrap(),
@@ -860,7 +861,7 @@ fn runpack_export_missing_run_fails() {
         generated_at: Timestamp::Logical(1),
         include_verification: false,
     };
-    let result = router.handle_tool_call(
+    let result = router.handle_tool_call_sync(
         &local_request_context(),
         "runpack_export",
         serde_json::to_value(&request).unwrap(),
@@ -883,7 +884,7 @@ fn runpack_export_undefined_scenario_fails() {
         generated_at: Timestamp::Logical(1),
         include_verification: false,
     };
-    let result = router.handle_tool_call(
+    let result = router.handle_tool_call_sync(
         &local_request_context(),
         "runpack_export",
         serde_json::to_value(&request).unwrap(),
@@ -910,7 +911,7 @@ fn runpack_export_requires_output_dir_without_storage() {
         generated_at: Timestamp::Logical(2),
         include_verification: false,
     };
-    let result = router.handle_tool_call(
+    let result = router.handle_tool_call_sync(
         &local_request_context(),
         "runpack_export",
         serde_json::to_value(&request).unwrap(),
@@ -931,7 +932,7 @@ fn runpack_verify_missing_directory_fails() {
         runpack_dir: "/nonexistent/runpack/path".to_string(),
         manifest_path: "manifest.json".to_string(),
     };
-    let result = router.handle_tool_call(
+    let result = router.handle_tool_call_sync(
         &local_request_context(),
         "runpack_verify",
         serde_json::to_value(&request).unwrap(),
@@ -943,7 +944,7 @@ fn runpack_verify_missing_directory_fails() {
 #[test]
 fn runpack_verify_invalid_params_rejected() {
     let router = sample_router();
-    let result = router.handle_tool_call(
+    let result = router.handle_tool_call_sync(
         &local_request_context(),
         "runpack_verify",
         json!({"not": "valid"}),
@@ -990,7 +991,7 @@ fn scenario_next_idempotent_same_trigger() {
         scenario_id,
         request: NextRequest {
             run_id,
-            tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
             namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
             trigger_id: TriggerId::new("same-trigger"),
             agent_id: "test-agent".to_string(),
@@ -1000,14 +1001,14 @@ fn scenario_next_idempotent_same_trigger() {
     };
 
     let result1 = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "scenario_next",
             serde_json::to_value(&request).unwrap(),
         )
         .unwrap();
     let result2 = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "scenario_next",
             serde_json::to_value(&request).unwrap(),
@@ -1033,7 +1034,7 @@ fn schemas_register_and_get_roundtrip() {
         record: record.clone(),
     };
     let response = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_register",
             serde_json::to_value(&register).unwrap(),
@@ -1049,7 +1050,7 @@ fn schemas_register_and_get_roundtrip() {
         version: record.version.clone(),
     };
     let response = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_get",
             serde_json::to_value(&get_request).unwrap(),
@@ -1069,7 +1070,7 @@ fn schemas_register_denied_without_registry_roles() {
         record,
     };
     let error = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_register",
             serde_json::to_value(&request).unwrap(),
@@ -1103,7 +1104,7 @@ fn schemas_register_allowed_for_namespace_admin() {
     };
     let response: SchemasRegisterResponse = serde_json::from_value(
         router
-            .handle_tool_call(
+            .handle_tool_call_sync(
                 &local_request_context(),
                 "schemas_register",
                 serde_json::to_value(&request).unwrap(),
@@ -1122,14 +1123,14 @@ fn schemas_register_duplicate_rejected() {
         record,
     };
     let _ = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_register",
             serde_json::to_value(&register).unwrap(),
         )
         .unwrap();
     let error = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_register",
             serde_json::to_value(&register).unwrap(),
@@ -1152,7 +1153,7 @@ fn schemas_register_rejects_oversize_payload() {
         record,
     };
     let error = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_register",
             serde_json::to_value(&register).unwrap(),
@@ -1171,7 +1172,7 @@ fn schemas_list_pagination() {
             record,
         };
         let _ = router
-            .handle_tool_call(
+            .handle_tool_call_sync(
                 &local_request_context(),
                 "schemas_register",
                 serde_json::to_value(&register).unwrap(),
@@ -1188,7 +1189,7 @@ fn schemas_list_pagination() {
         limit: Some(1),
     };
     let response = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_list",
             serde_json::to_value(&list_request).unwrap(),
@@ -1205,7 +1206,7 @@ fn schemas_list_pagination() {
         limit: Some(1),
     };
     let response = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_list",
             serde_json::to_value(&next_request).unwrap(),
@@ -1225,7 +1226,7 @@ fn schemas_list_rejects_invalid_cursor() {
         record,
     };
     let _ = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_register",
             serde_json::to_value(&register).unwrap(),
@@ -1239,7 +1240,7 @@ fn schemas_list_rejects_invalid_cursor() {
         limit: Some(1),
     };
     let error = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_list",
             serde_json::to_value(&list_request).unwrap(),
@@ -1258,7 +1259,7 @@ fn schemas_list_rejects_zero_limit() {
         record,
     };
     let _ = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_register",
             serde_json::to_value(&register).unwrap(),
@@ -1272,7 +1273,7 @@ fn schemas_list_rejects_zero_limit() {
         limit: Some(0),
     };
     let error = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_list",
             serde_json::to_value(&list_request).unwrap(),
@@ -1295,14 +1296,14 @@ fn schemas_register_rejects_when_registry_full() {
         record: record_b,
     };
     let _ = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_register",
             serde_json::to_value(&register_a).unwrap(),
         )
         .unwrap();
     let error = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_register",
             serde_json::to_value(&register_b).unwrap(),
@@ -1321,7 +1322,7 @@ fn schemas_get_missing_rejected() {
         version: DataShapeVersion::new("v1"),
     };
     let error = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_get",
             serde_json::to_value(&request).unwrap(),
@@ -1339,7 +1340,7 @@ fn providers_list_includes_builtin_provider() {
     let router = sample_router();
     let request = ProvidersListRequest {};
     let response = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "providers_list",
             serde_json::to_value(&request).unwrap(),
@@ -1356,7 +1357,7 @@ fn provider_contract_get_returns_contract() {
         provider_id: "json".to_string(),
     };
     let response = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "provider_contract_get",
             serde_json::to_value(&request).unwrap(),
@@ -1380,7 +1381,7 @@ fn provider_schema_get_returns_predicate_schema() {
         predicate: "path".to_string(),
     };
     let response = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "provider_schema_get",
             serde_json::to_value(&request).unwrap(),
@@ -1401,7 +1402,7 @@ fn provider_contract_get_respects_denylist() {
         provider_id: "json".to_string(),
     };
     let error = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "provider_contract_get",
             serde_json::to_value(&request).unwrap(),
@@ -1422,7 +1423,7 @@ fn scenarios_list_includes_defined_scenario() {
         limit: None,
     };
     let response = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "scenarios_list",
             serde_json::to_value(&request).unwrap(),
@@ -1452,7 +1453,7 @@ fn precheck_accepts_asserted_payload() {
         record,
     };
     let _ = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_register",
             serde_json::to_value(&register).unwrap(),
@@ -1472,7 +1473,7 @@ fn precheck_accepts_asserted_payload() {
         payload: json!({"after": true}),
     };
     let response = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "precheck",
             serde_json::to_value(&request).unwrap(),
@@ -1506,7 +1507,7 @@ fn precheck_rejects_payload_mismatch() {
         record,
     };
     let _ = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_register",
             serde_json::to_value(&register).unwrap(),
@@ -1526,7 +1527,7 @@ fn precheck_rejects_payload_mismatch() {
         payload: json!({"after": "nope"}),
     };
     let error = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "precheck",
             serde_json::to_value(&request).unwrap(),
@@ -1564,7 +1565,7 @@ fn precheck_rejects_comparator_schema_mismatch() {
         record,
     };
     let _ = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_register",
             serde_json::to_value(&register).unwrap(),
@@ -1584,7 +1585,7 @@ fn precheck_rejects_comparator_schema_mismatch() {
         payload: json!({"after": "2024-01-01"}),
     };
     let error = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "precheck",
             serde_json::to_value(&request).unwrap(),
@@ -1605,7 +1606,7 @@ fn precheck_rejects_missing_scenario_and_spec() {
         record,
     };
     let _ = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_register",
             serde_json::to_value(&register).unwrap(),
@@ -1625,7 +1626,7 @@ fn precheck_rejects_missing_scenario_and_spec() {
         payload: json!({"after": true}),
     };
     let error = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "precheck",
             serde_json::to_value(&request).unwrap(),
@@ -1646,7 +1647,7 @@ fn precheck_rejects_scenario_id_spec_mismatch() {
         record,
     };
     let _ = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_register",
             serde_json::to_value(&register).unwrap(),
@@ -1667,7 +1668,7 @@ fn precheck_rejects_scenario_id_spec_mismatch() {
         payload: json!({"after": true}),
     };
     let error = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "precheck",
             serde_json::to_value(&request).unwrap(),
@@ -1689,7 +1690,7 @@ fn precheck_rejects_spec_namespace_mismatch() {
         record,
     };
     let _ = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_register",
             serde_json::to_value(&register).unwrap(),
@@ -1710,7 +1711,7 @@ fn precheck_rejects_spec_namespace_mismatch() {
         payload: json!({"after": true}),
     };
     let error = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "precheck",
             serde_json::to_value(&request).unwrap(),
@@ -1732,7 +1733,7 @@ fn precheck_rejects_default_tenant_mismatch() {
         record,
     };
     let _ = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_register",
             serde_json::to_value(&register).unwrap(),
@@ -1754,7 +1755,7 @@ fn precheck_rejects_default_tenant_mismatch() {
         payload: json!({"after": true}),
     };
     let error = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "precheck",
             serde_json::to_value(&request).unwrap(),
@@ -1779,7 +1780,7 @@ fn precheck_rejects_unknown_schema() {
         payload: json!({"after": true}),
     };
     let error = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "precheck",
             serde_json::to_value(&request).unwrap(),
@@ -1806,7 +1807,7 @@ fn precheck_rejects_non_object_payload_with_multiple_predicates() {
         record,
     };
     let _ = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "schemas_register",
             serde_json::to_value(&register).unwrap(),
@@ -1826,7 +1827,7 @@ fn precheck_rejects_non_object_payload_with_multiple_predicates() {
         payload: json!(true),
     };
     let error = router
-        .handle_tool_call(
+        .handle_tool_call_sync(
             &local_request_context(),
             "precheck",
             serde_json::to_value(&request).unwrap(),
