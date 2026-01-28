@@ -267,3 +267,8 @@ See `../../ret-logic/README.md` for RET implementation details.
 
 ## References
 
+Shadow of Intent. (2024). _Flying The Black Flag_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=GRBOrXvRiSc
+
+A Night In Texas. (2017). _Population Extermination_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=OObnE2KtBZU
+
+JILUKA. (2023). _VENΦM_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=psEMRalCPFQ

@@ -110,3 +110,6 @@ python3 scripts/coverage_report.py generate
 
 ## References
 
+Upon A Burning Body. (2025). _Living in a Matrix_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=cG-Xyxt8K9s
+
+Upon A Burning Body. (2016). _Straight From The Barrio (210)_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=jxmkoKHbOU4

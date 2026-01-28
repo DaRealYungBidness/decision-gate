@@ -120,3 +120,6 @@ cargo test -p decision-gate-cli
 
 ## References
 
+Tevvez. (2020). _Let Me Down Slowly (Alec Benjamin) - Parallel Universe Remix_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=8Gs6pFM-B5I
+
+Ava Crown, & YKATI. (2024). _La Luna_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=T52RbsZYonA

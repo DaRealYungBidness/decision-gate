@@ -149,3 +149,9 @@ cargo test -p decision-gate-broker
 ```
 
 ## References
+
+Paleface Swiss, & Stick To Your Guns. (2025). _Instrument of War_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=5FTa4GJP5mc
+
+Stick To Your Guns. (2017). _Married to the Noise_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=OQqZVRn1mWM
+
+Stick To Your Guns. (2017). _Delinelle_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=v4GzHovFi8w

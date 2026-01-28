@@ -210,3 +210,6 @@ cargo test -p decision-gate-providers
 
 ## References
 
+The Gloom In The Corner. (2019). _Misanthropic_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=czoneUVvbxw
+
+Northern Lights. (2025). _ILTB_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=xq69OPrc1K0
