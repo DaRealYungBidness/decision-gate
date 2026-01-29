@@ -87,8 +87,8 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
   - `golden_visibility_packet` (entry packet + visibility metadata)
 
 **Tests**
-- New system-test: `golden_runpack_cross_os`
-- CI matrix job: Linux + Windows comparisons.
+- System-tests suite: `system-tests/tests/suites/golden_runpacks.rs`.
+- CI matrix job: Linux + Windows comparisons (still required).
 
 ---
 
@@ -102,8 +102,8 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 - Concurrent triggers ⇒ deterministic outcomes with idempotency.
 
 **Implementation**
-- New system-tests in `system-tests/tests/suites/determinism_metamorphic.rs`.
-- Determinism checks compare runpack `integrity.root_hash` and decisions.
+- System-tests suite: `system-tests/tests/suites/metamorphic.rs`.
+- Core unit tests: `decision-gate-core/tests/metamorphic_determinism.rs`.
 
 ---
 
@@ -113,13 +113,13 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 
 **Must pass**
 - JSON canonicalization via RFC 8785 (JCS) is enforced for all hashes.
-- NaN/Infinity rejected or normalized (explicit rule).
+- NaN/Infinity rejected (explicit rule).
 - Floating-point behavior documented and tested.
 - Ordering rules for collections are deterministic and tested.
 
 **Implementation**
 - Contract docs in `Docs/generated/decision-gate/*`.
-- Tests in `decision-gate-core/tests/hashing.rs` (new if missing).
+- Tests in `decision-gate-core/tests/hashing.rs`.
 
 ---
 
@@ -136,9 +136,7 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 **Existing**
 - `decision-gate-core/tests/precheck.rs`
 - `decision-gate-core/tests/trust_lane.rs`
-
-**Coverage**
-- `system-tests/tests/suites/precheck.rs` (precheck read-only system test)
+- `system-tests/tests/suites/precheck.rs`
 
 ---
 
@@ -161,12 +159,13 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 - Errors never silently downgrade to success.
 
 **Coverage (so far)**
-- JSON provider path traversal, symlink escape, invalid JSONPath, size limits.
-- HTTP provider scheme enforcement, allowlist, redirects, timeouts, size limits, TLS failure.
-- Env provider missing keys, allow/deny list, key/value size limits.
-- Time provider logical/Unix enforcement + RFC3339 parsing.
-- MCP provider malformed responses, text/empty results, flaky failures, namespace mismatch,
-  signature-required failures, contract mismatch.
+- JSON provider: path traversal, symlink escape, invalid JSONPath, size limits.
+- HTTP provider: scheme enforcement, allowlist, redirects, timeouts, size limits,
+  TLS failure.
+- Env provider: missing keys, allow/deny list, key/value size limits.
+- Time provider: logical/Unix enforcement + RFC3339 parsing.
+- MCP provider: malformed responses, text/empty results, flaky failures,
+  namespace mismatch, signature-required failures, contract mismatch.
 
 ---
 
@@ -179,24 +178,27 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 - Size limits enforced for all artifacts.
 - Missing artifacts fail closed.
 - Manifest hash mismatch fails closed.
+- Backward compatibility: previous runpack versions still verify.
 
 **Existing**
 - `decision-gate-core/tests/runpack.rs`
 - `system-tests/tests/suites/runpack.rs`
 
 **Missing**
-- Cross-OS runpack verification gate (Gate 1).
+- Explicit backward compatibility test vectors.
 
 ---
 
-## Gate 7 — Adversarial + Fuzzing
+## Gate 7 — Adversarial + Fuzzing + Log Safety
 
-**Goal:** Structured fuzzing against scenario specs, evidence, and providers.
+**Goal:** Structured fuzzing against scenario specs, evidence, providers, and
+safe logging across failure paths.
 
 **Must pass**
 - ScenarioSpec fuzzing (schema and comparator edge cases).
-- Evidence payload fuzzing (type confusion, unicode).
+- Evidence payload fuzzing (type confusion, unicode, oversized inputs).
 - Provider response fuzzing (malformed, oversized, corrupt).
+- Log leakage scanning for secrets across error paths and panics.
 
 **Execution tiers**
 - **PR tier:** bounded fuzz (short time budget).
@@ -212,6 +214,7 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 - Performance smoke test runs (non-gated).
 - Memory caps respected in runpack verification and stores.
 - High-volume scenarios do not exceed configured limits.
+- Capacity targets defined (e.g., 10k runs, provider fan-out, large evidence).
 
 **Note:** No enterprise HA/SLO targets here.
 
@@ -226,6 +229,27 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 - Examples are runnable and deterministic.
 - CLI runpack export/verify workflows are tested.
 - Docs match runtime behavior (schemas, tooltips, provider contracts).
+- Reproducible build guidance and version stamping are in place.
+
+---
+
+## Gate 10 — Agentic Flow Harness
+
+**Goal:** End-to-end harness that simulates real agent orchestration.
+
+**Must pass**
+- Tool execution outside DG with MCP gating.
+- JSON artifact generation, retries, disclosure packets.
+- Final runpack export + verify.
+- Canonical scenarios:
+  - CI pipeline gate
+  - Multi-step agent loop
+  - Disclosure stage
+  - Hallucinated evidence attempt
+  - Namespace collision
+  - Provider outage
+  - Attack payload
+  - Replay verification
 
 ---
 
@@ -235,17 +259,21 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 
 | Gate | Requirement | Status | Evidence |
 | --- | --- | --- | --- |
-| 1 | Golden runpack suite committed | ❌ | New fixtures + tests |
+| 1 | Golden runpack suite committed | ✅ | Fixtures + `golden_runpacks` suite |
 | 1 | Cross-OS determinism | ❌ | CI matrix (Linux/Windows) |
-| 2 | Metamorphic determinism | ❌ | New system-tests |
-| 3 | Canonicalization contract tests | 🟡 | Hashing present, edge cases missing |
-| 4 | Trust lanes enforced | ✅ | core tests + docs |
-| 5 | Provider hardening (built-ins) | 🟡 | Many tests, missing TLS/redirect/symlink/zone |
-| 5 | External MCP adversarial harness | 🟡 | timeouts covered, others missing |
-| 6 | Runpack integrity | ✅ | runpack + IO tests |
-| 7 | Fuzzing | 🟡 | anchors + comparator only |
-| 8 | Performance smoke | ✅ | ignored test |
-| 9 | Docs + CLI usability | 🟡 | tests exist, examples/quickstart verification missing |
+| 2 | Metamorphic determinism | 🟡 | Core + system tests exist |
+| 3 | Canonicalization contract tests | ✅ | `decision-gate-core/tests/hashing.rs` |
+| 4 | Trust lanes enforced | ✅ | Core + system tests |
+| 5 | Provider hardening (built-ins) | 🟡 | Many tests, missing chaos matrix |
+| 5 | External MCP adversarial harness | 🟡 | Timeout/flaky covered, more missing |
+| 6 | Runpack integrity | ✅ | Runpack + IO tests |
+| 6 | Runpack backward compatibility | ❌ | Add legacy vectors |
+| 7 | Fuzzing breadth | 🟡 | Anchor/comparator only |
+| 7 | Log leakage scanning | ❌ | Add log scrubbing tests |
+| 8 | Performance smoke | ✅ | Ignored test |
+| 8 | Capacity targets | ❌ | Add thresholds + gated bench |
+| 9 | Docs + CLI usability | 🟡 | Examples/Quick Start verification missing |
+| 10 | Agentic flow harness | ❌ | Harness + scenarios |
 
 ---
 
@@ -260,31 +288,51 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 **Stop condition:** any mismatch in runpack root hash or manifest.
 
 ## Phase B — Metamorphic Determinism
-1. Add tests with reordered evidence and provider calls.
-2. Add concurrency tests with deterministic outcomes.
+1. Expand reordering, provider shuffle, and concurrency cases.
+2. Compare decisions + runpack hashes.
 
 **Stop condition:** decision or runpack hash mismatch.
 
-## Phase C — Provider Hardening
-1. JSON provider symlink + traversal test.
-2. HTTP provider TLS/redirect failure tests.
-3. Time provider boundary + timezone tests.
-4. External MCP adversarial harness.
+## Phase C — Provider Hardening + Chaos
+1. Add chaos/fault injection matrix (TLS oddities, redirect loops, slow-loris,
+   mid-stream truncation).
+2. Extend JSONPath fuzzing for JSON provider.
+3. Extend MCP provider schema/namespace/hash mismatches.
 
 **Stop condition:** any fail-open behavior or missing error metadata.
 
-## Phase D — Fuzzing
+## Phase D — Runpack Compatibility + Durability
+1. Add legacy runpack vectors and verify compatibility.
+2. Add sqlite durability tests (crash/partial write/rollback).
+
+**Stop condition:** verification regression or data loss scenario.
+
+## Phase E — Fuzzing + Log Safety
 1. Add fuzz harnesses for ScenarioSpec, Evidence payloads, Provider responses.
-2. Wire into PR (short) + nightly (long) runners.
+2. Wire PR (short) + nightly (long) runners.
+3. Add log leakage scanning for secrets in error paths.
 
 **Stop condition:** untriaged crash or nondeterministic outcome.
 
-## Phase E — Docs + Examples
+## Phase F — Performance + Scaling
+1. Define capacity targets and thresholds.
+2. Add gated benchmarks for load, fan-out, large evidence payloads.
+
+**Stop condition:** regression against defined limits.
+
+## Phase G — Docs + Release Hardening
 1. Validate Quick Start on Linux + Windows.
 2. Regenerate schemas/tooltips/contracts as needed.
 3. Ensure examples run with deterministic outputs.
+4. Add reproducible build notes + version stamping.
 
 **Stop condition:** doc example fails or drift from runtime behavior.
+
+## Phase H — Agentic Harness
+1. Build harness simulating agent orchestration.
+2. Implement canonical scenarios and replay verification.
+
+**Stop condition:** harness scenario failure or nondeterministic runpack.
 
 ---
 
@@ -299,6 +347,12 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 - `determinism` suite
 - `contract` suite
 - cross-OS golden runpack comparison
+- fuzz PR tier (short budget)
+
+**Nightly jobs**
+- fuzz long tier
+- chaos provider matrix
+- capacity benchmarks
 
 ---
 

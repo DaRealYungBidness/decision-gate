@@ -142,15 +142,13 @@ pub fn validate_inputs(
     if trigger.tenant_id != run_config.tenant_id {
         return Err(format!(
             "tenant_id mismatch: trigger={} run_config={}",
-            trigger.tenant_id,
-            run_config.tenant_id
+            trigger.tenant_id, run_config.tenant_id
         ));
     }
     if trigger.namespace_id != run_config.namespace_id {
         return Err(format!(
             "namespace_id mismatch: trigger={} run_config={}",
-            trigger.namespace_id,
-            run_config.namespace_id
+            trigger.namespace_id, run_config.namespace_id
         ));
     }
     Ok(())
@@ -212,8 +210,8 @@ pub async fn run_interop(config: InteropConfig) -> Result<InteropReport, String>
     let status_request = ScenarioStatusRequest {
         scenario_id: define_response.scenario_id,
         request: StatusRequest {
-            tenant_id: config.run_config.tenant_id.clone(),
-            namespace_id: config.run_config.namespace_id.clone(),
+            tenant_id: config.run_config.tenant_id,
+            namespace_id: config.run_config.namespace_id,
             run_id: config.run_config.run_id.clone(),
             requested_at: config.status_requested_at,
             correlation_id: config.trigger.correlation_id.clone(),

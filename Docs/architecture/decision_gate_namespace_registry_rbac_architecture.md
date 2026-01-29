@@ -141,9 +141,11 @@ request to `/{base_url}/v1/write/namespaces/{resolved_id}`. HTTP 200 = allowed;
 unavailable (fail closed).[F:decision-gate-mcp/src/namespace_authority.rs L159-L186]
 
 Asset Core authority requests can include an optional bearer token and an
-`x-correlation-id` header derived from the request id. The correlation id is
-sanitized to ASCII token characters and bounded in length to prevent header
-injection.[F:decision-gate-mcp/src/namespace_authority.rs L135-L244]
+`x-correlation-id` header derived from the **unsafe** client-provided
+correlation header when available (falling back to the JSON-RPC request id or
+server-issued correlation id). Client correlation IDs are strictly validated
+and rejected when invalid; only sanitized values are forwarded to the namespace
+authority to prevent header injection and log spoofing.[F:decision-gate-mcp/src/server.rs L1246-L1308][F:decision-gate-mcp/src/namespace_authority.rs L135-L200]
 
 **Integration constraint:** dev-permissive mode is **disallowed** when
 `namespace.authority.mode = assetcore_http` to avoid weakening namespace
@@ -266,10 +268,12 @@ DG emits explicit audit records for registry access decisions and security
 posture changes:
 
 - `RegistryAuditEvent` captures tenant, namespace, action, allow/deny decision,
-  reason, principal roles, and schema identity when provided.[F:decision-gate-mcp/src/audit.rs L104-L133]
-- `SecurityAuditEvent` records dev-permissive activation along with namespace
-  authority and mapping mode, so runbooks can detect degraded security.
-  [F:decision-gate-mcp/src/audit.rs L135-L152][F:decision-gate-mcp/src/server.rs L1235-L1260]
+  reason, principal roles, schema identity, and correlation identifiers (unsafe
+  client + server-issued) for audit traceability.[F:decision-gate-mcp/src/audit.rs L104-L141]
+- `SecurityAuditEvent` records dev-permissive activation (and invalid
+  correlation rejections) along with namespace authority posture; correlation
+  identifiers are included when the event is tied to a request.
+  [F:decision-gate-mcp/src/audit.rs L186-L207][F:decision-gate-mcp/src/server.rs L1235-L1260]
 - Runpack exports embed `RunpackSecurityContext` with dev-permissive and
   namespace authority metadata, making security posture verifiable offline.
   [F:decision-gate-core/src/core/runpack.rs L70-L92][F:decision-gate-mcp/src/server.rs L362-L380]
@@ -347,4 +351,3 @@ maintained alongside changes to these policies.
 - `Docs/configuration/decision-gate.toml.md`
 - `Docs/architecture/decision_gate_assetcore_integration_contract.md`
 - `Docs/guides/security_guide.md`
-- `Docs/roadmap/namespace_rbac_implementation_plan.md`

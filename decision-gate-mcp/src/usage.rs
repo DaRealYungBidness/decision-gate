@@ -44,6 +44,10 @@ pub struct UsageCheckRequest<'a> {
     pub tenant_id: Option<&'a TenantId>,
     /// Namespace identifier when provided.
     pub namespace_id: Option<&'a NamespaceId>,
+    /// Client correlation identifier when provided.
+    pub correlation_id: Option<&'a str>,
+    /// Server correlation identifier when provided.
+    pub server_correlation_id: Option<&'a str>,
     /// Request identifier when available.
     pub request_id: Option<&'a str>,
     /// Usage metric being evaluated.
@@ -61,6 +65,10 @@ pub struct UsageRecord<'a> {
     pub tenant_id: Option<&'a TenantId>,
     /// Namespace identifier when provided.
     pub namespace_id: Option<&'a NamespaceId>,
+    /// Client correlation identifier when provided.
+    pub correlation_id: Option<&'a str>,
+    /// Server correlation identifier when provided.
+    pub server_correlation_id: Option<&'a str>,
     /// Request identifier when available.
     pub request_id: Option<&'a str>,
     /// Usage metric being recorded.

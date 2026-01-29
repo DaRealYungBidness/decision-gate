@@ -560,6 +560,9 @@ Do not use `cargo fmt` in this repo.
 
 ## Quick Start
 
+- Regenerate artifacts: `scripts/generate_all.sh`
+- Verify all (non-system tests): `scripts/verify_all.sh`
+- Verify all + system tests: `scripts/verify_all.sh --system-tests=p0`
 - Run core tests: `cargo test -p decision-gate-core`
 - Run broker tests: `cargo test -p decision-gate-broker`
 - Run examples:
@@ -592,6 +595,8 @@ Decision Gate is built by Michael "Yung Bidness" Campbell.
 - LinkedIn: [Michael Campbell](https://www.linkedin.com/in/michael-campbell-73159b5a/)
 
 ## References
+
+Kingdom of Giants, Jt Cavey. (2017). _Tunnel Vision_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=eR_P5c69NtY
 
 The Amity Affliction. (2014). _Pittsburgh_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=vu3xGr-lNVI
 

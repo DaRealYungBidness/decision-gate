@@ -68,8 +68,7 @@ impl EvidenceProvider for TestEvidenceProvider {
         _ctx: &EvidenceContext,
     ) -> Result<EvidenceResult, decision_gate_core::EvidenceError> {
         let value = match query.predicate.as_str() {
-            "first" => json!(true),
-            "second" => json!(true),
+            "first" | "second" => json!(true),
             _ => json!(false),
         };
         Ok(EvidenceResult {
@@ -103,7 +102,9 @@ impl Dispatcher for NoopDispatcher {
     ) -> Result<DispatchReceipt, decision_gate_core::DispatchError> {
         Ok(DispatchReceipt {
             dispatch_id: "dispatch-1".to_string(),
-            target: DispatchTarget::Agent { agent_id: "agent-1".to_string() },
+            target: DispatchTarget::Agent {
+                agent_id: "agent-1".to_string(),
+            },
             receipt_hash: hash_bytes(DEFAULT_HASH_ALGORITHM, b"receipt"),
             dispatched_at: Timestamp::Logical(1),
             dispatcher: "noop".to_string(),
@@ -133,7 +134,7 @@ fn gate_eval_evidence_order_is_canonical() -> Result<(), Box<dyn std::error::Err
 
     let spec = ScenarioSpec {
         scenario_id: scenario_id.clone(),
-        namespace_id: namespace_id.clone(),
+        namespace_id,
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -152,7 +153,7 @@ fn gate_eval_evidence_order_is_canonical() -> Result<(), Box<dyn std::error::Err
         }],
         predicates: vec![
             PredicateSpec {
-                predicate: predicate_b.clone(),
+                predicate: predicate_b,
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("test"),
                     predicate: "second".to_string(),
@@ -164,7 +165,7 @@ fn gate_eval_evidence_order_is_canonical() -> Result<(), Box<dyn std::error::Err
                 trust: None,
             },
             PredicateSpec {
-                predicate: predicate_a.clone(),
+                predicate: predicate_a,
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("test"),
                     predicate: "first".to_string(),
@@ -205,8 +206,8 @@ fn gate_eval_evidence_order_is_canonical() -> Result<(), Box<dyn std::error::Err
 
     let trigger = TriggerEvent {
         run_id: run_config.run_id.clone(),
-        tenant_id: run_config.tenant_id.clone(),
-        namespace_id: run_config.namespace_id.clone(),
+        tenant_id: run_config.tenant_id,
+        namespace_id: run_config.namespace_id,
         trigger_id: TriggerId::new("trigger-1"),
         kind: TriggerKind::ExternalEvent,
         time: Timestamp::Logical(2),

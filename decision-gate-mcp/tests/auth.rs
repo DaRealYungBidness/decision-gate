@@ -38,9 +38,7 @@ fn authorize_sync(
     context: &RequestContext,
     action: AuthAction<'_>,
 ) -> Result<AuthContext, AuthError> {
-    tokio::runtime::Runtime::new()
-        .expect("runtime")
-        .block_on(authz.authorize(context, action))
+    tokio::runtime::Runtime::new().expect("runtime").block_on(authz.authorize(context, action))
 }
 
 #[test]

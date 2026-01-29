@@ -12,7 +12,7 @@ Dependencies:
   - decision-gate-mcp/src/server.rs
   - decision-gate-mcp/src/config.rs
 ============================================================================
-Last Updated: 2026-01-27 (UTC)
+Last Updated: 2026-01-29 (UTC)
 ============================================================================
 -->
 
@@ -56,9 +56,14 @@ and metrics labeling.
 
 ### Request Context
 Incoming requests are normalized into a `RequestContext` that records transport,
-peer IP, auth header, client subject, and an optional request id. For HTTP/SSE
-transports, the context is built from the `Authorization` header and the
-`x-decision-gate-client-subject` header for mTLS proxy identity.
+peer IP, auth header, client subject, and an optional request id plus correlation
+metadata. For HTTP/SSE transports, the context is built from the
+`Authorization` header and the `x-decision-gate-client-subject` header for mTLS
+proxy identity. Client-provided correlation identifiers arrive via
+`x-correlation-id` and are treated as **unsafe input**: they are strictly
+validated and rejected if invalid. The server always issues its own
+`x-server-correlation-id` and returns it on responses, providing a stable,
+auditable identifier even when client IDs are missing or rejected.
 [F:decision-gate-mcp/src/auth.rs L32-L100][F:decision-gate-mcp/src/server.rs L1158-L1171]
 
 ### Principal Identity
@@ -170,6 +175,21 @@ Tool errors are mapped to HTTP status + JSON-RPC error codes:
 
 These mappings are implemented in `jsonrpc_error`.
 [F:decision-gate-mcp/src/server.rs L1341-L1364]
+
+### Auth Challenge Header (RFC 6750)
+HTTP/SSE responses for unauthenticated requests include a `WWW-Authenticate`
+header with a Bearer realm when bearer token auth is enabled. This aligns with
+RFC 6750 and keeps auth challenges explicit without leaking token validation
+details.
+[F:decision-gate-mcp/src/auth.rs L53-L87][F:decision-gate-mcp/src/server.rs L1445-L1465]
+
+### Correlation Headers
+HTTP/SSE responses always include a server-issued `x-server-correlation-id`.
+If the client supplied a valid `x-correlation-id`, it is echoed back. Invalid
+client correlation IDs are rejected before request parsing and are **not**
+echoed. The invalid-correlation rejection uses HTTP 400 with JSON-RPC error
+code `-32073` (`invalid_correlation_id`).
+[F:decision-gate-mcp/src/server.rs L831-L915][F:decision-gate-mcp/src/server.rs L1352-L1435]
 
 ### Request Parsing Failures
 Invalid JSON-RPC versions, unknown methods, and malformed request bodies are

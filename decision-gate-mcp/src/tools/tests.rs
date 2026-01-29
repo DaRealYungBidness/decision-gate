@@ -84,7 +84,9 @@ struct CountingObjectStore {
 
 impl CountingObjectStore {
     fn new() -> Self {
-        Self { objects: Mutex::new(std::collections::BTreeMap::new()) }
+        Self {
+            objects: Mutex::new(std::collections::BTreeMap::new()),
+        }
     }
 
     fn keys(&self) -> Vec<String> {
@@ -162,7 +164,9 @@ struct StubRunpackStorage {
 
 impl StubRunpackStorage {
     fn new() -> Self {
-        Self { calls: Mutex::new(Vec::new()) }
+        Self {
+            calls: Mutex::new(Vec::new()),
+        }
     }
 
     fn call_count(&self) -> usize {
@@ -308,7 +312,7 @@ fn router_with_backends(
     let registry_acl = RegistryAcl::new(&config.schema_registry.acl);
     let principal_resolver = PrincipalResolver::from_config(config.server.auth.as_ref());
     let default_namespace_tenants =
-        config.namespace.default_tenants.iter().cloned().collect::<BTreeSet<_>>();
+        config.namespace.default_tenants.iter().copied().collect::<BTreeSet<_>>();
     ToolRouter::new(ToolRouterConfig {
         evidence,
         evidence_policy: config.evidence.clone(),
@@ -348,7 +352,12 @@ fn setup_router_with_run(
     let spec = sample_spec();
     let context = RequestContext::stdio();
     router
-        .define_scenario(&context, ScenarioDefineRequest { spec: spec.clone() })
+        .define_scenario(
+            &context,
+            ScenarioDefineRequest {
+                spec: spec.clone(),
+            },
+        )
         .expect("define scenario");
     let run_config = RunConfig {
         tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
@@ -376,10 +385,10 @@ fn setup_router_with_run(
 fn runpack_export_requires_output_dir_without_backend() {
     let (router, spec, run_config) = setup_router_with_run(None, None);
     let request = RunpackExportRequest {
-        scenario_id: spec.scenario_id.clone(),
-        tenant_id: run_config.tenant_id.clone(),
-        namespace_id: run_config.namespace_id.clone(),
-        run_id: run_config.run_id.clone(),
+        scenario_id: spec.scenario_id,
+        tenant_id: run_config.tenant_id,
+        namespace_id: run_config.namespace_id,
+        run_id: run_config.run_id,
         output_dir: None,
         manifest_name: None,
         generated_at: Timestamp::UnixMillis(0),
@@ -395,10 +404,10 @@ fn runpack_export_uses_object_store_backend() {
     let backend = Arc::new(ObjectStoreRunpackBackend::from_client("bucket", store.clone()));
     let (router, spec, run_config) = setup_router_with_run(None, Some(backend));
     let request = RunpackExportRequest {
-        scenario_id: spec.scenario_id.clone(),
-        tenant_id: run_config.tenant_id.clone(),
-        namespace_id: run_config.namespace_id.clone(),
-        run_id: run_config.run_id.clone(),
+        scenario_id: spec.scenario_id,
+        tenant_id: run_config.tenant_id,
+        namespace_id: run_config.namespace_id,
+        run_id: run_config.run_id,
         output_dir: None,
         manifest_name: None,
         generated_at: Timestamp::UnixMillis(0),
@@ -419,10 +428,10 @@ fn runpack_export_prefers_runpack_storage_over_object_store() {
     let (router, spec, run_config) =
         setup_router_with_run(Some(runpack_storage.clone()), Some(backend));
     let request = RunpackExportRequest {
-        scenario_id: spec.scenario_id.clone(),
-        tenant_id: run_config.tenant_id.clone(),
-        namespace_id: run_config.namespace_id.clone(),
-        run_id: run_config.run_id.clone(),
+        scenario_id: spec.scenario_id,
+        tenant_id: run_config.tenant_id,
+        namespace_id: run_config.namespace_id,
+        run_id: run_config.run_id,
         output_dir: None,
         manifest_name: None,
         generated_at: Timestamp::UnixMillis(0),

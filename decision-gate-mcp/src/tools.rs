@@ -11,6 +11,16 @@
 //! subsystems. All tool handlers are thin wrappers over
 //! [`decision_gate_core::ControlPlane`].
 //! Security posture: tool inputs are untrusted; see `Docs/security/threat_model.md`.
+//!
+//! ## Layer Responsibilities
+//! - Route MCP tool calls to deterministic control-plane operations.
+//! - Enforce authn/authz, tenant isolation, namespace authority, and quotas.
+//! - Emit audit + telemetry events for tool invocations.
+//!
+//! ## Invariants
+//! - Tool handlers never mutate state without passing validation gates.
+//! - Authorization and namespace checks fail closed on missing context.
+//! - Responses remain deterministic for identical inputs.
 
 // ============================================================================
 // SECTION: Imports
@@ -336,7 +346,9 @@ impl ToolRouter {
             ToolName::ScenarioDefine => {
                 self.handle_scenario_define(context, &auth_ctx, payload).await
             }
-            ToolName::ScenarioStart => self.handle_scenario_start(context, &auth_ctx, payload).await,
+            ToolName::ScenarioStart => {
+                self.handle_scenario_start(context, &auth_ctx, payload).await
+            }
             ToolName::ScenarioStatus => {
                 self.handle_scenario_status(context, &auth_ctx, payload).await
             }
@@ -347,7 +359,9 @@ impl ToolRouter {
             ToolName::ScenarioTrigger => {
                 self.handle_scenario_trigger(context, &auth_ctx, payload).await
             }
-            ToolName::EvidenceQuery => self.handle_evidence_query(context, &auth_ctx, payload).await,
+            ToolName::EvidenceQuery => {
+                self.handle_evidence_query(context, &auth_ctx, payload).await
+            }
             ToolName::RunpackExport => {
                 self.handle_runpack_export(context, &auth_ctx, payload).await
             }
@@ -388,12 +402,19 @@ impl ToolRouter {
             tool,
             tenant_id.as_ref(),
             Some(&namespace_id),
-        )?;
-        self.ensure_namespace_allowed(context, tenant_id.as_ref(), &namespace_id)
-            .await?;
-        let response = self.define_scenario(context, request)?;
+        )
+        .await?;
+        self.ensure_namespace_allowed(context, tenant_id.as_ref(), &namespace_id).await?;
+        let router = self.clone();
+        let context = context.clone();
+        let context_for_define = context.clone();
+        let response = tokio::task::spawn_blocking(move || {
+            router.define_scenario(&context_for_define, request)
+        })
+        .await
+        .map_err(|err| ToolError::Internal(format!("scenario define join failed: {err}")))??;
         self.record_tool_call_usage(
-            context,
+            &context,
             auth_ctx,
             tool,
             tenant_id.as_ref(),
@@ -419,9 +440,9 @@ impl ToolRouter {
             tool,
             Some(&tenant_id),
             Some(&namespace_id),
-        )?;
-        self.ensure_namespace_allowed(context, Some(&tenant_id), &namespace_id)
-            .await?;
+        )
+        .await?;
+        self.ensure_namespace_allowed(context, Some(&tenant_id), &namespace_id).await?;
         self.ensure_usage_allowed(
             context,
             auth_ctx,
@@ -431,10 +452,24 @@ impl ToolRouter {
             UsageMetric::RunsStarted,
             1,
         )?;
-        let response = self.start_run(context, request)?;
-        self.record_tool_call_usage(context, auth_ctx, tool, Some(&tenant_id), Some(&namespace_id));
+        let router = self.clone();
+        let context = context.clone();
+        let context_for_start = context.clone();
+        let response =
+            tokio::task::spawn_blocking(move || router.start_run(&context_for_start, request))
+                .await
+                .map_err(|err| {
+                    ToolError::Internal(format!("scenario start join failed: {err}"))
+                })??;
+        self.record_tool_call_usage(
+            &context,
+            auth_ctx,
+            tool,
+            Some(&tenant_id),
+            Some(&namespace_id),
+        );
         self.record_usage(
-            context,
+            &context,
             auth_ctx,
             tool,
             Some(&tenant_id),
@@ -454,26 +489,32 @@ impl ToolRouter {
     ) -> Result<Value, ToolError> {
         let tool = ToolName::ScenarioStatus;
         let request = decode::<ScenarioStatusRequest>(payload)?;
+        let tenant_id = request.request.tenant_id;
+        let namespace_id = request.request.namespace_id;
         self.ensure_tool_call_allowed(
             context,
             auth_ctx,
             tool,
-            Some(&request.request.tenant_id),
-            Some(&request.request.namespace_id),
-        )?;
-        self.ensure_namespace_allowed(
-            context,
-            Some(&request.request.tenant_id),
-            &request.request.namespace_id,
+            Some(&tenant_id),
+            Some(&namespace_id),
         )
         .await?;
-        let response = self.status(context, &request)?;
+        self.ensure_namespace_allowed(context, Some(&tenant_id), &namespace_id).await?;
+        let router = self.clone();
+        let context = context.clone();
+        let context_for_status = context.clone();
+        let response =
+            tokio::task::spawn_blocking(move || router.status(&context_for_status, &request))
+                .await
+                .map_err(|err| {
+                    ToolError::Internal(format!("scenario status join failed: {err}"))
+                })??;
         self.record_tool_call_usage(
-            context,
+            &context,
             auth_ctx,
             tool,
-            Some(&request.request.tenant_id),
-            Some(&request.request.namespace_id),
+            Some(&tenant_id),
+            Some(&namespace_id),
         );
         serde_json::to_value(response).map_err(|_| ToolError::Serialization)
     }
@@ -493,7 +534,8 @@ impl ToolRouter {
             tool,
             Some(&request.request.tenant_id),
             Some(&request.request.namespace_id),
-        )?;
+        )
+        .await?;
         self.ensure_namespace_allowed(
             context,
             Some(&request.request.tenant_id),
@@ -504,11 +546,12 @@ impl ToolRouter {
         let context = context.clone();
         let context_for_next = context.clone();
         let request_for_next = request.clone();
-        let response = tokio::task::spawn_blocking(move || {
-            router.next(&context_for_next, &request_for_next)
-        })
-        .await
-        .map_err(|err| ToolError::Internal(format!("scenario next join failed: {err}")))??;
+        let response =
+            tokio::task::spawn_blocking(move || router.next(&context_for_next, &request_for_next))
+                .await
+                .map_err(|err| {
+                    ToolError::Internal(format!("scenario next join failed: {err}"))
+                })??;
         self.record_tool_call_usage(
             &context,
             auth_ctx,
@@ -528,26 +571,32 @@ impl ToolRouter {
     ) -> Result<Value, ToolError> {
         let tool = ToolName::ScenarioSubmit;
         let request = decode::<ScenarioSubmitRequest>(payload)?;
+        let tenant_id = request.request.tenant_id;
+        let namespace_id = request.request.namespace_id;
         self.ensure_tool_call_allowed(
             context,
             auth_ctx,
             tool,
-            Some(&request.request.tenant_id),
-            Some(&request.request.namespace_id),
-        )?;
-        self.ensure_namespace_allowed(
-            context,
-            Some(&request.request.tenant_id),
-            &request.request.namespace_id,
+            Some(&tenant_id),
+            Some(&namespace_id),
         )
         .await?;
-        let response = self.submit(context, &request)?;
+        self.ensure_namespace_allowed(context, Some(&tenant_id), &namespace_id).await?;
+        let router = self.clone();
+        let context = context.clone();
+        let context_for_submit = context.clone();
+        let response =
+            tokio::task::spawn_blocking(move || router.submit(&context_for_submit, &request))
+                .await
+                .map_err(|err| {
+                    ToolError::Internal(format!("scenario submit join failed: {err}"))
+                })??;
         self.record_tool_call_usage(
-            context,
+            &context,
             auth_ctx,
             tool,
-            Some(&request.request.tenant_id),
-            Some(&request.request.namespace_id),
+            Some(&tenant_id),
+            Some(&namespace_id),
         );
         serde_json::to_value(response).map_err(|_| ToolError::Serialization)
     }
@@ -567,7 +616,8 @@ impl ToolRouter {
             tool,
             Some(&request.trigger.tenant_id),
             Some(&request.trigger.namespace_id),
-        )?;
+        )
+        .await?;
         self.ensure_namespace_allowed(
             context,
             Some(&request.trigger.tenant_id),
@@ -608,7 +658,8 @@ impl ToolRouter {
             tool,
             Some(&request.context.tenant_id),
             Some(&request.context.namespace_id),
-        )?;
+        )
+        .await?;
         self.ensure_namespace_allowed(
             context,
             Some(&request.context.tenant_id),
@@ -631,8 +682,8 @@ impl ToolRouter {
         let response = tokio::task::spawn_blocking(move || {
             router.query_evidence(&context_for_query, &request_for_query)
         })
-            .await
-            .map_err(|err| ToolError::Internal(format!("evidence query join failed: {err}")))??;
+        .await
+        .map_err(|err| ToolError::Internal(format!("evidence query join failed: {err}")))??;
         self.record_tool_call_usage(
             &context,
             auth_ctx,
@@ -661,38 +712,47 @@ impl ToolRouter {
     ) -> Result<Value, ToolError> {
         let tool = ToolName::RunpackExport;
         let request = decode::<RunpackExportRequest>(payload)?;
+        let tenant_id = request.tenant_id;
+        let namespace_id = request.namespace_id;
         self.ensure_tool_call_allowed(
             context,
             auth_ctx,
             tool,
-            Some(&request.tenant_id),
-            Some(&request.namespace_id),
-        )?;
-        self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)
-            .await?;
+            Some(&tenant_id),
+            Some(&namespace_id),
+        )
+        .await?;
+        self.ensure_namespace_allowed(context, Some(&tenant_id), &namespace_id).await?;
         self.ensure_usage_allowed(
             context,
             auth_ctx,
             tool,
-            Some(&request.tenant_id),
-            Some(&request.namespace_id),
+            Some(&tenant_id),
+            Some(&namespace_id),
             UsageMetric::RunpackExports,
             1,
         )?;
-        let response = self.export_runpack(context, &request)?;
+        let router = self.clone();
+        let context = context.clone();
+        let context_for_export = context.clone();
+        let response = tokio::task::spawn_blocking(move || {
+            router.export_runpack(&context_for_export, &request)
+        })
+        .await
+        .map_err(|err| ToolError::Internal(format!("runpack export join failed: {err}")))??;
         self.record_tool_call_usage(
-            context,
+            &context,
             auth_ctx,
             tool,
-            Some(&request.tenant_id),
-            Some(&request.namespace_id),
+            Some(&tenant_id),
+            Some(&namespace_id),
         );
         self.record_usage(
-            context,
+            &context,
             auth_ctx,
             tool,
-            Some(&request.tenant_id),
-            Some(&request.namespace_id),
+            Some(&tenant_id),
+            Some(&namespace_id),
             UsageMetric::RunpackExports,
             1,
         );
@@ -780,27 +840,19 @@ impl ToolRouter {
     ) -> Result<Value, ToolError> {
         let tool = ToolName::SchemasRegister;
         let request = decode::<SchemasRegisterRequest>(payload)?;
-        self.ensure_tenant_access(
-            context,
-            auth_ctx,
-            tool,
-            Some(&request.record.tenant_id),
-            Some(&request.record.namespace_id),
-        )?;
-        self.ensure_namespace_allowed(
-            context,
-            Some(&request.record.tenant_id),
-            &request.record.namespace_id,
-        )
-        .await?;
+        let tenant_id = request.record.tenant_id;
+        let namespace_id = request.record.namespace_id;
+        self.ensure_tenant_access(context, auth_ctx, tool, Some(&tenant_id), Some(&namespace_id))
+            .await?;
+        self.ensure_namespace_allowed(context, Some(&tenant_id), &namespace_id).await?;
         let schema_bytes = serde_json::to_vec(&request.record.schema)
             .map_err(|err| ToolError::InvalidParams(err.to_string()))?;
         self.ensure_usage_allowed(
             context,
             auth_ctx,
             tool,
-            Some(&request.record.tenant_id),
-            Some(&request.record.namespace_id),
+            Some(&tenant_id),
+            Some(&namespace_id),
             UsageMetric::ToolCall,
             1,
         )?;
@@ -808,8 +860,8 @@ impl ToolRouter {
             context,
             auth_ctx,
             tool,
-            Some(&request.record.tenant_id),
-            Some(&request.record.namespace_id),
+            Some(&tenant_id),
+            Some(&namespace_id),
             UsageMetric::SchemasWritten,
             1,
         )?;
@@ -817,8 +869,8 @@ impl ToolRouter {
             context,
             auth_ctx,
             tool,
-            Some(&request.record.tenant_id),
-            Some(&request.record.namespace_id),
+            Some(&tenant_id),
+            Some(&namespace_id),
             UsageMetric::RegistryEntries,
             1,
         )?;
@@ -826,45 +878,54 @@ impl ToolRouter {
             context,
             auth_ctx,
             tool,
-            Some(&request.record.tenant_id),
-            Some(&request.record.namespace_id),
+            Some(&tenant_id),
+            Some(&namespace_id),
             UsageMetric::StorageBytes,
             u64::try_from(schema_bytes.len()).unwrap_or(u64::MAX),
         )?;
-        let response = self.schemas_register(context, auth_ctx, &request)?;
+        let router = self.clone();
+        let context = context.clone();
+        let context_for_register = context.clone();
+        let auth_ctx = auth_ctx.clone();
+        let auth_ctx_for_register = auth_ctx.clone();
+        let response = tokio::task::spawn_blocking(move || {
+            router.schemas_register(&context_for_register, &auth_ctx_for_register, &request)
+        })
+        .await
+        .map_err(|err| ToolError::Internal(format!("schemas register join failed: {err}")))??;
         self.record_usage(
-            context,
-            auth_ctx,
+            &context,
+            &auth_ctx,
             tool,
-            Some(&request.record.tenant_id),
-            Some(&request.record.namespace_id),
+            Some(&tenant_id),
+            Some(&namespace_id),
             UsageMetric::ToolCall,
             1,
         );
         self.record_usage(
-            context,
-            auth_ctx,
+            &context,
+            &auth_ctx,
             tool,
-            Some(&request.record.tenant_id),
-            Some(&request.record.namespace_id),
+            Some(&tenant_id),
+            Some(&namespace_id),
             UsageMetric::SchemasWritten,
             1,
         );
         self.record_usage(
-            context,
-            auth_ctx,
+            &context,
+            &auth_ctx,
             tool,
-            Some(&request.record.tenant_id),
-            Some(&request.record.namespace_id),
+            Some(&tenant_id),
+            Some(&namespace_id),
             UsageMetric::RegistryEntries,
             1,
         );
         self.record_usage(
-            context,
-            auth_ctx,
+            &context,
+            &auth_ctx,
             tool,
-            Some(&request.record.tenant_id),
-            Some(&request.record.namespace_id),
+            Some(&tenant_id),
+            Some(&namespace_id),
             UsageMetric::StorageBytes,
             u64::try_from(schema_bytes.len()).unwrap_or(u64::MAX),
         );
@@ -880,22 +941,33 @@ impl ToolRouter {
     ) -> Result<Value, ToolError> {
         let tool = ToolName::SchemasList;
         let request = decode::<SchemasListRequest>(payload)?;
+        let tenant_id = request.tenant_id;
+        let namespace_id = request.namespace_id;
         self.ensure_tool_call_allowed(
             context,
             auth_ctx,
             tool,
-            Some(&request.tenant_id),
-            Some(&request.namespace_id),
-        )?;
-        self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)
-            .await?;
-        let response = self.schemas_list(context, auth_ctx, &request)?;
+            Some(&tenant_id),
+            Some(&namespace_id),
+        )
+        .await?;
+        self.ensure_namespace_allowed(context, Some(&tenant_id), &namespace_id).await?;
+        let router = self.clone();
+        let context = context.clone();
+        let context_for_list = context.clone();
+        let auth_ctx = auth_ctx.clone();
+        let auth_ctx_for_list = auth_ctx.clone();
+        let response = tokio::task::spawn_blocking(move || {
+            router.schemas_list(&context_for_list, &auth_ctx_for_list, &request)
+        })
+        .await
+        .map_err(|err| ToolError::Internal(format!("schemas list join failed: {err}")))??;
         self.record_tool_call_usage(
-            context,
-            auth_ctx,
+            &context,
+            &auth_ctx,
             tool,
-            Some(&request.tenant_id),
-            Some(&request.namespace_id),
+            Some(&tenant_id),
+            Some(&namespace_id),
         );
         serde_json::to_value(response).map_err(|_| ToolError::Serialization)
     }
@@ -909,22 +981,33 @@ impl ToolRouter {
     ) -> Result<Value, ToolError> {
         let tool = ToolName::SchemasGet;
         let request = decode::<SchemasGetRequest>(payload)?;
+        let tenant_id = request.tenant_id;
+        let namespace_id = request.namespace_id;
         self.ensure_tool_call_allowed(
             context,
             auth_ctx,
             tool,
-            Some(&request.tenant_id),
-            Some(&request.namespace_id),
-        )?;
-        self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)
-            .await?;
-        let response = self.schemas_get(context, auth_ctx, &request)?;
+            Some(&tenant_id),
+            Some(&namespace_id),
+        )
+        .await?;
+        self.ensure_namespace_allowed(context, Some(&tenant_id), &namespace_id).await?;
+        let router = self.clone();
+        let context = context.clone();
+        let context_for_get = context.clone();
+        let auth_ctx = auth_ctx.clone();
+        let auth_ctx_for_get = auth_ctx.clone();
+        let response = tokio::task::spawn_blocking(move || {
+            router.schemas_get(&context_for_get, &auth_ctx_for_get, &request)
+        })
+        .await
+        .map_err(|err| ToolError::Internal(format!("schemas get join failed: {err}")))??;
         self.record_tool_call_usage(
-            context,
-            auth_ctx,
+            &context,
+            &auth_ctx,
             tool,
-            Some(&request.tenant_id),
-            Some(&request.namespace_id),
+            Some(&tenant_id),
+            Some(&namespace_id),
         );
         serde_json::to_value(response).map_err(|_| ToolError::Serialization)
     }
@@ -938,22 +1021,32 @@ impl ToolRouter {
     ) -> Result<Value, ToolError> {
         let tool = ToolName::ScenariosList;
         let request = decode::<ScenariosListRequest>(payload)?;
+        let tenant_id = request.tenant_id;
+        let namespace_id = request.namespace_id;
         self.ensure_tool_call_allowed(
             context,
             auth_ctx,
             tool,
-            Some(&request.tenant_id),
-            Some(&request.namespace_id),
-        )?;
-        self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)
-            .await?;
-        let response = self.scenarios_list(context, &request)?;
+            Some(&tenant_id),
+            Some(&namespace_id),
+        )
+        .await?;
+        self.ensure_namespace_allowed(context, Some(&tenant_id), &namespace_id).await?;
+        let router = self.clone();
+        let context = context.clone();
+        let context_for_list = context.clone();
+        let response =
+            tokio::task::spawn_blocking(move || router.scenarios_list(&context_for_list, &request))
+                .await
+                .map_err(|err| {
+                    ToolError::Internal(format!("scenarios list join failed: {err}"))
+                })??;
         self.record_tool_call_usage(
-            context,
+            &context,
             auth_ctx,
             tool,
-            Some(&request.tenant_id),
-            Some(&request.namespace_id),
+            Some(&tenant_id),
+            Some(&namespace_id),
         );
         serde_json::to_value(response).map_err(|_| ToolError::Serialization)
     }
@@ -967,28 +1060,36 @@ impl ToolRouter {
     ) -> Result<Value, ToolError> {
         let tool = ToolName::Precheck;
         let request = decode::<PrecheckToolRequest>(payload)?;
+        let tenant_id = request.tenant_id;
+        let namespace_id = request.namespace_id;
         self.ensure_tool_call_allowed(
             context,
             auth_ctx,
             tool,
-            Some(&request.tenant_id),
-            Some(&request.namespace_id),
-        )?;
-        self.ensure_namespace_allowed(context, Some(&request.tenant_id), &request.namespace_id)
-            .await?;
-        let response = self.precheck(context, &request)?;
+            Some(&tenant_id),
+            Some(&namespace_id),
+        )
+        .await?;
+        self.ensure_namespace_allowed(context, Some(&tenant_id), &namespace_id).await?;
+        let router = self.clone();
+        let context = context.clone();
+        let context_for_precheck = context.clone();
+        let response =
+            tokio::task::spawn_blocking(move || router.precheck(&context_for_precheck, &request))
+                .await
+                .map_err(|err| ToolError::Internal(format!("precheck join failed: {err}")))??;
         self.record_tool_call_usage(
-            context,
+            &context,
             auth_ctx,
             tool,
-            Some(&request.tenant_id),
-            Some(&request.namespace_id),
+            Some(&tenant_id),
+            Some(&namespace_id),
         );
         serde_json::to_value(response).map_err(|_| ToolError::Serialization)
     }
 
     /// Enforces tenant access and tool call usage limits.
-    fn ensure_tool_call_allowed(
+    async fn ensure_tool_call_allowed(
         &self,
         context: &RequestContext,
         auth_ctx: &AuthContext,
@@ -996,7 +1097,7 @@ impl ToolRouter {
         tenant_id: Option<&TenantId>,
         namespace_id: Option<&NamespaceId>,
     ) -> Result<(), ToolError> {
-        self.ensure_tenant_access(context, auth_ctx, tool, tenant_id, namespace_id)?;
+        self.ensure_tenant_access(context, auth_ctx, tool, tenant_id, namespace_id).await?;
         self.ensure_usage_allowed(
             context,
             auth_ctx,
@@ -1958,7 +2059,7 @@ impl ToolRouter {
     /// Evaluates a scenario stage using asserted data without mutating state.
     fn precheck(
         &self,
-        _context: &RequestContext,
+        context: &RequestContext,
         request: &PrecheckToolRequest,
     ) -> Result<PrecheckToolResponse, ToolError> {
         let record = self
@@ -1999,7 +2100,7 @@ impl ToolRouter {
             decision: result.decision,
             gate_evaluations: result.gate_evaluations,
         };
-        self.record_precheck_audit(request, &response)?;
+        self.record_precheck_audit(context, request, &response)?;
         Ok(response)
     }
 
@@ -2136,13 +2237,21 @@ impl ToolRouter {
             }
         }
         self.namespace_authority
-            .ensure_namespace(tenant_id, namespace_id, context.request_id.as_deref())
+            .ensure_namespace(
+                tenant_id,
+                namespace_id,
+                context
+                    .unsafe_client_correlation_id
+                    .as_deref()
+                    .or(context.server_correlation_id.as_deref())
+                    .or(context.request_id.as_deref()),
+            )
             .await
             .map_err(map_namespace_error)
     }
 
     /// Enforces tenant authorization for a tool call.
-    fn ensure_tenant_access(
+    async fn ensure_tenant_access(
         &self,
         context: &RequestContext,
         auth_ctx: &AuthContext,
@@ -2150,14 +2259,17 @@ impl ToolRouter {
         tenant_id: Option<&TenantId>,
         namespace_id: Option<&NamespaceId>,
     ) -> Result<(), ToolError> {
-        let decision = self.tenant_authorizer.authorize(
-            auth_ctx,
-            TenantAccessRequest {
-                action: TenantAuthzAction::ToolCall(&tool),
-                tenant_id,
-                namespace_id,
-            },
-        );
+        let decision = self
+            .tenant_authorizer
+            .authorize(
+                auth_ctx,
+                TenantAccessRequest {
+                    action: TenantAuthzAction::ToolCall(&tool),
+                    tenant_id,
+                    namespace_id,
+                },
+            )
+            .await;
         self.record_tenant_authz(context, auth_ctx, tool, tenant_id, namespace_id, &decision);
         if decision.allowed { Ok(()) } else { Err(ToolError::Unauthorized(decision.reason)) }
     }
@@ -2173,9 +2285,7 @@ impl ToolRouter {
         schema: Option<(&DataShapeId, &DataShapeVersion)>,
     ) -> Result<(), ToolError> {
         let principal = self.principal_resolver.resolve(auth_ctx);
-        let decision =
-            self.registry_acl
-                .authorize(&principal, action, &tenant_id, &namespace_id);
+        let decision = self.registry_acl.authorize(&principal, action, &tenant_id, &namespace_id);
         self.record_registry_audit(
             context,
             &principal,
@@ -2204,6 +2314,8 @@ impl ToolRouter {
     ) {
         let event = TenantAuthzEvent::new(TenantAuthzEventParams {
             request_id: context.request_id.clone(),
+            unsafe_client_correlation_id: context.unsafe_client_correlation_id.clone(),
+            server_correlation_id: server_correlation_id_for(context),
             tool: Some(tool),
             allowed: decision.allowed,
             reason: decision.reason.clone(),
@@ -2232,6 +2344,8 @@ impl ToolRouter {
                 tool: &tool,
                 tenant_id,
                 namespace_id,
+                correlation_id: context.unsafe_client_correlation_id.as_deref(),
+                server_correlation_id: context.server_correlation_id.as_deref(),
                 request_id: context.request_id.as_deref(),
                 metric,
                 units,
@@ -2268,6 +2382,8 @@ impl ToolRouter {
                 tool: &tool,
                 tenant_id,
                 namespace_id,
+                correlation_id: context.unsafe_client_correlation_id.as_deref(),
+                server_correlation_id: context.server_correlation_id.as_deref(),
                 request_id: context.request_id.as_deref(),
                 metric,
                 units,
@@ -2290,6 +2406,8 @@ impl ToolRouter {
     ) {
         let event = UsageAuditEvent::new(UsageAuditEventParams {
             request_id: context.request_id.clone(),
+            unsafe_client_correlation_id: context.unsafe_client_correlation_id.clone(),
+            server_correlation_id: server_correlation_id_for(context),
             tool: Some(tool),
             tenant_id: tenant_id.map(ToString::to_string),
             namespace_id: namespace_id.map(ToString::to_string),
@@ -2336,6 +2454,8 @@ impl ToolRouter {
         });
         let event = RegistryAuditEvent::new(RegistryAuditEventParams {
             request_id: context.request_id.clone(),
+            unsafe_client_correlation_id: context.unsafe_client_correlation_id.clone(),
+            server_correlation_id: server_correlation_id_for(context),
             tenant_id: tenant_id.to_string(),
             namespace_id: namespace_id.to_string(),
             action,
@@ -2353,6 +2473,7 @@ impl ToolRouter {
     /// Emits a hash-only precheck audit event.
     fn record_precheck_audit(
         &self,
+        context: &RequestContext,
         request: &PrecheckToolRequest,
         response: &PrecheckToolResponse,
     ) -> Result<(), ToolError> {
@@ -2383,6 +2504,8 @@ impl ToolRouter {
         let event = PrecheckAuditEvent::new(PrecheckAuditEventParams {
             tenant_id: request.tenant_id.to_string(),
             namespace_id: request.namespace_id.to_string(),
+            unsafe_client_correlation_id: context.unsafe_client_correlation_id.clone(),
+            server_correlation_id: server_correlation_id_for(context),
             scenario_id,
             stage_id: request.stage_id.as_ref().map(ToString::to_string),
             schema_id: request.data_shape.schema_id.to_string(),
@@ -2414,6 +2537,11 @@ impl ToolRouter {
             }
         }
     }
+}
+
+/// Returns the server correlation identifier or a sentinel label if missing.
+fn server_correlation_id_for(context: &RequestContext) -> String {
+    context.server_correlation_id.clone().unwrap_or_else(|| "missing".to_string())
 }
 
 // ============================================================================

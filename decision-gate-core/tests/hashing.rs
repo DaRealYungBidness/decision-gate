@@ -68,21 +68,27 @@ struct FloatWrapper {
 
 #[test]
 fn canonical_hash_rejects_nan() {
-    let value = FloatWrapper { value: f64::NAN };
+    let value = FloatWrapper {
+        value: f64::NAN,
+    };
     let err = hash_canonical_json(HashAlgorithm::Sha256, &value).unwrap_err();
     assert!(matches!(err, HashError::Canonicalization(_)));
 }
 
 #[test]
 fn canonical_hash_rejects_infinity() {
-    let value = FloatWrapper { value: f64::INFINITY };
+    let value = FloatWrapper {
+        value: f64::INFINITY,
+    };
     let err = hash_canonical_json(HashAlgorithm::Sha256, &value).unwrap_err();
     assert!(matches!(err, HashError::Canonicalization(_)));
 }
 
 #[test]
 fn canonical_hash_rejects_negative_infinity() {
-    let value = FloatWrapper { value: f64::NEG_INFINITY };
+    let value = FloatWrapper {
+        value: f64::NEG_INFINITY,
+    };
     let err = hash_canonical_json(HashAlgorithm::Sha256, &value).unwrap_err();
     assert!(matches!(err, HashError::Canonicalization(_)));
 }

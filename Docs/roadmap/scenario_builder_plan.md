@@ -8,7 +8,6 @@ Purpose: Provide a spec to hand to an LLM for implementing a scenario builder
          with strict validation and canonical output.
 Dependencies:
   - Docs/architecture/comparator_validation_architecture.md
-  - Docs/decision_gate_data_shapes.md
   - Docs/generated/decision-gate/schemas/scenario.schema.json
   - decision-gate-core/src/core/spec.rs
   - decision-gate-mcp/src/capabilities.rs

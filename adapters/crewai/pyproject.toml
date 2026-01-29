@@ -1,0 +1,30 @@
+# adapters/crewai/pyproject.toml
+# ============================================================================
+# Package: decision-gate-crewai
+# Description: Decision Gate adapter for CrewAI tools.
+# Purpose: Expose Decision Gate SDK calls as CrewAI tools.
+# ============================================================================
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "decision-gate-crewai"
+version = "0.1.0"
+description = "Decision Gate CrewAI adapter"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Decision Gate OSS" }]
+dependencies = [
+  "decision-gate>=0.1.0",
+  "crewai",
+  "pydantic>=1.10",
+]
+
+[tool.setuptools]
+packages = ["decision_gate_crewai"]
+
+[tool.setuptools.package-data]
+decision_gate_crewai = ["py.typed"]

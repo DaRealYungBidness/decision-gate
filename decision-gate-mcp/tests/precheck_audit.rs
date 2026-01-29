@@ -55,9 +55,9 @@ use decision_gate_mcp::tools::SchemasRegisterRequest;
 use decision_gate_mcp::tools::ToolRouterConfig;
 use serde_json::json;
 
+use crate::common::ToolRouterSyncExt;
 use crate::common::local_request_context;
 use crate::common::sample_spec;
-use crate::common::ToolRouterSyncExt;
 
 #[derive(Default)]
 struct TestAuditSink {
@@ -108,12 +108,8 @@ fn build_router(mut config: DecisionGateConfig, audit: Arc<TestAuditSink>) -> To
     let auth_audit = Arc::new(NoopAuditSink);
     let trust_requirement = config.effective_trust_requirement();
     let allow_default_namespace = config.allow_default_namespace();
-    let default_namespace_tenants = config
-        .namespace
-        .default_tenants
-        .iter()
-        .cloned()
-        .collect::<std::collections::BTreeSet<_>>();
+    let default_namespace_tenants =
+        config.namespace.default_tenants.iter().copied().collect::<std::collections::BTreeSet<_>>();
     let evidence_policy = config.evidence.clone();
     let validation = config.validation.clone();
     let anchor_policy = config.anchors.to_policy();
@@ -248,7 +244,7 @@ fn precheck_audit_hash_only_by_default() {
     let tenant_id = TenantId::from_raw(100).expect("nonzero tenantid");
     let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
     define_scenario(&router);
-    register_schema(&router, tenant_id.clone(), namespace_id.clone());
+    register_schema(&router, tenant_id, namespace_id);
     precheck(&router, tenant_id, namespace_id);
 
     let events = audit.precheck_events.lock().expect("precheck events lock");
@@ -271,7 +267,7 @@ fn precheck_audit_payloads_opt_in() {
     let tenant_id = TenantId::from_raw(100).expect("nonzero tenantid");
     let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
     define_scenario(&router);
-    register_schema(&router, tenant_id.clone(), namespace_id.clone());
+    register_schema(&router, tenant_id, namespace_id);
     precheck(&router, tenant_id, namespace_id);
 
     let events = audit.precheck_events.lock().expect("precheck events lock");

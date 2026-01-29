@@ -6,8 +6,20 @@
 // Dependencies: decision-gate-core, decision-gate-contract
 // ============================================================================
 
-//! Tenant authorization hooks for MCP tool calls.
+//! ## Overview
+//! Tenant authorization hooks provide a pluggable, enterprise-grade seam for
+//! enforcing tenant and namespace access checks for MCP tool calls.
+//!
+//! ## Layer Responsibilities
+//! - Enforce tenant/namespace access for each tool call (fail closed).
+//! - Surface deterministic allow/deny decisions for audit sinks.
+//!
+//! ## Invariants
+//! - Authorization decisions must be deterministic for identical inputs.
+//! - Missing tenant/namespace context must deny when required.
+//! - Implementations must avoid side effects beyond audit logging.
 
+use async_trait::async_trait;
 use decision_gate_contract::ToolName;
 use decision_gate_core::NamespaceId;
 use decision_gate_core::TenantId;
@@ -42,9 +54,10 @@ pub struct TenantAuthzDecision {
 }
 
 /// Tenant authorization interface.
+#[async_trait]
 pub trait TenantAuthorizer: Send + Sync {
     /// Authorize tenant/namespace access for the given request.
-    fn authorize(
+    async fn authorize(
         &self,
         auth: &AuthContext,
         request: TenantAccessRequest<'_>,
@@ -54,8 +67,9 @@ pub trait TenantAuthorizer: Send + Sync {
 /// No-op tenant authorizer that always allows.
 pub struct NoopTenantAuthorizer;
 
+#[async_trait]
 impl TenantAuthorizer for NoopTenantAuthorizer {
-    fn authorize(
+    async fn authorize(
         &self,
         _auth: &AuthContext,
         _request: TenantAccessRequest<'_>,

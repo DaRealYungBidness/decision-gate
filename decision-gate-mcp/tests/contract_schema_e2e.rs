@@ -66,8 +66,8 @@ use serde_json::json;
 use tempfile::TempDir;
 use url::Url;
 
-use crate::common::local_request_context;
 use crate::common::ToolRouterSyncExt;
+use crate::common::local_request_context;
 
 #[derive(Clone)]
 struct ContractSchemaResolver {
@@ -200,8 +200,8 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
         scenario_id: define_response.scenario_id.clone(),
         request: StatusRequest {
             run_id: run_config.run_id.clone(),
-            tenant_id: run_config.tenant_id.clone(),
-            namespace_id: run_config.namespace_id.clone(),
+            tenant_id: run_config.tenant_id,
+            namespace_id: run_config.namespace_id,
             requested_at: Timestamp::Logical(2),
             correlation_id: None,
         },
@@ -217,8 +217,8 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
         scenario_id: define_response.scenario_id.clone(),
         request: NextRequest {
             run_id: run_config.run_id.clone(),
-            tenant_id: run_config.tenant_id.clone(),
-            namespace_id: run_config.namespace_id.clone(),
+            tenant_id: run_config.tenant_id,
+            namespace_id: run_config.namespace_id,
             trigger_id: TriggerId::new("trigger-1"),
             agent_id: "agent-1".to_string(),
             time: Timestamp::Logical(3),
@@ -236,8 +236,8 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
         scenario_id: define_response.scenario_id.clone(),
         request: SubmitRequest {
             run_id: run_config.run_id.clone(),
-            tenant_id: run_config.tenant_id.clone(),
-            namespace_id: run_config.namespace_id.clone(),
+            tenant_id: run_config.tenant_id,
+            namespace_id: run_config.namespace_id,
             submission_id: "submission-1".to_string(),
             payload: PacketPayload::Json {
                 value: json!({"artifact": "alpha"}),
@@ -258,8 +258,8 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
         scenario_id: define_response.scenario_id.clone(),
         trigger: TriggerEvent {
             run_id: run_config.run_id.clone(),
-            tenant_id: run_config.tenant_id.clone(),
-            namespace_id: run_config.namespace_id.clone(),
+            tenant_id: run_config.tenant_id,
+            namespace_id: run_config.namespace_id,
             trigger_id: TriggerId::new("trigger-2"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(5),
@@ -271,13 +271,16 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
     let trigger_input = serde_json::to_value(&trigger_request)?;
     let trigger_schema = tool_schema(&tool_schemas, ToolName::ScenarioTrigger)?;
     assert_valid(&trigger_schema.input, &trigger_input, "scenario_trigger input")?;
-    let trigger_output =
-        router.handle_tool_call_sync(&local_request_context(), "scenario_trigger", trigger_input)?;
+    let trigger_output = router.handle_tool_call_sync(
+        &local_request_context(),
+        "scenario_trigger",
+        trigger_input,
+    )?;
     assert_valid(&trigger_schema.output, &trigger_output, "scenario_trigger output")?;
 
     let context = EvidenceContext {
-        tenant_id: run_config.tenant_id.clone(),
-        namespace_id: run_config.namespace_id.clone(),
+        tenant_id: run_config.tenant_id,
+        namespace_id: run_config.namespace_id,
         run_id: run_config.run_id.clone(),
         scenario_id: define_response.scenario_id.clone(),
         stage_id: StageId::new("stage-1"),
@@ -320,8 +323,11 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
     let schema_input = serde_json::to_value(&schema_request)?;
     let schema_schema = tool_schema(&tool_schemas, ToolName::ProviderSchemaGet)?;
     assert_valid(&schema_schema.input, &schema_input, "provider_schema_get input")?;
-    let schema_output =
-        router.handle_tool_call_sync(&local_request_context(), "provider_schema_get", schema_input)?;
+    let schema_output = router.handle_tool_call_sync(
+        &local_request_context(),
+        "provider_schema_get",
+        schema_input,
+    )?;
     assert_valid(&schema_schema.output, &schema_output, "provider_schema_get output")?;
 
     let temp_dir = TempDir::new()?;

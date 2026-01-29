@@ -86,8 +86,8 @@ use decision_gate_mcp::tools::SchemaRegistryLimits;
 use decision_gate_mcp::tools::ToolDefinition;
 use decision_gate_mcp::tools::ToolError;
 use decision_gate_mcp::tools::ToolRouterConfig;
-use serde_json::json;
 use serde_json::Value;
+use serde_json::json;
 
 // ============================================================================
 // SECTION: Test Fixtures
@@ -228,7 +228,7 @@ pub fn router_with_authorizer_usage_and_runpack_storage(
     let trust_requirement = config.effective_trust_requirement();
     let allow_default_namespace = config.allow_default_namespace();
     let default_namespace_tenants =
-        config.namespace.default_tenants.iter().cloned().collect::<BTreeSet<_>>();
+        config.namespace.default_tenants.iter().copied().collect::<BTreeSet<_>>();
     let evidence_policy = config.evidence.clone();
     let validation = config.validation.clone();
     let anchor_policy = config.anchors.to_policy();
@@ -423,8 +423,8 @@ pub fn sample_context_with_time(trigger_time: Timestamp) -> EvidenceContext {
 
 /// Returns a local-only request context for tool calls.
 #[must_use]
-pub const fn local_request_context() -> RequestContext {
-    RequestContext::stdio()
+pub fn local_request_context() -> RequestContext {
+    RequestContext::stdio().with_server_correlation_id("test-server")
 }
 
 // ============================================================================
@@ -455,9 +455,7 @@ impl ToolRouterSyncExt for ToolRouter {
     }
 
     fn list_tools_sync(&self, context: &RequestContext) -> Result<Vec<ToolDefinition>, ToolError> {
-        tokio::runtime::Runtime::new()
-            .expect("runtime")
-            .block_on(self.list_tools(context))
+        tokio::runtime::Runtime::new().expect("runtime").block_on(self.list_tools(context))
     }
 }
 

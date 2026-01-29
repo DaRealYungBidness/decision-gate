@@ -7,8 +7,8 @@
 // ============================================================================
 
 //! ## Overview
-//! The contract CLI emits canonical Decision Gate contract artifacts and can
-//! verify that on-disk artifacts match the generated bundle.
+//! The contract CLI emits deterministic, human-readable contract artifacts and
+//! can verify that on-disk artifacts match the generated bundle.
 //! Security posture: inputs are local CLI flags; see `Docs/security/threat_model.md`.
 
 // ============================================================================

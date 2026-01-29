@@ -25,8 +25,8 @@ use decision_gate_mcp::tools::ScenarioDefineRequest;
 use decision_gate_mcp::tools::ToolError;
 use serde_json::json;
 
-use crate::common::local_request_context;
 use crate::common::ToolRouterSyncExt;
+use crate::common::local_request_context;
 
 #[test]
 fn scenario_define_rejects_disallowed_comparator() {

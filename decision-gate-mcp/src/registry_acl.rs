@@ -330,14 +330,8 @@ fn principal_has_role(
 ) -> bool {
     principal.roles.iter().any(|role| {
         role.name == role_name
-            && role
-                .tenant_id
-                .as_ref()
-                .is_none_or(|tenant| *tenant == tenant_id)
-            && role
-                .namespace_id
-                .as_ref()
-                .is_none_or(|namespace| *namespace == namespace_id)
+            && role.tenant_id.as_ref().is_none_or(|tenant| *tenant == tenant_id)
+            && role.namespace_id.as_ref().is_none_or(|namespace| *namespace == namespace_id)
     })
 }
 

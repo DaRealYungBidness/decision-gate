@@ -108,6 +108,9 @@ validated before any scenario or evidence query is accepted.
 Provider contracts are discoverable via MCP tools (`provider_contract_get` and
 `provider_schema_get`) when disclosure policy allows it.
 
+For a full authoring workflow (LLM-ready), see
+`Docs/guides/provider_schema_authoring.md`.
+
 Example configuration:
 ```toml
 [[providers]]

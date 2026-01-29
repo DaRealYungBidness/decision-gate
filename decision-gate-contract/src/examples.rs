@@ -8,8 +8,9 @@
 
 //! ## Overview
 //! This module constructs example payloads from the real core types. The output
-//! is serialized using canonical JSON to ensure format accuracy and to prevent
-//! divergence between docs and runtime expectations.
+//! is serialized using deterministic JSON with canonical key ordering to ensure
+//! format accuracy and to prevent divergence between docs and runtime
+//! expectations.
 //! Security posture: examples are static templates; see
 //! `Docs/security/threat_model.md`.
 

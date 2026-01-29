@@ -64,6 +64,8 @@ Entry points:
 - `functional`
 - `providers`
 - `mcp_transport`
+- `sdk_client`
+- `sdk_examples`
 - `runpack`
 - `reliability`
 - `security`

@@ -50,9 +50,14 @@ fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Error>> {
     let stage1_id = decision_gate_core::StageId::new("stage-1");
     let stage2_id = decision_gate_core::StageId::new("stage-2");
     let predicate_key = decision_gate_core::PredicateKey::new("allow");
+    let tenant_id = decision_gate_core::TenantId::from_raw(1)
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "nonzero tenantid"))?;
+    let namespace_id = NamespaceId::from_raw(1).ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "nonzero namespaceid")
+    })?;
     let spec = decision_gate_core::ScenarioSpec {
         scenario_id: scenario_id.clone(),
-        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        namespace_id,
         spec_version: decision_gate_core::SpecVersion::new("1"),
         stages: vec![
             decision_gate_core::StageSpec {
@@ -119,8 +124,8 @@ fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     let mut run_config = decision_gate_core::RunConfig {
-        tenant_id: decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
-        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        tenant_id,
+        namespace_id,
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id,
         dispatch_targets: Vec::new(),
@@ -134,8 +139,8 @@ fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Error>> {
 
     let trigger = TriggerEvent {
         run_id: run_config.run_id.clone(),
-        tenant_id: run_config.tenant_id.clone(),
-        namespace_id: run_config.namespace_id.clone(),
+        tenant_id: run_config.tenant_id,
+        namespace_id: run_config.namespace_id,
         trigger_id: TriggerId::new("trigger-1"),
         kind: TriggerKind::ExternalEvent,
         time: Timestamp::Logical(2),

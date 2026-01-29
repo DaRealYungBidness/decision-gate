@@ -186,8 +186,8 @@ async fn registry_acl_principal_subject_mapping() -> Result<(), Box<dyn std::err
             "[server]\ntransport = \"stdio\"\nmode = \"strict\"\n\n[server.auth]\nmode = \
              \"local_only\"\n\n[[server.auth.principals]]\nsubject = \"stdio\"\npolicy_class = \
              \"prod\"\n\n[[server.auth.principals.roles]]\nname = \"TenantAdmin\"\ntenant_id = \
-             {}\nnamespace_id = {}\n\n[namespace]\nallow_default = true\ndefault_tenants \
-             = [{}]\n\n[[providers]]\nname = \"time\"\ntype = \"builtin\"\n",
+             {}\nnamespace_id = {}\n\n[namespace]\nallow_default = true\ndefault_tenants = \
+             [{}]\n\n[[providers]]\nname = \"time\"\ntype = \"builtin\"\n",
             &tenant_id.to_string(),
             &namespace_id.to_string(),
             &tenant_id.to_string(),
@@ -212,8 +212,8 @@ async fn registry_acl_principal_subject_mapping() -> Result<(), Box<dyn std::err
             "[server]\ntransport = \"stdio\"\nmode = \"strict\"\n\n[server.auth]\nmode = \
              \"local_only\"\n\n[[server.auth.principals]]\nsubject = \"loopback\"\npolicy_class = \
              \"prod\"\n\n[[server.auth.principals.roles]]\nname = \"TenantAdmin\"\ntenant_id = \
-             {}\nnamespace_id = {}\n\n[namespace]\nallow_default = true\ndefault_tenants \
-             = [{}]\n\n[[providers]]\nname = \"time\"\ntype = \"builtin\"\n",
+             {}\nnamespace_id = {}\n\n[namespace]\nallow_default = true\ndefault_tenants = \
+             [{}]\n\n[[providers]]\nname = \"time\"\ntype = \"builtin\"\n",
             &tenant_id.to_string(),
             &namespace_id.to_string(),
             &tenant_id.to_string(),

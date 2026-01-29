@@ -197,6 +197,66 @@ estimated_runtime_sec = 8
 # =============================================================================
 
 [[tests]]
+name = "python_sdk_http_scenario_lifecycle"
+category = "functional"
+priority = "P1"
+description = "Python SDK executes scenario define/start/status over HTTP MCP."
+files = ["system-tests/tests/suites/sdk_client.rs", "system-tests/tests/fixtures/sdk_client_python.py"]
+run_command = "cargo test -p system-tests --features system-tests --test sdk_client -- --exact sdk_client::python_sdk_http_scenario_lifecycle"
+artifacts = ["summary.json", "summary.md", "sdk.stdout.log", "sdk.stderr.log"]
+estimated_runtime_sec = 15
+
+[[tests]]
+name = "python_sdk_bearer_auth_enforced"
+category = "security"
+priority = "P1"
+description = "Python SDK enforces bearer auth (success with token, failure without)."
+files = ["system-tests/tests/suites/sdk_client.rs", "system-tests/tests/fixtures/sdk_client_python.py"]
+run_command = "cargo test -p system-tests --features system-tests --test sdk_client -- --exact sdk_client::python_sdk_bearer_auth_enforced"
+artifacts = ["summary.json", "summary.md", "sdk.success.stdout.log", "sdk.success.stderr.log", "sdk.failure.stdout.log", "sdk.failure.stderr.log"]
+estimated_runtime_sec = 15
+
+[[tests]]
+name = "typescript_sdk_http_scenario_lifecycle"
+category = "functional"
+priority = "P1"
+description = "TypeScript SDK executes scenario define/start/status over HTTP MCP."
+files = ["system-tests/tests/suites/sdk_client.rs", "system-tests/tests/fixtures/sdk_client_typescript.ts"]
+run_command = "cargo test -p system-tests --features system-tests --test sdk_client -- --exact sdk_client::typescript_sdk_http_scenario_lifecycle"
+artifacts = ["summary.json", "summary.md", "sdk.stdout.log", "sdk.stderr.log"]
+estimated_runtime_sec = 15
+
+[[tests]]
+name = "typescript_sdk_bearer_auth_enforced"
+category = "security"
+priority = "P1"
+description = "TypeScript SDK enforces bearer auth (success with token, failure without)."
+files = ["system-tests/tests/suites/sdk_client.rs", "system-tests/tests/fixtures/sdk_client_typescript.ts"]
+run_command = "cargo test -p system-tests --features system-tests --test sdk_client -- --exact sdk_client::typescript_sdk_bearer_auth_enforced"
+artifacts = ["summary.json", "summary.md", "sdk.success.stdout.log", "sdk.success.stderr.log", "sdk.failure.stdout.log", "sdk.failure.stderr.log"]
+estimated_runtime_sec = 15
+
+[[tests]]
+name = "python_examples_runnable"
+category = "functional"
+priority = "P1"
+description = "Python repository examples execute against MCP HTTP."
+files = ["system-tests/tests/suites/sdk_examples.rs", "examples/python/"]
+run_command = "cargo test -p system-tests --features system-tests --test sdk_examples -- --exact sdk_examples::python_examples_runnable"
+artifacts = ["summary.json", "summary.md", "example.basic.stdout.log", "example.basic.stderr.log", "example.agent.stdout.log", "example.agent.stderr.log", "example.ci.stdout.log", "example.ci.stderr.log", "example.precheck.stdout.log", "example.precheck.stderr.log"]
+estimated_runtime_sec = 25
+
+[[tests]]
+name = "typescript_examples_runnable"
+category = "functional"
+priority = "P1"
+description = "TypeScript repository examples execute against MCP HTTP."
+files = ["system-tests/tests/suites/sdk_examples.rs", "examples/typescript/"]
+run_command = "cargo test -p system-tests --features system-tests --test sdk_examples -- --exact sdk_examples::typescript_examples_runnable"
+artifacts = ["summary.json", "summary.md", "example.basic.stdout.log", "example.basic.stderr.log", "example.agent.stdout.log", "example.agent.stderr.log", "example.ci.stdout.log", "example.ci.stderr.log", "example.precheck.stdout.log", "example.precheck.stderr.log"]
+estimated_runtime_sec = 25
+
+[[tests]]
 name = "http_transport_end_to_end"
 category = "mcp_transport"
 priority = "P1"
@@ -779,6 +839,16 @@ files = ["system-tests/tests/suites/security.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test security -- --exact security::strict_mode_rejects_default_namespace"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
+
+[[tests]]
+name = "invalid_correlation_id_rejected"
+category = "security"
+priority = "P1"
+description = "Invalid client correlation IDs are rejected with a server correlation header."
+files = ["system-tests/tests/suites/security.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact security::invalid_correlation_id_rejected"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 6
 
 [[tests]]
 name = "dev_permissive_emits_warning"

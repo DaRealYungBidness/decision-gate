@@ -46,6 +46,10 @@ pub struct McpAuditEvent {
     pub timestamp_ms: u128,
     /// Request identifier when provided.
     pub request_id: Option<String>,
+    /// Unsafe client correlation identifier when provided.
+    pub unsafe_client_correlation_id: Option<String>,
+    /// Server-generated correlation identifier.
+    pub server_correlation_id: String,
     /// Transport used for the request.
     pub transport: ServerTransport,
     /// Peer IP address when available.
@@ -77,6 +81,10 @@ pub struct PrecheckAuditEvent {
     pub event: &'static str,
     /// Event timestamp (milliseconds since epoch).
     pub timestamp_ms: u128,
+    /// Unsafe client correlation identifier when provided.
+    pub unsafe_client_correlation_id: Option<String>,
+    /// Server-generated correlation identifier.
+    pub server_correlation_id: String,
     /// Tenant identifier.
     pub tenant_id: String,
     /// Namespace identifier.
@@ -110,6 +118,10 @@ pub struct RegistryAuditEvent {
     pub timestamp_ms: u128,
     /// Request identifier when provided.
     pub request_id: Option<String>,
+    /// Unsafe client correlation identifier when provided.
+    pub unsafe_client_correlation_id: Option<String>,
+    /// Server-generated correlation identifier.
+    pub server_correlation_id: String,
     /// Tenant identifier.
     pub tenant_id: String,
     /// Namespace identifier.
@@ -141,6 +153,10 @@ pub struct TenantAuthzEvent {
     pub timestamp_ms: u128,
     /// Request identifier when provided.
     pub request_id: Option<String>,
+    /// Unsafe client correlation identifier when provided.
+    pub unsafe_client_correlation_id: Option<String>,
+    /// Server-generated correlation identifier.
+    pub server_correlation_id: String,
     /// Tool name when available.
     pub tool: Option<ToolName>,
     /// Whether access was allowed.
@@ -164,6 +180,10 @@ pub struct UsageAuditEvent {
     pub timestamp_ms: u128,
     /// Request identifier when provided.
     pub request_id: Option<String>,
+    /// Unsafe client correlation identifier when provided.
+    pub unsafe_client_correlation_id: Option<String>,
+    /// Server-generated correlation identifier.
+    pub server_correlation_id: String,
     /// Tool name when available.
     pub tool: Option<ToolName>,
     /// Tenant identifier when provided.
@@ -188,6 +208,10 @@ pub struct SecurityAuditEvent {
     pub event: &'static str,
     /// Event timestamp (milliseconds since epoch).
     pub timestamp_ms: u128,
+    /// Unsafe client correlation identifier when available.
+    pub unsafe_client_correlation_id: Option<String>,
+    /// Server-generated correlation identifier when available.
+    pub server_correlation_id: Option<String>,
     /// Security event kind.
     pub kind: String,
     /// Optional message.
@@ -202,6 +226,10 @@ pub struct SecurityAuditEvent {
 pub struct McpAuditEventParams {
     /// Request identifier when provided.
     pub request_id: Option<String>,
+    /// Unsafe client correlation identifier when provided.
+    pub unsafe_client_correlation_id: Option<String>,
+    /// Server-generated correlation identifier.
+    pub server_correlation_id: String,
     /// Transport type used for the request.
     pub transport: ServerTransport,
     /// Peer IP address if known.
@@ -230,6 +258,10 @@ pub struct McpAuditEventParams {
 pub struct PrecheckAuditEventParams {
     /// Tenant identifier.
     pub tenant_id: String,
+    /// Unsafe client correlation identifier when provided.
+    pub unsafe_client_correlation_id: Option<String>,
+    /// Server-generated correlation identifier.
+    pub server_correlation_id: String,
     /// Namespace identifier.
     pub namespace_id: String,
     /// Scenario identifier (from request or spec).
@@ -256,6 +288,10 @@ pub struct PrecheckAuditEventParams {
 pub struct RegistryAuditEventParams {
     /// Request identifier when provided.
     pub request_id: Option<String>,
+    /// Unsafe client correlation identifier when provided.
+    pub unsafe_client_correlation_id: Option<String>,
+    /// Server-generated correlation identifier.
+    pub server_correlation_id: String,
     /// Tenant identifier.
     pub tenant_id: String,
     /// Namespace identifier.
@@ -282,6 +318,10 @@ pub struct RegistryAuditEventParams {
 pub struct TenantAuthzEventParams {
     /// Request identifier when provided.
     pub request_id: Option<String>,
+    /// Unsafe client correlation identifier when provided.
+    pub unsafe_client_correlation_id: Option<String>,
+    /// Server-generated correlation identifier.
+    pub server_correlation_id: String,
     /// Tool name when available.
     pub tool: Option<ToolName>,
     /// Whether access was allowed.
@@ -300,6 +340,10 @@ pub struct TenantAuthzEventParams {
 pub struct UsageAuditEventParams {
     /// Request identifier when provided.
     pub request_id: Option<String>,
+    /// Unsafe client correlation identifier when provided.
+    pub unsafe_client_correlation_id: Option<String>,
+    /// Server-generated correlation identifier.
+    pub server_correlation_id: String,
     /// Tool name when available.
     pub tool: Option<ToolName>,
     /// Tenant identifier when provided.
@@ -321,6 +365,10 @@ pub struct UsageAuditEventParams {
 pub struct SecurityAuditEventParams {
     /// Security event kind.
     pub kind: String,
+    /// Unsafe client correlation identifier when available.
+    pub unsafe_client_correlation_id: Option<String>,
+    /// Server-generated correlation identifier when available.
+    pub server_correlation_id: Option<String>,
     /// Optional message.
     pub message: Option<String>,
     /// Dev-permissive enabled.
@@ -339,6 +387,8 @@ impl McpAuditEvent {
             event: "mcp_request",
             timestamp_ms,
             request_id: params.request_id,
+            unsafe_client_correlation_id: params.unsafe_client_correlation_id,
+            server_correlation_id: params.server_correlation_id,
             transport: params.transport,
             peer_ip: params.peer_ip,
             method: params.method,
@@ -363,6 +413,8 @@ impl PrecheckAuditEvent {
         Self {
             event: "precheck_audit",
             timestamp_ms,
+            unsafe_client_correlation_id: params.unsafe_client_correlation_id,
+            server_correlation_id: params.server_correlation_id,
             tenant_id: params.tenant_id,
             namespace_id: params.namespace_id,
             scenario_id: params.scenario_id,
@@ -388,6 +440,8 @@ impl RegistryAuditEvent {
             event: "registry_audit",
             timestamp_ms,
             request_id: params.request_id,
+            unsafe_client_correlation_id: params.unsafe_client_correlation_id,
+            server_correlation_id: params.server_correlation_id,
             tenant_id: params.tenant_id,
             namespace_id: params.namespace_id,
             action: params.action,
@@ -412,6 +466,8 @@ impl TenantAuthzEvent {
             event: "tenant_authz",
             timestamp_ms,
             request_id: params.request_id,
+            unsafe_client_correlation_id: params.unsafe_client_correlation_id,
+            server_correlation_id: params.server_correlation_id,
             tool: params.tool,
             allowed: params.allowed,
             reason: params.reason,
@@ -432,6 +488,8 @@ impl UsageAuditEvent {
             event: "usage_audit",
             timestamp_ms,
             request_id: params.request_id,
+            unsafe_client_correlation_id: params.unsafe_client_correlation_id,
+            server_correlation_id: params.server_correlation_id,
             tool: params.tool,
             tenant_id: params.tenant_id,
             namespace_id: params.namespace_id,
@@ -453,6 +511,8 @@ impl SecurityAuditEvent {
             event: "security_audit",
             timestamp_ms,
             kind: params.kind,
+            unsafe_client_correlation_id: params.unsafe_client_correlation_id,
+            server_correlation_id: params.server_correlation_id,
             message: params.message,
             dev_permissive: params.dev_permissive,
             namespace_authority: params.namespace_authority,

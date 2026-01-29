@@ -10,7 +10,8 @@
       "Bash(grep:*)",
       "Bash(powershell -Command \"Get-Content ''C:\\\\Users\\\\Micha\\\\Documents\\\\GitHub\\\\decision-gate\\\\decision-gate-providers\\\\README.md'' | Measure-Object -Line\")",
       "Bash(powershell -Command \"$content = Get-Content ''decision-gate-providers\\\\README.md'' -Raw; $content\")",
-      "Bash(cargo run:*)"
+      "Bash(cargo run:*)",
+      "Bash(cargo +nightly fmt:*)"
     ]
   }
 }

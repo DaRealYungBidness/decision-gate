@@ -48,7 +48,8 @@ use decision_gate_core::TriggerId;
 
 use super::read_framed;
 use super::request_id_for_context;
-use super::sanitize_header_value;
+use super::sanitize_context_correlation_id;
+use crate::correlation::sanitize_client_correlation_id;
 
 // ============================================================================
 // SECTION: Tests
@@ -88,8 +89,9 @@ fn request_id_uses_correlation_id_when_present() {
         trigger_time: Timestamp::Logical(1),
         correlation_id: Some(CorrelationId::new("corr-1")),
     };
-    let first = request_id_for_context(&context);
-    let second = request_id_for_context(&context);
+    let sanitized = sanitize_context_correlation_id(&context).expect("valid correlation");
+    let first = request_id_for_context(sanitized.as_deref());
+    let second = request_id_for_context(sanitized.as_deref());
     assert_eq!(first, second);
     assert_eq!(first, serde_json::Value::String("corr-1".to_string()));
 }
@@ -106,14 +108,15 @@ fn request_id_increments_without_correlation_id() {
         trigger_time: Timestamp::Logical(1),
         correlation_id: None,
     };
-    let first = request_id_for_context(&context);
-    let second = request_id_for_context(&context);
+    let sanitized = sanitize_context_correlation_id(&context).expect("valid context");
+    let first = request_id_for_context(sanitized.as_deref());
+    let second = request_id_for_context(sanitized.as_deref());
     assert_ne!(first, second);
     assert!(matches!(first, serde_json::Value::Number(_)));
 }
 
 #[test]
-fn sanitize_header_value_rejects_invalid_chars() {
-    assert!(sanitize_header_value(Some("valid-123")).is_some());
-    assert!(sanitize_header_value(Some("bad\nvalue")).is_none());
+fn sanitize_client_correlation_id_rejects_invalid_chars() {
+    assert!(sanitize_client_correlation_id(Some("valid-123")).unwrap().is_some());
+    assert!(sanitize_client_correlation_id(Some("bad\nvalue")).is_err());
 }

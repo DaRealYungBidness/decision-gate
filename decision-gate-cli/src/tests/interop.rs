@@ -92,8 +92,8 @@ fn minimal_run_config(scenario_id: &ScenarioId) -> RunConfig {
 fn minimal_trigger(run_config: &RunConfig) -> TriggerEvent {
     TriggerEvent {
         trigger_id: TriggerId::new("trigger-1"),
-        tenant_id: run_config.tenant_id.clone(),
-        namespace_id: run_config.namespace_id.clone(),
+        tenant_id: run_config.tenant_id,
+        namespace_id: run_config.namespace_id,
         run_id: run_config.run_id.clone(),
         kind: TriggerKind::ExternalEvent,
         time: Timestamp::Logical(1),
@@ -330,8 +330,8 @@ async fn run_interop_executes_full_sequence() {
     let spec_hash = HashDigest::new(HashAlgorithm::Sha256, b"spec-hash");
 
     let run_state = RunState {
-        tenant_id: run_config.tenant_id.clone(),
-        namespace_id: run_config.namespace_id.clone(),
+        tenant_id: run_config.tenant_id,
+        namespace_id: run_config.namespace_id,
         run_id: run_config.run_id.clone(),
         scenario_id: run_config.scenario_id.clone(),
         spec_hash: spec_hash.clone(),
@@ -454,8 +454,8 @@ async fn run_interop_executes_full_sequence() {
     let status_args = serde_json::to_value(ScenarioStatusRequest {
         scenario_id: spec.scenario_id.clone(),
         request: StatusRequest {
-            tenant_id: run_config.tenant_id.clone(),
-            namespace_id: run_config.namespace_id.clone(),
+            tenant_id: run_config.tenant_id,
+            namespace_id: run_config.namespace_id,
             run_id: run_config.run_id.clone(),
             requested_at: status_requested_at,
             correlation_id: trigger.correlation_id.clone(),

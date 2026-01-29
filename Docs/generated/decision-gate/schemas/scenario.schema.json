@@ -1,1 +1,1161 @@
-{"$defs":{"AdvanceTo":{"oneOf":[{"additionalProperties":false,"properties":{"kind":{"const":"linear"}},"required":["kind"],"type":"object"},{"additionalProperties":false,"properties":{"kind":{"const":"fixed"},"stage_id":{"description":"Fixed stage identifier.","type":"string"}},"required":["kind","stage_id"],"type":"object"},{"additionalProperties":false,"properties":{"branches":{"items":{"$ref":"#/$defs/BranchRule"},"type":"array"},"default":{"oneOf":[{"type":"null"},{"description":"Default branch stage identifier.","type":"string"}]},"kind":{"const":"branch"}},"required":["kind","branches","default"],"type":"object"},{"additionalProperties":false,"properties":{"kind":{"const":"terminal"}},"required":["kind"],"type":"object"}]},"BranchRule":{"additionalProperties":false,"properties":{"gate_id":{"description":"Gate identifier referenced by the branch rule.","type":"string"},"next_stage_id":{"description":"Stage identifier to advance to.","type":"string"},"outcome":{"$ref":"#/$defs/GateOutcome"}},"required":["gate_id","outcome","next_stage_id"],"type":"object"},"Comparator":{"description":"Comparator applied to evidence values.","enum":["equals","not_equals","greater_than","greater_than_or_equal","less_than","less_than_or_equal","lex_greater_than","lex_greater_than_or_equal","lex_less_than","lex_less_than_or_equal","contains","in_set","deep_equals","deep_not_equals","exists","not_exists"],"type":"string"},"ContentRef":{"additionalProperties":false,"properties":{"content_hash":{"additionalProperties":false,"properties":{"algorithm":{"enum":["sha256"],"type":"string"},"value":{"description":"Lowercase hex digest.","type":"string"}},"required":["algorithm","value"],"type":"object"},"encryption":{"oneOf":[{"type":"null"},{"description":"Optional encryption metadata identifier.","type":"string"}]},"uri":{"description":"External content reference URI.","type":"string"}},"required":["uri","content_hash","encryption"],"type":"object"},"EvidenceQuery":{"additionalProperties":false,"properties":{"params":{"description":"Provider-specific parameter payload.","type":["null","boolean","number","string","array","object"]},"predicate":{"description":"Provider predicate name.","type":"string"},"provider_id":{"description":"Evidence provider identifier.","type":"string"}},"required":["provider_id","predicate"],"type":"object"},"GateOutcome":{"description":"Gate outcome for branch routing.","enum":["true","false","unknown"],"type":"string"},"GateSpec":{"additionalProperties":false,"properties":{"gate_id":{"description":"Gate identifier.","type":"string"},"requirement":{"oneOf":[{"additionalProperties":false,"properties":{"And":{"items":{"$ref":"#/$defs/Requirement"},"type":"array"}},"required":["And"],"type":"object"},{"additionalProperties":false,"properties":{"Or":{"items":{"$ref":"#/$defs/Requirement"},"type":"array"}},"required":["Or"],"type":"object"},{"additionalProperties":false,"properties":{"Not":{"$ref":"#/$defs/Requirement"}},"required":["Not"],"type":"object"},{"additionalProperties":false,"properties":{"RequireGroup":{"additionalProperties":false,"properties":{"min":{"maximum":255,"minimum":0,"type":"integer"},"reqs":{"items":{"$ref":"#/$defs/Requirement"},"type":"array"}},"required":["min","reqs"],"type":"object"}},"required":["RequireGroup"],"type":"object"},{"additionalProperties":false,"properties":{"Predicate":{"description":"Predicate identifier reference.","type":"string"}},"required":["Predicate"],"type":"object"}]},"trust":{"oneOf":[{"type":"null"},{"$ref":"#/$defs/TrustRequirement"}]}},"required":["gate_id","requirement"],"type":"object"},"HashDigest":{"additionalProperties":false,"properties":{"algorithm":{"enum":["sha256"],"type":"string"},"value":{"description":"Lowercase hex digest.","type":"string"}},"required":["algorithm","value"],"type":"object"},"PacketPayload":{"oneOf":[{"additionalProperties":false,"properties":{"kind":{"const":"json"},"value":{"description":"Inline JSON payload.","type":["null","boolean","number","string","array","object"]}},"required":["kind","value"],"type":"object"},{"additionalProperties":false,"properties":{"bytes":{"items":{"maximum":255,"minimum":0,"type":"integer"},"type":"array"},"kind":{"const":"bytes"}},"required":["kind","bytes"],"type":"object"},{"additionalProperties":false,"properties":{"content_ref":{"additionalProperties":false,"properties":{"content_hash":{"additionalProperties":false,"properties":{"algorithm":{"enum":["sha256"],"type":"string"},"value":{"description":"Lowercase hex digest.","type":"string"}},"required":["algorithm","value"],"type":"object"},"encryption":{"oneOf":[{"type":"null"},{"description":"Encryption metadata.","type":"string"}]},"uri":{"description":"Content URI.","type":"string"}},"required":["uri","content_hash","encryption"],"type":"object"},"kind":{"const":"external"}},"required":["kind","content_ref"],"type":"object"}]},"PacketSpec":{"additionalProperties":false,"properties":{"content_type":{"description":"Content type for payload.","type":"string"},"expiry":{"oneOf":[{"type":"null"},{"oneOf":[{"additionalProperties":false,"properties":{"kind":{"const":"unix_millis"},"value":{"type":"integer"}},"required":["kind","value"],"type":"object"},{"additionalProperties":false,"properties":{"kind":{"const":"logical"},"value":{"minimum":0,"type":"integer"}},"required":["kind","value"],"type":"object"}]}]},"packet_id":{"description":"Packet identifier.","type":"string"},"payload":{"oneOf":[{"additionalProperties":false,"properties":{"kind":{"const":"json"},"value":{"description":"Inline JSON payload.","type":["null","boolean","number","string","array","object"]}},"required":["kind","value"],"type":"object"},{"additionalProperties":false,"properties":{"bytes":{"items":{"maximum":255,"minimum":0,"type":"integer"},"type":"array"},"kind":{"const":"bytes"}},"required":["kind","bytes"],"type":"object"},{"additionalProperties":false,"properties":{"content_ref":{"additionalProperties":false,"properties":{"content_hash":{"additionalProperties":false,"properties":{"algorithm":{"enum":["sha256"],"type":"string"},"value":{"description":"Lowercase hex digest.","type":"string"}},"required":["algorithm","value"],"type":"object"},"encryption":{"oneOf":[{"type":"null"},{"description":"Encryption metadata.","type":"string"}]},"uri":{"description":"Content URI.","type":"string"}},"required":["uri","content_hash","encryption"],"type":"object"},"kind":{"const":"external"}},"required":["kind","content_ref"],"type":"object"}]},"policy_tags":{"description":"Policy tags applied to packet dispatch.","items":{"type":"string"},"type":"array"},"schema_id":{"description":"Schema identifier.","type":"string"},"visibility_labels":{"description":"Visibility labels for packet disclosure.","items":{"type":"string"},"type":"array"}},"required":["packet_id","schema_id","content_type","visibility_labels","policy_tags","payload"],"type":"object"},"PolicyRef":{"additionalProperties":false,"properties":{"description":{"oneOf":[{"type":"null"},{"description":"Optional policy description.","type":"string"}]},"policy_id":{"description":"Policy identifier.","type":"string"}},"required":["policy_id"],"type":"object"},"PredicateSpec":{"additionalProperties":false,"properties":{"comparator":{"description":"Comparator applied to evidence values.","enum":["equals","not_equals","greater_than","greater_than_or_equal","less_than","less_than_or_equal","lex_greater_than","lex_greater_than_or_equal","lex_less_than","lex_less_than_or_equal","contains","in_set","deep_equals","deep_not_equals","exists","not_exists"],"type":"string"},"expected":{"description":"Expected comparison value.","type":["null","boolean","number","string","array","object"]},"policy_tags":{"description":"Policy tags applied to predicate evaluation.","items":{"type":"string"},"type":"array"},"predicate":{"description":"Predicate identifier.","type":"string"},"query":{"additionalProperties":false,"properties":{"params":{"description":"Provider-specific parameter payload.","type":["null","boolean","number","string","array","object"]},"predicate":{"description":"Provider predicate name.","type":"string"},"provider_id":{"description":"Evidence provider identifier.","type":"string"}},"required":["provider_id","predicate"],"type":"object"},"trust":{"oneOf":[{"type":"null"},{"$ref":"#/$defs/TrustRequirement"}]}},"required":["predicate","query","comparator","policy_tags"],"type":"object"},"Requirement":{"oneOf":[{"additionalProperties":false,"properties":{"And":{"items":{"$ref":"#/$defs/Requirement"},"type":"array"}},"required":["And"],"type":"object"},{"additionalProperties":false,"properties":{"Or":{"items":{"$ref":"#/$defs/Requirement"},"type":"array"}},"required":["Or"],"type":"object"},{"additionalProperties":false,"properties":{"Not":{"$ref":"#/$defs/Requirement"}},"required":["Not"],"type":"object"},{"additionalProperties":false,"properties":{"RequireGroup":{"additionalProperties":false,"properties":{"min":{"maximum":255,"minimum":0,"type":"integer"},"reqs":{"items":{"$ref":"#/$defs/Requirement"},"type":"array"}},"required":["min","reqs"],"type":"object"}},"required":["RequireGroup"],"type":"object"},{"additionalProperties":false,"properties":{"Predicate":{"description":"Predicate identifier reference.","type":"string"}},"required":["Predicate"],"type":"object"}]},"SchemaRef":{"additionalProperties":false,"properties":{"schema_id":{"description":"Schema identifier.","type":"string"},"uri":{"oneOf":[{"type":"null"},{"description":"Schema registry URI.","type":"string"}]},"version":{"oneOf":[{"type":"null"},{"description":"Schema version string.","type":"string"}]}},"required":["schema_id"],"type":"object"},"StageSpec":{"additionalProperties":false,"properties":{"advance_to":{"oneOf":[{"additionalProperties":false,"properties":{"kind":{"const":"linear"}},"required":["kind"],"type":"object"},{"additionalProperties":false,"properties":{"kind":{"const":"fixed"},"stage_id":{"description":"Fixed stage identifier.","type":"string"}},"required":["kind","stage_id"],"type":"object"},{"additionalProperties":false,"properties":{"branches":{"items":{"$ref":"#/$defs/BranchRule"},"type":"array"},"default":{"oneOf":[{"type":"null"},{"description":"Default branch stage identifier.","type":"string"}]},"kind":{"const":"branch"}},"required":["kind","branches","default"],"type":"object"},{"additionalProperties":false,"properties":{"kind":{"const":"terminal"}},"required":["kind"],"type":"object"}]},"entry_packets":{"items":{"$ref":"#/$defs/PacketSpec"},"type":"array"},"gates":{"items":{"$ref":"#/$defs/GateSpec"},"type":"array"},"on_timeout":{"$ref":"#/$defs/TimeoutPolicy"},"stage_id":{"description":"Stage identifier.","type":"string"},"timeout":{"oneOf":[{"type":"null"},{"$ref":"#/$defs/TimeoutSpec"}]}},"required":["stage_id","entry_packets","gates","advance_to","on_timeout"],"type":"object"},"TimeoutPolicy":{"description":"Timeout handling policy.","enum":["fail","advance_with_flag","alternate_branch"],"type":"string"},"TimeoutSpec":{"additionalProperties":false,"properties":{"policy_tags":{"description":"Policy tags applied to timeout handling.","items":{"type":"string"},"type":"array"},"timeout_ms":{"minimum":0,"type":"integer"}},"required":["timeout_ms","policy_tags"],"type":"object"},"Timestamp":{"oneOf":[{"additionalProperties":false,"properties":{"kind":{"const":"unix_millis"},"value":{"type":"integer"}},"required":["kind","value"],"type":"object"},{"additionalProperties":false,"properties":{"kind":{"const":"logical"},"value":{"minimum":0,"type":"integer"}},"required":["kind","value"],"type":"object"}]},"TrustLane":{"description":"Trust lane classification for evidence.","enum":["verified","asserted"],"type":"string"},"TrustRequirement":{"additionalProperties":false,"properties":{"min_lane":{"description":"Trust lane classification for evidence.","enum":["verified","asserted"],"type":"string"}},"required":["min_lane"],"type":"object"}},"$id":"decision-gate://contract/schemas/scenario.schema.json","$schema":"https://json-schema.org/draft/2020-12/schema","additionalProperties":false,"description":"Canonical scenario specification used by Decision Gate.","properties":{"default_tenant_id":{"oneOf":[{"type":"null"},{"description":"Optional default tenant identifier.","minimum":1,"type":"integer"}]},"namespace_id":{"description":"Namespace identifier.","minimum":1,"type":"integer"},"policies":{"items":{"$ref":"#/$defs/PolicyRef"},"type":"array"},"predicates":{"items":{"$ref":"#/$defs/PredicateSpec"},"type":"array"},"scenario_id":{"description":"Scenario identifier.","type":"string"},"schemas":{"items":{"$ref":"#/$defs/SchemaRef"},"type":"array"},"spec_version":{"description":"Specification version identifier.","type":"string"},"stages":{"items":{"$ref":"#/$defs/StageSpec"},"minItems":1,"type":"array"}},"required":["scenario_id","namespace_id","spec_version","stages","predicates","policies","schemas"],"title":"Decision Gate ScenarioSpec","type":"object"}
+{
+  "$defs": {
+    "AdvanceTo": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "linear"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "fixed"
+            },
+            "stage_id": {
+              "description": "Fixed stage identifier.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "stage_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "branches": {
+              "items": {
+                "$ref": "#/$defs/BranchRule"
+              },
+              "type": "array"
+            },
+            "default": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "description": "Default branch stage identifier.",
+                  "type": "string"
+                }
+              ]
+            },
+            "kind": {
+              "const": "branch"
+            }
+          },
+          "required": [
+            "kind",
+            "branches",
+            "default"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "terminal"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "BranchRule": {
+      "additionalProperties": false,
+      "properties": {
+        "gate_id": {
+          "description": "Gate identifier referenced by the branch rule.",
+          "type": "string"
+        },
+        "next_stage_id": {
+          "description": "Stage identifier to advance to.",
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/GateOutcome"
+        }
+      },
+      "required": [
+        "gate_id",
+        "outcome",
+        "next_stage_id"
+      ],
+      "type": "object"
+    },
+    "Comparator": {
+      "description": "Comparator applied to evidence values.",
+      "enum": [
+        "equals",
+        "not_equals",
+        "greater_than",
+        "greater_than_or_equal",
+        "less_than",
+        "less_than_or_equal",
+        "lex_greater_than",
+        "lex_greater_than_or_equal",
+        "lex_less_than",
+        "lex_less_than_or_equal",
+        "contains",
+        "in_set",
+        "deep_equals",
+        "deep_not_equals",
+        "exists",
+        "not_exists"
+      ],
+      "type": "string"
+    },
+    "ContentRef": {
+      "additionalProperties": false,
+      "properties": {
+        "content_hash": {
+          "additionalProperties": false,
+          "properties": {
+            "algorithm": {
+              "enum": [
+                "sha256"
+              ],
+              "type": "string"
+            },
+            "value": {
+              "description": "Lowercase hex digest.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "algorithm",
+            "value"
+          ],
+          "type": "object"
+        },
+        "encryption": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "description": "Optional encryption metadata identifier.",
+              "type": "string"
+            }
+          ]
+        },
+        "uri": {
+          "description": "External content reference URI.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "uri",
+        "content_hash",
+        "encryption"
+      ],
+      "type": "object"
+    },
+    "EvidenceQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "params": {
+          "description": "Provider-specific parameter payload.",
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "array",
+            "object"
+          ]
+        },
+        "predicate": {
+          "description": "Provider predicate name.",
+          "type": "string"
+        },
+        "provider_id": {
+          "description": "Evidence provider identifier.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider_id",
+        "predicate"
+      ],
+      "type": "object"
+    },
+    "GateOutcome": {
+      "description": "Gate outcome for branch routing.",
+      "enum": [
+        "true",
+        "false",
+        "unknown"
+      ],
+      "type": "string"
+    },
+    "GateSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "gate_id": {
+          "description": "Gate identifier.",
+          "type": "string"
+        },
+        "requirement": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "And": {
+                  "items": {
+                    "$ref": "#/$defs/Requirement"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "And"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "Or": {
+                  "items": {
+                    "$ref": "#/$defs/Requirement"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "Or"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "Not": {
+                  "$ref": "#/$defs/Requirement"
+                }
+              },
+              "required": [
+                "Not"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "RequireGroup": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "min": {
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "reqs": {
+                      "items": {
+                        "$ref": "#/$defs/Requirement"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "min",
+                    "reqs"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "RequireGroup"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "Predicate": {
+                  "description": "Predicate identifier reference.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "Predicate"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "trust": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/TrustRequirement"
+            }
+          ]
+        }
+      },
+      "required": [
+        "gate_id",
+        "requirement"
+      ],
+      "type": "object"
+    },
+    "HashDigest": {
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": {
+          "enum": [
+            "sha256"
+          ],
+          "type": "string"
+        },
+        "value": {
+          "description": "Lowercase hex digest.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "algorithm",
+        "value"
+      ],
+      "type": "object"
+    },
+    "PacketPayload": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "json"
+            },
+            "value": {
+              "description": "Inline JSON payload.",
+              "type": [
+                "null",
+                "boolean",
+                "number",
+                "string",
+                "array",
+                "object"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "items": {
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "bytes"
+            }
+          },
+          "required": [
+            "kind",
+            "bytes"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "content_ref": {
+              "additionalProperties": false,
+              "properties": {
+                "content_hash": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "algorithm": {
+                      "enum": [
+                        "sha256"
+                      ],
+                      "type": "string"
+                    },
+                    "value": {
+                      "description": "Lowercase hex digest.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "algorithm",
+                    "value"
+                  ],
+                  "type": "object"
+                },
+                "encryption": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "description": "Encryption metadata.",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "uri": {
+                  "description": "Content URI.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "uri",
+                "content_hash",
+                "encryption"
+              ],
+              "type": "object"
+            },
+            "kind": {
+              "const": "external"
+            }
+          },
+          "required": [
+            "kind",
+            "content_ref"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PacketSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "content_type": {
+          "description": "Content type for payload.",
+          "type": "string"
+        },
+        "expiry": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "unix_millis"
+                    },
+                    "value": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "value"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "const": "logical"
+                    },
+                    "value": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "value"
+                  ],
+                  "type": "object"
+                }
+              ]
+            }
+          ]
+        },
+        "packet_id": {
+          "description": "Packet identifier.",
+          "type": "string"
+        },
+        "payload": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "json"
+                },
+                "value": {
+                  "description": "Inline JSON payload.",
+                  "type": [
+                    "null",
+                    "boolean",
+                    "number",
+                    "string",
+                    "array",
+                    "object"
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "value"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "bytes": {
+                  "items": {
+                    "maximum": 255,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                "kind": {
+                  "const": "bytes"
+                }
+              },
+              "required": [
+                "kind",
+                "bytes"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "content_ref": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "content_hash": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "algorithm": {
+                          "enum": [
+                            "sha256"
+                          ],
+                          "type": "string"
+                        },
+                        "value": {
+                          "description": "Lowercase hex digest.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "algorithm",
+                        "value"
+                      ],
+                      "type": "object"
+                    },
+                    "encryption": {
+                      "oneOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "description": "Encryption metadata.",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "uri": {
+                      "description": "Content URI.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "uri",
+                    "content_hash",
+                    "encryption"
+                  ],
+                  "type": "object"
+                },
+                "kind": {
+                  "const": "external"
+                }
+              },
+              "required": [
+                "kind",
+                "content_ref"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "policy_tags": {
+          "description": "Policy tags applied to packet dispatch.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "schema_id": {
+          "description": "Schema identifier.",
+          "type": "string"
+        },
+        "visibility_labels": {
+          "description": "Visibility labels for packet disclosure.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "packet_id",
+        "schema_id",
+        "content_type",
+        "visibility_labels",
+        "policy_tags",
+        "payload"
+      ],
+      "type": "object"
+    },
+    "PolicyRef": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "description": "Optional policy description.",
+              "type": "string"
+            }
+          ]
+        },
+        "policy_id": {
+          "description": "Policy identifier.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "policy_id"
+      ],
+      "type": "object"
+    },
+    "PredicateSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "comparator": {
+          "description": "Comparator applied to evidence values.",
+          "enum": [
+            "equals",
+            "not_equals",
+            "greater_than",
+            "greater_than_or_equal",
+            "less_than",
+            "less_than_or_equal",
+            "lex_greater_than",
+            "lex_greater_than_or_equal",
+            "lex_less_than",
+            "lex_less_than_or_equal",
+            "contains",
+            "in_set",
+            "deep_equals",
+            "deep_not_equals",
+            "exists",
+            "not_exists"
+          ],
+          "type": "string"
+        },
+        "expected": {
+          "description": "Expected comparison value.",
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "array",
+            "object"
+          ]
+        },
+        "policy_tags": {
+          "description": "Policy tags applied to predicate evaluation.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "predicate": {
+          "description": "Predicate identifier.",
+          "type": "string"
+        },
+        "query": {
+          "additionalProperties": false,
+          "properties": {
+            "params": {
+              "description": "Provider-specific parameter payload.",
+              "type": [
+                "null",
+                "boolean",
+                "number",
+                "string",
+                "array",
+                "object"
+              ]
+            },
+            "predicate": {
+              "description": "Provider predicate name.",
+              "type": "string"
+            },
+            "provider_id": {
+              "description": "Evidence provider identifier.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "provider_id",
+            "predicate"
+          ],
+          "type": "object"
+        },
+        "trust": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/TrustRequirement"
+            }
+          ]
+        }
+      },
+      "required": [
+        "predicate",
+        "query",
+        "comparator",
+        "policy_tags"
+      ],
+      "type": "object"
+    },
+    "Requirement": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "And": {
+              "items": {
+                "$ref": "#/$defs/Requirement"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "And"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Or": {
+              "items": {
+                "$ref": "#/$defs/Requirement"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "Or"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Not": {
+              "$ref": "#/$defs/Requirement"
+            }
+          },
+          "required": [
+            "Not"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "RequireGroup": {
+              "additionalProperties": false,
+              "properties": {
+                "min": {
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "reqs": {
+                  "items": {
+                    "$ref": "#/$defs/Requirement"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "min",
+                "reqs"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "RequireGroup"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Predicate": {
+              "description": "Predicate identifier reference.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "Predicate"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SchemaRef": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_id": {
+          "description": "Schema identifier.",
+          "type": "string"
+        },
+        "uri": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "description": "Schema registry URI.",
+              "type": "string"
+            }
+          ]
+        },
+        "version": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "description": "Schema version string.",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema_id"
+      ],
+      "type": "object"
+    },
+    "StageSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "advance_to": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "linear"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "fixed"
+                },
+                "stage_id": {
+                  "description": "Fixed stage identifier.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "stage_id"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "branches": {
+                  "items": {
+                    "$ref": "#/$defs/BranchRule"
+                  },
+                  "type": "array"
+                },
+                "default": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "description": "Default branch stage identifier.",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "kind": {
+                  "const": "branch"
+                }
+              },
+              "required": [
+                "kind",
+                "branches",
+                "default"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "terminal"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "entry_packets": {
+          "items": {
+            "$ref": "#/$defs/PacketSpec"
+          },
+          "type": "array"
+        },
+        "gates": {
+          "items": {
+            "$ref": "#/$defs/GateSpec"
+          },
+          "type": "array"
+        },
+        "on_timeout": {
+          "$ref": "#/$defs/TimeoutPolicy"
+        },
+        "stage_id": {
+          "description": "Stage identifier.",
+          "type": "string"
+        },
+        "timeout": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/TimeoutSpec"
+            }
+          ]
+        }
+      },
+      "required": [
+        "stage_id",
+        "entry_packets",
+        "gates",
+        "advance_to",
+        "on_timeout"
+      ],
+      "type": "object"
+    },
+    "TimeoutPolicy": {
+      "description": "Timeout handling policy.",
+      "enum": [
+        "fail",
+        "advance_with_flag",
+        "alternate_branch"
+      ],
+      "type": "string"
+    },
+    "TimeoutSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "policy_tags": {
+          "description": "Policy tags applied to timeout handling.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "timeout_ms": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "timeout_ms",
+        "policy_tags"
+      ],
+      "type": "object"
+    },
+    "Timestamp": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "unix_millis"
+            },
+            "value": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "logical"
+            },
+            "value": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "TrustLane": {
+      "description": "Trust lane classification for evidence.",
+      "enum": [
+        "verified",
+        "asserted"
+      ],
+      "type": "string"
+    },
+    "TrustRequirement": {
+      "additionalProperties": false,
+      "properties": {
+        "min_lane": {
+          "description": "Trust lane classification for evidence.",
+          "enum": [
+            "verified",
+            "asserted"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "min_lane"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "decision-gate://contract/schemas/scenario.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Canonical scenario specification used by Decision Gate.",
+  "properties": {
+    "default_tenant_id": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "description": "Optional default tenant identifier.",
+          "minimum": 1,
+          "type": "integer"
+        }
+      ]
+    },
+    "namespace_id": {
+      "description": "Namespace identifier.",
+      "minimum": 1,
+      "type": "integer"
+    },
+    "policies": {
+      "items": {
+        "$ref": "#/$defs/PolicyRef"
+      },
+      "type": "array"
+    },
+    "predicates": {
+      "items": {
+        "$ref": "#/$defs/PredicateSpec"
+      },
+      "type": "array"
+    },
+    "scenario_id": {
+      "description": "Scenario identifier.",
+      "type": "string"
+    },
+    "schemas": {
+      "items": {
+        "$ref": "#/$defs/SchemaRef"
+      },
+      "type": "array"
+    },
+    "spec_version": {
+      "description": "Specification version identifier.",
+      "type": "string"
+    },
+    "stages": {
+      "items": {
+        "$ref": "#/$defs/StageSpec"
+      },
+      "minItems": 1,
+      "type": "array"
+    }
+  },
+  "required": [
+    "scenario_id",
+    "namespace_id",
+    "spec_version",
+    "stages",
+    "predicates",
+    "policies",
+    "schemas"
+  ],
+  "title": "Decision Gate ScenarioSpec",
+  "type": "object"
+}

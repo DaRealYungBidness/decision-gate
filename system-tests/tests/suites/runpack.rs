@@ -9,6 +9,8 @@
 //! Runpack validation tests for Decision Gate system-tests.
 
 
+use std::sync::Mutex;
+
 use decision_gate_core::ArtifactReader;
 use decision_gate_core::RunpackManifest;
 use decision_gate_core::RunpackVerifier;
@@ -38,7 +40,6 @@ use helpers::namespace_authority_stub::spawn_namespace_authority_stub;
 use helpers::readiness::wait_for_server_ready;
 use helpers::scenarios::ScenarioFixture;
 use once_cell::sync::Lazy;
-use std::sync::Mutex;
 use tokio::io::AsyncReadExt;
 
 use crate::helpers;
@@ -401,6 +402,206 @@ async fn runpack_tamper_detection() -> Result<(), Box<dyn std::error::Error>> {
     reporter.finish(
         "pass",
         vec!["tampered runpack rejected".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+            "runpack/".to_string(),
+        ],
+    )?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn runpack_missing_manifest_fails() -> Result<(), Box<dyn std::error::Error>> {
+    let _guard = RUNPACK_TEST_MUTEX.lock().expect("runpack test mutex");
+    let mut reporter = TestReporter::new("runpack_missing_manifest_fails")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let config = base_http_config(&bind);
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(std::time::Duration::from_secs(5))?;
+    wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
+
+    let mut fixture = ScenarioFixture::time_after("runpack-missing-manifest", "run-1", 0);
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+
+    let define_request = ScenarioDefineRequest {
+        spec: fixture.spec.clone(),
+    };
+    let define_input = serde_json::to_value(&define_request)?;
+    let define_output: ScenarioDefineResponse =
+        client.call_tool_typed("scenario_define", define_input).await?;
+
+    let start_request = ScenarioStartRequest {
+        scenario_id: define_output.scenario_id.clone(),
+        run_config: fixture.run_config(),
+        started_at: Timestamp::Logical(1),
+        issue_entry_packets: false,
+    };
+    let start_input = serde_json::to_value(&start_request)?;
+    let _state: decision_gate_core::RunState =
+        client.call_tool_typed("scenario_start", start_input).await?;
+
+    let trigger_request = ScenarioTriggerRequest {
+        scenario_id: define_output.scenario_id.clone(),
+        trigger: decision_gate_core::TriggerEvent {
+            run_id: fixture.run_id.clone(),
+            tenant_id: fixture.tenant_id.clone(),
+            namespace_id: fixture.namespace_id.clone(),
+            trigger_id: TriggerId::new("trigger-1"),
+            kind: TriggerKind::ExternalEvent,
+            time: Timestamp::Logical(2),
+            source_id: "runpack".to_string(),
+            payload: None,
+            correlation_id: None,
+        },
+    };
+    let trigger_input = serde_json::to_value(&trigger_request)?;
+    let _trigger: decision_gate_core::runtime::TriggerResult =
+        client.call_tool_typed("scenario_trigger", trigger_input).await?;
+
+    let runpack_dir = reporter.artifacts().runpack_dir();
+    let export_request = RunpackExportRequest {
+        scenario_id: define_output.scenario_id.clone(),
+        tenant_id: fixture.tenant_id.clone(),
+        namespace_id: fixture.namespace_id.clone(),
+        run_id: fixture.run_id.clone(),
+        output_dir: Some(runpack_dir.to_string_lossy().to_string()),
+        manifest_name: Some("manifest.json".to_string()),
+        generated_at: Timestamp::Logical(3),
+        include_verification: false,
+    };
+    let export_input = serde_json::to_value(&export_request)?;
+    let _exported: decision_gate_mcp::tools::RunpackExportResponse =
+        client.call_tool_typed("runpack_export", export_input).await?;
+
+    std::fs::remove_file(runpack_dir.join("manifest.json"))?;
+
+    let verify_request = RunpackVerifyRequest {
+        runpack_dir: runpack_dir.to_string_lossy().to_string(),
+        manifest_path: "manifest.json".to_string(),
+    };
+    let verify_input = serde_json::to_value(&verify_request)?;
+    let result = client.call_tool_typed::<decision_gate_mcp::tools::RunpackVerifyResponse>(
+        "runpack_verify",
+        verify_input,
+    );
+    if result.await.is_ok() {
+        return Err("expected runpack verification to fail when manifest is missing".into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["missing manifest rejected".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+            "runpack/".to_string(),
+        ],
+    )?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn runpack_missing_artifact_fails() -> Result<(), Box<dyn std::error::Error>> {
+    let _guard = RUNPACK_TEST_MUTEX.lock().expect("runpack test mutex");
+    let mut reporter = TestReporter::new("runpack_missing_artifact_fails")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let config = base_http_config(&bind);
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(std::time::Duration::from_secs(5))?;
+    wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
+
+    let mut fixture = ScenarioFixture::time_after("runpack-missing-artifact", "run-1", 0);
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+
+    let define_request = ScenarioDefineRequest {
+        spec: fixture.spec.clone(),
+    };
+    let define_input = serde_json::to_value(&define_request)?;
+    let define_output: ScenarioDefineResponse =
+        client.call_tool_typed("scenario_define", define_input).await?;
+
+    let start_request = ScenarioStartRequest {
+        scenario_id: define_output.scenario_id.clone(),
+        run_config: fixture.run_config(),
+        started_at: Timestamp::Logical(1),
+        issue_entry_packets: false,
+    };
+    let start_input = serde_json::to_value(&start_request)?;
+    let _state: decision_gate_core::RunState =
+        client.call_tool_typed("scenario_start", start_input).await?;
+
+    let trigger_request = ScenarioTriggerRequest {
+        scenario_id: define_output.scenario_id.clone(),
+        trigger: decision_gate_core::TriggerEvent {
+            run_id: fixture.run_id.clone(),
+            tenant_id: fixture.tenant_id.clone(),
+            namespace_id: fixture.namespace_id.clone(),
+            trigger_id: TriggerId::new("trigger-1"),
+            kind: TriggerKind::ExternalEvent,
+            time: Timestamp::Logical(2),
+            source_id: "runpack".to_string(),
+            payload: None,
+            correlation_id: None,
+        },
+    };
+    let trigger_input = serde_json::to_value(&trigger_request)?;
+    let _trigger: decision_gate_core::runtime::TriggerResult =
+        client.call_tool_typed("scenario_trigger", trigger_input).await?;
+
+    let runpack_dir = reporter.artifacts().runpack_dir();
+    let export_request = RunpackExportRequest {
+        scenario_id: define_output.scenario_id.clone(),
+        tenant_id: fixture.tenant_id.clone(),
+        namespace_id: fixture.namespace_id.clone(),
+        run_id: fixture.run_id.clone(),
+        output_dir: Some(runpack_dir.to_string_lossy().to_string()),
+        manifest_name: Some("manifest.json".to_string()),
+        generated_at: Timestamp::Logical(3),
+        include_verification: false,
+    };
+    let export_input = serde_json::to_value(&export_request)?;
+    let _exported: decision_gate_mcp::tools::RunpackExportResponse =
+        client.call_tool_typed("runpack_export", export_input).await?;
+
+    let manifest_bytes = std::fs::read(runpack_dir.join("manifest.json"))?;
+    let manifest: RunpackManifest = serde_json::from_slice(&manifest_bytes)?;
+    let missing_path = manifest
+        .integrity
+        .file_hashes
+        .iter()
+        .map(|entry| entry.path.as_str())
+        .find(|path| *path != "manifest.json")
+        .ok_or("no artifacts available to remove")?;
+    std::fs::remove_file(runpack_dir.join(missing_path))?;
+
+    let verify_request = RunpackVerifyRequest {
+        runpack_dir: runpack_dir.to_string_lossy().to_string(),
+        manifest_path: "manifest.json".to_string(),
+    };
+    let verify_input = serde_json::to_value(&verify_request)?;
+    let verified: decision_gate_mcp::tools::RunpackVerifyResponse =
+        client.call_tool_typed("runpack_verify", verify_input).await?;
+
+    if verified.status != decision_gate_core::runtime::VerificationStatus::Fail {
+        return Err(format!("expected verification fail, got {:?}", verified.status).into());
+    }
+    if !verified
+        .report
+        .errors
+        .iter()
+        .any(|err| err.contains("artifact read failed"))
+    {
+        return Err("expected missing artifact error in verification report".into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["missing artifact rejected".to_string()],
         vec![
             "summary.json".to_string(),
             "summary.md".to_string(),

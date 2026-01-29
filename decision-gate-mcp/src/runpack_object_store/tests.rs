@@ -90,9 +90,7 @@ fn object_store_sink_writes_and_reads() {
     };
     sink.write(&artifact).expect("write");
     let reader = backend.reader(&key).expect("reader");
-    let bytes = reader
-        .read_with_limit("scenario.json", MAX_RUNPACK_ARTIFACT_BYTES)
-        .expect("read");
+    let bytes = reader.read_with_limit("scenario.json", MAX_RUNPACK_ARTIFACT_BYTES).expect("read");
     assert_eq!(bytes, b"{\"ok\":true}");
 }
 

@@ -30,6 +30,12 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 ## P1 (High Value)
 | Test | Category | Purpose |
 | --- | --- | --- |
+| `python_sdk_http_scenario_lifecycle` | functional | Python SDK executes scenario lifecycle over MCP HTTP. |
+| `python_sdk_bearer_auth_enforced` | security | Python SDK succeeds with bearer token and fails without. |
+| `typescript_sdk_http_scenario_lifecycle` | functional | TypeScript SDK executes scenario lifecycle over MCP HTTP. |
+| `typescript_sdk_bearer_auth_enforced` | security | TypeScript SDK succeeds with bearer token and fails without. |
+| `python_examples_runnable` | functional | Python repository examples execute end-to-end over MCP HTTP. |
+| `typescript_examples_runnable` | functional | TypeScript repository examples execute end-to-end over MCP HTTP. |
 | `http_transport_end_to_end` | mcp_transport | HTTP JSON-RPC transport works end-to-end. |
 | `federated_provider_echo` | providers | External MCP provider integration works. |
 | `json_provider_missing_jsonpath_returns_error_metadata` | providers | JSON provider emits structured error metadata for missing JSONPath. |
@@ -70,6 +76,7 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `namespace_mismatch_rejected` | security | Namespace mismatch between spec and run config is rejected. |
 | `packet_disclosure_visibility` | security | Packet visibility labels and policy tags persist. |
 | `strict_mode_rejects_default_namespace` | security | Strict mode rejects default namespace. |
+| `invalid_correlation_id_rejected` | security | Invalid correlation IDs are rejected with server correlation headers. |
 | `dev_permissive_emits_warning` | operations | Dev-permissive mode emits explicit warning. |
 | `precheck_audit_hash_only` | operations | Precheck audit logs are hash-only by default. |
 | `precheck_read_only_does_not_mutate_run_state` | functional | Precheck leaves run state unchanged. |

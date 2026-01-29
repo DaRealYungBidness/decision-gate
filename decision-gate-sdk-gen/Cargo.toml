@@ -1,0 +1,25 @@
+# decision-gate-sdk-gen/Cargo.toml
+# ============================================================================
+# Package: decision-gate-sdk-gen
+# Description: Deterministic SDK + OpenAPI generator for Decision Gate.
+# Purpose: Generate client SDK artifacts from canonical tooling.json inputs.
+# Dependencies: decision-gate-contract, serde, serde_json, clap, thiserror
+# ============================================================================
+
+[package]
+name = "decision-gate-sdk-gen"
+version = { workspace = true }
+license = { workspace = true }
+edition = "2024"
+rust-version = "1.92"
+publish = false
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+decision-gate-contract = { path = "../decision-gate-contract" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+
+[lints]
+workspace = true

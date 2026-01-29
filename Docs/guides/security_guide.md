@@ -79,10 +79,11 @@ fail closed.
 
 ## MCP Tool Auth
 Inbound MCP tool calls enforce authn/authz. The default mode is local-only:
-stdio and loopback HTTP/SSE are permitted, while non-loopback binds require an
-explicit auth policy. Configure `server.auth` to enable bearer-token or mTLS
-subject enforcement, and optionally restrict calls with a tool allowlist.
-Auth decisions are logged as structured JSON events on stderr.
+stdio and loopback HTTP/SSE are permitted. The OSS CLI blocks non-loopback binds
+unless `--allow-non-loopback` (or `DECISION_GATE_ALLOW_NON_LOOPBACK=1`) is set
+**and** TLS + non-local auth are configured. Configure `server.auth` for
+`bearer_token` or `mtls`, and configure `[server.tls]` before exposing the
+service. Auth decisions are logged as structured JSON events on stderr.
 
 ## Schema Registry ACL
 Schema registry operations (`schemas_register`, `schemas_list`, `schemas_get`)

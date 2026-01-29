@@ -36,6 +36,44 @@ use crate::config::ServerTransport;
 
 /// Maximum allowed Authorization header size in bytes.
 const MAX_AUTH_HEADER_BYTES: usize = 8 * 1024;
+/// Default auth realm used for RFC 6750 challenges.
+const DEFAULT_AUTH_REALM: &str = "decision-gate";
+
+// ============================================================================
+// SECTION: Auth Challenges
+// ============================================================================
+
+/// HTTP auth challenge header value (WWW-Authenticate).
+#[derive(Debug, Clone)]
+pub struct AuthChallenge {
+    /// Serialized WWW-Authenticate header value.
+    header_value: String,
+}
+
+impl AuthChallenge {
+    /// Builds a bearer challenge with a realm.
+    #[must_use]
+    pub fn bearer(realm: &str) -> Self {
+        Self {
+            header_value: format!("Bearer realm=\"{realm}\""),
+        }
+    }
+
+    /// Returns the serialized header value.
+    #[must_use]
+    pub fn header_value(&self) -> &str {
+        &self.header_value
+    }
+}
+
+/// Returns the default auth challenge for a configured auth mode.
+#[must_use]
+pub fn auth_challenge_for_mode(mode: ServerAuthMode) -> Option<AuthChallenge> {
+    match mode {
+        ServerAuthMode::BearerToken => Some(AuthChallenge::bearer(DEFAULT_AUTH_REALM)),
+        ServerAuthMode::LocalOnly | ServerAuthMode::Mtls => None,
+    }
+}
 
 // ============================================================================
 // SECTION: Request Context
@@ -52,6 +90,10 @@ pub struct RequestContext {
     pub auth_header: Option<String>,
     /// Client subject asserted by a trusted mTLS proxy.
     pub client_subject: Option<String>,
+    /// Unsafe client correlation identifier (sanitized).
+    pub unsafe_client_correlation_id: Option<String>,
+    /// Server-generated correlation identifier.
+    pub server_correlation_id: Option<String>,
     /// Optional request identifier for auditing.
     pub request_id: Option<String>,
 }
@@ -65,11 +107,13 @@ impl RequestContext {
             peer_ip: None,
             auth_header: None,
             client_subject: None,
+            unsafe_client_correlation_id: None,
+            server_correlation_id: None,
             request_id: None,
         }
     }
 
-    /// Builds an HTTP/SSE request context.
+    /// Builds an HTTP/SSE request context without correlation identifiers.
     #[must_use]
     pub const fn http(
         transport: ServerTransport,
@@ -82,6 +126,29 @@ impl RequestContext {
             peer_ip,
             auth_header,
             client_subject,
+            unsafe_client_correlation_id: None,
+            server_correlation_id: None,
+            request_id: None,
+        }
+    }
+
+    /// Builds an HTTP/SSE request context with correlation identifiers.
+    #[must_use]
+    pub const fn http_with_correlation(
+        transport: ServerTransport,
+        peer_ip: Option<IpAddr>,
+        auth_header: Option<String>,
+        client_subject: Option<String>,
+        unsafe_client_correlation_id: Option<String>,
+        server_correlation_id: Option<String>,
+    ) -> Self {
+        Self {
+            transport,
+            peer_ip,
+            auth_header,
+            client_subject,
+            unsafe_client_correlation_id,
+            server_correlation_id,
             request_id: None,
         }
     }
@@ -90,6 +157,13 @@ impl RequestContext {
     #[must_use]
     pub fn with_request_id(mut self, request_id: impl Into<String>) -> Self {
         self.request_id = Some(request_id.into());
+        self
+    }
+
+    /// Returns a copy with the server correlation identifier set.
+    #[must_use]
+    pub fn with_server_correlation_id(mut self, server_correlation_id: impl Into<String>) -> Self {
+        self.server_correlation_id = Some(server_correlation_id.into());
         self
     }
 
@@ -325,6 +399,10 @@ pub struct AuthAuditEvent {
     reason: Option<String>,
     /// Request identifier (if provided).
     request_id: Option<String>,
+    /// Unsafe client correlation identifier (if provided).
+    unsafe_client_correlation_id: Option<String>,
+    /// Server-generated correlation identifier (if provided).
+    server_correlation_id: Option<String>,
 }
 
 impl AuthAuditEvent {
@@ -342,6 +420,8 @@ impl AuthAuditEvent {
             token_fingerprint: auth.token_fingerprint.clone(),
             reason: None,
             request_id: ctx.request_id.clone(),
+            unsafe_client_correlation_id: ctx.unsafe_client_correlation_id.clone(),
+            server_correlation_id: ctx.server_correlation_id.clone(),
         }
     }
 
@@ -359,6 +439,8 @@ impl AuthAuditEvent {
             token_fingerprint: None,
             reason: Some(error.to_string()),
             request_id: ctx.request_id.clone(),
+            unsafe_client_correlation_id: ctx.unsafe_client_correlation_id.clone(),
+            server_correlation_id: ctx.server_correlation_id.clone(),
         }
     }
 }

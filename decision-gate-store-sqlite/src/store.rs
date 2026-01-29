@@ -239,8 +239,7 @@ impl RunStateStore for SqliteRunStateStore {
         namespace_id: &NamespaceId,
         run_id: &RunId,
     ) -> Result<Option<RunState>, StoreError> {
-        self.load_state(*tenant_id, *namespace_id, run_id)
-            .map_err(StoreError::from)
+        self.load_state(*tenant_id, *namespace_id, run_id).map_err(StoreError::from)
     }
 
     fn save(&self, state: &RunState) -> Result<(), StoreError> {
@@ -421,8 +420,7 @@ impl DataShapeRegistry for SqliteRunStateStore {
         let records = {
             let tx =
                 guard.transaction().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
-            let rows =
-                query_schema_rows(&tx, *tenant_id, *namespace_id, cursor.as_ref(), limit)?;
+            let rows = query_schema_rows(&tx, *tenant_id, *namespace_id, cursor.as_ref(), limit)?;
             let records = rows
                 .into_iter()
                 .map(|row| build_schema_record(*tenant_id, *namespace_id, row))
@@ -983,18 +981,21 @@ fn query_schema_rows(
             )
             .map_err(|err| map_registry_error(&err))?;
         let rows = stmt
-            .query_map(params![tenant_id.to_string(), namespace_id.to_string(), limit], map_schema_row)
+            .query_map(
+                params![tenant_id.to_string(), namespace_id.to_string(), limit],
+                map_schema_row,
+            )
             .map_err(|err| map_registry_error(&err))?;
         rows.map(|row| row.map_err(|err| map_registry_error(&err))).collect()
     }
 }
 
 /// Builds a validated schema record from stored row data.
-    fn build_schema_record(
-        tenant_id: TenantId,
-        namespace_id: NamespaceId,
-        row: SchemaRow,
-    ) -> Result<DataShapeRecord, DataShapeRegistryError> {
+fn build_schema_record(
+    tenant_id: TenantId,
+    namespace_id: NamespaceId,
+    row: SchemaRow,
+) -> Result<DataShapeRecord, DataShapeRegistryError> {
     let SchemaRow {
         schema_id,
         version,

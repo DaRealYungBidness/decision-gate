@@ -97,3 +97,13 @@ required-features = ["system-tests"]
 name = "golden_runpacks"
 path = "tests/golden_runpacks.rs"
 required-features = ["system-tests"]
+
+[[test]]
+name = "sdk_client"
+path = "tests/sdk_client.rs"
+required-features = ["system-tests"]
+
+[[test]]
+name = "sdk_examples"
+path = "tests/sdk_examples.rs"
+required-features = ["system-tests"]

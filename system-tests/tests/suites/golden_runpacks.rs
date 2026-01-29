@@ -78,11 +78,7 @@ async fn golden_runpack_cross_os() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    reporter.finish(
-        "pass",
-        notes,
-        vec!["summary.json".to_string(), "summary.md".to_string()],
-    )?;
+    reporter.finish("pass", notes, vec!["summary.json".to_string(), "summary.md".to_string()])?;
     Ok(())
 }
 
@@ -192,22 +188,18 @@ fn compare_runpacks(golden: &Path, candidate: &Path) -> Result<(), Box<dyn std::
 
     if golden_manifest_bytes != candidate_manifest_bytes {
         let golden_manifest: RunpackManifest = serde_json::from_slice(&golden_manifest_bytes)?;
-        let candidate_manifest: RunpackManifest = serde_json::from_slice(&candidate_manifest_bytes)?;
+        let candidate_manifest: RunpackManifest =
+            serde_json::from_slice(&candidate_manifest_bytes)?;
         return Err(format!(
             "manifest mismatch (golden root hash={}, candidate root hash={})",
-            golden_manifest.integrity.root_hash.value,
-            candidate_manifest.integrity.root_hash.value
+            golden_manifest.integrity.root_hash.value, candidate_manifest.integrity.root_hash.value
         )
         .into());
     }
 
     let manifest: RunpackManifest = serde_json::from_slice(&golden_manifest_bytes)?;
-    let mut expected_files: BTreeSet<String> = manifest
-        .integrity
-        .file_hashes
-        .iter()
-        .map(|entry| entry.path.clone())
-        .collect();
+    let mut expected_files: BTreeSet<String> =
+        manifest.integrity.file_hashes.iter().map(|entry| entry.path.clone()).collect();
     expected_files.insert(MANIFEST_NAME.to_string());
 
     for path in &expected_files {

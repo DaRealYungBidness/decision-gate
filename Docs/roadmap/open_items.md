@@ -8,6 +8,7 @@ Dependencies:
   - Docs/security/threat_model.md
   - Docs/roadmap/trust_lanes_registry_plan.md
   - Docs/architecture/comparator_validation_architecture.md
+  - Docs/roadmap/foundational_correctness_roadmap.md
 ============================================================================
 -->
 
@@ -16,8 +17,9 @@ Dependencies:
 ## Overview
 This document tracks remaining release-readiness gaps after MCP core, trust
 lanes, schema registry, strict validation, runpack tooling, and system tests
-are in place. Priority legend: P0 = release blocker, P1 = production readiness,
-P2 = docs/guidance.
+are in place. Priority legend: P0 = launch blocker, P1 = production readiness,
+P2 = docs/guidance. The authoritative gate checklist lives in
+`Docs/roadmap/foundational_correctness_roadmap.md`.
 
 ## Decision Summary (Current Defaults)
 These defaults anchor the roadmap and should be treated as authoritative until
@@ -33,49 +35,64 @@ explicitly revised.
    - Canonical ScenarioSpec format is JSON.
    - RON is allowed as an authoring input and converted to JSON.
    - YAML is not supported unless explicitly added later.
+4. **Cross-OS Determinism**
+   - Linux + Windows are required targets; macOS is best-effort.
 
 ## Open Items (Current)
 
-### P0) Release Blockers
-**Status**: Foundational correctness gates are active and launch-blocking.
-See `Docs/roadmap/foundational_correctness_roadmap.md` for the complete
-gate checklist and cross-OS determinism requirements.
+### P0) Launch Blockers (World-Class Bar)
+**Status**: Launch-blocking until all gates pass.
 
-### 1) [P2] Scenario Examples for Hold/Unknown/Branch Outcomes
+- Cross-OS determinism CI for golden runpacks (Linux + Windows byte-for-byte).
+- Metamorphic determinism suite wired to CI with concurrency coverage.
+- Fuzzing expansion across ScenarioSpec, Evidence payloads, JSONPath, and
+  comparator edge cases.
+- Chaos provider matrix (TLS oddities, redirect loops, slow-loris, truncation).
+- Runpack backward compatibility verification (legacy vectors).
+- SQLite durability tests (crash/partial write/rollback recovery).
+- Log leakage scanning for secret exposure across error paths/panics.
+- Performance/scaling targets with at least one gated benchmark.
+- Agentic flow harness with canonical scenarios + replay verification.
+
+### P1) Production Readiness
+- Reproducible build guidance + version stamping for CLI.
+- Quick Start validation on Linux + Windows.
+- Contract/tooling regeneration checks (schemas, tooltips, examples).
+- Capacity/limits documentation (max payloads, runpack sizes).
+- Governance/OSS policy docs (CLA, trademark, contribution model).
+
+### P2) Docs, Examples, and Optional Flows
+
+1) Scenario Examples for Hold/Unknown/Branch Outcomes
 **What**: Add canonical scenarios that demonstrate unknown outcomes, hold
-decisions, and branch routing for true/false/unknown.
+Decisions, and branch routing for true/false/unknown.
 **Why**: Scenario authors need precise, audited examples that show how
 tri-state outcomes affect routing and hold behavior.
 **Status**: Partial (only happy-path examples today).
 **Where**: `Docs/generated/decision-gate/examples/`
 
-### 2) [P2] Agent Progress vs Plan State Guidance
+2) Agent Progress vs Plan State Guidance
 **What**: Clarify that Decision Gate evaluates evidence and run state, while
 agent planning is external. Progress signals should be modeled as evidence or
 submissions.
 **Why**: Keeps Decision Gate deterministic and avoids embedding agent logic.
 **Status**: Open (guidance).
 
-### 3) [P2] Runpack Verification with Evidence Replay (Optional)
+3) Runpack Verification with Evidence Replay (Optional)
 **What**: Optional CLI/MCP flow to re-query evidence and compare against
 runpack anchors/hashes during verification.
 **Why**: Provides an additional audit mode when evidence sources are stable.
 **Status**: Open (not implemented).
 
-### 4) [P2] ASC Integration Collateral Placeholders (Lead Example + Recipes)
-**What**: Replace placeholders with a real lead example and validated
-deployment guidance for DG+ASC integration.
-**Why**: Integration docs are visible and referenced as canonical; placeholders
-create ambiguity for adopters and could be mistaken as production-ready.
-**Status**: Open (explicit TODOs remain).
+4) Public Integration Docs Hygiene (AssetCore References)
+**What**: Remove placeholders or replace with OSS-safe, generic integration
+examples where AssetCore is referenced.
+**Why**: Public OSS docs should not depend on private repo content.
+**Status**: Open.
 **Where**:
-- `Docs/integrations/assetcore/examples.md` (lead example narrative)
-- `Docs/integrations/assetcore/deployment.md` (validated deployment patterns)
-- `Docs/integrations/assetcore/README.md` (lead example link/summary)
-**Notes**:
-- The lead example must align with the integration contract (namespace authority,
-  auth mapping, evidence anchors).
-- Deployment notes should stay conceptual until hardened recipes exist.
+- `Docs/integrations/assetcore/examples.md`
+- `Docs/integrations/assetcore/deployment.md`
+- `Docs/integrations/assetcore/README.md`
 
 ## Completed Items (Reference)
 

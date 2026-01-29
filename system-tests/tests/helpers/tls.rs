@@ -9,7 +9,13 @@
 use std::fs;
 use std::path::PathBuf;
 
-use rcgen::{BasicConstraints, Certificate, CertificateParams, DistinguishedName, DnType, IsCa, KeyPair};
+use rcgen::BasicConstraints;
+use rcgen::Certificate;
+use rcgen::CertificateParams;
+use rcgen::DistinguishedName;
+use rcgen::DnType;
+use rcgen::IsCa;
+use rcgen::KeyPair;
 use tempfile::TempDir;
 
 pub struct GeneratedTls {
@@ -65,7 +71,8 @@ fn generate_server_cert(
     ca_key: &KeyPair,
 ) -> Result<(Certificate, KeyPair), Box<dyn std::error::Error>> {
     let key = KeyPair::generate()?;
-    let mut params = CertificateParams::new(vec!["localhost".to_string(), "127.0.0.1".to_string()])?;
+    let mut params =
+        CertificateParams::new(vec!["localhost".to_string(), "127.0.0.1".to_string()])?;
     params.distinguished_name = distinguished_name("Decision Gate Test Server");
     params.is_ca = IsCa::NoCa;
     let cert = params.signed_by(&key, ca, ca_key)?;

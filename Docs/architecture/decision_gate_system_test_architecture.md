@@ -13,7 +13,7 @@ Dependencies:
   - system-tests/test_registry.toml
   - system-tests/test_gaps.toml
 ============================================================================
-Last Updated: 2026-01-28 (UTC)
+Last Updated: 2026-01-29 (UTC)
 ============================================================================
 -->
 
@@ -41,7 +41,10 @@ Last Updated: 2026-01-28 (UTC)
 
 The `system-tests` crate provides the highest-rigor end-to-end validation layer
 for OSS Decision Gate. Tests execute against a live MCP server and emit auditable
-artifacts. Coverage is tracked in a registry file and a formal gap list.
+artifacts. Coverage is tracked in a registry file and a formal gap list. SDK
+client tests execute the Python and TypeScript SDKs against live MCP HTTP
+servers to validate transport correctness, auth behavior, and repository
+examples (which are treated as runnable system tests).
 [F:system-tests/README.md L10-L87]
 
 ---
@@ -57,6 +60,9 @@ System-tests must mirror production behavior and remain deterministic:
 - Always emit required artifacts (`summary.json`, `summary.md`,
   `tool_transcript.json`).
 - Register every test in `test_registry.toml` and gaps in `test_gaps.toml`.
+- SDK client and example tests rely on Python 3 and Node (18+ with
+  `--experimental-strip-types`); tests skip with explicit summaries if runtimes
+  are unavailable.
 
 [F:system-tests/AGENTS.md L12-L57][F:system-tests/README.md L30-L61]
 
@@ -129,3 +135,6 @@ Tests should be registered and coverage docs regenerated when changes occur.
 | Coverage matrix | `system-tests/TEST_MATRIX.md` | P0/P1/P2 summary. |
 | Test registry | `system-tests/test_registry.toml` | Inventory + metadata. |
 | Gap tracking | `system-tests/test_gaps.toml` | Missing coverage + acceptance criteria. |
+| SDK system tests | `system-tests/tests/suites/sdk_client.rs` | Python + TypeScript SDK lifecycle + auth tests. |
+| SDK example tests | `system-tests/tests/suites/sdk_examples.rs` | Repository Python/TypeScript examples executed as system tests. |
+| SDK fixtures | `system-tests/tests/fixtures/` | Language-specific SDK driver scripts. |

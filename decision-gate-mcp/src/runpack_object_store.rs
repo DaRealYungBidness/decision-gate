@@ -76,9 +76,9 @@ where
                 .and_then(|runtime| runtime.block_on(future));
             let _ = tx.send(result);
         });
-        return rx
-            .recv()
-            .unwrap_or_else(|_| Err(ObjectStoreError::Io("object store thread join failed".to_string())));
+        return rx.recv().unwrap_or_else(|_| {
+            Err(ObjectStoreError::Io("object store thread join failed".to_string()))
+        });
     }
 
     runtime.block_on(future)

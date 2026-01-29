@@ -1,0 +1,29 @@
+# adapters/autogen/pyproject.toml
+# ============================================================================
+# Package: decision-gate-autogen
+# Description: Decision Gate adapter for AutoGen tools.
+# Purpose: Expose Decision Gate SDK calls as AutoGen FunctionTool entries.
+# ============================================================================
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "decision-gate-autogen"
+version = "0.1.0"
+description = "Decision Gate AutoGen adapter"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Decision Gate OSS" }]
+dependencies = [
+  "decision-gate>=0.1.0",
+  "autogen-core>=0.4.0",
+]
+
+[tool.setuptools]
+packages = ["decision_gate_autogen"]
+
+[tool.setuptools.package-data]
+decision_gate_autogen = ["py.typed"]

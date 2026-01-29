@@ -27,6 +27,8 @@ use reqwest::header::HeaderMap;
 use reqwest::header::HeaderValue;
 use thiserror::Error;
 
+use crate::correlation::sanitize_client_correlation_id;
+
 // ============================================================================
 // SECTION: Public Types
 // ============================================================================
@@ -110,7 +112,10 @@ impl AssetCoreNamespaceAuthority {
             })?;
             headers.insert(reqwest::header::AUTHORIZATION, value);
         }
-        if let Some(request_id) = sanitize_header_value(request_id) {
+        let request_id = sanitize_client_correlation_id(request_id).map_err(|_| {
+            NamespaceAuthorityError::InvalidNamespace("invalid request id".to_string())
+        })?;
+        if let Some(request_id) = request_id {
             headers.insert(
                 "x-correlation-id",
                 HeaderValue::from_str(&request_id).map_err(|_| {
@@ -172,40 +177,4 @@ pub enum NamespaceAuthorityError {
     Unavailable(String),
 }
 
-// ============================================================================
-// SECTION: Helpers
-// ============================================================================
-
-/// Sanitizes a header value by enforcing ASCII tchars and length bounds.
-fn sanitize_header_value(value: Option<&str>) -> Option<String> {
-    let value = value?.trim();
-    if value.is_empty() || value.len() > 128 {
-        return None;
-    }
-    if !value.chars().all(|ch| ch.is_ascii() && is_tchar(ch)) {
-        return None;
-    }
-    Some(value.to_string())
-}
-
-/// Returns true when the character is a valid HTTP token character.
-const fn is_tchar(ch: char) -> bool {
-    ch.is_ascii_alphanumeric()
-        || matches!(
-            ch,
-            '!' | '#'
-                | '$'
-                | '%'
-                | '&'
-                | '\''
-                | '*'
-                | '+'
-                | '-'
-                | '.'
-                | '^'
-                | '_'
-                | '`'
-                | '|'
-                | '~'
-        )
-}
+// (helpers removed; correlation sanitization lives in crate::correlation)

@@ -29,7 +29,8 @@ use tempfile::tempdir;
 use crate::helpers;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn metamorphic_concurrent_runs_identical_runpacks() -> Result<(), Box<dyn std::error::Error>> {
+async fn metamorphic_concurrent_runs_identical_runpacks() -> Result<(), Box<dyn std::error::Error>>
+{
     let mut reporter = TestReporter::new("metamorphic_concurrent_runs_identical_runpacks")?;
     let bind_a = allocate_bind_addr()?.to_string();
     let bind_b = allocate_bind_addr()?.to_string();

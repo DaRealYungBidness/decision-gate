@@ -18,5 +18,6 @@ pub mod namespace_authority_stub;
 pub mod provider_stub;
 pub mod readiness;
 pub mod scenarios;
+pub mod sdk_runner;
 pub mod stdio_client;
 pub mod tls;

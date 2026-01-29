@@ -1,0 +1,29 @@
+# adapters/langchain/pyproject.toml
+# ============================================================================
+# Package: decision-gate-langchain
+# Description: Decision Gate adapter for LangChain tools.
+# Purpose: Expose Decision Gate SDK calls as LangChain tools.
+# ============================================================================
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "decision-gate-langchain"
+version = "0.1.0"
+description = "Decision Gate LangChain adapter"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Decision Gate OSS" }]
+dependencies = [
+  "decision-gate>=0.1.0",
+  "langchain-core>=0.2.0",
+]
+
+[tool.setuptools]
+packages = ["decision_gate_langchain"]
+
+[tool.setuptools.package-data]
+decision_gate_langchain = ["py.typed"]

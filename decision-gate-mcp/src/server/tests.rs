@@ -41,6 +41,7 @@ use std::time::Duration;
 
 use axum::body::Bytes;
 use axum::http::StatusCode;
+use axum::http::header::WWW_AUTHENTICATE;
 use decision_gate_core::InMemoryDataShapeRegistry;
 use decision_gate_core::InMemoryRunStateStore;
 use decision_gate_core::NamespaceId;
@@ -52,6 +53,7 @@ use serde_json::json;
 use super::JsonRpcResponse;
 use super::ServerState;
 use super::build_provider_transports;
+use super::build_response_headers;
 use super::build_schema_registry_limits;
 use super::build_server_state;
 use super::parse_request;
@@ -177,7 +179,7 @@ fn sample_router(config: &DecisionGateConfig) -> ToolRouter {
     let registry_acl = crate::registry_acl::RegistryAcl::new(&config.schema_registry.acl);
     let audit = Arc::new(NoopAuditSink);
     let default_namespace_tenants =
-        config.namespace.default_tenants.iter().cloned().collect::<std::collections::BTreeSet<_>>();
+        config.namespace.default_tenants.iter().copied().collect::<std::collections::BTreeSet<_>>();
     let provider_trust_overrides = if config.is_dev_permissive() {
         config
             .dev
@@ -186,7 +188,9 @@ fn sample_router(config: &DecisionGateConfig) -> ToolRouter {
             .map(|id| {
                 (
                     id.clone(),
-                    decision_gate_core::TrustRequirement { min_lane: config.trust.min_lane },
+                    decision_gate_core::TrustRequirement {
+                        min_lane: config.trust.min_lane,
+                    },
                 )
             })
             .collect()
@@ -293,7 +297,8 @@ fn metrics_recorded_for_tools_list() {
     config.server.limits.max_inflight = 1;
     let metrics = Arc::new(TestMetrics::default());
     let audit = Arc::new(TestAudit::default());
-    let state = build_server_state(sample_router(&config), &config.server, metrics.clone(), audit);
+    let state =
+        build_server_state(sample_router(&config), &config.server, metrics.clone(), audit, None);
     let context = RequestContext::stdio();
     let payload = json!({
         "jsonrpc": "2.0",
@@ -331,12 +336,15 @@ fn metrics_recorded_for_unauthenticated_list() {
     });
     let metrics = Arc::new(TestMetrics::default());
     let audit = Arc::new(TestAudit::default());
-    let state = build_server_state(sample_router(&config), &config.server, metrics.clone(), audit);
-    let context = RequestContext::http(
+    let state =
+        build_server_state(sample_router(&config), &config.server, metrics.clone(), audit, None);
+    let context = RequestContext::http_with_correlation(
         ServerTransport::Http,
         Some(std::net::IpAddr::from([127, 0, 0, 1])),
         None,
         None,
+        Some("client-123".to_string()),
+        Some("srv-456".to_string()),
     );
     let payload = json!({
         "jsonrpc": "2.0",
@@ -354,17 +362,56 @@ fn metrics_recorded_for_unauthenticated_list() {
     assert_eq!(event.outcome, McpOutcome::Error);
     assert_eq!(event.error_code, Some(-32001));
     assert_eq!(event.error_kind, Some("unauthenticated"));
+    assert_eq!(event.unsafe_client_correlation_id.as_deref(), Some("client-123"));
+    assert_eq!(event.server_correlation_id.as_deref(), Some("srv-456"));
     drop(events);
+}
+
+#[test]
+fn unauthorized_response_includes_www_authenticate_header() {
+    let mut config = sample_config();
+    config.server.auth = Some(ServerAuthConfig {
+        mode: ServerAuthMode::BearerToken,
+        bearer_tokens: vec!["token".to_string()],
+        mtls_subjects: Vec::new(),
+        allowed_tools: Vec::new(),
+        principals: Vec::new(),
+    });
+    let metrics = Arc::new(TestMetrics::default());
+    let audit = Arc::new(TestAudit::default());
+    let state = build_server_state(sample_router(&config), &config.server, metrics, audit, None);
+    let context = RequestContext::http(
+        ServerTransport::Http,
+        Some(std::net::IpAddr::from([127, 0, 0, 1])),
+        None,
+        None,
+    );
+    let payload = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/list",
+    });
+    let bytes = Bytes::from(serde_json::to_vec(&payload).expect("payload bytes"));
+    let response = parse_request_sync(&state, &context, &bytes);
+    assert_eq!(response.0, StatusCode::UNAUTHORIZED);
+
+    let headers = build_response_headers(&state, &context, &response.1);
+    let challenge =
+        headers.get(WWW_AUTHENTICATE).and_then(|value| value.to_str().ok()).unwrap_or("");
+    assert!(challenge.starts_with("Bearer "));
 }
 
 #[test]
 fn rate_limit_rejects_after_threshold() {
     let mut config = sample_config();
-    config.server.limits.rate_limit =
-        Some(RateLimitConfig { max_requests: 1, window_ms: 60_000, max_entries: 8 });
+    config.server.limits.rate_limit = Some(RateLimitConfig {
+        max_requests: 1,
+        window_ms: 60_000,
+        max_entries: 8,
+    });
     let metrics = Arc::new(TestMetrics::default());
     let audit = Arc::new(TestAudit::default());
-    let state = build_server_state(sample_router(&config), &config.server, metrics, audit);
+    let state = build_server_state(sample_router(&config), &config.server, metrics, audit, None);
     let context = RequestContext::http(
         ServerTransport::Http,
         Some(std::net::IpAddr::from([127, 0, 0, 1])),
@@ -394,7 +441,7 @@ fn inflight_limit_rejects_when_exhausted() {
     config.server.limits.max_inflight = 1;
     let metrics = Arc::new(TestMetrics::default());
     let audit = Arc::new(TestAudit::default());
-    let state = build_server_state(sample_router(&config), &config.server, metrics, audit);
+    let state = build_server_state(sample_router(&config), &config.server, metrics, audit, None);
     assert_eq!(state.inflight.available_permits(), 1);
     let permit = state.inflight.try_acquire().expect("permit");
     assert_eq!(state.inflight.available_permits(), 0);
@@ -425,7 +472,8 @@ fn audit_records_evidence_redaction() {
     let config = sample_config();
     let metrics = Arc::new(TestMetrics::default());
     let audit = Arc::new(TestAudit::default());
-    let state = build_server_state(sample_router(&config), &config.server, metrics, audit.clone());
+    let state =
+        build_server_state(sample_router(&config), &config.server, metrics, audit.clone(), None);
     let context = RequestContext::stdio();
     let payload = json!({
         "jsonrpc": "2.0",

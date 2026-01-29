@@ -24,7 +24,6 @@ mod interop;
 
 use std::fs;
 use std::io::Write;
-use std::net::SocketAddr;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -38,6 +37,10 @@ use clap::CommandFactory;
 use clap::Parser;
 use clap::Subcommand;
 use clap::ValueEnum;
+use decision_gate_cli::serve_policy::ALLOW_NON_LOOPBACK_ENV;
+use decision_gate_cli::serve_policy::BindOutcome;
+use decision_gate_cli::serve_policy::enforce_local_only;
+use decision_gate_cli::serve_policy::resolve_allow_non_loopback;
 use decision_gate_cli::t;
 use decision_gate_contract::AuthoringError;
 use decision_gate_contract::AuthoringFormat;
@@ -63,6 +66,7 @@ use decision_gate_mcp::FileArtifactReader;
 use decision_gate_mcp::FileArtifactSink;
 use decision_gate_mcp::McpServer;
 use decision_gate_mcp::capabilities::CapabilityRegistry;
+use decision_gate_mcp::config::ServerAuthMode;
 use decision_gate_mcp::config::ServerTransport;
 use interop::InteropConfig;
 use interop::run_interop;
@@ -149,6 +153,9 @@ struct ServeCommand {
     /// Optional config file path (defaults to decision-gate.toml or env override).
     #[arg(long, value_name = "PATH")]
     config: Option<PathBuf>,
+    /// Allow binding HTTP/SSE transports to non-loopback addresses (requires TLS + auth).
+    #[arg(long, action = ArgAction::SetTrue)]
+    allow_non_loopback: bool,
 }
 
 /// Runpack subcommands.
@@ -466,8 +473,15 @@ async fn run() -> CliResult<ExitCode> {
 async fn command_serve(command: ServeCommand) -> CliResult<ExitCode> {
     let config = DecisionGateConfig::load(command.config.as_deref())
         .map_err(|err| CliError::new(t!("serve.config.load_failed", error = err)))?;
-    enforce_local_only(&config)?;
+    let allow_non_loopback = resolve_allow_non_loopback(command.allow_non_loopback)
+        .map_err(|err| CliError::new(err.to_string()))?;
+    let bind_outcome = enforce_local_only(&config, allow_non_loopback)
+        .map_err(|err| CliError::new(err.to_string()))?;
     warn_local_only(&config)?;
+    warn_loopback_only_transport(&bind_outcome, allow_non_loopback)?;
+    if bind_outcome.network_exposed {
+        warn_network_exposure(&bind_outcome)?;
+    }
 
     let server = McpServer::from_config(config)
         .map_err(|err| CliError::new(t!("serve.init_failed", error = err)))?;
@@ -478,31 +492,77 @@ async fn command_serve(command: ServeCommand) -> CliResult<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-/// Enforces local-only transport restrictions for the MCP server.
-fn enforce_local_only(config: &DecisionGateConfig) -> CliResult<()> {
-    match config.server.transport {
-        ServerTransport::Stdio => Ok(()),
-        ServerTransport::Http | ServerTransport::Sse => {
-            let bind = config.server.bind.as_deref().unwrap_or_default();
-            let addr: SocketAddr = bind.parse().map_err(|err: std::net::AddrParseError| {
-                CliError::new(t!("serve.bind.parse_failed", bind = bind, error = err))
-            })?;
-            if !addr.ip().is_loopback() {
-                return Err(CliError::new(t!("serve.bind.non_loopback", bind = bind)));
-            }
-            Ok(())
-        }
-    }
-}
-
 /// Emits local-only warnings for the MCP server.
 fn warn_local_only(config: &DecisionGateConfig) -> CliResult<()> {
-    write_stderr_line(&t!("serve.warn.local_only"))
-        .map_err(|err| CliError::new(output_error("stderr", &err)))?;
-    if config.server.transport != ServerTransport::Stdio {
-        write_stderr_line(&t!("serve.warn.transport_local_only"))
-            .map_err(|err| CliError::new(output_error("stderr", &err)))?;
+    let auth_mode = config.server.auth.as_ref().map_or(ServerAuthMode::LocalOnly, |auth| auth.mode);
+    if auth_mode != ServerAuthMode::LocalOnly {
+        return Ok(());
     }
+    write_stderr_line(&t!("serve.warn.local_only_auth"))
+        .map_err(|err| CliError::new(output_error("stderr", &err)))?;
+    Ok(())
+}
+
+/// Warns when HTTP/SSE are bound to loopback only.
+fn warn_loopback_only_transport(outcome: &BindOutcome, allow_non_loopback: bool) -> CliResult<()> {
+    if !matches!(outcome.transport, ServerTransport::Http | ServerTransport::Sse) {
+        return Ok(());
+    }
+    let Some(addr) = outcome.bind_addr else {
+        return Ok(());
+    };
+    if !addr.ip().is_loopback() || allow_non_loopback {
+        return Ok(());
+    }
+    write_stderr_line(&t!("serve.warn.loopback_only_transport", env = ALLOW_NON_LOOPBACK_ENV))
+        .map_err(|err| CliError::new(output_error("stderr", &err)))?;
+    Ok(())
+}
+
+/// Emits a security warning banner when the server is network-exposed.
+fn warn_network_exposure(outcome: &BindOutcome) -> CliResult<()> {
+    let Some(addr) = outcome.bind_addr else {
+        return Ok(());
+    };
+    let enabled = t!("serve.warn.network.enabled");
+    let disabled = t!("serve.warn.network.disabled");
+    let audit_status = if outcome.audit_enabled { enabled.clone() } else { disabled.clone() };
+    let rate_limit_status = if outcome.rate_limit_enabled { enabled } else { disabled };
+    let tls_status = outcome.tls.as_ref().map_or_else(
+        || t!("serve.warn.network.tls_disabled"),
+        |tls| {
+            let client_cert = if tls.require_client_cert {
+                t!("serve.warn.network.required")
+            } else {
+                t!("serve.warn.network.not_required")
+            };
+            let client_ca = if tls.client_ca_path.is_some() {
+                t!("serve.warn.network.present")
+            } else {
+                t!("serve.warn.network.missing")
+            };
+            t!("serve.warn.network.tls_enabled", client_cert = client_cert, client_ca = client_ca)
+        },
+    );
+    let auth_mode = match outcome.auth_mode {
+        ServerAuthMode::LocalOnly => "local_only",
+        ServerAuthMode::BearerToken => "bearer_token",
+        ServerAuthMode::Mtls => "mtls",
+    };
+    write_stderr_line(&t!("serve.warn.network.header"))
+        .map_err(|err| CliError::new(output_error("stderr", &err)))?;
+    write_stderr_line(&t!("serve.warn.network.bind", bind = addr))
+        .map_err(|err| CliError::new(output_error("stderr", &err)))?;
+    write_stderr_line(&t!("serve.warn.network.auth", mode = auth_mode))
+        .map_err(|err| CliError::new(output_error("stderr", &err)))?;
+    write_stderr_line(&t!("serve.warn.network.tls", tls = tls_status))
+        .map_err(|err| CliError::new(output_error("stderr", &err)))?;
+    write_stderr_line(&t!("serve.warn.network.audit", status = audit_status))
+        .map_err(|err| CliError::new(output_error("stderr", &err)))?;
+    write_stderr_line(&t!("serve.warn.network.rate_limit", status = rate_limit_status))
+        .map_err(|err| CliError::new(output_error("stderr", &err)))?;
+    write_stderr_line(&t!("serve.warn.network.footer"))
+        .map_err(|err| CliError::new(output_error("stderr", &err)))?;
     Ok(())
 }
 

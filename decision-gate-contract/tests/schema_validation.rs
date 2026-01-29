@@ -298,8 +298,8 @@ fn sample_run_state() -> RunState {
 
     let trigger_event = TriggerEvent {
         trigger_id: trigger_id.clone(),
-        tenant_id: tenant_id.clone(),
-        namespace_id: namespace_id.clone(),
+        tenant_id,
+        namespace_id,
         run_id: run_id.clone(),
         kind: TriggerKind::Tick,
         time: timestamp,

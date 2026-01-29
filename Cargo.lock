@@ -1138,6 +1138,7 @@ dependencies = [
  "ed25519-dalek",
  "futures",
  "jsonschema",
+ "rand 0.8.5",
  "reqwest",
  "ret-logic",
  "rustls 0.23.36",
@@ -1167,6 +1168,17 @@ dependencies = [
  "tempfile",
  "time",
  "tiny_http",
+]
+
+[[package]]
+name = "decision-gate-sdk-gen"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "decision-gate-contract",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
 ]
 
 [[package]]

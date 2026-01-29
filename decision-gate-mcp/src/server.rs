@@ -36,8 +36,10 @@ use axum::body::Bytes;
 use axum::extract::ConnectInfo;
 use axum::extract::State;
 use axum::http::HeaderMap;
+use axum::http::HeaderValue;
 use axum::http::StatusCode;
 use axum::http::header::AUTHORIZATION;
+use axum::http::header::WWW_AUTHENTICATE;
 use axum::response::IntoResponse;
 use axum::response::Sse;
 use axum::response::sse::Event;
@@ -74,9 +76,11 @@ use crate::audit::McpNoopAuditSink;
 use crate::audit::McpStderrAuditSink;
 use crate::audit::SecurityAuditEvent;
 use crate::audit::SecurityAuditEventParams;
+use crate::auth::AuthChallenge;
 use crate::auth::DefaultToolAuthz;
 use crate::auth::RequestContext;
 use crate::auth::StderrAuditSink;
+use crate::auth::auth_challenge_for_mode;
 use crate::capabilities::CapabilityRegistry;
 use crate::config::DecisionGateConfig;
 use crate::config::ProviderType;
@@ -89,6 +93,10 @@ use crate::config::ServerAuthMode;
 use crate::config::ServerMode;
 use crate::config::ServerTlsConfig;
 use crate::config::ServerTransport;
+use crate::correlation::CLIENT_CORRELATION_HEADER;
+use crate::correlation::CorrelationIdGenerator;
+use crate::correlation::CorrelationIdRejection;
+use crate::correlation::SERVER_CORRELATION_HEADER;
 use crate::evidence::FederatedEvidenceProvider;
 use crate::namespace_authority::AssetCoreNamespaceAuthority;
 use crate::namespace_authority::NamespaceAuthority;
@@ -128,6 +136,8 @@ pub struct McpServer {
     metrics: Arc<dyn McpMetrics>,
     /// Audit sink for request logging.
     audit: Arc<dyn McpAuditSink>,
+    /// Optional auth challenge header for unauthenticated responses.
+    auth_challenge: Option<AuthChallenge>,
 }
 
 /// Optional overrides for enterprise deployments.
@@ -135,6 +145,8 @@ pub struct McpServer {
 pub struct ServerOverrides {
     /// Tool authz override (authn/authz policy).
     pub authz: Option<Arc<dyn crate::auth::ToolAuthz>>,
+    /// Optional auth challenge override for WWW-Authenticate headers.
+    pub auth_challenge: Option<AuthChallenge>,
     /// Tenant authorization policy override.
     pub tenant_authorizer: Option<Arc<dyn TenantAuthorizer>>,
     /// Usage metering/quota enforcement override.
@@ -208,6 +220,7 @@ impl McpServer {
             .map_err(|err| McpServerError::Init(err.to_string()))?;
         let ServerOverrides {
             authz,
+            auth_challenge,
             tenant_authorizer,
             usage_meter,
             namespace_authority,
@@ -281,11 +294,15 @@ impl McpServer {
         emit_local_only_warning(&config.server);
         emit_dev_permissive_warning(&config);
         emit_security_audit(&audit, &config);
+        let auth_mode =
+            config.server.auth.as_ref().map_or(ServerAuthMode::LocalOnly, |auth| auth.mode);
+        let auth_challenge = auth_challenge.or_else(|| auth_challenge_for_mode(auth_mode));
         Ok(Self {
             config,
             router,
             metrics,
             audit,
+            auth_challenge,
         })
     }
 
@@ -315,18 +332,23 @@ impl McpServer {
     pub async fn serve(self) -> Result<(), McpServerError> {
         let transport = self.config.server.transport;
         match transport {
-            ServerTransport::Stdio => serve_stdio(
-                &self.router,
-                Arc::clone(&self.metrics),
-                Arc::clone(&self.audit),
-                &self.config.server,
-            )
-            .await,
+            ServerTransport::Stdio => {
+                serve_stdio(
+                    &self.router,
+                    Arc::clone(&self.metrics),
+                    Arc::clone(&self.audit),
+                    self.auth_challenge.clone(),
+                    &self.config.server,
+                )
+                .await
+            }
             ServerTransport::Http => {
-                serve_http(self.config, self.router, self.metrics, self.audit).await
+                serve_http(self.config, self.router, self.metrics, self.audit, self.auth_challenge)
+                    .await
             }
             ServerTransport::Sse => {
-                serve_sse(self.config, self.router, self.metrics, self.audit).await
+                serve_sse(self.config, self.router, self.metrics, self.audit, self.auth_challenge)
+                    .await
             }
         }
     }
@@ -602,14 +624,15 @@ async fn serve_stdio(
     router: &ToolRouter,
     metrics: Arc<dyn McpMetrics>,
     audit: Arc<dyn McpAuditSink>,
+    auth_challenge: Option<AuthChallenge>,
     server: &crate::config::ServerConfig,
 ) -> Result<(), McpServerError> {
     let mut reader = BufReader::new(std::io::stdin());
     let mut writer = std::io::stdout();
-    let state = build_server_state(router.clone(), server, metrics, audit);
+    let state = build_server_state(router.clone(), server, metrics, audit, auth_challenge);
     loop {
         let bytes = read_framed(&mut reader, server.max_body_bytes)?;
-        let context = RequestContext::stdio();
+        let context = RequestContext::stdio().with_server_correlation_id(state.correlation.issue());
         let response = parse_request(&state, &context, &Bytes::from(bytes)).await;
         let payload = serde_json::to_vec(&response.1)
             .map_err(|_| McpServerError::Transport("json-rpc serialization failed".to_string()))?;
@@ -627,6 +650,7 @@ async fn serve_http(
     router: ToolRouter,
     metrics: Arc<dyn McpMetrics>,
     audit: Arc<dyn McpAuditSink>,
+    auth_challenge: Option<AuthChallenge>,
 ) -> Result<(), McpServerError> {
     let bind = config
         .server
@@ -635,7 +659,8 @@ async fn serve_http(
         .ok_or_else(|| McpServerError::Config("bind address required".to_string()))?;
     let addr: SocketAddr =
         bind.parse().map_err(|_| McpServerError::Config("invalid bind address".to_string()))?;
-    let state = Arc::new(build_server_state(router, &config.server, metrics, audit));
+    let state =
+        Arc::new(build_server_state(router, &config.server, metrics, audit, auth_challenge));
     let app = Router::new().route("/rpc", post(handle_http)).with_state(state);
     if let Some(tls) = &config.server.tls {
         let tls_config = build_tls_config(tls)?;
@@ -659,6 +684,7 @@ async fn serve_sse(
     router: ToolRouter,
     metrics: Arc<dyn McpMetrics>,
     audit: Arc<dyn McpAuditSink>,
+    auth_challenge: Option<AuthChallenge>,
 ) -> Result<(), McpServerError> {
     let bind = config
         .server
@@ -667,7 +693,8 @@ async fn serve_sse(
         .ok_or_else(|| McpServerError::Config("bind address required".to_string()))?;
     let addr: SocketAddr =
         bind.parse().map_err(|_| McpServerError::Config("invalid bind address".to_string()))?;
-    let state = Arc::new(build_server_state(router, &config.server, metrics, audit));
+    let state =
+        Arc::new(build_server_state(router, &config.server, metrics, audit, auth_challenge));
     let app = Router::new().route("/rpc", post(handle_sse)).with_state(state);
     if let Some(tls) = &config.server.tls {
         let tls_config = build_tls_config(tls)?;
@@ -700,6 +727,10 @@ struct ServerState {
     rate_limiter: Option<Arc<RateLimiter>>,
     /// Concurrency limiter for inflight requests.
     inflight: Arc<Semaphore>,
+    /// Server correlation ID generator.
+    correlation: Arc<CorrelationIdGenerator>,
+    /// Optional auth challenge header to send on unauthenticated responses.
+    auth_challenge: Option<HeaderValue>,
 }
 
 fn build_server_state(
@@ -707,10 +738,15 @@ fn build_server_state(
     server: &crate::config::ServerConfig,
     metrics: Arc<dyn McpMetrics>,
     audit: Arc<dyn McpAuditSink>,
+    auth_challenge: Option<AuthChallenge>,
 ) -> ServerState {
     let rate_limiter =
         server.limits.rate_limit.as_ref().map(|config| Arc::new(RateLimiter::new(config.clone())));
     let inflight = Arc::new(Semaphore::new(server.limits.max_inflight));
+    let auth_mode = server.auth.as_ref().map_or(ServerAuthMode::LocalOnly, |auth| auth.mode);
+    let challenge = auth_challenge.or_else(|| auth_challenge_for_mode(auth_mode));
+    let auth_challenge =
+        challenge.and_then(|challenge| HeaderValue::from_str(challenge.header_value()).ok());
     ServerState {
         router,
         max_body_bytes: server.max_body_bytes,
@@ -718,6 +754,8 @@ fn build_server_state(
         audit,
         rate_limiter,
         inflight,
+        correlation: Arc::new(CorrelationIdGenerator::new("dg")),
+        auth_challenge,
     }
 }
 
@@ -817,9 +855,38 @@ async fn handle_http(
     headers: HeaderMap,
     bytes: Bytes,
 ) -> impl IntoResponse {
-    let context = http_request_context(ServerTransport::Http, peer, &headers);
+    let started_at = std::time::Instant::now();
+    let server_correlation_id = state.correlation.issue();
+    let unsafe_client_correlation_id = match extract_correlation_header(&headers) {
+        Ok(value) => value,
+        Err(reason) => {
+            let context = http_request_context(
+                ServerTransport::Http,
+                peer,
+                &headers,
+                None,
+                server_correlation_id,
+            );
+            let response = invalid_correlation_response(&reason);
+            let info = McpRequestInfo {
+                method: McpMethod::Invalid,
+                tool: None,
+            };
+            record_metrics(&state, &context, info, &response.1, bytes.len(), started_at.elapsed());
+            record_audit(&state, &context, info, &response.1, bytes.len());
+            record_correlation_rejection(&state, &context, &reason);
+            return respond_with_correlation_headers(&state, &context, response);
+        }
+    };
+    let context = http_request_context(
+        ServerTransport::Http,
+        peer,
+        &headers,
+        unsafe_client_correlation_id,
+        server_correlation_id,
+    );
     let response = parse_request(&state, &context, &bytes).await;
-    (response.0, axum::Json(response.1))
+    respond_with_correlation_headers(&state, &context, response)
 }
 
 /// Handles SSE JSON-RPC requests.
@@ -829,16 +896,38 @@ async fn handle_sse(
     headers: HeaderMap,
     bytes: Bytes,
 ) -> impl IntoResponse {
-    let context = http_request_context(ServerTransport::Sse, peer, &headers);
+    let started_at = std::time::Instant::now();
+    let server_correlation_id = state.correlation.issue();
+    let unsafe_client_correlation_id = match extract_correlation_header(&headers) {
+        Ok(value) => value,
+        Err(reason) => {
+            let context = http_request_context(
+                ServerTransport::Sse,
+                peer,
+                &headers,
+                None,
+                server_correlation_id,
+            );
+            let response = invalid_correlation_response(&reason);
+            let info = McpRequestInfo {
+                method: McpMethod::Invalid,
+                tool: None,
+            };
+            record_metrics(&state, &context, info, &response.1, bytes.len(), started_at.elapsed());
+            record_audit(&state, &context, info, &response.1, bytes.len());
+            record_correlation_rejection(&state, &context, &reason);
+            return respond_sse_with_correlation_headers(&state, &context, &response);
+        }
+    };
+    let context = http_request_context(
+        ServerTransport::Sse,
+        peer,
+        &headers,
+        unsafe_client_correlation_id,
+        server_correlation_id,
+    );
     let response = parse_request(&state, &context, &bytes).await;
-    let (tx, rx) = tokio::sync::mpsc::channel::<Result<Event, Infallible>>(1);
-    let payload = serde_json::to_string(&response.1).unwrap_or_else(|_| {
-        "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32060,\"message\":\"serialization \
-         failed\"}}"
-            .to_string()
-    });
-    let _ = tx.send(Ok(Event::default().data(payload))).await;
-    Sse::new(ReceiverStream::new(rx))
+    respond_sse_with_correlation_headers(&state, &context, &response)
 }
 
 // ============================================================================
@@ -1052,10 +1141,7 @@ async fn handle_tools_call(
                 method: McpMethod::ToolsCall,
                 tool: ToolName::parse(&call.name),
             };
-            match router
-                .handle_tool_call(context, &call.name, call.arguments)
-                .await
-            {
+            match router.handle_tool_call(context, &call.name, call.arguments).await {
                 Ok(result) => {
                     if let Ok(value) = serde_json::to_value(ToolCallResult {
                         content: vec![ToolContent::Json {
@@ -1223,7 +1309,11 @@ async fn parse_request(
         }
     };
 
-    let context = context.clone().with_request_id(request.id.to_string());
+    let mut context = context.clone();
+    if context.server_correlation_id.is_none() {
+        context = context.with_server_correlation_id(state.correlation.issue());
+    }
+    let context = context.with_request_id(request.id.to_string());
     let (status, response, info) = handle_request(&state.router, &context, request).await;
     record_metrics(
         state,
@@ -1243,6 +1333,8 @@ fn http_request_context(
     transport: ServerTransport,
     peer: SocketAddr,
     headers: &HeaderMap,
+    unsafe_client_correlation_id: Option<String>,
+    server_correlation_id: String,
 ) -> RequestContext {
     let auth_header =
         headers.get(AUTHORIZATION).and_then(|value| value.to_str().ok()).map(str::to_string);
@@ -1250,7 +1342,14 @@ fn http_request_context(
         .get("x-decision-gate-client-subject")
         .and_then(|value| value.to_str().ok())
         .map(str::to_string);
-    RequestContext::http(transport, Some(peer.ip()), auth_header, client_subject)
+    RequestContext::http_with_correlation(
+        transport,
+        Some(peer.ip()),
+        auth_header,
+        client_subject,
+        unsafe_client_correlation_id,
+        Some(server_correlation_id),
+    )
 }
 
 /// Derives the rate limit key for a request.
@@ -1270,6 +1369,113 @@ fn rate_limit_key(context: &RequestContext) -> String {
         ServerTransport::Http => "transport:http".to_string(),
         ServerTransport::Sse => "transport:sse".to_string(),
     }
+}
+
+/// Extracts and sanitizes the client correlation header from HTTP headers.
+fn extract_correlation_header(
+    headers: &HeaderMap,
+) -> Result<Option<String>, CorrelationIdRejection> {
+    let Some(value) = headers.get(CLIENT_CORRELATION_HEADER) else {
+        return Ok(None);
+    };
+    let value = value.to_str().map_err(|_| CorrelationIdRejection::NonAscii)?;
+    crate::correlation::sanitize_client_correlation_id(Some(value))
+}
+
+/// Builds a standardized response for invalid correlation IDs.
+fn invalid_correlation_response(reason: &CorrelationIdRejection) -> (StatusCode, JsonRpcResponse) {
+    let _ = reason;
+    let response = jsonrpc_error_response(
+        Value::Null,
+        -32073,
+        "invalid correlation id".to_string(),
+        None,
+        None,
+    );
+    (StatusCode::BAD_REQUEST, response)
+}
+
+/// Wraps a JSON response with correlation headers.
+fn respond_with_correlation_headers(
+    state: &ServerState,
+    context: &RequestContext,
+    response: (StatusCode, JsonRpcResponse),
+) -> axum::response::Response {
+    let status = response.0;
+    let body = response.1;
+    let headers = build_response_headers(state, context, &body);
+    let mut http_response = (status, axum::Json(body)).into_response();
+    http_response.headers_mut().extend(headers);
+    http_response
+}
+
+/// Wraps an SSE response with correlation headers.
+fn respond_sse_with_correlation_headers(
+    state: &ServerState,
+    context: &RequestContext,
+    response: &(StatusCode, JsonRpcResponse),
+) -> axum::response::Response {
+    let (tx, rx) = tokio::sync::mpsc::channel::<Result<Event, Infallible>>(1);
+    let payload = serde_json::to_string(&response.1).unwrap_or_else(|_| {
+        "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32060,\"message\":\"serialization \
+         failed\"}}"
+            .to_string()
+    });
+    let _ = tx.try_send(Ok(Event::default().data(payload)));
+    let mut http_response = Sse::new(ReceiverStream::new(rx)).into_response();
+    *http_response.status_mut() = response.0;
+    let headers = build_response_headers(state, context, &response.1);
+    http_response.headers_mut().extend(headers);
+    http_response
+}
+
+/// Builds HTTP headers, including optional auth challenges and correlation IDs.
+fn build_response_headers(
+    state: &ServerState,
+    context: &RequestContext,
+    response: &JsonRpcResponse,
+) -> HeaderMap {
+    let mut headers = build_correlation_headers(context);
+    if let Some(error) = response.error.as_ref()
+        && error.code == -32001
+        && let Some(challenge) = state.auth_challenge.clone()
+    {
+        headers.insert(WWW_AUTHENTICATE, challenge);
+    }
+    headers
+}
+
+/// Builds correlation headers for responses based on the request context.
+fn build_correlation_headers(context: &RequestContext) -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    if let Some(unsafe_client_id) = context.unsafe_client_correlation_id.as_deref()
+        && let Ok(value) = HeaderValue::from_str(unsafe_client_id)
+    {
+        headers.insert(CLIENT_CORRELATION_HEADER, value);
+    }
+    if let Some(server_id) = context.server_correlation_id.as_deref()
+        && let Ok(value) = HeaderValue::from_str(server_id)
+    {
+        headers.insert(SERVER_CORRELATION_HEADER, value);
+    }
+    headers
+}
+
+/// Records an audit event for rejected correlation IDs.
+fn record_correlation_rejection(
+    state: &ServerState,
+    context: &RequestContext,
+    reason: &CorrelationIdRejection,
+) {
+    let event = SecurityAuditEvent::new(SecurityAuditEventParams {
+        kind: "invalid_correlation_id".to_string(),
+        message: Some(format!("correlation_id_rejected: {}", reason.label())),
+        unsafe_client_correlation_id: context.unsafe_client_correlation_id.clone(),
+        server_correlation_id: context.server_correlation_id.clone(),
+        dev_permissive: false,
+        namespace_authority: "n/a".to_string(),
+    });
+    state.audit.record_security(&event);
 }
 
 /// Emits a warning when running without explicit auth policy.
@@ -1324,6 +1530,8 @@ fn emit_security_audit(audit: &Arc<dyn McpAuditSink>, config: &DecisionGateConfi
     let event = SecurityAuditEvent::new(SecurityAuditEventParams {
         kind: "dev_permissive_enabled".to_string(),
         message: Some("dev-permissive mode enabled".to_string()),
+        unsafe_client_correlation_id: None,
+        server_correlation_id: None,
         dev_permissive: true,
         namespace_authority,
     });
@@ -1350,6 +1558,8 @@ fn record_metrics(
         outcome,
         error_code,
         error_kind,
+        unsafe_client_correlation_id: context.unsafe_client_correlation_id.clone(),
+        server_correlation_id: context.server_correlation_id.clone(),
         request_bytes,
         response_bytes,
     };
@@ -1375,6 +1585,11 @@ fn record_audit(
     };
     let event = McpAuditEvent::new(crate::audit::McpAuditEventParams {
         request_id: context.request_id.clone(),
+        unsafe_client_correlation_id: context.unsafe_client_correlation_id.clone(),
+        server_correlation_id: context
+            .server_correlation_id
+            .clone()
+            .unwrap_or_else(|| "missing".to_string()),
         transport: context.transport,
         peer_ip: context.peer_ip.map(|ip| ip.to_string()),
         method: info.method,
@@ -1408,6 +1623,7 @@ const fn error_kind_for_code(code: i64) -> Option<&'static str> {
         -32070 => Some("request_too_large"),
         -32071 => Some("rate_limited"),
         -32072 => Some("inflight_limit"),
+        -32073 => Some("invalid_correlation_id"),
         _ => None,
     }
 }

@@ -29,6 +29,7 @@ mod common;
 
 use std::sync::Mutex;
 
+use async_trait::async_trait;
 use decision_gate_core::Comparator;
 use decision_gate_core::DataShapeId;
 use decision_gate_core::DataShapeRecord;
@@ -97,7 +98,7 @@ use decision_gate_mcp::tools::SchemasRegisterResponse;
 use ret_logic::TriState;
 use serde_json::json;
 
-use async_trait::async_trait;
+use crate::common::ToolRouterSyncExt;
 use crate::common::define_scenario;
 use crate::common::local_request_context;
 use crate::common::router_with_authorizer_usage_and_runpack_storage;
@@ -111,7 +112,6 @@ use crate::common::sample_spec_with_id;
 use crate::common::sample_spec_with_two_predicates;
 use crate::common::setup_scenario_with_run;
 use crate::common::start_run;
-use crate::common::ToolRouterSyncExt;
 
 struct DenyNamespaceAuthority;
 
@@ -185,7 +185,8 @@ fn list_tools_returns_all_seventeen_tools() {
 #[test]
 fn unknown_tool_returns_error() {
     let router = sample_router();
-    let result = router.handle_tool_call_sync(&local_request_context(), "nonexistent_tool", json!({}));
+    let result =
+        router.handle_tool_call_sync(&local_request_context(), "nonexistent_tool", json!({}));
     assert!(result.is_err());
     let error = result.unwrap_err();
     assert!(error.to_string().contains("unknown tool"));
@@ -282,12 +283,8 @@ fn namespace_authority_denies_tool_call() {
     let trust_requirement = config.effective_trust_requirement();
     let anchor_policy = config.anchors.to_policy();
     let allow_default_namespace = config.allow_default_namespace();
-    let default_namespace_tenants = config
-        .namespace
-        .default_tenants
-        .iter()
-        .cloned()
-        .collect::<std::collections::BTreeSet<_>>();
+    let default_namespace_tenants =
+        config.namespace.default_tenants.iter().copied().collect::<std::collections::BTreeSet<_>>();
     let provider_trust_overrides = if config.is_dev_permissive() {
         config
             .dev
@@ -465,8 +462,11 @@ fn scenario_start_undefined_scenario_fails() {
 #[test]
 fn scenario_start_invalid_params_rejected() {
     let router = sample_router();
-    let result =
-        router.handle_tool_call_sync(&local_request_context(), "scenario_start", json!({"bad": "data"}));
+    let result = router.handle_tool_call_sync(
+        &local_request_context(),
+        "scenario_start",
+        json!({"bad": "data"}),
+    );
     assert!(result.is_err());
 }
 
@@ -831,12 +831,7 @@ fn runpack_export_uses_storage_backend() {
     assert_eq!(response.storage_uri, Some("test://runpack".to_string()));
     let (call_count, tenant_id, namespace_id, run_id) = {
         let calls = storage.calls.lock().expect("calls lock");
-        (
-            calls.len(),
-            calls[0].tenant_id.clone(),
-            calls[0].namespace_id.clone(),
-            calls[0].run_id.clone(),
-        )
+        (calls.len(), calls[0].tenant_id, calls[0].namespace_id, calls[0].run_id.clone())
     };
     assert_eq!(call_count, 1);
     assert_eq!(tenant_id.get(), 1);
@@ -1044,8 +1039,8 @@ fn schemas_register_and_get_roundtrip() {
     assert_eq!(registered.record.schema_id, record.schema_id);
 
     let get_request = SchemasGetRequest {
-        tenant_id: record.tenant_id.clone(),
-        namespace_id: record.namespace_id.clone(),
+        tenant_id: record.tenant_id,
+        namespace_id: record.namespace_id,
         schema_id: record.schema_id.clone(),
         version: record.version.clone(),
     };
@@ -1183,8 +1178,8 @@ fn schemas_list_pagination() {
     let tenant_id = record_a.tenant_id;
     let namespace_id = record_a.namespace_id;
     let list_request = SchemasListRequest {
-        tenant_id: tenant_id.clone(),
-        namespace_id: namespace_id.clone(),
+        tenant_id,
+        namespace_id,
         cursor: None,
         limit: Some(1),
     };
@@ -1220,8 +1215,8 @@ fn schemas_list_pagination() {
 fn schemas_list_rejects_invalid_cursor() {
     let router = sample_router();
     let record = sample_shape_record("alpha", "v1");
-    let tenant_id = record.tenant_id.clone();
-    let namespace_id = record.namespace_id.clone();
+    let tenant_id = record.tenant_id;
+    let namespace_id = record.namespace_id;
     let register = SchemasRegisterRequest {
         record,
     };
@@ -1253,8 +1248,8 @@ fn schemas_list_rejects_invalid_cursor() {
 fn schemas_list_rejects_zero_limit() {
     let router = sample_router();
     let record = sample_shape_record("alpha", "v1");
-    let tenant_id = record.tenant_id.clone();
-    let namespace_id = record.namespace_id.clone();
+    let tenant_id = record.tenant_id;
+    let namespace_id = record.namespace_id;
     let register = SchemasRegisterRequest {
         record,
     };
@@ -1445,8 +1440,8 @@ fn precheck_accepts_asserted_payload() {
     let spec = sample_spec_with_id("precheck-scenario");
     let _ = define_scenario(&router, spec.clone()).unwrap();
     let record = sample_shape_record("asserted", "v1");
-    let tenant_id = record.tenant_id.clone();
-    let namespace_id = record.namespace_id.clone();
+    let tenant_id = record.tenant_id;
+    let namespace_id = record.namespace_id;
     let schema_id = record.schema_id.clone();
     let version = record.version.clone();
     let register = SchemasRegisterRequest {
@@ -1499,8 +1494,8 @@ fn precheck_rejects_payload_mismatch() {
     let spec = sample_spec_with_id("precheck-mismatch");
     let _ = define_scenario(&router, spec.clone()).unwrap();
     let record = sample_shape_record("asserted", "v1");
-    let tenant_id = record.tenant_id.clone();
-    let namespace_id = record.namespace_id.clone();
+    let tenant_id = record.tenant_id;
+    let namespace_id = record.namespace_id;
     let schema_id = record.schema_id.clone();
     let version = record.version.clone();
     let register = SchemasRegisterRequest {
@@ -1557,8 +1552,8 @@ fn precheck_rejects_comparator_schema_mismatch() {
         "required": ["after"],
         "additionalProperties": false
     });
-    let tenant_id = record.tenant_id.clone();
-    let namespace_id = record.namespace_id.clone();
+    let tenant_id = record.tenant_id;
+    let namespace_id = record.namespace_id;
     let schema_id = record.schema_id.clone();
     let version = record.version.clone();
     let register = SchemasRegisterRequest {
@@ -1598,8 +1593,8 @@ fn precheck_rejects_comparator_schema_mismatch() {
 fn precheck_rejects_missing_scenario_and_spec() {
     let router = sample_router();
     let record = sample_shape_record("asserted", "v1");
-    let tenant_id = record.tenant_id.clone();
-    let namespace_id = record.namespace_id.clone();
+    let tenant_id = record.tenant_id;
+    let namespace_id = record.namespace_id;
     let schema_id = record.schema_id.clone();
     let version = record.version.clone();
     let register = SchemasRegisterRequest {
@@ -1639,8 +1634,8 @@ fn precheck_rejects_missing_scenario_and_spec() {
 fn precheck_rejects_scenario_id_spec_mismatch() {
     let router = sample_router();
     let record = sample_shape_record("asserted", "v1");
-    let tenant_id = record.tenant_id.clone();
-    let namespace_id = record.namespace_id.clone();
+    let tenant_id = record.tenant_id;
+    let namespace_id = record.namespace_id;
     let schema_id = record.schema_id.clone();
     let version = record.version.clone();
     let register = SchemasRegisterRequest {
@@ -1682,8 +1677,8 @@ fn precheck_rejects_spec_namespace_mismatch() {
     let router = sample_router();
     let mut record = sample_shape_record("asserted", "v1");
     record.namespace_id = NamespaceId::from_raw(2).expect("nonzero namespaceid");
-    let tenant_id = record.tenant_id.clone();
-    let namespace_id = record.namespace_id.clone();
+    let tenant_id = record.tenant_id;
+    let namespace_id = record.namespace_id;
     let schema_id = record.schema_id.clone();
     let version = record.version.clone();
     let register = SchemasRegisterRequest {
@@ -1725,8 +1720,8 @@ fn precheck_rejects_default_tenant_mismatch() {
     let router = sample_router();
     let mut record = sample_shape_record("asserted", "v1");
     record.tenant_id = TenantId::from_raw(2).expect("nonzero tenantid");
-    let tenant_id = record.tenant_id.clone();
-    let namespace_id = record.namespace_id.clone();
+    let tenant_id = record.tenant_id;
+    let namespace_id = record.namespace_id;
     let schema_id = record.schema_id.clone();
     let version = record.version.clone();
     let register = SchemasRegisterRequest {
@@ -1799,8 +1794,8 @@ fn precheck_rejects_non_object_payload_with_multiple_predicates() {
         schema: json!({"type": "boolean"}),
         ..sample_shape_record("asserted", "v1")
     };
-    let tenant_id = record.tenant_id.clone();
-    let namespace_id = record.namespace_id.clone();
+    let tenant_id = record.tenant_id;
+    let namespace_id = record.namespace_id;
     let schema_id = record.schema_id.clone();
     let version = record.version.clone();
     let register = SchemasRegisterRequest {

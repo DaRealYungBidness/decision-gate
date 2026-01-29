@@ -9,7 +9,8 @@
 //! ## Overview
 //! The contract builder assembles the canonical Decision Gate contract bundle
 //! and writes it into `Docs/generated/decision-gate`. It enforces deterministic
-//! output ordering and hashes every artifact for integrity.
+//! output ordering and emits human-readable JSON with canonical key ordering,
+//! hashing every artifact for integrity.
 //! Security posture: outputs are consumed by external tooling; see
 //! `Docs/security/threat_model.md`.
 
@@ -139,7 +140,7 @@ impl ContractBuilder {
             write_artifact(output_dir, artifact)?;
         }
         let manifest_path = output_dir.join("index.json");
-        let manifest_bytes = serialize_json(&bundle.manifest)?;
+        let manifest_bytes = serialize_json_pretty(&bundle.manifest)?;
         fs::write(&manifest_path, &manifest_bytes)
             .map_err(|err| ContractError::Io(err.to_string()))?;
         Ok(bundle.manifest)
@@ -164,7 +165,7 @@ impl ContractBuilder {
                 )));
             }
         }
-        let manifest_bytes = serialize_json(&bundle.manifest)?;
+        let manifest_bytes = serialize_json_pretty(&bundle.manifest)?;
         let manifest_path = output_dir.join("index.json");
         let actual_manifest =
             fs::read(&manifest_path).map_err(|err| ContractError::Io(err.to_string()))?;
@@ -191,9 +192,9 @@ impl Default for ContractBuilder {
 // SECTION: Artifact Helpers
 // ============================================================================
 
-/// Builds a JSON artifact with canonical serialization.
+/// Builds a JSON artifact with deterministic, pretty-printed serialization.
 fn json_artifact<T: Serialize>(path: &str, value: &T) -> Result<ContractArtifact, ContractError> {
-    let bytes = serialize_json(value)?;
+    let bytes = serialize_json_pretty(value)?;
     Ok(ContractArtifact {
         path: path.to_string(),
         content_type: String::from("application/json"),
@@ -201,7 +202,7 @@ fn json_artifact<T: Serialize>(path: &str, value: &T) -> Result<ContractArtifact
     })
 }
 
-/// Builds a JSON artifact with pretty formatting for display.
+/// Builds a JSON artifact with deterministic, pretty formatting for display.
 fn pretty_json_artifact<T: Serialize>(
     path: &str,
     value: &T,
@@ -228,14 +229,20 @@ fn text_artifact(path: &str, content: String, content_type: &str) -> ContractArt
     }
 }
 
-/// Serializes a value into canonical JSON bytes.
-fn serialize_json<T: Serialize>(value: &T) -> Result<Vec<u8>, ContractError> {
+/// Serializes a value into canonical JSON bytes for deterministic ordering.
+fn serialize_json_canonical<T: Serialize>(value: &T) -> Result<Vec<u8>, ContractError> {
     serde_jcs::to_vec(value).map_err(|err| ContractError::Serialization(err.to_string()))
 }
 
-/// Serializes a value into pretty JSON bytes for display purposes.
+/// Serializes a value into pretty JSON bytes with canonical key ordering.
 fn serialize_json_pretty<T: Serialize>(value: &T) -> Result<Vec<u8>, ContractError> {
-    serde_json::to_vec_pretty(value).map_err(|err| ContractError::Serialization(err.to_string()))
+    let canonical = serialize_json_canonical(value)?;
+    let canonical_value: serde_json::Value = serde_json::from_slice(&canonical)
+        .map_err(|err| ContractError::Serialization(err.to_string()))?;
+    let mut bytes = serde_json::to_vec_pretty(&canonical_value)
+        .map_err(|err| ContractError::Serialization(err.to_string()))?;
+    bytes.push(b'\n');
+    Ok(bytes)
 }
 
 /// Builds the manifest from generated artifacts.

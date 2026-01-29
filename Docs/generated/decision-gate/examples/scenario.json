@@ -1,27 +1,60 @@
 {
-  "scenario_id": "example-scenario",
+  "default_tenant_id": null,
   "namespace_id": 1,
+  "policies": [],
+  "predicates": [
+    {
+      "comparator": "equals",
+      "expected": "production",
+      "policy_tags": [],
+      "predicate": "env_is_prod",
+      "query": {
+        "params": {
+          "key": "DEPLOY_ENV"
+        },
+        "predicate": "get",
+        "provider_id": "env"
+      }
+    },
+    {
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": [],
+      "predicate": "after_freeze",
+      "query": {
+        "params": {
+          "timestamp": 1710000000000
+        },
+        "predicate": "after",
+        "provider_id": "time"
+      }
+    }
+  ],
+  "scenario_id": "example-scenario",
+  "schemas": [],
   "spec_version": "v1",
   "stages": [
     {
-      "stage_id": "main",
+      "advance_to": {
+        "kind": "terminal"
+      },
       "entry_packets": [
         {
-          "packet_id": "packet-hello",
-          "schema_id": "schema-hello",
           "content_type": "application/json",
-          "visibility_labels": [
-            "public"
-          ],
-          "policy_tags": [],
           "expiry": null,
+          "packet_id": "packet-hello",
           "payload": {
             "kind": "json",
             "value": {
               "message": "hello",
               "purpose": "scenario entry packet"
             }
-          }
+          },
+          "policy_tags": [],
+          "schema_id": "schema-hello",
+          "visibility_labels": [
+            "public"
+          ]
         }
       ],
       "gates": [
@@ -38,42 +71,9 @@
           }
         }
       ],
-      "advance_to": {
-        "kind": "terminal"
-      },
-      "timeout": null,
-      "on_timeout": "fail"
+      "on_timeout": "fail",
+      "stage_id": "main",
+      "timeout": null
     }
-  ],
-  "predicates": [
-    {
-      "predicate": "env_is_prod",
-      "query": {
-        "provider_id": "env",
-        "predicate": "get",
-        "params": {
-          "key": "DEPLOY_ENV"
-        }
-      },
-      "comparator": "equals",
-      "expected": "production",
-      "policy_tags": []
-    },
-    {
-      "predicate": "after_freeze",
-      "query": {
-        "provider_id": "time",
-        "predicate": "after",
-        "params": {
-          "timestamp": 1710000000000
-        }
-      },
-      "comparator": "equals",
-      "expected": true,
-      "policy_tags": []
-    }
-  ],
-  "policies": [],
-  "schemas": [],
-  "default_tenant_id": null
+  ]
 }

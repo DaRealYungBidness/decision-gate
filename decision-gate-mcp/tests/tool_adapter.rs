@@ -25,6 +25,7 @@ mod common;
 
 use std::sync::Arc;
 
+use common::ToolRouterSyncExt;
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
 use decision_gate_core::DispatchReceipt;
@@ -80,7 +81,6 @@ use decision_gate_mcp::config::TrustConfig;
 use decision_gate_mcp::config::ValidationConfig;
 use decision_gate_mcp::namespace_authority::NoopNamespaceAuthority;
 use decision_gate_mcp::tools::ToolRouterConfig;
-use common::ToolRouterSyncExt;
 use serde_json::json;
 
 struct NoopDispatcher;
@@ -197,12 +197,8 @@ fn build_router(config: &DecisionGateConfig) -> ToolRouter {
     let registry_acl =
         decision_gate_mcp::registry_acl::RegistryAcl::new(&config.schema_registry.acl);
     let audit = Arc::new(NoopAuditSink);
-    let default_namespace_tenants = config
-        .namespace
-        .default_tenants
-        .iter()
-        .cloned()
-        .collect::<std::collections::BTreeSet<_>>();
+    let default_namespace_tenants =
+        config.namespace.default_tenants.iter().copied().collect::<std::collections::BTreeSet<_>>();
     let provider_trust_overrides = if config.is_dev_permissive() {
         config
             .dev
@@ -257,6 +253,10 @@ fn build_router(config: &DecisionGateConfig) -> ToolRouter {
 
 /// Tests mcp tools match core control plane.
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "The test keeps the full tool matrix in a single scenario."
+)]
 fn mcp_tools_match_core_control_plane() {
     let config = DecisionGateConfig {
         server: ServerConfig {
@@ -322,7 +322,11 @@ fn mcp_tools_match_core_control_plane() {
         issue_entry_packets: false,
     };
     let _ = router
-        .handle_tool_call_sync(&context, "scenario_start", serde_json::to_value(&start_request).unwrap())
+        .handle_tool_call_sync(
+            &context,
+            "scenario_start",
+            serde_json::to_value(&start_request).unwrap(),
+        )
         .unwrap();
 
     let next_request = NextRequest {
@@ -339,7 +343,11 @@ fn mcp_tools_match_core_control_plane() {
         request: next_request.clone(),
     };
     let tool_result = router
-        .handle_tool_call_sync(&context, "scenario_next", serde_json::to_value(&tool_request).unwrap())
+        .handle_tool_call_sync(
+            &context,
+            "scenario_next",
+            serde_json::to_value(&tool_request).unwrap(),
+        )
         .unwrap();
     let mcp_result: NextResult = serde_json::from_value(tool_result).unwrap();
 
@@ -436,7 +444,11 @@ fn parity_scenario_status() {
         issue_entry_packets: false,
     };
     router
-        .handle_tool_call_sync(&context, "scenario_start", serde_json::to_value(&start_request).unwrap())
+        .handle_tool_call_sync(
+            &context,
+            "scenario_start",
+            serde_json::to_value(&start_request).unwrap(),
+        )
         .unwrap();
 
     // Query status via MCP
@@ -527,7 +539,11 @@ fn parity_provider_schema_get() {
         predicate: "after".to_string(),
     };
     let mcp_result = router
-        .handle_tool_call_sync(&context, "provider_schema_get", serde_json::to_value(&request).unwrap())
+        .handle_tool_call_sync(
+            &context,
+            "provider_schema_get",
+            serde_json::to_value(&request).unwrap(),
+        )
         .unwrap();
     let response: ProviderSchemaGetResponse = serde_json::from_value(mcp_result).unwrap();
     assert_eq!(response.provider_id, "time");
@@ -675,7 +691,11 @@ fn parity_schemas_list() {
         limit: None,
     };
     let list_result = router
-        .handle_tool_call_sync(&context, "schemas_list", serde_json::to_value(&list_request).unwrap())
+        .handle_tool_call_sync(
+            &context,
+            "schemas_list",
+            serde_json::to_value(&list_request).unwrap(),
+        )
         .unwrap();
     let list_response: SchemasListResponse = serde_json::from_value(list_result).unwrap();
 
@@ -795,7 +815,11 @@ fn parity_precheck() {
         payload: json!({"after": true}),
     };
     let mcp_result = router
-        .handle_tool_call_sync(&context, "precheck", serde_json::to_value(&precheck_request).unwrap())
+        .handle_tool_call_sync(
+            &context,
+            "precheck",
+            serde_json::to_value(&precheck_request).unwrap(),
+        )
         .unwrap();
     let response: PrecheckToolResponse = serde_json::from_value(mcp_result).unwrap();
 

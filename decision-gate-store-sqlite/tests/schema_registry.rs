@@ -304,14 +304,26 @@ fn sqlite_registry_list_filters_by_tenant() {
     store.register(tenant2_record).unwrap();
 
     // List for tenant 1 should only return tenant 1's schema
-    let page1 =
-        store.list(&TenantId::from_raw(1).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), None, 10).unwrap();
+    let page1 = store
+        .list(
+            &TenantId::from_raw(1).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            None,
+            10,
+        )
+        .unwrap();
     assert_eq!(page1.items.len(), 1);
     assert_eq!(page1.items[0].tenant_id.get(), 1);
 
     // List for tenant-2 should only return tenant-2's schema
-    let page2 =
-        store.list(&TenantId::from_raw(2).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), None, 10).unwrap();
+    let page2 = store
+        .list(
+            &TenantId::from_raw(2).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            None,
+            10,
+        )
+        .unwrap();
     assert_eq!(page2.items.len(), 1);
     assert_eq!(page2.items[0].tenant_id.get(), 2);
 }
@@ -390,8 +402,14 @@ fn sqlite_registry_versions_sorted_lexicographically() {
         })
         .unwrap();
 
-    let page =
-        store.list(&TenantId::from_raw(1).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), None, 10).unwrap();
+    let page = store
+        .list(
+            &TenantId::from_raw(1).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            None,
+            10,
+        )
+        .unwrap();
 
     let versions: Vec<&str> = page.items.iter().map(|r| r.version.as_str()).collect();
     // Lexicographic: "v1" < "v10" < "v2"
@@ -446,7 +464,12 @@ fn sqlite_registry_concurrent_writes_different_schemas_no_deadlock() {
     // Verify all 15 schemas are registered
     let page = fixture
         .store
-        .list(&TenantId::from_raw(1).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), None, 20)
+        .list(
+            &TenantId::from_raw(1).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            None,
+            20,
+        )
         .unwrap();
     assert_eq!(page.items.len(), 15);
 }
@@ -518,8 +541,12 @@ fn sqlite_registry_concurrent_read_write_consistent() {
             };
             let store = SqliteRunStateStore::new(config).expect("store");
             for _ in 0 .. 10 {
-                let result =
-                    store.list(&TenantId::from_raw(1).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), None, 100);
+                let result = store.list(
+                    &TenantId::from_raw(1).expect("nonzero tenantid"),
+                    &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+                    None,
+                    100,
+                );
                 // Should never fail
                 assert!(result.is_ok());
             }

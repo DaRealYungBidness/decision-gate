@@ -47,8 +47,11 @@ use helpers::artifacts::TestReporter;
 use helpers::harness::allocate_bind_addr;
 use helpers::harness::base_http_config;
 use helpers::harness::spawn_mcp_server;
+use helpers::mcp_client::TranscriptEntry;
 use helpers::readiness::wait_for_server_ready;
 use helpers::scenarios::ScenarioFixture;
+use reqwest::Client;
+use reqwest::StatusCode;
 use ret_logic::Requirement;
 use serde_json::json;
 
@@ -194,6 +197,74 @@ async fn strict_mode_rejects_default_namespace() -> Result<(), Box<dyn std::erro
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn invalid_correlation_id_rejected() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("invalid_correlation_id_rejected")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let config = base_http_config(&bind);
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(std::time::Duration::from_secs(5))?;
+    wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
+
+    let http_client = Client::builder().timeout(std::time::Duration::from_secs(5)).build()?;
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/list",
+    });
+    let response = http_client
+        .post(server.base_url())
+        .header("x-correlation-id", "bad value")
+        .json(&request)
+        .send()
+        .await?;
+    let status = response.status();
+    let headers = response.headers().clone();
+    let payload: serde_json::Value = response.json().await?;
+
+    if status != StatusCode::BAD_REQUEST {
+        return Err(format!("expected 400, got {status}").into());
+    }
+    let code = payload
+        .get("error")
+        .and_then(|error| error.get("code"))
+        .and_then(serde_json::Value::as_i64);
+    if code != Some(-32073) {
+        return Err(format!("expected error code -32073, got {code:?}").into());
+    }
+    let server_corr = headers.get("x-server-correlation-id").and_then(|value| value.to_str().ok());
+    if server_corr.is_none() {
+        return Err("expected x-server-correlation-id response header".into());
+    }
+    if headers.get("x-correlation-id").is_some() {
+        return Err("invalid x-correlation-id should not be echoed".into());
+    }
+
+    let error_message = payload
+        .get("error")
+        .and_then(|error| error.get("message"))
+        .and_then(serde_json::Value::as_str)
+        .map(|message| message.to_string());
+    let transcript = vec![TranscriptEntry {
+        sequence: 1,
+        method: "tools/list".to_string(),
+        request: request.clone(),
+        response: payload.clone(),
+        error: error_message,
+    }];
+    reporter.artifacts().write_json("tool_transcript.json", &transcript)?;
+    reporter.finish(
+        "pass",
+        vec!["invalid correlation id rejected with server correlation header".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+        ],
+    )?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
 #[allow(
     clippy::too_many_lines,
     reason = "End-to-end policy denial coverage is clearer in one test."
@@ -282,7 +353,9 @@ async fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Erro
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid")),
+        default_tenant_id: Some(
+            decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
+        ),
     };
 
     let define_request = ScenarioDefineRequest {
@@ -475,7 +548,9 @@ async fn policy_error_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid")),
+        default_tenant_id: Some(
+            decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
+        ),
     };
 
     let define_request = ScenarioDefineRequest {

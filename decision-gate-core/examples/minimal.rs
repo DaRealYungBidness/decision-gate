@@ -57,6 +57,18 @@ use decision_gate_core::runtime::NextRequest;
 use decision_gate_core::runtime::RunpackBuilder;
 use serde_json::json;
 
+/// Error type for example preconditions.
+#[derive(Debug)]
+struct ExampleError(&'static str);
+
+impl std::fmt::Display for ExampleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl std::error::Error for ExampleError {}
+
 /// Evidence provider that returns a fixed JSON value.
 struct ExampleEvidenceProvider;
 
@@ -184,10 +196,10 @@ impl ArtifactReader for InMemoryArtifacts {
 }
 
 /// Builds the minimal scenario specification for the example run.
-fn build_spec() -> ScenarioSpec {
+fn build_spec(namespace_id: NamespaceId) -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("example"),
-        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        namespace_id,
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("stage-1"),
@@ -230,7 +242,10 @@ fn build_spec() -> ScenarioSpec {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let spec = build_spec();
+    let tenant_id = TenantId::from_raw(1).ok_or(ExampleError("tenant id must be nonzero"))?;
+    let namespace_id =
+        NamespaceId::from_raw(1).ok_or(ExampleError("namespace id must be nonzero"))?;
+    let spec = build_spec(namespace_id);
     let store = InMemoryRunStateStore::new();
     let engine = ControlPlane::new(
         spec.clone(),
@@ -242,8 +257,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     let run_config = RunConfig {
-        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
-        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        tenant_id,
+        namespace_id,
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: ScenarioId::new("example"),
         dispatch_targets: vec![DispatchTarget::Agent {
@@ -256,8 +271,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let next_request = NextRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
-        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
-        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        tenant_id,
+        namespace_id,
         trigger_id: TriggerId::new("trigger-1"),
         agent_id: "agent-1".to_string(),
         time: Timestamp::Logical(1),
@@ -267,8 +282,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let status_request = decision_gate_core::runtime::StatusRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
-        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
-        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        tenant_id,
+        namespace_id,
         requested_at: Timestamp::Logical(2),
         correlation_id: None,
     };
@@ -277,11 +292,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = (result, status);
 
     let run_state = store
-        .load(
-            &TenantId::from_raw(1).expect("nonzero tenantid"),
-            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
-            &decision_gate_core::RunId::new("run-1"),
-        )?
+        .load(&tenant_id, &namespace_id, &decision_gate_core::RunId::new("run-1"))?
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "run state missing"))?;
 
     let mut artifacts = InMemoryArtifacts::default();

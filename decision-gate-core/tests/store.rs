@@ -83,7 +83,11 @@ fn store_save_and_load_roundtrip() {
 
     store.save(&state).unwrap();
     let loaded = store
-        .load(&TenantId::from_raw(1).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), &RunId::new("run-1"))
+        .load(
+            &TenantId::from_raw(1).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            &RunId::new("run-1"),
+        )
         .unwrap();
     assert_eq!(loaded, Some(state));
 }
@@ -93,7 +97,11 @@ fn store_save_and_load_roundtrip() {
 fn store_returns_none_for_missing_run() {
     let store = InMemoryRunStateStore::new();
     let loaded = store
-        .load(&TenantId::from_raw(1).expect("nonzero tenantid"), &NamespaceId::from_raw(1).expect("nonzero namespaceid"), &RunId::new("missing"))
+        .load(
+            &TenantId::from_raw(1).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            &RunId::new("missing"),
+        )
         .unwrap();
     assert!(loaded.is_none());
 }

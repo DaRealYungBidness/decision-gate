@@ -37,6 +37,7 @@ if sys.platform == "win32":
         reconfigure = getattr(stream, "reconfigure", None)
         if callable(reconfigure):
             try:
+                # Ensure UTF-8 output so logs are consistent across platforms.
                 reconfigure(encoding="utf-8", errors="replace")
             except Exception:
                 pass
@@ -46,6 +47,7 @@ RegistryData = MutableMapping[str, Any]
 
 @dataclass
 class TestDefinition:
+    """Registry-sourced definition of a system-test."""
     name: str
     category: str
     priority: str
@@ -58,6 +60,7 @@ class TestDefinition:
 
 @dataclass
 class TestResult:
+    """Result record for a single system-test execution."""
     name: str
     command: str
     category: Optional[str]
@@ -76,6 +79,7 @@ class TestResult:
 
 @dataclass
 class Manifest:
+    """Summary document written after the full test run."""
     generated_at: str
     run_root: str
     summary: Dict[str, Any]
@@ -85,12 +89,14 @@ class Manifest:
 
 
 def load_registry(path: Path) -> RegistryData:
+    """Read the test registry TOML file from disk."""
     if not path.exists():
         raise FileNotFoundError(f"Registry file not found: {path}")
     return toml.loads(path.read_text(encoding="utf-8"))
 
 
 def parse_tests(registry: RegistryData) -> List[TestDefinition]:
+    """Normalize registry test entries into TestDefinition instances."""
     tests: List[TestDefinition] = []
     for entry in registry.get("tests", []):
         tests.append(
@@ -116,6 +122,7 @@ def select_tests(
     quick_only: bool,
     registry: RegistryData,
 ) -> List[TestDefinition]:
+    """Filter tests based on CLI criteria and registry metadata."""
     output = tests
     if category:
         output = [t for t in output if t.category == category]
@@ -132,6 +139,7 @@ def select_tests(
 
 
 def sanitize_name(value: str) -> str:
+    """Make a filesystem-safe name for per-test artifact directories."""
     return "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in value)
 
 
@@ -143,9 +151,11 @@ def run_test(
     isolate_target_dir: bool,
     dry_run: bool,
 ) -> TestResult:
+    """Execute a single test command and capture runner-level artifacts."""
     test_root = run_root / sanitize_name(test.name)
     stdout_path = test_root / "runner.stdout.log"
     stderr_path = test_root / "runner.stderr.log"
+    process: Optional[subprocess.Popen[str]] = None
 
     result = TestResult(
         name=test.name,
@@ -174,6 +184,7 @@ def run_test(
             env[str(key)] = str(value)
 
     if isolate_target_dir:
+        # Avoid cross-test contamination in shared Cargo build artifacts.
         target_root = Path(tempfile.gettempdir()) / "decision-gate-targets" / sanitize_name(test.name)
         target_root.mkdir(parents=True, exist_ok=True)
         env.setdefault("CARGO_TARGET_DIR", str(target_root))
@@ -200,10 +211,11 @@ def run_test(
         return_code = None
         result.status = "timeout"
         result.error = f"timeout after {timeout_override or test.estimated_runtime_sec or 300}s"
-        try:
-            process.kill()
-        except Exception:
-            pass
+        if process is not None:
+            try:
+                process.kill()
+            except Exception:
+                pass
     except Exception as exc:
         return_code = None
         result.status = "error"
@@ -223,6 +235,7 @@ def run_test(
 
 
 def write_manifest(run_root: Path, results: List[TestResult], wall_duration: float) -> None:
+    """Persist a manifest JSON summarizing the full run."""
     total = len(results)
     passed = len([r for r in results if r.status == "passed"])
     failed = len([r for r in results if r.status == "failed"])
@@ -251,6 +264,7 @@ def write_manifest(run_root: Path, results: List[TestResult], wall_duration: flo
 
 
 def main() -> None:
+    """CLI entry point for running system-tests."""
     parser = argparse.ArgumentParser(description="Decision Gate system-test runner")
     parser.add_argument("--category", help="Filter by category")
     parser.add_argument("--priority", help="Filter by priority (P0/P1/P2)")

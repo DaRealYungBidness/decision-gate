@@ -24,5 +24,8 @@ pub mod i18n;
 #[allow(dead_code, reason = "Interop helpers are used by the CLI binary and tests.")]
 pub mod interop;
 
+/// CLI server bind policy helpers.
+pub mod serve_policy;
+
 #[cfg(test)]
 mod tests;

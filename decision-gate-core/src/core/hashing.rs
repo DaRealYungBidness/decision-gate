@@ -167,9 +167,7 @@ pub fn hash_canonical_json_with_limit<T: Serialize + ?Sized>(
 fn to_json_value<T: Serialize + ?Sized>(value: &T) -> Result<Value, HashError> {
     // serde_json::to_value maps non-finite floats to null; validate first to reject them.
     let mut guard = FiniteCheckSerializer;
-    value
-        .serialize(&mut guard)
-        .map_err(|err| HashError::Canonicalization(err.to_string()))?;
+    value.serialize(&mut guard).map_err(|err| HashError::Canonicalization(err.to_string()))?;
     serde_json::to_value(value).map_err(|err| HashError::Canonicalization(err.to_string()))
 }
 
@@ -207,13 +205,15 @@ struct FiniteCheckCompound<'a> {
 impl<'a> FiniteCheckCompound<'a> {
     /// Builds a new compound serializer wrapper.
     const fn new(serializer: &'a mut FiniteCheckSerializer) -> Self {
-        Self { serializer }
+        Self {
+            serializer,
+        }
     }
 }
 
 impl SerializeSeq for FiniteCheckCompound<'_> {
-    type Ok = ();
     type Error = FiniteCheckError;
+    type Ok = ();
 
     fn serialize_element<T: ?Sized + Serialize>(&mut self, value: &T) -> Result<(), Self::Error> {
         value.serialize(&mut *self.serializer)
@@ -225,8 +225,8 @@ impl SerializeSeq for FiniteCheckCompound<'_> {
 }
 
 impl SerializeTuple for FiniteCheckCompound<'_> {
-    type Ok = ();
     type Error = FiniteCheckError;
+    type Ok = ();
 
     fn serialize_element<T: ?Sized + Serialize>(&mut self, value: &T) -> Result<(), Self::Error> {
         value.serialize(&mut *self.serializer)
@@ -238,8 +238,8 @@ impl SerializeTuple for FiniteCheckCompound<'_> {
 }
 
 impl SerializeTupleStruct for FiniteCheckCompound<'_> {
-    type Ok = ();
     type Error = FiniteCheckError;
+    type Ok = ();
 
     fn serialize_field<T: ?Sized + Serialize>(&mut self, value: &T) -> Result<(), Self::Error> {
         value.serialize(&mut *self.serializer)
@@ -251,8 +251,8 @@ impl SerializeTupleStruct for FiniteCheckCompound<'_> {
 }
 
 impl SerializeTupleVariant for FiniteCheckCompound<'_> {
-    type Ok = ();
     type Error = FiniteCheckError;
+    type Ok = ();
 
     fn serialize_field<T: ?Sized + Serialize>(&mut self, value: &T) -> Result<(), Self::Error> {
         value.serialize(&mut *self.serializer)
@@ -264,8 +264,8 @@ impl SerializeTupleVariant for FiniteCheckCompound<'_> {
 }
 
 impl SerializeMap for FiniteCheckCompound<'_> {
-    type Ok = ();
     type Error = FiniteCheckError;
+    type Ok = ();
 
     fn serialize_key<T: ?Sized + Serialize>(&mut self, key: &T) -> Result<(), Self::Error> {
         key.serialize(&mut *self.serializer)
@@ -281,8 +281,8 @@ impl SerializeMap for FiniteCheckCompound<'_> {
 }
 
 impl SerializeStruct for FiniteCheckCompound<'_> {
-    type Ok = ();
     type Error = FiniteCheckError;
+    type Ok = ();
 
     fn serialize_field<T: ?Sized + Serialize>(
         &mut self,
@@ -298,8 +298,8 @@ impl SerializeStruct for FiniteCheckCompound<'_> {
 }
 
 impl SerializeStructVariant for FiniteCheckCompound<'_> {
-    type Ok = ();
     type Error = FiniteCheckError;
+    type Ok = ();
 
     fn serialize_field<T: ?Sized + Serialize>(
         &mut self,
@@ -315,15 +315,15 @@ impl SerializeStructVariant for FiniteCheckCompound<'_> {
 }
 
 impl<'a> Serializer for &'a mut FiniteCheckSerializer {
-    type Ok = ();
     type Error = FiniteCheckError;
+    type Ok = ();
+    type SerializeMap = FiniteCheckCompound<'a>;
     type SerializeSeq = FiniteCheckCompound<'a>;
+    type SerializeStruct = FiniteCheckCompound<'a>;
+    type SerializeStructVariant = FiniteCheckCompound<'a>;
     type SerializeTuple = FiniteCheckCompound<'a>;
     type SerializeTupleStruct = FiniteCheckCompound<'a>;
     type SerializeTupleVariant = FiniteCheckCompound<'a>;
-    type SerializeMap = FiniteCheckCompound<'a>;
-    type SerializeStruct = FiniteCheckCompound<'a>;
-    type SerializeStructVariant = FiniteCheckCompound<'a>;
 
     fn serialize_bool(self, _v: bool) -> Result<Self::Ok, Self::Error> {
         Ok(())

@@ -19,11 +19,12 @@ mod common;
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
+use common::ToolRouterSyncExt;
 use common::local_request_context;
 use common::router_with_authorizer;
 use common::sample_config;
 use common::sample_spec;
-use common::ToolRouterSyncExt;
 use decision_gate_mcp::TenantAccessRequest;
 use decision_gate_mcp::TenantAuthorizer;
 use decision_gate_mcp::TenantAuthzAction;
@@ -32,8 +33,9 @@ use decision_gate_mcp::tools::ScenarioDefineRequest;
 
 struct DenyTenantAuthorizer;
 
+#[async_trait]
 impl TenantAuthorizer for DenyTenantAuthorizer {
-    fn authorize(
+    async fn authorize(
         &self,
         _auth: &decision_gate_mcp::AuthContext,
         _request: TenantAccessRequest<'_>,
@@ -66,8 +68,9 @@ fn tenant_authz_denies_tool_call() {
 fn tenant_authz_receives_tool_action() {
     struct InspectingAuthorizer;
 
+    #[async_trait]
     impl TenantAuthorizer for InspectingAuthorizer {
-        fn authorize(
+        async fn authorize(
             &self,
             _auth: &decision_gate_mcp::AuthContext,
             request: TenantAccessRequest<'_>,

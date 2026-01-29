@@ -41,7 +41,6 @@ use decision_gate_core::NamespaceId;
 use decision_gate_core::PredicateKey;
 use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
-use decision_gate_core::TrustLane;
 use decision_gate_core::RunConfig;
 use decision_gate_core::RunId;
 use decision_gate_core::RunStatus;
@@ -55,12 +54,13 @@ use decision_gate_core::TimeoutPolicy;
 use decision_gate_core::Timestamp;
 use decision_gate_core::TriggerId;
 use decision_gate_core::TriggerKind;
+use decision_gate_core::TrustLane;
 use decision_gate_core::hashing::hash_bytes;
 use decision_gate_core::runtime::TriggerResult;
-use decision_gate_mcp::config::DecisionGateConfig;
-use decision_gate_mcp::config::TrustPolicy;
 use decision_gate_mcp::config::AnchorProviderConfig;
+use decision_gate_mcp::config::DecisionGateConfig;
 use decision_gate_mcp::config::ProviderTimeoutConfig;
+use decision_gate_mcp::config::TrustPolicy;
 use decision_gate_mcp::tools::EvidenceQueryRequest;
 use decision_gate_mcp::tools::EvidenceQueryResponse;
 use decision_gate_mcp::tools::ScenarioDefineRequest;
@@ -81,8 +81,8 @@ use helpers::provider_stub::spawn_provider_stub_with_delay;
 use helpers::readiness::wait_for_server_ready;
 use helpers::scenarios::ScenarioFixture;
 use serde::Deserialize;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use serde_json::Value;
 use serde_json::json;
 use tempfile::tempdir;
@@ -94,10 +94,7 @@ use crate::helpers;
 
 fn json_provider_config(root: &Path, max_bytes: usize) -> TomlValue {
     let mut table = Table::new();
-    table.insert(
-        "root".to_string(),
-        TomlValue::String(root.to_string_lossy().to_string()),
-    );
+    table.insert("root".to_string(), TomlValue::String(root.to_string_lossy().to_string()));
     table.insert("max_bytes".to_string(), TomlValue::Integer(max_bytes as i64));
     table.insert("allow_yaml".to_string(), TomlValue::Boolean(false));
     TomlValue::Table(table)
@@ -112,10 +109,7 @@ fn http_provider_config(
     let mut table = Table::new();
     table.insert("allow_http".to_string(), TomlValue::Boolean(allow_http));
     table.insert("timeout_ms".to_string(), TomlValue::Integer(timeout_ms as i64));
-    table.insert(
-        "max_response_bytes".to_string(),
-        TomlValue::Integer(max_response_bytes as i64),
-    );
+    table.insert("max_response_bytes".to_string(), TomlValue::Integer(max_response_bytes as i64));
     if let Some(hosts) = allowed_hosts {
         let list = hosts.into_iter().map(TomlValue::String).collect();
         table.insert("allowed_hosts".to_string(), TomlValue::Array(list));
@@ -139,14 +133,8 @@ fn env_provider_config(
     }
     let denylist = denylist.into_iter().map(TomlValue::String).collect();
     table.insert("denylist".to_string(), TomlValue::Array(denylist));
-    table.insert(
-        "max_value_bytes".to_string(),
-        TomlValue::Integer(max_value_bytes as i64),
-    );
-    table.insert(
-        "max_key_bytes".to_string(),
-        TomlValue::Integer(max_key_bytes as i64),
-    );
+    table.insert("max_value_bytes".to_string(), TomlValue::Integer(max_value_bytes as i64));
+    table.insert("max_key_bytes".to_string(), TomlValue::Integer(max_key_bytes as i64));
     let mut overrides_table = Table::new();
     for (key, value) in overrides {
         overrides_table.insert(key, TomlValue::String(value));
@@ -215,10 +203,7 @@ async fn spawn_http_test_server() -> Result<HttpTestServerHandle, Box<dyn std::e
     }
 
     async fn redirect_handler() -> impl IntoResponse {
-        (
-            StatusCode::FOUND,
-            [(LOCATION, HeaderValue::from_static("/redirect"))],
-        )
+        (StatusCode::FOUND, [(LOCATION, HeaderValue::from_static("/redirect"))])
     }
 
     let app = Router::new()
@@ -291,12 +276,8 @@ struct ToolCallResult {
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ToolContent {
-    Json {
-        json: decision_gate_core::EvidenceResult,
-    },
-    Text {
-        text: String,
-    },
+    Json { json: decision_gate_core::EvidenceResult },
+    Text { text: String },
 }
 
 #[derive(Debug)]
@@ -377,9 +358,7 @@ fn tool_result_for_value(value: Value) -> Value {
 }
 
 fn jsonrpc_id_from_bytes(bytes: &Bytes) -> Value {
-    serde_json::from_slice::<JsonRpcRequest>(bytes)
-        .map(|request| request.id)
-        .unwrap_or(Value::Null)
+    serde_json::from_slice::<JsonRpcRequest>(bytes).map(|request| request.id).unwrap_or(Value::Null)
 }
 
 fn parse_evidence_request(bytes: &Bytes) -> Result<(Value, EvidenceQueryRequest), String> {
@@ -1017,7 +996,9 @@ async fn http_provider_body_hash_matches() -> Result<(), Box<dyn std::error::Err
     };
     let digest: decision_gate_core::HashDigest = serde_json::from_value(value)?;
     if digest != expected {
-        return Err(format!("hash mismatch: expected {}, got {}", expected.value, digest.value).into());
+        return Err(
+            format!("hash mismatch: expected {}, got {}", expected.value, digest.value).into()
+        );
     }
 
     reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
@@ -1136,9 +1117,7 @@ async fn http_provider_tls_failure_fails_closed() -> Result<(), Box<dyn std::err
     wait_for_server_ready(&client, Duration::from_secs(5)).await?;
 
     let http_server = spawn_http_test_server().await?;
-    let tls_url = http_server
-        .url("/ok")
-        .replace("http://", "https://");
+    let tls_url = http_server.url("/ok").replace("http://", "https://");
     let fixture = ScenarioFixture::time_after("http-tls", "run-1", 0);
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
@@ -1175,7 +1154,13 @@ async fn env_provider_missing_key_returns_empty() -> Result<(), Box<dyn std::err
     let mut config = base_http_config(&bind);
     enable_raw_evidence(&mut config);
 
-    let env_config = env_provider_config(None, Vec::new(), vec![("KNOWN".to_string(), "ok".to_string())], 32, 32);
+    let env_config = env_provider_config(
+        None,
+        Vec::new(),
+        vec![("KNOWN".to_string(), "ok".to_string())],
+        32,
+        32,
+    );
     set_provider_config(&mut config, "env", env_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -1536,13 +1521,12 @@ async fn time_provider_invalid_rfc3339_rejected() -> Result<(), Box<dyn std::err
 async fn mcp_provider_malformed_jsonrpc_response() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("mcp_provider_malformed_jsonrpc_response")?;
     let bind = allocate_bind_addr()?.to_string();
-    let app = Router::new().route(
-        "/rpc",
-        post(|_bytes: Bytes| async move { (StatusCode::OK, "not-json") }),
-    );
+    let app = Router::new()
+        .route("/rpc", post(|_bytes: Bytes| async move { (StatusCode::OK, "not-json") }));
     let provider = spawn_mcp_provider(app).await?;
     let capabilities_path = write_echo_contract(&reporter, "mcp-malformed")?;
-    let mut config = config_with_provider(&bind, "mcp-malformed", provider.base_url(), &capabilities_path);
+    let mut config =
+        config_with_provider(&bind, "mcp-malformed", provider.base_url(), &capabilities_path);
     enable_raw_evidence(&mut config);
 
     let server = spawn_mcp_server(config).await?;
@@ -1598,7 +1582,8 @@ async fn mcp_provider_text_content_rejected() -> Result<(), Box<dyn std::error::
     );
     let provider = spawn_mcp_provider(app).await?;
     let capabilities_path = write_echo_contract(&reporter, "mcp-text")?;
-    let mut config = config_with_provider(&bind, "mcp-text", provider.base_url(), &capabilities_path);
+    let mut config =
+        config_with_provider(&bind, "mcp-text", provider.base_url(), &capabilities_path);
     enable_raw_evidence(&mut config);
 
     let server = spawn_mcp_server(config).await?;
@@ -1652,7 +1637,8 @@ async fn mcp_provider_empty_result_rejected() -> Result<(), Box<dyn std::error::
     );
     let provider = spawn_mcp_provider(app).await?;
     let capabilities_path = write_echo_contract(&reporter, "mcp-empty")?;
-    let mut config = config_with_provider(&bind, "mcp-empty", provider.base_url(), &capabilities_path);
+    let mut config =
+        config_with_provider(&bind, "mcp-empty", provider.base_url(), &capabilities_path);
     enable_raw_evidence(&mut config);
 
     let server = spawn_mcp_server(config).await?;
@@ -1712,7 +1698,8 @@ async fn mcp_provider_flaky_response() -> Result<(), Box<dyn std::error::Error>>
     );
     let provider = spawn_mcp_provider(app).await?;
     let capabilities_path = write_echo_contract(&reporter, "mcp-flaky")?;
-    let mut config = config_with_provider(&bind, "mcp-flaky", provider.base_url(), &capabilities_path);
+    let mut config =
+        config_with_provider(&bind, "mcp-flaky", provider.base_url(), &capabilities_path);
     enable_raw_evidence(&mut config);
 
     let server = spawn_mcp_server(config).await?;
@@ -1729,7 +1716,8 @@ async fn mcp_provider_flaky_response() -> Result<(), Box<dyn std::error::Error>>
         context: fixture.evidence_context("mcp-trigger", Timestamp::Logical(1)),
     };
     let input = serde_json::to_value(&request)?;
-    let first: EvidenceQueryResponse = client.call_tool_typed("evidence_query", input.clone()).await?;
+    let first: EvidenceQueryResponse =
+        client.call_tool_typed("evidence_query", input.clone()).await?;
     let first_error = first.result.error.ok_or("expected flaky error")?;
     if !first_error.message.contains("flaky failure") {
         return Err(format!("expected flaky failure, got {}", first_error.message).into());
@@ -1824,7 +1812,8 @@ async fn mcp_provider_missing_signature_rejected() -> Result<(), Box<dyn std::er
     );
     let provider = spawn_mcp_provider(app).await?;
     let capabilities_path = write_echo_contract(&reporter, "mcp-signed")?;
-    let mut config = config_with_provider(&bind, "mcp-signed", provider.base_url(), &capabilities_path);
+    let mut config =
+        config_with_provider(&bind, "mcp-signed", provider.base_url(), &capabilities_path);
     enable_raw_evidence(&mut config);
 
     let key_dir = tempdir()?;
@@ -1897,11 +1886,7 @@ async fn mcp_provider_contract_mismatch_rejected() -> Result<(), Box<dyn std::er
     reporter.finish(
         "pass",
         vec![format!("contract mismatch rejected: {err}")],
-        vec![
-            "summary.json".to_string(),
-            "summary.md".to_string(),
-            "bad_contract.json".to_string(),
-        ],
+        vec!["summary.json".to_string(), "summary.md".to_string(), "bad_contract.json".to_string()],
     )?;
     Ok(())
 }
@@ -1951,7 +1936,9 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid")),
+        default_tenant_id: Some(
+            decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
+        ),
     };
 
     let define_request = ScenarioDefineRequest {

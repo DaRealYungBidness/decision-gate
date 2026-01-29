@@ -20,11 +20,11 @@ mod common;
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use common::ToolRouterSyncExt;
 use common::local_request_context;
 use common::router_with_authorizer_and_usage;
 use common::sample_config;
 use common::sample_spec;
-use common::ToolRouterSyncExt;
 use decision_gate_mcp::UsageCheckRequest;
 use decision_gate_mcp::UsageDecision;
 use decision_gate_mcp::UsageMeter;

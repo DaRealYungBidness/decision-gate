@@ -54,6 +54,18 @@ use decision_gate_core::runtime::InMemoryRunStateStore;
 use decision_gate_core::runtime::NextRequest;
 use serde_json::json;
 
+/// Error type for example preconditions.
+#[derive(Debug)]
+struct ExampleError(&'static str);
+
+impl std::fmt::Display for ExampleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl std::error::Error for ExampleError {}
+
 /// Shared CI signal state updated by the example.
 struct CiSignals {
     /// CI pass/fail flag.
@@ -172,10 +184,10 @@ impl PolicyDecider for PermitAllPolicy {
 }
 
 /// Builds the CI gate scenario spec.
-fn build_spec() -> ScenarioSpec {
+fn build_spec(namespace_id: NamespaceId) -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("ci-gate"),
-        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        namespace_id,
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("review"),
@@ -225,11 +237,14 @@ fn build_spec() -> ScenarioSpec {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let tenant_id = TenantId::from_raw(1).ok_or(ExampleError("tenant id must be nonzero"))?;
+    let namespace_id =
+        NamespaceId::from_raw(1).ok_or(ExampleError("namespace id must be nonzero"))?;
     let signals = Arc::new(CiSignals::new());
     let provider = CiEvidenceProvider::new(signals.clone());
     let store = InMemoryRunStateStore::new();
     let engine = ControlPlane::new(
-        build_spec(),
+        build_spec(namespace_id),
         provider,
         ExampleDispatcher,
         store,
@@ -238,8 +253,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     let run_config = RunConfig {
-        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
-        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        tenant_id,
+        namespace_id,
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: ScenarioId::new("ci-gate"),
         dispatch_targets: vec![DispatchTarget::Agent {
@@ -252,8 +267,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let first = NextRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
-        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
-        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        tenant_id,
+        namespace_id,
         trigger_id: TriggerId::new("trigger-1"),
         agent_id: "ci-bot".to_string(),
         time: Timestamp::Logical(1),
@@ -268,8 +283,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let second = NextRequest {
         run_id: decision_gate_core::RunId::new("run-1"),
-        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
-        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        tenant_id,
+        namespace_id,
         trigger_id: TriggerId::new("trigger-2"),
         agent_id: "ci-bot".to_string(),
         time: Timestamp::Logical(2),

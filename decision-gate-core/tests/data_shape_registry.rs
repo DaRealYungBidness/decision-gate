@@ -482,7 +482,7 @@ fn registry_concurrent_registers_to_different_schemas_succeed() {
     let registry = Arc::new(InMemoryDataShapeRegistry::new());
     let mut handles = vec![];
 
-    for i in 0..10u64 {
+    for i in 0 .. 10u64 {
         let registry = Arc::clone(&registry);
         let handle = thread::spawn(move || {
             let record = DataShapeRecord {
@@ -528,7 +528,7 @@ fn registry_concurrent_register_same_schema_one_wins_one_conflicts() {
     let conflict_count = Arc::new(AtomicUsize::new(0));
     let mut handles = vec![];
 
-    for i in 0..10u64 {
+    for i in 0 .. 10u64 {
         let registry = Arc::clone(&registry);
         let success_count = Arc::clone(&success_count);
         let conflict_count = Arc::clone(&conflict_count);
@@ -574,10 +574,10 @@ fn registry_concurrent_list_during_register_consistent() {
     let mut handles = vec![];
 
     // Spawn writers
-    for i in 0..5u64 {
+    for i in 0 .. 5u64 {
         let registry = Arc::clone(&registry);
         let handle = thread::spawn(move || {
-            for j in 0..10u64 {
+            for j in 0 .. 10u64 {
                 let record = DataShapeRecord {
                     tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
                     namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
@@ -595,10 +595,10 @@ fn registry_concurrent_list_during_register_consistent() {
     }
 
     // Spawn readers
-    for _ in 0..5 {
+    for _ in 0 .. 5 {
         let registry = Arc::clone(&registry);
         let handle = thread::spawn(move || {
-            for _ in 0..20 {
+            for _ in 0 .. 20 {
                 let result = registry.list(
                     &TenantId::from_raw(1).expect("nonzero tenantid"),
                     &NamespaceId::from_raw(1).expect("nonzero namespaceid"),

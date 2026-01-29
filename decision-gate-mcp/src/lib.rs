@@ -19,6 +19,7 @@ pub mod audit;
 pub mod auth;
 pub mod capabilities;
 pub mod config;
+pub mod correlation;
 pub mod evidence;
 pub mod namespace_authority;
 pub mod policy;

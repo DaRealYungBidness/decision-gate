@@ -49,9 +49,9 @@ use decision_gate_mcp::tools::EvidenceQueryResponse;
 use decision_gate_mcp::tools::ToolRouterConfig;
 use serde_json::json;
 
+use crate::common::ToolRouterSyncExt;
 use crate::common::local_request_context;
 use crate::common::sample_context;
-use crate::common::ToolRouterSyncExt;
 
 // ============================================================================
 // SECTION: Test Fixtures
@@ -92,12 +92,8 @@ fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
     };
     let trust_requirement = config.effective_trust_requirement();
     let allow_default_namespace = config.allow_default_namespace();
-    let default_namespace_tenants = config
-        .namespace
-        .default_tenants
-        .iter()
-        .cloned()
-        .collect::<std::collections::BTreeSet<_>>();
+    let default_namespace_tenants =
+        config.namespace.default_tenants.iter().copied().collect::<std::collections::BTreeSet<_>>();
     let evidence_policy = config.evidence.clone();
     let validation = config.validation.clone();
     let anchor_policy = config.anchors.to_policy();

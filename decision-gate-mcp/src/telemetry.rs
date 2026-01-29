@@ -94,6 +94,10 @@ pub struct McpMetricEvent {
     pub error_code: Option<i64>,
     /// Normalized error kind label.
     pub error_kind: Option<&'static str>,
+    /// Unsafe client correlation identifier when available.
+    pub unsafe_client_correlation_id: Option<String>,
+    /// Server-issued correlation identifier when available.
+    pub server_correlation_id: Option<String>,
     /// Request body size in bytes.
     pub request_bytes: usize,
     /// Response body size in bytes.

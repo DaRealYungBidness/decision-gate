@@ -599,9 +599,8 @@ where
                     apply_trust_requirement(record, effective_requirement)
                 })
                 .collect();
-            adjusted_evidence.sort_by(|left, right| {
-                left.predicate.as_str().cmp(right.predicate.as_str())
-            });
+            adjusted_evidence
+                .sort_by(|left, right| left.predicate.as_str().cmp(right.predicate.as_str()));
             let snapshot = EvidenceSnapshot::new(adjusted_evidence);
             let evaluation = evaluator.evaluate_gate(gate, &snapshot);
             gate_outcomes.push((gate.gate_id.clone(), evaluation.status));
@@ -734,9 +733,8 @@ where
                     apply_trust_requirement(record, effective_requirement)
                 })
                 .collect();
-            adjusted_evidence.sort_by(|left, right| {
-                left.predicate.as_str().cmp(right.predicate.as_str())
-            });
+            adjusted_evidence
+                .sort_by(|left, right| left.predicate.as_str().cmp(right.predicate.as_str()));
             let snapshot = EvidenceSnapshot::new(adjusted_evidence.clone());
             let evaluation = evaluator.evaluate_gate(gate, &snapshot);
             gate_outcomes.push((gate.gate_id.clone(), evaluation.status));

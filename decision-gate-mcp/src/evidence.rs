@@ -59,6 +59,7 @@ use crate::config::DecisionGateConfig;
 use crate::config::ProviderConfig;
 use crate::config::ProviderType;
 use crate::config::TrustPolicy;
+use crate::correlation::sanitize_client_correlation_id;
 
 // ============================================================================
 // SECTION: Constants
@@ -201,6 +202,7 @@ impl EvidenceProvider for FederatedEvidenceProvider {
         query: &EvidenceQuery,
         ctx: &EvidenceContext,
     ) -> Result<EvidenceResult, EvidenceError> {
+        let _ = sanitize_context_correlation_id(ctx)?;
         let provider_id = query.provider_id.as_str();
         let policy = self.inner.policies.get(provider_id).unwrap_or(&self.inner.default_policy);
         let mut result = self.inner.registry.query(query, ctx)?;
@@ -310,7 +312,8 @@ impl EvidenceProvider for McpProviderClient {
                 "context": ctx,
             }
         });
-        let request_id = request_id_for_context(ctx);
+        let correlation_id = sanitize_context_correlation_id(ctx)?;
+        let request_id = request_id_for_context(correlation_id.as_deref());
         let request = JsonRpcRequest::new("tools/call", params, request_id);
         let response = match &self.transport {
             McpTransport::Http {
@@ -321,7 +324,7 @@ impl EvidenceProvider for McpProviderClient {
                 url,
                 self.bearer_token.as_deref(),
                 &request,
-                ctx.correlation_id.as_ref().map(decision_gate_core::CorrelationId::as_str),
+                correlation_id.as_deref(),
             )?,
             McpTransport::Stdio {
                 process,
@@ -404,11 +407,19 @@ enum ToolContent {
     },
 }
 
-fn request_id_for_context(ctx: &EvidenceContext) -> Value {
-    if let Some(correlation_id) = ctx.correlation_id.as_ref() {
-        return Value::String(correlation_id.as_str().to_string());
+fn request_id_for_context(correlation_id: Option<&str>) -> Value {
+    if let Some(correlation_id) = correlation_id {
+        return Value::String(correlation_id.to_string());
     }
     Value::Number(serde_json::Number::from(JSON_RPC_ID_COUNTER.fetch_add(1, Ordering::Relaxed)))
+}
+
+/// Extracts and sanitizes the correlation ID from an evidence context.
+fn sanitize_context_correlation_id(ctx: &EvidenceContext) -> Result<Option<String>, EvidenceError> {
+    sanitize_client_correlation_id(
+        ctx.correlation_id.as_ref().map(decision_gate_core::CorrelationId::as_str),
+    )
+    .map_err(|_| EvidenceError::Provider("invalid correlation id".to_string()))
 }
 
 /// Executes a JSON-RPC tool call over HTTP.
@@ -423,7 +434,7 @@ fn call_http(
     if let Some(token) = bearer {
         builder = builder.bearer_auth(token);
     }
-    if let Some(value) = sanitize_header_value(correlation_id) {
+    if let Some(value) = correlation_id {
         builder = builder.header("x-correlation-id", value);
     }
     let mut response = builder.send().map_err(|err| map_http_send_error(&err))?;
@@ -538,39 +549,7 @@ fn read_http_body(
     Ok(buf)
 }
 
-/// Sanitizes a header value by enforcing ASCII tchars and length bounds.
-fn sanitize_header_value(value: Option<&str>) -> Option<String> {
-    let value = value?.trim();
-    if value.is_empty() || value.len() > 128 {
-        return None;
-    }
-    if !value.chars().all(|ch| ch.is_ascii() && is_tchar(ch)) {
-        return None;
-    }
-    Some(value.to_string())
-}
-
-/// Returns true when the character is a valid HTTP token character.
-const fn is_tchar(ch: char) -> bool {
-    ch.is_ascii_alphanumeric()
-        || matches!(
-            ch,
-            '!' | '#'
-                | '$'
-                | '%'
-                | '&'
-                | '\''
-                | '*'
-                | '+'
-                | '-'
-                | '.'
-                | '^'
-                | '_'
-                | '`'
-                | '|'
-                | '~'
-        )
-}
+// (header sanitization handled via crate::correlation)
 
 /// Maps reqwest send errors to stable provider error messages.
 fn map_http_send_error(error: &reqwest::Error) -> EvidenceError {

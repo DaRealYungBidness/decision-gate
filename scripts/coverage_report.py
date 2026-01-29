@@ -32,12 +32,14 @@ CategoryEntry = Dict[str, Any]
 
 
 def load_toml(path: Path) -> RegistryData:
+    """Read and parse a TOML file."""
     if not path.exists():
         raise FileNotFoundError(f"TOML file not found: {path}")
     return toml.loads(path.read_text(encoding="utf-8"))
 
 
 def render_table(headers: List[str], rows: List[List[str]]) -> str:
+    """Render a Markdown table from headers and rows."""
     line = "| " + " | ".join(headers) + " |"
     sep = "|" + "|".join([" --- " for _ in headers]) + "|"
     out = [line, sep]
@@ -47,6 +49,7 @@ def render_table(headers: List[str], rows: List[List[str]]) -> str:
 
 
 def generate_coverage_report(registry: RegistryData, gaps: RegistryData) -> str:
+    """Build the Markdown coverage report from registry and gaps data."""
     tests: List[TestEntry] = list(registry.get("tests", []))
     categories: Dict[str, CategoryEntry] = cast(
         Dict[str, CategoryEntry], registry.get("categories", {})
@@ -122,6 +125,7 @@ def generate_coverage_report(registry: RegistryData, gaps: RegistryData) -> str:
 
 
 def generate_infrastructure_guide(registry: RegistryData) -> str:
+    """Build the Markdown infrastructure guide from registry data."""
     categories: Dict[str, CategoryEntry] = cast(
         Dict[str, CategoryEntry], registry.get("categories", {})
     )
@@ -180,6 +184,7 @@ Runpack tests also emit `runpack/` with exported artifacts.
 
 
 def main() -> None:
+    """CLI entry point for documentation generation."""
     parser = argparse.ArgumentParser(description="Generate Decision Gate test coverage docs")
     parser.add_argument("action", choices=["generate"], help="Generate documentation")
     parser.parse_args()

@@ -42,14 +42,14 @@ impl MessageArg {
 const CATALOG_ITEMS: &[(&str, &str)] = &[
     ("main.version", "decision-gate {version}"),
     (
-        "serve.warn.local_only",
-        "Warning: decision-gate is running in local-only, no-auth mode. Do not expose this \
-         service to the network.",
+        "serve.warn.local_only_auth",
+        "Warning: server.auth.mode=local_only. Only stdio and loopback HTTP/SSE are safe in this \
+         mode.",
     ),
     (
-        "serve.warn.transport_local_only",
-        "Warning: HTTP/SSE transports are supported for loopback only until auth/policy \
-         enforcement is implemented.",
+        "serve.warn.loopback_only_transport",
+        "Note: HTTP/SSE is bound to loopback. Use --allow-non-loopback or {env}=1 with TLS + auth \
+         to expose it.",
     ),
     ("output.stream.stdout", "stdout"),
     ("output.stream.stderr", "stderr"),
@@ -64,9 +64,52 @@ const CATALOG_ITEMS: &[(&str, &str)] = &[
     ("serve.config.load_failed", "Failed to load config: {error}"),
     ("serve.bind.parse_failed", "Invalid bind address {bind}: {error}"),
     (
-        "serve.bind.non_loopback",
-        "Refusing to bind to non-loopback address {bind} (auth/policy not configured).",
+        "serve.bind.non_loopback_opt_in",
+        "Refusing to bind to non-loopback address {bind}. Set --allow-non-loopback or {env}=1 to \
+         opt in.",
     ),
+    (
+        "serve.bind.non_loopback_auth_required",
+        "Refusing to bind to {bind}: server.auth.mode must be bearer_token or mtls for \
+         non-loopback.",
+    ),
+    (
+        "serve.bind.non_loopback_tls_required",
+        "Refusing to bind to {bind}: server.tls must be configured for non-loopback.",
+    ),
+    (
+        "serve.bind.non_loopback_mtls_client_ca_required",
+        "Refusing to bind to {bind}: mTLS requires tls.client_ca_path.",
+    ),
+    (
+        "serve.bind.non_loopback_mtls_client_cert_required",
+        "Refusing to bind to {bind}: mTLS requires tls.require_client_cert=true.",
+    ),
+    (
+        "serve.bind.allow_env_invalid",
+        "Invalid value for {env}: {value}. Expected true/false/1/0/yes/no/on/off.",
+    ),
+    ("serve.warn.network.header", "SECURITY WARNING: Decision Gate is exposed on the network."),
+    ("serve.warn.network.bind", "Bind: {bind}"),
+    ("serve.warn.network.auth", "Auth mode: {mode}"),
+    ("serve.warn.network.tls", "TLS: {tls}"),
+    ("serve.warn.network.audit", "Audit logging: {status}"),
+    ("serve.warn.network.rate_limit", "Rate limiting: {status}"),
+    (
+        "serve.warn.network.footer",
+        "Verify firewall rules and credentials; this exposure is intentional.",
+    ),
+    ("serve.warn.network.enabled", "enabled"),
+    ("serve.warn.network.disabled", "disabled"),
+    (
+        "serve.warn.network.tls_enabled",
+        "enabled (client cert {client_cert}, client CA {client_ca})",
+    ),
+    ("serve.warn.network.tls_disabled", "disabled"),
+    ("serve.warn.network.required", "required"),
+    ("serve.warn.network.not_required", "not required"),
+    ("serve.warn.network.present", "present"),
+    ("serve.warn.network.missing", "missing"),
     ("serve.init_failed", "Failed to initialize MCP server: {error}"),
     ("serve.failed", "MCP server failed: {error}"),
     ("runpack.export.read_failed", "Failed to read {kind} file at {path}: {error}"),

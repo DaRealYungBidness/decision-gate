@@ -141,7 +141,9 @@ These anchors must be captured in runpacks and used by offline verification.
 - Correlation IDs are logged and captured in tool transcripts.
 
 ### Sanitization
-Client-provided correlation IDs are sanitized before external propagation.
+Client-provided correlation IDs are **unsafe** and strictly validated at
+ingress. Invalid values are rejected; only sanitized IDs propagate to ASC
+providers. Server-issued correlation IDs are always present for audit trails.
 
 ## Runpack Verification
 Runpack verification must confirm:

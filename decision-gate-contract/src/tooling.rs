@@ -33,6 +33,9 @@ use crate::types::ToolName;
 // ============================================================================
 
 /// Returns the canonical MCP tool contracts.
+///
+/// The order is intentional: it is preserved in generated docs/SDKs to keep
+/// diffs stable across releases. Append new tools at the end.
 #[must_use]
 pub fn tool_contracts() -> Vec<ToolContract> {
     vec![
@@ -1672,6 +1675,9 @@ fn scenario_summary_schema() -> Value {
 // ============================================================================
 
 /// Builds a tool contract from the provided schema payloads.
+///
+/// Notes and examples are surfaced in SDK docstrings and generated docs, so
+/// keep them user-facing and implementation-agnostic.
 #[must_use]
 fn build_tool_contract(
     name: ToolName,
