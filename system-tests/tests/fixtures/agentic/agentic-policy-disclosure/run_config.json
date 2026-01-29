@@ -1,0 +1,8 @@
+{
+  "scenario_id": "agentic-policy-disclosure",
+  "run_id": "run-disclosure-1",
+  "tenant_id": 1,
+  "namespace_id": 1,
+  "policy_tags": [],
+  "dispatch_targets": []
+}

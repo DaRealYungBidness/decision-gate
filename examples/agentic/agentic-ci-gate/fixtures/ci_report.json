@@ -1,0 +1,9 @@
+{
+  "tests": {
+    "passed": true,
+    "total": 120
+  },
+  "coverage": {
+    "percent": 92.5
+  }
+}

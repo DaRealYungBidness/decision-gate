@@ -59,3 +59,6 @@ __pycache__/
 /Docs/testing/MCP/results/run-2025-12-22-codex/artifacts
 /.venv
 /.venv-runpack
+
+# Node.js dependencies
+node_modules/

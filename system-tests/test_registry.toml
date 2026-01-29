@@ -17,6 +17,7 @@ security = { description = "Disclosure and policy enforcement", quick = true }
 contract = { description = "Schema and contract conformance", quick = true }
 operations = { description = "Startup and configuration validation", quick = false }
 performance = { description = "Performance smoke checks", quick = false }
+agentic = { description = "Agentic flow harness scenarios", quick = false }
 
 # =============================================================================
 # P0: Must Pass
@@ -1046,6 +1047,16 @@ files = ["system-tests/tests/suites/cli_workflows.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact cli_workflows::cli_workflows_end_to_end"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "cli.serve.stdout.log", "cli.serve.stderr.log", "cli.runpack.export.stdout.log", "cli.runpack.export.stderr.log", "cli.runpack.verify.stdout.log", "cli.runpack.verify.stderr.log", "cli.authoring.validate.stdout.log", "cli.authoring.validate.stderr.log", "cli.authoring.normalize.stdout.log", "cli.authoring.normalize.stderr.log", "cli.config.validate.stdout.log", "cli.config.validate.stderr.log", "cli.interop.stdout.log", "cli.interop.stderr.log"]
 estimated_runtime_sec = 30
+
+[[tests]]
+name = "agentic_flow_harness_deterministic"
+category = "agentic"
+priority = "P1"
+description = "Run canonical agentic scenarios across projections (raw MCP + SDKs/adapters)."
+files = ["system-tests/tests/suites/agentic_harness.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test agentic -- --exact agentic_harness::agentic_flow_harness_deterministic"
+artifacts = ["summary.json", "summary.md", "agentic_results.json"]
+estimated_runtime_sec = 120
 
 [[tests]]
 name = "cli_rejects_non_loopback_bind"

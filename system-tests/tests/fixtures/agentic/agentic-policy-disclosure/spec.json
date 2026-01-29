@@ -1,0 +1,92 @@
+{
+  "scenario_id": "agentic-policy-disclosure",
+  "namespace_id": 1,
+  "spec_version": "v1",
+  "default_tenant_id": 1,
+  "policies": [],
+  "schemas": [],
+  "predicates": [
+    {
+      "predicate": "disclosure_ready",
+      "query": {
+        "provider_id": "json",
+        "predicate": "path",
+        "params": {
+          "file": "disclosure.json",
+          "jsonpath": "$.approved"
+        }
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": []
+    },
+    {
+      "predicate": "after_release",
+      "query": {
+        "provider_id": "time",
+        "predicate": "after",
+        "params": {
+          "timestamp": 0
+        }
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": []
+    }
+  ],
+  "stages": [
+    {
+      "stage_id": "check",
+      "entry_packets": [],
+      "gates": [
+        {
+          "gate_id": "gate-disclosure",
+          "requirement": {
+            "And": [
+              {
+                "Predicate": "disclosure_ready"
+              },
+              {
+                "Predicate": "after_release"
+              }
+            ]
+          }
+        }
+      ],
+      "advance_to": {
+        "kind": "fixed",
+        "stage_id": "disclose"
+      },
+      "timeout": null,
+      "on_timeout": "fail"
+    },
+    {
+      "stage_id": "disclose",
+      "entry_packets": [
+        {
+          "packet_id": "packet-disclosure",
+          "schema_id": "schema-disclosure",
+          "content_type": "application/json",
+          "visibility_labels": [
+            "public"
+          ],
+          "policy_tags": [],
+          "expiry": null,
+          "payload": {
+            "kind": "json",
+            "value": {
+              "message": "release-approved",
+              "owner": "decision-gate"
+            }
+          }
+        }
+      ],
+      "gates": [],
+      "advance_to": {
+        "kind": "terminal"
+      },
+      "timeout": null,
+      "on_timeout": "fail"
+    }
+  ]
+}

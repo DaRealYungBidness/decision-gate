@@ -16,6 +16,10 @@ from pydantic import BaseModel, Field, PrivateAttr
 from decision_gate import (
     DecisionGateClient,
     validate_precheck_request,
+    validate_runpack_export_request,
+    validate_scenario_define_request,
+    validate_scenario_start_request,
+    validate_scenario_trigger_request,
     validate_scenario_next_request,
     validate_scenario_status_request,
 )
@@ -61,6 +65,22 @@ class _ScenarioNextInput(BaseModel):
 
 class _ScenarioStatusInput(BaseModel):
     request: Dict[str, Any] = Field(..., description="Decision Gate scenario_status request.")
+
+
+class _ScenarioDefineInput(BaseModel):
+    request: Dict[str, Any] = Field(..., description="Decision Gate scenario_define request.")
+
+
+class _ScenarioStartInput(BaseModel):
+    request: Dict[str, Any] = Field(..., description="Decision Gate scenario_start request.")
+
+
+class _ScenarioTriggerInput(BaseModel):
+    request: Dict[str, Any] = Field(..., description="Decision Gate scenario_trigger request.")
+
+
+class _RunpackExportInput(BaseModel):
+    request: Dict[str, Any] = Field(..., description="Decision Gate runpack_export request.")
 
 
 class DecisionGatePrecheckTool(BaseTool):
@@ -117,6 +137,78 @@ class DecisionGateScenarioStatusTool(BaseTool):
         return _as_json(self._client.scenario_status(request))
 
 
+class DecisionGateScenarioDefineTool(BaseTool):
+    name: str = "decision_gate_scenario_define"
+    description: str = "Register a ScenarioSpec before starting a run."
+    args_schema: Type[BaseModel] = _ScenarioDefineInput
+
+    _client: DecisionGateClient = PrivateAttr()
+    _validate: bool = PrivateAttr(default=False)
+
+    def __init__(self, client: DecisionGateClient, validate: bool = False, **kwargs):
+        super().__init__(**kwargs)
+        self._client = client
+        self._validate = validate
+
+    def _run(self, request: Dict[str, Any]) -> str:
+        _maybe_validate(self._validate, validate_scenario_define_request, request)
+        return _as_json(self._client.scenario_define(request))
+
+
+class DecisionGateScenarioStartTool(BaseTool):
+    name: str = "decision_gate_scenario_start"
+    description: str = "Start a new run for a registered scenario."
+    args_schema: Type[BaseModel] = _ScenarioStartInput
+
+    _client: DecisionGateClient = PrivateAttr()
+    _validate: bool = PrivateAttr(default=False)
+
+    def __init__(self, client: DecisionGateClient, validate: bool = False, **kwargs):
+        super().__init__(**kwargs)
+        self._client = client
+        self._validate = validate
+
+    def _run(self, request: Dict[str, Any]) -> str:
+        _maybe_validate(self._validate, validate_scenario_start_request, request)
+        return _as_json(self._client.scenario_start(request))
+
+
+class DecisionGateScenarioTriggerTool(BaseTool):
+    name: str = "decision_gate_scenario_trigger"
+    description: str = "Trigger a scenario evaluation with an external event."
+    args_schema: Type[BaseModel] = _ScenarioTriggerInput
+
+    _client: DecisionGateClient = PrivateAttr()
+    _validate: bool = PrivateAttr(default=False)
+
+    def __init__(self, client: DecisionGateClient, validate: bool = False, **kwargs):
+        super().__init__(**kwargs)
+        self._client = client
+        self._validate = validate
+
+    def _run(self, request: Dict[str, Any]) -> str:
+        _maybe_validate(self._validate, validate_scenario_trigger_request, request)
+        return _as_json(self._client.scenario_trigger(request))
+
+
+class DecisionGateRunpackExportTool(BaseTool):
+    name: str = "decision_gate_runpack_export"
+    description: str = "Export an audit-grade runpack for a scenario run."
+    args_schema: Type[BaseModel] = _RunpackExportInput
+
+    _client: DecisionGateClient = PrivateAttr()
+    _validate: bool = PrivateAttr(default=False)
+
+    def __init__(self, client: DecisionGateClient, validate: bool = False, **kwargs):
+        super().__init__(**kwargs)
+        self._client = client
+        self._validate = validate
+
+    def _run(self, request: Dict[str, Any]) -> str:
+        _maybe_validate(self._validate, validate_runpack_export_request, request)
+        return _as_json(self._client.runpack_export(request))
+
+
 def build_decision_gate_tools(
     client: DecisionGateClient,
     *,
@@ -127,6 +219,10 @@ def build_decision_gate_tools(
         DecisionGatePrecheckTool(client=client, validate=validate),
         DecisionGateScenarioNextTool(client=client, validate=validate),
         DecisionGateScenarioStatusTool(client=client, validate=validate),
+        DecisionGateScenarioDefineTool(client=client, validate=validate),
+        DecisionGateScenarioStartTool(client=client, validate=validate),
+        DecisionGateScenarioTriggerTool(client=client, validate=validate),
+        DecisionGateRunpackExportTool(client=client, validate=validate),
     ]
 
 

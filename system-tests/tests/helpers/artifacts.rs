@@ -33,7 +33,8 @@ struct TestSummary {
 fn default_run_root(test_name: &str) -> PathBuf {
     static RUN_COUNTER: AtomicU64 = AtomicU64::new(1);
     let run_id = RUN_COUNTER.fetch_add(1, Ordering::Relaxed);
-    PathBuf::from("target/system-tests").join(format!("run_{run_id}")).join(test_name)
+    let pid = std::process::id();
+    PathBuf::from("target/system-tests").join(format!("run_{pid}_{run_id}")).join(test_name)
 }
 
 /// Artifact manager for a single system-test.
@@ -47,7 +48,28 @@ impl TestArtifacts {
     pub fn new(test_name: &str) -> io::Result<Self> {
         let config = SystemTestConfig::load().map_err(io::Error::other)?;
         let root = config.run_root.unwrap_or_else(|| default_run_root(test_name));
+        if root.exists() && !config.allow_overwrite {
+            let marker = root.join(".system-test-run");
+            let summary_json = root.join("summary.json");
+            let summary_md = root.join("summary.md");
+            let transcript = root.join("tool_transcript.json");
+            if marker.exists()
+                || summary_json.exists()
+                || summary_md.exists()
+                || transcript.exists()
+            {
+                return Err(io::Error::other(format!(
+                    "system-test run root already exists: {} (set \
+                     DECISION_GATE_SYSTEM_TEST_ALLOW_OVERWRITE=1 to reuse)",
+                    root.display()
+                )));
+            }
+        }
         fs::create_dir_all(&root)?;
+        let marker = root.join(".system-test-run");
+        if !marker.exists() {
+            fs::write(&marker, b"decision-gate system-test run root\n")?;
+        }
         Ok(Self {
             root,
         })
@@ -165,4 +187,80 @@ fn summary_markdown(summary: &TestSummary) -> String {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Mutex;
+
+    use system_tests::config::SystemTestEnv;
+    use tempfile::TempDir;
+
+    use super::*;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    struct EnvGuard {
+        entries: Vec<(&'static str, Option<String>)>,
+    }
+
+    impl EnvGuard {
+        fn new(names: &[&'static str]) -> Self {
+            let entries = names.iter().map(|name| (*name, std::env::var(*name).ok())).collect();
+            Self {
+                entries,
+            }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            for (name, value) in self.entries.drain(..) {
+                match value {
+                    Some(value) => std::env::set_var(name, value),
+                    None => std::env::remove_var(name),
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn run_root_fails_closed_when_marker_exists() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard = EnvGuard::new(&[
+            SystemTestEnv::RunRoot.as_str(),
+            SystemTestEnv::AllowOverwrite.as_str(),
+        ]);
+
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path().join("run_root");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join(".system-test-run"), "existing\n").unwrap();
+
+        std::env::set_var(SystemTestEnv::RunRoot.as_str(), root.to_string_lossy().as_ref());
+        std::env::remove_var(SystemTestEnv::AllowOverwrite.as_str());
+
+        let err = TestArtifacts::new("fail_closed").unwrap_err();
+        assert!(err.to_string().contains("system-test run root already exists"));
+    }
+
+    #[test]
+    fn run_root_allows_overwrite_when_flag_set() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard = EnvGuard::new(&[
+            SystemTestEnv::RunRoot.as_str(),
+            SystemTestEnv::AllowOverwrite.as_str(),
+        ]);
+
+        let temp_dir = TempDir::new().unwrap();
+        let root = temp_dir.path().join("run_root");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join(".system-test-run"), "existing\n").unwrap();
+
+        std::env::set_var(SystemTestEnv::RunRoot.as_str(), root.to_string_lossy().as_ref());
+        std::env::set_var(SystemTestEnv::AllowOverwrite.as_str(), "1");
+
+        let artifacts = TestArtifacts::new("allow_overwrite").unwrap();
+        assert_eq!(artifacts.root(), root.as_path());
+    }
 }

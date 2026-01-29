@@ -362,12 +362,17 @@ async fn run_sdk_script(
         .map_err(|err| format!("fixture path missing: {} ({err})", script.display()))?;
     if script.extension().and_then(|ext| ext.to_str()) == Some("ts") {
         let args = vec!["--experimental-strip-types".to_string(), script.display().to_string()];
-        let node_options = match std::env::var("NODE_OPTIONS") {
+        let mut node_options = match std::env::var("NODE_OPTIONS") {
             Ok(existing) if !existing.is_empty() => {
                 format!("{existing} --unhandled-rejections=strict")
             }
             _ => "--unhandled-rejections=strict".to_string(),
         };
+        let loader_path = fixture_path("tests/fixtures/ts_loader.mjs");
+        if let Ok(loader_path) = loader_path.canonicalize() {
+            node_options =
+                format!("{node_options} --experimental-loader={}", loader_path.display());
+        }
         envs.insert("NODE_OPTIONS".to_string(), node_options);
         return Ok(
             sdk_runner::run_script(interpreter, &args, &envs, Duration::from_secs(20)).await?

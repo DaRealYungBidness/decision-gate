@@ -1,0 +1,9 @@
+# system-tests/requirements-agentic.txt
+# =============================================================================
+# Description: Pinned third-party dependencies for agentic harness drivers.
+# Purpose: Stabilize adapter driver environments for deterministic testing.
+# =============================================================================
+autogen-core==0.7.5
+crewai==1.6.1
+langchain-core==1.2.7
+openai-agents==0.7.0

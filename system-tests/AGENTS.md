@@ -72,6 +72,10 @@ System-tests write artifacts beneath the run root:
 - `DECISION_GATE_SYSTEM_TEST_HTTP_BIND`: Optional bind override for MCP server.
 - `DECISION_GATE_SYSTEM_TEST_PROVIDER_URL`: Optional external provider URL.
 - `DECISION_GATE_SYSTEM_TEST_TIMEOUT_SEC`: Optional timeout override.
+- `DECISION_GATE_SYSTEM_TEST_ALLOW_OVERWRITE`: Allow reuse of existing run roots.
+- `DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT`: Optional fixed port for HTTP stub tests.
+- `DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_BASE`: Base port for deterministic HTTP stub allocation.
+- `DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_RANGE`: Port range for deterministic HTTP stub allocation.
 
 ## Running Tests
 System-tests are feature-gated to avoid running by default in unit-test passes.
@@ -84,6 +88,7 @@ cargo nextest run -p system-tests --features system-tests
 ## Formatting and Hygiene
 - Format with `cargo +nightly fmt --all` (required).
 - Keep test data deterministic. Do not call wall-clock time in tests.
+- Run roots must be unique; reuse requires `DECISION_GATE_SYSTEM_TEST_ALLOW_OVERWRITE=1`.
 - Use ASCII in documentation unless a file already uses Unicode.
 
 ## References

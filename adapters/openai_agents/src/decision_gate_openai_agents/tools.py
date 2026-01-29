@@ -10,10 +10,15 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Optional
 
 from agents import function_tool
+from inspect import signature
 
 from decision_gate import (
     DecisionGateClient,
     validate_precheck_request,
+    validate_runpack_export_request,
+    validate_scenario_define_request,
+    validate_scenario_start_request,
+    validate_scenario_trigger_request,
     validate_scenario_next_request,
     validate_scenario_status_request,
 )
@@ -22,6 +27,25 @@ from decision_gate import (
 def _maybe_validate(enabled: bool, validator, payload: Dict[str, Any]) -> None:
     if enabled:
         validator(payload)
+
+
+def _dg_function_tool(name: str):
+    """Return a function_tool decorator compatible with multiple SDK versions."""
+    try:
+        params = signature(function_tool).parameters
+        kwargs = {}
+        if "name" in params:
+            kwargs["name"] = name
+        elif "name_override" in params:
+            kwargs["name_override"] = name
+        if "strict_mode" in params:
+            kwargs["strict_mode"] = False
+        if kwargs:
+            return function_tool(**kwargs)
+    except (TypeError, ValueError):
+        # Fall back to default decorator when signature introspection fails.
+        pass
+    return function_tool()
 
 
 @dataclass(frozen=True)
@@ -52,28 +76,56 @@ def build_decision_gate_tools(
 ) -> List[object]:
     """Return OpenAI Agents function tools for core Decision Gate operations."""
 
-    @function_tool(name="decision_gate_precheck")
+    @_dg_function_tool("decision_gate_precheck")
     def decision_gate_precheck(request: Dict[str, Any]) -> Dict[str, Any]:
         """Run a Decision Gate precheck without mutating run state."""
         _maybe_validate(validate, validate_precheck_request, request)
         return client.precheck(request)
 
-    @function_tool(name="decision_gate_scenario_next")
+    @_dg_function_tool("decision_gate_scenario_next")
     def decision_gate_scenario_next(request: Dict[str, Any]) -> Dict[str, Any]:
         """Advance a Decision Gate run to the next stage if gates pass."""
         _maybe_validate(validate, validate_scenario_next_request, request)
         return client.scenario_next(request)
 
-    @function_tool(name="decision_gate_scenario_status")
+    @_dg_function_tool("decision_gate_scenario_status")
     def decision_gate_scenario_status(request: Dict[str, Any]) -> Dict[str, Any]:
         """Fetch current Decision Gate run status without mutation."""
         _maybe_validate(validate, validate_scenario_status_request, request)
         return client.scenario_status(request)
 
+    @_dg_function_tool("decision_gate_scenario_define")
+    def decision_gate_scenario_define(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Register a ScenarioSpec before starting a run."""
+        _maybe_validate(validate, validate_scenario_define_request, request)
+        return client.scenario_define(request)
+
+    @_dg_function_tool("decision_gate_scenario_start")
+    def decision_gate_scenario_start(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Start a new run for a registered scenario."""
+        _maybe_validate(validate, validate_scenario_start_request, request)
+        return client.scenario_start(request)
+
+    @_dg_function_tool("decision_gate_scenario_trigger")
+    def decision_gate_scenario_trigger(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Trigger a scenario evaluation with an external event."""
+        _maybe_validate(validate, validate_scenario_trigger_request, request)
+        return client.scenario_trigger(request)
+
+    @_dg_function_tool("decision_gate_runpack_export")
+    def decision_gate_runpack_export(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Export an audit-grade runpack for a scenario run."""
+        _maybe_validate(validate, validate_runpack_export_request, request)
+        return client.runpack_export(request)
+
     return [
         decision_gate_precheck,
         decision_gate_scenario_next,
         decision_gate_scenario_status,
+        decision_gate_scenario_define,
+        decision_gate_scenario_start,
+        decision_gate_scenario_trigger,
+        decision_gate_runpack_export,
     ]
 
 

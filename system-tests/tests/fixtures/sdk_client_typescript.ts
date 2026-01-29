@@ -6,7 +6,7 @@
 // Dependencies: Decision Gate SDK, fetch API
 // ============================================================================
 
-import { DecisionGateClient, DecisionGateTransportError } from "../../sdks/typescript/src/index.ts";
+import { DecisionGateClient, DecisionGateTransportError } from "../../../sdks/typescript/src/index.ts";
 
 function loadEnvJson(name: string): unknown {
   const value = process.env[name];

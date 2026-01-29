@@ -1,0 +1,79 @@
+{
+  "scenario_id": "agentic-policy-fetch",
+  "namespace_id": 1,
+  "spec_version": "v1",
+  "default_tenant_id": 1,
+  "policies": [],
+  "schemas": [],
+  "predicates": [
+    {
+      "predicate": "fetch_allowed",
+      "query": {
+        "provider_id": "env",
+        "predicate": "get",
+        "params": {
+          "key": "FETCH_ALLOWED"
+        }
+      },
+      "comparator": "equals",
+      "expected": "true",
+      "policy_tags": []
+    },
+    {
+      "predicate": "fetch_status",
+      "query": {
+        "provider_id": "http",
+        "predicate": "status",
+        "params": {
+          "url": "{{HTTP_BASE_URL}}/fetch.json"
+        }
+      },
+      "comparator": "equals",
+      "expected": 200,
+      "policy_tags": []
+    },
+    {
+      "predicate": "policy_allowed",
+      "query": {
+        "provider_id": "json",
+        "predicate": "path",
+        "params": {
+          "file": "fetch_policy.json",
+          "jsonpath": "$.allowed"
+        }
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": []
+    }
+  ],
+  "stages": [
+    {
+      "stage_id": "main",
+      "entry_packets": [],
+      "gates": [
+        {
+          "gate_id": "gate-fetch",
+          "requirement": {
+            "And": [
+              {
+                "Predicate": "fetch_allowed"
+              },
+              {
+                "Predicate": "fetch_status"
+              },
+              {
+                "Predicate": "policy_allowed"
+              }
+            ]
+          }
+        }
+      ],
+      "advance_to": {
+        "kind": "terminal"
+      },
+      "timeout": null,
+      "on_timeout": "fail"
+    }
+  ]
+}

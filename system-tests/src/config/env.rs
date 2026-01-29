@@ -32,6 +32,8 @@ pub enum SystemTestEnv {
     ProviderUrl,
     /// Optional timeout override (seconds).
     TimeoutSeconds,
+    /// Allow reusing an existing run root.
+    AllowOverwrite,
 }
 
 impl SystemTestEnv {
@@ -43,6 +45,7 @@ impl SystemTestEnv {
             Self::HttpBind => "DECISION_GATE_SYSTEM_TEST_HTTP_BIND",
             Self::ProviderUrl => "DECISION_GATE_SYSTEM_TEST_PROVIDER_URL",
             Self::TimeoutSeconds => "DECISION_GATE_SYSTEM_TEST_TIMEOUT_SEC",
+            Self::AllowOverwrite => "DECISION_GATE_SYSTEM_TEST_ALLOW_OVERWRITE",
         }
     }
 }
@@ -62,6 +65,8 @@ pub struct SystemTestConfig {
     pub provider_url: Option<String>,
     /// Optional timeout override.
     pub timeout: Option<Duration>,
+    /// Allow reusing an existing run root.
+    pub allow_overwrite: bool,
 }
 
 impl SystemTestConfig {
@@ -77,11 +82,15 @@ impl SystemTestConfig {
         let timeout = read_env_strict(SystemTestEnv::TimeoutSeconds.as_str())?
             .and_then(|value| value.parse::<u64>().ok())
             .map(Duration::from_secs);
+        let allow_overwrite = read_env_strict(SystemTestEnv::AllowOverwrite.as_str())?
+            .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
         Ok(Self {
             run_root,
             http_bind,
             provider_url,
             timeout,
+            allow_overwrite,
         })
     }
 }

@@ -37,6 +37,8 @@ publishing is a separate, explicit decision and is not part of this plan.
    test harness (planned).
 5. **Security-by-default**: unsafe defaults are forbidden; opt-ins must be
    explicit and loudly documented.
+6. **Integration proof, not promises**: the agentic flow harness must validate
+   real scenarios across every projection (raw MCP + SDKs + adapters).
 
 ---
 
@@ -48,6 +50,7 @@ publishing is a separate, explicit decision and is not part of this plan.
 - Example suites (Python + TypeScript)
 - Framework adapters (LangChain, CrewAI, AutoGen, OpenAI Agents SDK)
 - System-test gating for all SDKs and examples
+- Agentic flow harness + scenario library (deterministic + live modes)
 - Packaging dry-run checks (no publishing)
 - Documentation updates aligned to reality
 
@@ -175,6 +178,29 @@ Acceptance Criteria:
 
 ---
 
+### Milestone 7 — Agentic Flow Harness (Deterministic + Live)
+
+**Goal:** Prove ecosystem integration by running canonical scenarios across
+raw MCP, SDKs, and framework adapters.
+
+Status: **Deterministic implemented; live-mode pending**.
+
+Deliverables:
+- Deterministic harness and scenario registry in system-tests.
+- Canonical scenario packs mirrored into `examples/agentic/`.
+- Cross-driver invariance check (runpack hash parity across projections).
+- Live-mode harness (report-only) with:
+  - pluggable LLM providers
+  - allowlisted network access
+  - transcript and artifact capture
+
+Acceptance Criteria:
+- Deterministic scenarios pass across all drivers.
+- Runpack hashes match across projections and OS for deterministic mode.
+- Live-mode runs are opt-in, report-only, and emit transcripts + runpacks.
+
+---
+
 ## World-Class Quality Bars
 
 **Ergonomics**
@@ -215,6 +241,10 @@ Acceptance Criteria:
 - Run framework adapter examples in an isolated venv with external deps.
 - Treat as opt-in gating due to third-party dependency footprint.
 
+5) **Agentic flow harness**
+- Deterministic harness is gating: scenario registry runs across projections.
+- Live-mode harness is report-only: transcripts + artifacts for analysis.
+
 ---
 
 ## Local CI Entrypoints
@@ -225,6 +255,8 @@ Acceptance Criteria:
 - `scripts/verify_all.sh --package-dry-run` — run packaging verification.
 - `scripts/adapter_tests.sh` — run adapter examples in an isolated venv (external deps).
 - `scripts/verify_all.sh --adapter-tests=...` — run adapter verification.
+- `scripts/agentic_harness.sh` — run the deterministic agentic flow harness.
+- `scripts/agentic_harness_bootstrap.sh` — install harness driver deps.
 
 ---
 
@@ -237,6 +269,7 @@ See `Docs/roadmap/decision_gate_publish_readiness_checklist.md`.
 - [ ] Docs updated and reviewed.
 - [ ] Security review complete (no unsafe defaults).
 - [ ] Manual review sign-off.
+- [ ] Agentic harness passes deterministically across drivers.
 
 ---
 

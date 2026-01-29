@@ -14,6 +14,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SYSTEM_TESTS="none"
 PACKAGE_DRY_RUN="none"
 ADAPTER_TESTS="none"
+AGENTIC_HARNESS="none"
 
 print_usage() {
     cat <<EOF
@@ -33,6 +34,7 @@ Options:
   --adapter-tests          Run all adapter tests via scripts/adapter_tests.sh.
   --adapter-tests=LIST     Run adapter tests for a comma-separated list
                            (langchain,crewai,autogen,openai_agents).
+  --agentic-harness        Run the agentic flow harness (deterministic mode).
   -h, --help               Show this help message.
 EOF
 }
@@ -61,6 +63,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --adapter-tests=*)
             ADAPTER_TESTS="${1#*=}"
+            shift
+            ;;
+        --agentic-harness)
+            AGENTIC_HARNESS="deterministic"
             shift
             ;;
         -h|--help)
@@ -151,6 +157,10 @@ if [[ "$ADAPTER_TESTS" != "none" ]]; then
             run "$SCRIPT_DIR/adapter_tests.sh" --frameworks="$ADAPTER_TESTS"
             ;;
     esac
+fi
+
+if [[ "$AGENTIC_HARNESS" != "none" ]]; then
+    run "$SCRIPT_DIR/agentic_harness.sh" --mode="$AGENTIC_HARNESS"
 fi
 
 echo "Verification complete."

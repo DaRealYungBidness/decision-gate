@@ -1,0 +1,96 @@
+{
+  "scenario_id": "agentic-ci-gate",
+  "namespace_id": 1,
+  "spec_version": "v1",
+  "default_tenant_id": 1,
+  "policies": [],
+  "schemas": [],
+  "predicates": [
+    {
+      "predicate": "env_is_prod",
+      "query": {
+        "provider_id": "env",
+        "predicate": "get",
+        "params": {
+          "key": "DEPLOY_ENV"
+        }
+      },
+      "comparator": "equals",
+      "expected": "production",
+      "policy_tags": []
+    },
+    {
+      "predicate": "tests_pass",
+      "query": {
+        "provider_id": "json",
+        "predicate": "path",
+        "params": {
+          "file": "ci_report.json",
+          "jsonpath": "$.tests.passed"
+        }
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": []
+    },
+    {
+      "predicate": "coverage_ok",
+      "query": {
+        "provider_id": "json",
+        "predicate": "path",
+        "params": {
+          "file": "ci_report.json",
+          "jsonpath": "$.coverage.percent"
+        }
+      },
+      "comparator": "greater_than_or_equal",
+      "expected": 90,
+      "policy_tags": []
+    },
+    {
+      "predicate": "after_freeze",
+      "query": {
+        "provider_id": "time",
+        "predicate": "after",
+        "params": {
+          "timestamp": 0
+        }
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": []
+    }
+  ],
+  "stages": [
+    {
+      "stage_id": "main",
+      "entry_packets": [],
+      "gates": [
+        {
+          "gate_id": "gate-ci",
+          "requirement": {
+            "And": [
+              {
+                "Predicate": "env_is_prod"
+              },
+              {
+                "Predicate": "tests_pass"
+              },
+              {
+                "Predicate": "coverage_ok"
+              },
+              {
+                "Predicate": "after_freeze"
+              }
+            ]
+          }
+        }
+      ],
+      "advance_to": {
+        "kind": "terminal"
+      },
+      "timeout": null,
+      "on_timeout": "fail"
+    }
+  ]
+}

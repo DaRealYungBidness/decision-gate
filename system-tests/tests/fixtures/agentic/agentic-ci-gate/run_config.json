@@ -1,0 +1,8 @@
+{
+  "scenario_id": "agentic-ci-gate",
+  "run_id": "run-ci-1",
+  "tenant_id": 1,
+  "namespace_id": 1,
+  "policy_tags": [],
+  "dispatch_targets": []
+}

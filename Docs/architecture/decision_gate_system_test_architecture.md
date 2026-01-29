@@ -47,6 +47,11 @@ servers to validate transport correctness, auth behavior, and repository
 examples (which are treated as runnable system tests).
 [F:system-tests/README.md L10-L87]
 
+The agentic flow harness extends this model with canonical scenario packs that
+run across raw MCP, SDKs, and framework adapters. Scenario packs live under
+`system-tests/tests/fixtures/agentic/` and are mirrored into `examples/agentic/`
+for discoverability.
+
 ---
 
 ## System Test Contract
@@ -107,7 +112,13 @@ coverage gaps.
 
 Every system test writes deterministic artifacts under a per-test run root. The
 run root is supplied by `DECISION_GATE_SYSTEM_TEST_RUN_ROOT` and each test must
-emit canonical JSON artifacts plus a tool transcript.
+emit canonical JSON artifacts plus a tool transcript. Run roots must be unique
+and the harness fails closed if the target directory already exists unless
+`DECISION_GATE_SYSTEM_TEST_ALLOW_OVERWRITE=1` is set.
+
+Deterministic HTTP fixtures (for example the agentic harness HTTP stub) use
+stable, scenario-derived ports to prevent runpack hash drift; the port can be
+overridden via `DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT` when needed.
 [F:system-tests/README.md L74-L82][F:system-tests/AGENTS.md L63-L67]
 
 ## Execution Workflow
@@ -132,9 +143,14 @@ Tests should be registered and coverage docs regenerated when changes occur.
 | --- | --- | --- |
 | System test contract | `system-tests/AGENTS.md` | Determinism and audit requirements. |
 | Usage and workflow | `system-tests/README.md` | Running tests and artifact contract. |
+| Agentic harness bootstrap | `scripts/agentic_harness_bootstrap.sh` | Installs Python deps for agentic driver matrix. |
+| Agentic harness runner | `scripts/agentic_harness.sh` | Deterministic entry point for agentic flow harness. |
 | Coverage matrix | `system-tests/TEST_MATRIX.md` | P0/P1/P2 summary. |
 | Test registry | `system-tests/test_registry.toml` | Inventory + metadata. |
 | Gap tracking | `system-tests/test_gaps.toml` | Missing coverage + acceptance criteria. |
 | SDK system tests | `system-tests/tests/suites/sdk_client.rs` | Python + TypeScript SDK lifecycle + auth tests. |
 | SDK example tests | `system-tests/tests/suites/sdk_examples.rs` | Repository Python/TypeScript examples executed as system tests. |
 | SDK fixtures | `system-tests/tests/fixtures/` | Language-specific SDK driver scripts. |
+| Agentic scenario registry | `system-tests/tests/fixtures/agentic/scenario_registry.toml` | Canonical scenario inventory for the harness. |
+| Agentic scenario packs | `system-tests/tests/fixtures/agentic/` | Deterministic fixtures for agentic flows. |
+| Agentic harness suite | `system-tests/tests/suites/agentic_harness.rs` | Cross-projection scenario execution + invariance checks. |

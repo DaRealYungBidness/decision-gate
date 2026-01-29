@@ -86,6 +86,7 @@ non-MCP callers simply POST JSON-RPC directly.
 | **Client SDKs**                | Generated Python + TypeScript client SDKs in `sdks/` (JSON-RPC transport, generated tool methods/types, field-level docs, optional runtime validation helpers)                                                                                                                                                                            |
 | **Framework Adapters**         | In-repo Python adapters for LangChain, CrewAI, AutoGen, and OpenAI Agents SDK under `adapters/` (thin wrappers around the client SDK; not published yet)                                                                                                                                                                                |
 | **Adapter Test Harness**       | Opt-in adapter validation via `scripts/adapter_tests.sh` (spawns local server + runs framework examples in an isolated venv)                                                                                                                                                                                                           |
+| **Agentic Flow Harness**       | Canonical scenario library + deterministic multi-projection harness (`system-tests/tests/suites/agentic_harness.rs`, registry + packs under `system-tests/tests/fixtures/agentic/`, mirrored to `examples/agentic/`, entrypoint `scripts/agentic_harness.sh`)                                                                                                                                  |
 | **Built-in Providers**         | `time`, `env`, `json`, `http`                                                                                                                                                                                                                                                                                                            |
 | **CLI**                        | `serve`, `runpack export/verify`, `authoring validate/normalize`, `config validate`, `interop eval`                                                                                                                                                                                                                                      |
 | **Runpacks**                   | Deterministic artifact bundles with canonical hashing (RFC 8785 / JCS), manifest integrity, offline verification                                                                                                                                                                                                                         |
@@ -105,6 +106,7 @@ non-MCP callers simply POST JSON-RPC directly.
 | **No REST facade**                         | JSON-RPC is the protocol. There is no REST translation layer (by design).                                                                                                                                             |
 | **No marketplace presence**                | Nothing on PyPI, npm, crates.io (as a client), Zapier App Directory, or any package registry where developers discover tools.                                                                                                |
 | **No OpenAI-plugin manifest**              | Semantic Kernel and similar platforms can auto-import REST services that publish an OpenAI-style plugin manifest. DG cannot be consumed this way today.                                                                      |
+| **No live-mode agentic harness**           | Deterministic agentic harness exists, but live-mode (real LLMs + allowlisted network + transcripts) is not implemented yet.                                                                                                  |
 
 ### The Layer Model
 
@@ -126,6 +128,15 @@ Understanding how the pieces relate is essential for prioritizing work:
 
 Each layer wraps the one below it. **Nothing above the MCP server reimplements
 logic.** Every layer is a thin projection of the same core contract.
+
+### Integration Proof Surface: Agentic Flow Harness
+
+For ecosystem-scale credibility, DG must demonstrate integration **across all
+projections** with the same canonical scenarios. The agentic flow harness is
+the proof surface: a deterministic, registry-driven scenario library executed
+through raw MCP, SDKs, and framework adapters. It turns "we support X" into
+"X passes the same audited scenarios as everything else" and is therefore a
+core part of the integration strategy.
 
 ---
 

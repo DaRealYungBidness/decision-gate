@@ -14,6 +14,10 @@ from langchain_core.tools import BaseTool, tool
 from decision_gate import (
     DecisionGateClient,
     validate_precheck_request,
+    validate_runpack_export_request,
+    validate_scenario_define_request,
+    validate_scenario_start_request,
+    validate_scenario_trigger_request,
     validate_scenario_next_request,
     validate_scenario_status_request,
 )
@@ -70,10 +74,38 @@ def build_decision_gate_tools(
         _maybe_validate(validate, validate_scenario_status_request, request)
         return client.scenario_status(request)
 
+    @tool("decision_gate_scenario_define")
+    def decision_gate_scenario_define(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Register a ScenarioSpec before starting a run."""
+        _maybe_validate(validate, validate_scenario_define_request, request)
+        return client.scenario_define(request)
+
+    @tool("decision_gate_scenario_start")
+    def decision_gate_scenario_start(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Start a new run for a registered scenario."""
+        _maybe_validate(validate, validate_scenario_start_request, request)
+        return client.scenario_start(request)
+
+    @tool("decision_gate_scenario_trigger")
+    def decision_gate_scenario_trigger(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Trigger a scenario evaluation with an external event."""
+        _maybe_validate(validate, validate_scenario_trigger_request, request)
+        return client.scenario_trigger(request)
+
+    @tool("decision_gate_runpack_export")
+    def decision_gate_runpack_export(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Export an audit-grade runpack for a scenario run."""
+        _maybe_validate(validate, validate_runpack_export_request, request)
+        return client.runpack_export(request)
+
     return [
         decision_gate_precheck,
         decision_gate_scenario_next,
         decision_gate_scenario_status,
+        decision_gate_scenario_define,
+        decision_gate_scenario_start,
+        decision_gate_scenario_trigger,
+        decision_gate_runpack_export,
     ]
 
 

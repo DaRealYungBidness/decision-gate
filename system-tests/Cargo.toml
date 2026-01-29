@@ -107,3 +107,8 @@ required-features = ["system-tests"]
 name = "sdk_examples"
 path = "tests/sdk_examples.rs"
 required-features = ["system-tests"]
+
+[[test]]
+name = "agentic"
+path = "tests/agentic.rs"
+required-features = ["system-tests"]

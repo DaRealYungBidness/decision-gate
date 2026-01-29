@@ -6,7 +6,8 @@
 // Dependencies: fetch API, generated SDK surface
 // ============================================================================
 
-import { GeneratedDecisionGateClient, JsonValue } from "./_generated.js";
+import { GeneratedDecisionGateClient } from "./_generated.js";
+import type { JsonValue } from "./_generated.js";
 import {
   DecisionGateProtocolError,
   DecisionGateRpcError,

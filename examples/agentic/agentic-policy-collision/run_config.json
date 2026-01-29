@@ -1,0 +1,13 @@
+{
+  "scenario_id": "agentic-policy-collision",
+  "run_id": "run-policy-1",
+  "tenant_id": 1,
+  "namespace_id": 1,
+  "policy_tags": [],
+  "dispatch_targets": [
+    {
+      "kind": "agent",
+      "agent_id": "agent-audit"
+    }
+  ]
+}

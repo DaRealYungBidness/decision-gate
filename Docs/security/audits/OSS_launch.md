@@ -94,3 +94,26 @@ None.
    - Status: Closed (2026-01-29).
    - Severity: Medium (coverage gap for durability + integrity at system boundary).
    - Resolution: Added `system-tests/tests/suites/sqlite_registry_runpack.rs` covering registry + runpack persistence and oversize schema rejection.
+
+## decision-gate-enterprise
+
+### Open Findings
+
+None. Enterprise system-tests cover audit, authz, usage, and storage paths in this pass.
+
+### Closed Findings
+
+1. Audit chain integrity was not validated on load.
+   - Status: Closed (2026-01-29).
+   - Severity: Medium (tamper-evidence hardening).
+   - Resolution: Validate hash chain on startup in `decision-gate-enterprise/src/audit_chain.rs` and added unit coverage.
+
+2. Tenant admin store allowed issuing keys for unknown tenants.
+   - Status: Closed (2026-01-29).
+   - Severity: Low (fail-closed alignment).
+   - Resolution: Enforced tenant existence checks in `decision-gate-enterprise/src/tenant_admin.rs` and updated tests.
+
+3. Namespace authority lacked unit coverage for lifecycle and tenant enforcement.
+   - Status: Closed (2026-01-29).
+   - Severity: Low (coverage gap).
+   - Resolution: Added `decision-gate-enterprise/tests/namespace_authority.rs`.

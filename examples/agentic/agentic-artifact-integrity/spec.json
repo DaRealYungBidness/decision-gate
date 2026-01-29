@@ -1,0 +1,95 @@
+{
+  "scenario_id": "agentic-artifact-integrity",
+  "namespace_id": 1,
+  "spec_version": "v1",
+  "default_tenant_id": 1,
+  "policies": [],
+  "schemas": [],
+  "predicates": [
+    {
+      "predicate": "artifact_status",
+      "query": {
+        "provider_id": "http",
+        "predicate": "status",
+        "params": {
+          "url": "{{HTTP_BASE_URL}}/artifact.json"
+        }
+      },
+      "comparator": "equals",
+      "expected": 200,
+      "policy_tags": []
+    },
+    {
+      "predicate": "artifact_body_hash",
+      "query": {
+        "provider_id": "http",
+        "predicate": "body_hash",
+        "params": {
+          "url": "{{HTTP_BASE_URL}}/artifact.json"
+        }
+      },
+      "comparator": "exists",
+      "policy_tags": []
+    },
+    {
+      "predicate": "manifest_artifact_id",
+      "query": {
+        "provider_id": "json",
+        "predicate": "path",
+        "params": {
+          "file": "artifact_manifest.json",
+          "jsonpath": "$.artifact_id"
+        }
+      },
+      "comparator": "equals",
+      "expected": "build-123",
+      "policy_tags": []
+    },
+    {
+      "predicate": "manifest_expected_hash",
+      "query": {
+        "provider_id": "json",
+        "predicate": "path",
+        "params": {
+          "file": "artifact_manifest.json",
+          "jsonpath": "$.expected_hash"
+        }
+      },
+      "comparator": "equals",
+      "expected": "sha256:deadbeef",
+      "policy_tags": []
+    }
+  ],
+  "stages": [
+    {
+      "stage_id": "main",
+      "entry_packets": [],
+      "gates": [
+        {
+          "gate_id": "gate-artifact",
+          "requirement": {
+            "And": [
+              {
+                "Predicate": "artifact_status"
+              },
+              {
+                "Predicate": "artifact_body_hash"
+              },
+              {
+                "Predicate": "manifest_artifact_id"
+              },
+              {
+                "Predicate": "manifest_expected_hash"
+              }
+            ]
+          }
+        }
+      ],
+      "advance_to": {
+        "kind": "terminal"
+      },
+      "timeout": null,
+      "on_timeout": "fail"
+    }
+  ]
+}

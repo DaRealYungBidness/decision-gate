@@ -1,0 +1,63 @@
+{
+  "scenario_id": "agentic-attack-rejection",
+  "namespace_id": 1,
+  "spec_version": "v1",
+  "default_tenant_id": 1,
+  "policies": [],
+  "schemas": [],
+  "predicates": [
+    {
+      "predicate": "attack_mode",
+      "query": {
+        "provider_id": "env",
+        "predicate": "get",
+        "params": {
+          "key": "ATTACK_MODE"
+        }
+      },
+      "comparator": "equals",
+      "expected": "enabled",
+      "policy_tags": []
+    },
+    {
+      "predicate": "payload_allowed",
+      "query": {
+        "provider_id": "json",
+        "predicate": "path",
+        "params": {
+          "file": "attack_payload.json",
+          "jsonpath": "$.allowed"
+        }
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": []
+    }
+  ],
+  "stages": [
+    {
+      "stage_id": "main",
+      "entry_packets": [],
+      "gates": [
+        {
+          "gate_id": "gate-attack",
+          "requirement": {
+            "And": [
+              {
+                "Predicate": "attack_mode"
+              },
+              {
+                "Predicate": "payload_allowed"
+              }
+            ]
+          }
+        }
+      ],
+      "advance_to": {
+        "kind": "terminal"
+      },
+      "timeout": null,
+      "on_timeout": "fail"
+    }
+  ]
+}

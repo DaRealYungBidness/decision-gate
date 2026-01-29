@@ -14,6 +14,10 @@ from autogen_core.tools import FunctionTool
 from decision_gate import (
     DecisionGateClient,
     validate_precheck_request,
+    validate_runpack_export_request,
+    validate_scenario_define_request,
+    validate_scenario_start_request,
+    validate_scenario_trigger_request,
     validate_scenario_next_request,
     validate_scenario_status_request,
 )
@@ -67,6 +71,26 @@ def build_decision_gate_tools(
         _maybe_validate(validate, validate_scenario_status_request, request)
         return client.scenario_status(request)
 
+    def decision_gate_scenario_define(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Register a ScenarioSpec before starting a run."""
+        _maybe_validate(validate, validate_scenario_define_request, request)
+        return client.scenario_define(request)
+
+    def decision_gate_scenario_start(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Start a new run for a registered scenario."""
+        _maybe_validate(validate, validate_scenario_start_request, request)
+        return client.scenario_start(request)
+
+    def decision_gate_scenario_trigger(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Trigger a scenario evaluation with an external event."""
+        _maybe_validate(validate, validate_scenario_trigger_request, request)
+        return client.scenario_trigger(request)
+
+    def decision_gate_runpack_export(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Export an audit-grade runpack for a scenario run."""
+        _maybe_validate(validate, validate_runpack_export_request, request)
+        return client.runpack_export(request)
+
     return [
         FunctionTool(
             decision_gate_precheck,
@@ -82,6 +106,26 @@ def build_decision_gate_tools(
             decision_gate_scenario_status,
             name="decision_gate_scenario_status",
             description="Fetch current Decision Gate run status without mutation.",
+        ),
+        FunctionTool(
+            decision_gate_scenario_define,
+            name="decision_gate_scenario_define",
+            description="Register a ScenarioSpec before starting a run.",
+        ),
+        FunctionTool(
+            decision_gate_scenario_start,
+            name="decision_gate_scenario_start",
+            description="Start a new run for a registered scenario.",
+        ),
+        FunctionTool(
+            decision_gate_scenario_trigger,
+            name="decision_gate_scenario_trigger",
+            description="Trigger a scenario evaluation with an external event.",
+        ),
+        FunctionTool(
+            decision_gate_runpack_export,
+            name="decision_gate_runpack_export",
+            description="Export an audit-grade runpack for a scenario run.",
         ),
     ]
 

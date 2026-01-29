@@ -89,12 +89,19 @@ Each test writes artifacts under the run root:
 
 Runpack tests additionally emit `runpack/` artifacts.
 
+Run roots are treated as immutable evidence directories. Reusing a run root
+without explicit opt-in fails closed to avoid silently overwriting diagnostics.
+
 ## Environment Variables
 
 - `DECISION_GATE_SYSTEM_TEST_RUN_ROOT`: per-test artifact root.
 - `DECISION_GATE_SYSTEM_TEST_HTTP_BIND`: MCP HTTP bind override.
 - `DECISION_GATE_SYSTEM_TEST_PROVIDER_URL`: external MCP provider URL.
 - `DECISION_GATE_SYSTEM_TEST_TIMEOUT_SEC`: timeout override.
+- `DECISION_GATE_SYSTEM_TEST_ALLOW_OVERWRITE`: allow reuse of an existing run root.
+- `DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT`: force HTTP stub port for deterministic fixtures.
+- `DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_BASE`: base port for deterministic HTTP stub allocation.
+- `DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_RANGE`: port range for deterministic HTTP stub allocation.
 
 ## Registry and Gaps
 

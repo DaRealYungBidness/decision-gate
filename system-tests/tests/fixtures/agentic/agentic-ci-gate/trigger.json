@@ -1,0 +1,14 @@
+{
+  "trigger_id": "trigger-ci-1",
+  "kind": "tick",
+  "source_id": "agentic-harness",
+  "tenant_id": 1,
+  "namespace_id": 1,
+  "run_id": "run-ci-1",
+  "time": {
+    "kind": "logical",
+    "value": 2
+  },
+  "payload": null,
+  "correlation_id": null
+}
