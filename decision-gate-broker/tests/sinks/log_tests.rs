@@ -2,7 +2,12 @@
 // ============================================================================
 // Module: LogSink Unit Tests
 // Description: Comprehensive tests for the log-based payload sink.
+// Purpose: Validate LogSink receipt formatting and error handling.
+// Dependencies: decision-gate-broker, serde_json
 // ============================================================================
+
+//! ## Overview
+//! Exercises [`decision_gate_broker::LogSink`] behavior and JSON log output.
 
 #![allow(
     clippy::panic,

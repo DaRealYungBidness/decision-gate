@@ -10,6 +10,9 @@
 //! Runpack generation exports scenario specs, logs, and disclosures into a
 //! deterministic artifact bundle. The verifier replays integrity checks and
 //! enforces fail-closed behavior for missing or tampered artifacts.
+//!
+//! Security posture: runpack verification treats artifacts as untrusted; see
+//! `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports

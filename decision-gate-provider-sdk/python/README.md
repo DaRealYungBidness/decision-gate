@@ -19,6 +19,7 @@ Minimal Python MCP provider that implements `tools/list` and `tools/call` for
 - [Overview](#overview)
 - [Files](#files)
 - [Run](#run)
+- [Tests](#tests)
 - [Customization](#customization)
 - [Framing Limits](#framing-limits)
 - [References](#references)
@@ -39,6 +40,12 @@ keep the advertised tool metadata aligned with your contract.
 python3 provider.py
 ```
 
+## Tests
+
+```bash
+python3 -m unittest test_provider.py
+```
+
 ## Customization
 
 1. Define predicates and parameters in `handle_evidence_query`.
@@ -54,4 +61,3 @@ The template enforces:
 Requests exceeding these limits are rejected with JSON-RPC errors.
 
 ## References
-

@@ -13,9 +13,9 @@
 //! Security posture: database contents are untrusted; see
 //! `Docs/security/threat_model.md`.
 
-// ============================================================================//
+// ============================================================================
 // SECTION: Imports
-// ============================================================================//
+// ============================================================================
 
 use std::path::Path;
 use std::path::PathBuf;
@@ -52,9 +52,9 @@ use serde::Deserialize;
 use serde::Serialize;
 use thiserror::Error;
 
-// ============================================================================//
+// ============================================================================
 // SECTION: Constants
-// ============================================================================//
+// ============================================================================
 
 /// `SQLite` schema version for the store.
 const SCHEMA_VERSION: i64 = 4;
@@ -78,9 +78,9 @@ struct RegistryCursor {
     version: String,
 }
 
-// ============================================================================//
+// ============================================================================
 // SECTION: Config
-// ============================================================================//
+// ============================================================================
 
 /// `SQLite` journal mode configuration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
@@ -150,9 +150,9 @@ const fn default_busy_timeout_ms() -> u64 {
     DEFAULT_BUSY_TIMEOUT_MS
 }
 
-// ============================================================================//
+// ============================================================================
 // SECTION: Errors
-// ============================================================================//
+// ============================================================================
 
 /// `SQLite` store errors.
 #[derive(Debug, Error)]
@@ -190,19 +190,16 @@ impl From<SqliteStoreError> for StoreError {
             SqliteStoreError::Corrupt(message) => Self::Corrupt(message),
             SqliteStoreError::VersionMismatch(message) => Self::VersionMismatch(message),
             SqliteStoreError::Invalid(message) => Self::Invalid(message),
-            SqliteStoreError::TooLarge {
-                max_bytes,
-                actual_bytes,
-            } => Self::Invalid(format!(
+            SqliteStoreError::TooLarge { max_bytes, actual_bytes } => Self::Invalid(format!(
                 "state_json exceeds size limit: {actual_bytes} bytes (max {max_bytes})"
             )),
         }
     }
 }
 
-// ============================================================================//
+// ============================================================================
 // SECTION: Store
-// ============================================================================//
+// ============================================================================
 
 /// `SQLite`-backed run state store with WAL support.
 #[derive(Clone)]
@@ -225,10 +222,7 @@ impl SqliteRunStateStore {
         ensure_parent_dir(&config.path)?;
         let mut connection = open_connection(&config)?;
         initialize_schema(&mut connection)?;
-        Ok(Self {
-            config,
-            connection: Arc::new(Mutex::new(connection)),
-        })
+        Ok(Self { config, connection: Arc::new(Mutex::new(connection)) })
     }
 }
 
@@ -429,17 +423,22 @@ impl DataShapeRegistry for SqliteRunStateStore {
             records
         };
         drop(guard);
-        let next_token = records.last().map(|record| {
-            serde_json::to_string(&RegistryCursor {
-                schema_id: record.schema_id.to_string(),
-                version: record.version.to_string(),
-            })
-            .unwrap_or_default()
-        });
-        Ok(DataShapePage {
-            items: records,
-            next_token,
-        })
+        let next_token = match records.last() {
+            Some(record) => {
+                let cursor = RegistryCursor {
+                    schema_id: record.schema_id.to_string(),
+                    version: record.version.to_string(),
+                };
+                let token = serde_json::to_string(&cursor).map_err(|err| {
+                    DataShapeRegistryError::Invalid(format!(
+                        "failed to serialize registry cursor: {err}"
+                    ))
+                })?;
+                Some(token)
+            }
+            None => None,
+        };
+        Ok(DataShapePage { items: records, next_token })
     }
 }
 
@@ -483,6 +482,12 @@ impl SqliteRunStateStore {
     fn save_state(&self, state: &RunState) -> Result<(), SqliteStoreError> {
         let canonical_json = canonical_json_bytes(state)
             .map_err(|err| SqliteStoreError::Invalid(err.to_string()))?;
+        if canonical_json.len() > MAX_STATE_BYTES {
+            return Err(SqliteStoreError::TooLarge {
+                max_bytes: MAX_STATE_BYTES,
+                actual_bytes: canonical_json.len(),
+            });
+        }
         let digest = hash_bytes(DEFAULT_HASH_ALGORITHM, &canonical_json);
         let saved_at = unix_millis();
         {
@@ -564,9 +569,9 @@ impl SqliteRunStateStore {
     }
 }
 
-// ============================================================================//
+// ============================================================================
 // SECTION: Helpers
-// ============================================================================//
+// ============================================================================
 
 /// Ensures the parent directory for the store exists.
 fn ensure_parent_dir(path: &Path) -> Result<(), SqliteStoreError> {
@@ -853,11 +858,7 @@ fn fetch_run_state_payload(
                     |row| row.get(0),
                 )
                 .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-            Some(RunStatePayload {
-                bytes,
-                hash_value: hash,
-                hash_algorithm: algorithm,
-            })
+            Some(RunStatePayload { bytes, hash_value: hash, hash_algorithm: algorithm })
         } else {
             None
         };
@@ -930,11 +931,7 @@ fn build_signing(
         (Some(key_id), Some(signature))
             if !key_id.trim().is_empty() && !signature.trim().is_empty() =>
         {
-            Some(DataShapeSignature {
-                key_id,
-                signature,
-                algorithm,
-            })
+            Some(DataShapeSignature { key_id, signature, algorithm })
         }
         _ => None,
     }

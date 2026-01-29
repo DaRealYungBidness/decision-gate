@@ -6,7 +6,12 @@
 // Dependencies: decision-gate-mcp, decision-gate-core
 // ============================================================================
 
-//! Tenant authorization hook tests.
+//! ## Overview
+//! Exercises tenant authorization hooks and verifies deny decisions block tool
+//! execution.
+//!
+//! Security posture: tests assert fail-closed behavior on tenant authz denial;
+//! see `Docs/security/threat_model.md`.
 
 #![allow(
     clippy::unwrap_used,

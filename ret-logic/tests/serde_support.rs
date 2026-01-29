@@ -2,6 +2,8 @@
 // ============================================================================
 // Module: Serialization Tests
 // Description: Tests for serde support, validation, and file operations.
+// Purpose: Validate requirement serialization and validation helpers.
+// Dependencies: ret_logic::serde_support
 // ============================================================================
 //! ## Overview
 //! Integration tests for serde helpers and validators.

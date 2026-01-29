@@ -10,6 +10,8 @@
 //! Safe summaries provide minimal, policy-safe status for clients without
 //! leaking sensitive evidence values. They surface unmet gate identifiers and
 //! retry guidance while preserving confidentiality.
+//!
+//! Security posture: summaries must avoid leaking evidence; see `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports

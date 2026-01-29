@@ -6,7 +6,15 @@
 // Dependencies: decision-gate-contract, decision-gate-core
 // ============================================================================
 
-//! Provider capability metadata tests for the contract bundle.
+//! ## Overview
+//! Validates provider capability metadata, comparator allow-lists, and example
+//! schema conformance.
+//! Security posture: provider contracts gate untrusted inputs; see
+//! `Docs/security/threat_model.md`.
+
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
 
 use decision_gate_contract::providers::provider_contracts;
 use decision_gate_contract::types::DeterminismClass;
@@ -15,6 +23,10 @@ use jsonschema::CompilationOptions;
 use jsonschema::Draft;
 use jsonschema::JSONSchema;
 use serde_json::Value;
+
+// ============================================================================
+// SECTION: Comparator Ordering Helpers
+// ============================================================================
 
 const fn comparator_order() -> [Comparator; 16] {
     [
@@ -37,19 +49,43 @@ const fn comparator_order() -> [Comparator; 16] {
     ]
 }
 
-fn comparator_index(comparator: Comparator) -> usize {
-    comparator_order().iter().position(|candidate| *candidate == comparator).unwrap_or(usize::MAX)
+fn comparator_index(comparator: Comparator) -> Option<usize> {
+    comparator_order().iter().position(|candidate| *candidate == comparator)
 }
 
 fn is_canonical_order(list: &[Comparator]) -> bool {
-    list.windows(2).all(|pair| comparator_index(pair[0]) <= comparator_index(pair[1]))
+    let mut iter = list.iter();
+    let Some(first) = iter.next() else {
+        return true;
+    };
+    let Some(mut previous) = comparator_index(*first) else {
+        return false;
+    };
+    for comparator in iter {
+        let Some(current) = comparator_index(*comparator) else {
+            return false;
+        };
+        if previous > current {
+            return false;
+        }
+        previous = current;
+    }
+    true
 }
+
+// ============================================================================
+// SECTION: Schema Helpers
+// ============================================================================
 
 fn compile_schema(schema: &Value) -> Result<JSONSchema, String> {
     let mut options = CompilationOptions::default();
     options.with_draft(Draft::Draft202012);
     options.compile(schema).map_err(|err| format!("provider schema compilation failed: {err}"))
 }
+
+// ============================================================================
+// SECTION: Tests
+// ============================================================================
 
 #[test]
 fn provider_predicates_have_canonical_allowlists() {

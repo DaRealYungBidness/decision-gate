@@ -6,7 +6,11 @@
 // Dependencies: decision-gate-cli binary
 // ============================================================================
 
-//! CLI config command integration tests.
+//! ## Overview
+//! Runs the CLI binary for config validation and ensures invalid configuration
+//! fails closed with explicit errors.
+//!
+//! Security posture: configuration inputs are untrusted; validation must fail closed.
 
 #![allow(
     clippy::panic,
@@ -20,6 +24,10 @@
     clippy::unwrap_in_result,
     reason = "Test-only output and panic-based assertions are permitted."
 )]
+
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
 
 use std::fs;
 use std::path::PathBuf;

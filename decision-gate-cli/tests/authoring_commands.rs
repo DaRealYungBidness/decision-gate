@@ -6,7 +6,12 @@
 // Dependencies: decision-gate-cli binary, decision-gate-contract, serde_json
 // ============================================================================
 
-//! CLI authoring command integration tests.
+//! ## Overview
+//! Runs the CLI binary for authoring validation and normalization workflows.
+//! Ensures canonical JSON output and fail-closed error handling for invalid
+//! inputs.
+//!
+//! Security posture: authoring inputs are untrusted; validation must fail closed.
 
 #![allow(
     clippy::panic,
@@ -20,6 +25,10 @@
     clippy::unwrap_in_result,
     reason = "Test-only output and panic-based assertions are permitted."
 )]
+
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
 
 use std::fs;
 use std::path::Path;

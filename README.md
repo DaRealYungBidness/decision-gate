@@ -546,7 +546,8 @@ enables offline verification of integrity and tamper detection.
 ## Security
 
 Decision Gate assumes hostile inputs and fails closed on missing or invalid
-evidence. See `Docs/security/threat_model.md` for the full threat model.
+evidence. See `Docs/security/threat_model.md` and
+`Docs/guides/security_guide.md` for the threat model and operational controls.
 
 ## Formatting
 

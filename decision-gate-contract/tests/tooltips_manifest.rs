@@ -1,4 +1,3 @@
-//! Tooltip manifest tests for Decision Gate contract outputs.
 // decision-gate-contract/tests/tooltips_manifest.rs
 // ============================================================================
 // Module: Tooltip Manifest Tests
@@ -6,12 +5,30 @@
 // Purpose: Ensure tooltip terms stay stable and complete.
 // Dependencies: decision-gate-contract
 // ============================================================================
+
+//! ## Overview
+//! Validates tooltip catalog ordering, coverage, and ASCII-only constraints.
+//! Security posture: tooltips are static but user-facing; see
+//! `Docs/security/threat_model.md`.
+
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
+
 use decision_gate_contract::tooltips::tooltips_manifest;
 use decision_gate_contract::types::ToolName;
+
+// ============================================================================
+// SECTION: Helpers
+// ============================================================================
 
 fn is_sorted(items: &[String]) -> bool {
     items.windows(2).all(|pair| pair[0] <= pair[1])
 }
+
+// ============================================================================
+// SECTION: Tests
+// ============================================================================
 
 #[test]
 fn tooltips_manifest_has_unique_sorted_terms() {
@@ -22,7 +39,7 @@ fn tooltips_manifest_has_unique_sorted_terms() {
     deduped.sort();
     deduped.dedup();
     assert_eq!(terms.len(), deduped.len(), "tooltip terms must be unique");
-    assert!(is_sorted(&deduped), "tooltip terms must be sorted");
+    assert!(is_sorted(&terms), "tooltip terms must be sorted");
 }
 
 #[test]

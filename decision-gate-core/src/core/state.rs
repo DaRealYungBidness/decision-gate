@@ -10,6 +10,9 @@
 //! ## Overview
 //! Run state captures the full control-plane history needed for offline
 //! verification. All state changes are append-only and deterministic.
+//!
+//! Security posture: run state must be treated as untrusted on load; see
+//! `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports

@@ -29,6 +29,7 @@ use crate::source::Source;
 use crate::source::SourceError;
 use crate::source::SourcePayload;
 use crate::source::enforce_max_bytes;
+use crate::source::max_source_bytes_u64;
 
 // ============================================================================
 // SECTION: HTTP Source
@@ -91,8 +92,9 @@ impl Source for HttpSource {
         if !response.status().is_success() {
             return Err(SourceError::Http(format!("http status {}", response.status())));
         }
+        let max_bytes = max_source_bytes_u64()?;
         if let Some(length) = response.content_length()
-            && length > crate::source::MAX_SOURCE_BYTES as u64
+            && length > max_bytes
         {
             let actual_bytes = usize::try_from(length).unwrap_or(usize::MAX);
             return Err(SourceError::TooLarge {
@@ -105,7 +107,10 @@ impl Source for HttpSource {
             .get(CONTENT_TYPE)
             .and_then(|value| value.to_str().ok())
             .map(str::to_string);
-        let mut limited = response.take((crate::source::MAX_SOURCE_BYTES + 1) as u64);
+        let limit = max_bytes.checked_add(1).ok_or(SourceError::LimitOverflow {
+            limit: crate::source::MAX_SOURCE_BYTES,
+        })?;
+        let mut limited = response.take(limit);
         let mut bytes = Vec::new();
         limited.read_to_end(&mut bytes).map_err(|err| SourceError::Http(err.to_string()))?;
         enforce_max_bytes(bytes.len())?;

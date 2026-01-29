@@ -27,6 +27,9 @@ use smallvec::SmallVec;
 ///
 /// This is resolved at compile time from component type names to dense IDs.
 /// The query system uses this to fetch exactly the required component slices.
+///
+/// # Invariants
+/// - Treat the inner value as an opaque identifier; no semantic ordering is implied.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ColumnKey(pub u16);
 
@@ -55,6 +58,12 @@ impl ColumnKey {
 /// - Required component columns (drives ECS queries)
 /// - Optimized operation sequence (enables direct evaluation)
 /// - Constant pool for thresholds and parameters
+///
+/// # Invariants
+/// - When constructed via [`Plan::add_column`] or [`PlanBuilder`], `required_columns` contains no
+///   duplicates.
+/// - Operations are executed in order; structural correctness (balanced groups, valid operands) is
+///   the caller's responsibility.
 #[derive(Debug, Clone)]
 pub struct Plan {
     /// Component columns required for evaluation
@@ -72,6 +81,9 @@ pub struct Plan {
 // ============================================================================
 
 /// Errors that can occur while building a [`Plan`]
+///
+/// # Invariants
+/// - None. Variants are self-contained error categories.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlanError {
     /// The constant pool exceeded the maximum representable index.
@@ -135,7 +147,7 @@ impl Plan {
     /// Returns a constant value by index
     #[must_use]
     pub fn constant(&self, index: ConstantIndex) -> Option<&Constant> {
-        self.constants.get(index.0 as usize)
+        self.constants.get(usize::from(index.0))
     }
 
     /// Adds a required column to this plan
@@ -188,6 +200,10 @@ impl Default for Plan {
 // ============================================================================
 
 /// Index into the constant pool
+///
+/// # Invariants
+/// - Intended to reference a valid entry in a [`Plan`] constant pool.
+/// - No bounds are enforced by the type itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ConstantIndex(pub u16);
 
@@ -199,6 +215,9 @@ pub struct ConstantIndex(pub u16);
 ///
 /// Operations are designed to be efficiently executed in sequence with
 /// minimal branching and maximum cache locality.
+///
+/// # Invariants
+/// - Operand interpretation is opcode-specific and must be enforced by the domain.
 #[derive(Debug, Clone, Copy)]
 pub struct Operation {
     /// Operation type and behavior
@@ -235,6 +254,9 @@ impl Operation {
 ///
 /// These represent the primitive operations that can be performed during
 /// requirement evaluation. Domains register handlers for specific opcodes.
+///
+/// # Invariants
+/// - Stable `repr(u8)` values are used for dispatch table indexing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum OpCode {
@@ -314,6 +336,10 @@ impl OpCode {
 // ============================================================================
 
 /// Constants that can be stored in a plan's constant pool
+///
+/// # Invariants
+/// - `String` values are valid UTF-8 by construction.
+/// - `Custom` payloads are opaque and domain-defined.
 #[derive(Debug, Clone)]
 pub enum Constant {
     /// Floating-point value constant
@@ -388,6 +414,9 @@ impl Constant {
 // ============================================================================
 
 /// Builder for constructing plans programmatically
+///
+/// # Invariants
+/// - Operations and constants are appended in-order to the underlying [`Plan`].
 pub struct PlanBuilder {
     /// Accumulated plan being built.
     plan: Plan,

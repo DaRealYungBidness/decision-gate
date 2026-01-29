@@ -2,6 +2,8 @@
 // ============================================================================
 // Module: Traits Tests
 // Description: Tests for PredicateEval, BatchPredicateEval, and ReaderLen.
+// Purpose: Validate predicate evaluation trait helpers and reader utilities.
+// Dependencies: ret_logic::traits
 // ============================================================================
 //! ## Overview
 //! Integration tests for predicate and reader traits.

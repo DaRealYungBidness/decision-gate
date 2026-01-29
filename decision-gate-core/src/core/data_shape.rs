@@ -9,6 +9,12 @@
 //! ## Overview
 //! Data shapes describe asserted evidence payloads. They are registry-scoped by
 //! tenant and namespace and are versioned and immutable once registered.
+//!
+//! Security posture: data shape inputs are untrusted; see `Docs/security/threat_model.md`.
+
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -20,6 +26,10 @@ use crate::core::identifiers::NamespaceId;
 use crate::core::identifiers::TenantId;
 use crate::core::time::Timestamp;
 
+// ============================================================================
+// SECTION: Data Shape References
+// ============================================================================
+
 /// Reference to a data shape schema.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DataShapeRef {
@@ -28,6 +38,10 @@ pub struct DataShapeRef {
     /// Data shape version identifier.
     pub version: DataShapeVersion,
 }
+
+// ============================================================================
+// SECTION: Registry Records
+// ============================================================================
 
 /// Data shape registry record.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -51,6 +65,10 @@ pub struct DataShapeRecord {
     pub signing: Option<DataShapeSignature>,
 }
 
+// ============================================================================
+// SECTION: Signing Metadata
+// ============================================================================
+
 /// Optional schema signing metadata.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DataShapeSignature {
@@ -62,6 +80,10 @@ pub struct DataShapeSignature {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub algorithm: Option<String>,
 }
+
+// ============================================================================
+// SECTION: Pagination
+// ============================================================================
 
 /// Page of data shapes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -2,7 +2,13 @@
 // ============================================================================
 // Module: Common Test Utilities
 // Description: Shared helpers for decision-gate-broker tests.
+// Purpose: Provide reusable builders and helpers for broker integration tests.
+// Dependencies: decision-gate-core, serde_json
 // ============================================================================
+
+//! ## Overview
+//! Provides shared helper functions and test utilities for broker sinks and
+//! sources.
 
 #![allow(
     clippy::panic,
@@ -16,6 +22,10 @@
     clippy::unwrap_in_result,
     reason = "Test-only output and panic-based assertions are permitted."
 )]
+
+use std::io::Write;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use decision_gate_core::DispatchTarget;
 use decision_gate_core::PacketEnvelope;
@@ -102,10 +112,6 @@ pub fn hash_for_json(value: &Value) -> HashDigest {
 // ============================================================================
 // SECTION: Shared Buffer for Write Testing
 // ============================================================================
-
-use std::io::Write;
-use std::sync::Arc;
-use std::sync::Mutex;
 
 /// A thread-safe buffer for testing Write implementations.
 #[derive(Clone)]

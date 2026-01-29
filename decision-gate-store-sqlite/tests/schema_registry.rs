@@ -7,6 +7,12 @@
 // Dependencies: decision-gate-store-sqlite, decision-gate-core
 // ============================================================================
 
+//! ## Overview
+//! Conformance tests for the SQLite-backed data shape registry.
+//! Exercises tenant isolation, pagination, corruption handling, and concurrent
+//! access patterns. Security posture: tests model untrusted registry storage per
+//! `Docs/security/threat_model.md`.
+
 #![allow(
     clippy::panic,
     clippy::unwrap_used,
@@ -15,6 +21,10 @@
     missing_docs,
     reason = "Test-only panic-based assertions are permitted."
 )]
+
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
 
 use std::path::PathBuf;
 
@@ -32,6 +42,10 @@ use decision_gate_store_sqlite::SqliteStoreMode;
 use decision_gate_store_sqlite::SqliteSyncMode;
 use serde_json::json;
 use tempfile::TempDir;
+
+// ============================================================================
+// SECTION: Fixtures
+// ============================================================================
 
 fn sample_record(schema_id: &str, version: &str) -> DataShapeRecord {
     DataShapeRecord {
@@ -69,6 +83,10 @@ fn sqlite_fixture() -> SqliteFixture {
         store,
     }
 }
+
+// ============================================================================
+// SECTION: Tests
+// ============================================================================
 
 #[test]
 fn sqlite_registry_roundtrip() {

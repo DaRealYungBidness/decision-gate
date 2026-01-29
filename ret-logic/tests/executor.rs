@@ -2,6 +2,8 @@
 // ============================================================================
 // Module: Executor Tests
 // Description: Tests for PlanExecutor and execution machinery.
+// Purpose: Validate dispatch handling, evaluation semantics, and failure modes.
+// Dependencies: ret_logic::executor, ret_logic::plan
 // ============================================================================
 //! ## Overview
 //! Integration tests for the requirement plan executor covering planning and execution paths.
@@ -548,6 +550,25 @@ fn test_executor_stack_overflow_protection() -> TestResult {
 fn test_executor_malformed_plan_unmatched_end() -> TestResult {
     let plan = PlanBuilder::new()
         .and_end() // Unmatched end
+        .build();
+
+    let executor = PlanExecutor::new(plan, TEST_DISPATCH_TABLE);
+    let reader = TestReader::new(vec![0.0], vec![0]);
+
+    // Should return false due to malformed plan
+    ensure(!executor.eval_row(&reader, 0), "Expected malformed plan to fail")?;
+    Ok(())
+}
+
+/// Tests executor malformed plan unmatched start.
+#[test]
+fn test_executor_malformed_plan_unmatched_start() -> TestResult {
+    let mut builder = PlanBuilder::new();
+    let constant = builder.add_int_constant(1)?;
+
+    let plan = builder
+        .and_start() // Unmatched start
+        .add_op(OpCode::DomainStart, 0, constant.0, 0)
         .build();
 
     let executor = PlanExecutor::new(plan, TEST_DISPATCH_TABLE);

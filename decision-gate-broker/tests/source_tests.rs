@@ -2,9 +2,12 @@
 // ============================================================================
 // Module: Source Tests Entry Point
 // Description: Entry point for nested source test modules.
+// Purpose: Wire source test modules and shared helpers.
+// Dependencies: decision-gate-broker
 // ============================================================================
 
-//! Source unit tests.
+//! ## Overview
+//! Aggregates source-focused test modules for the broker crate.
 
 #![allow(dead_code, reason = "Common module may have unused helpers.")]
 #![allow(

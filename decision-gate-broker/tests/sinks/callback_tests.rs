@@ -2,7 +2,12 @@
 // ============================================================================
 // Module: CallbackSink Unit Tests
 // Description: Comprehensive tests for the callback-based payload sink.
+// Purpose: Validate callback invocation and receipt handling.
+// Dependencies: decision-gate-broker, decision-gate-core
 // ============================================================================
+
+//! ## Overview
+//! Exercises [`decision_gate_broker::CallbackSink`] handler execution paths.
 
 #![allow(
     clippy::panic,

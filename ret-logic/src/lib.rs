@@ -4,7 +4,8 @@
 // Description: Public API surface for the requirement subsystem.
 // Purpose: Wire together core modules, re-exports, and the DSL macro.
 // Dependencies: crate::{builder, dsl, error, executor, plan, requirement, serde_support, traits,
-// tristate} ============================================================================
+//              tristate}
+// ============================================================================
 
 //! ## Overview
 //! This module exposes the building blocks (errors, plans, traits, execution)

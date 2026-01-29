@@ -6,7 +6,11 @@
 // Dependencies: decision-gate-store-sqlite, decision-gate-core, rusqlite, serde_json, tempfile
 // ============================================================================
 
-//! `SQLite` store conformance tests.
+//! ## Overview
+//! Conformance tests for the SQLite-backed run state store.
+//! Exercises durability, integrity checks, and retention behavior with
+//! adversarial storage conditions. Security posture: tests model untrusted
+//! storage inputs per `Docs/security/threat_model.md`.
 
 #![allow(
     clippy::panic,
@@ -21,8 +25,13 @@
     reason = "Test-only assertions and helpers are permitted."
 )]
 
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
+
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::NamespaceId;
+use decision_gate_core::PacketPayload;
 use decision_gate_core::RunId;
 use decision_gate_core::RunState;
 use decision_gate_core::RunStateStore;
@@ -33,6 +42,7 @@ use decision_gate_core::SpecVersion;
 use decision_gate_core::StageId;
 use decision_gate_core::StageSpec;
 use decision_gate_core::StoreError;
+use decision_gate_core::SubmissionRecord;
 use decision_gate_core::TenantId;
 use decision_gate_core::TimeoutPolicy;
 use decision_gate_core::Timestamp;
@@ -44,6 +54,10 @@ use decision_gate_store_sqlite::SqliteRunStateStore;
 use decision_gate_store_sqlite::SqliteStoreConfig;
 use decision_gate_store_sqlite::SqliteStoreError;
 use tempfile::TempDir;
+
+// ============================================================================
+// SECTION: Helpers
+// ============================================================================
 
 fn sample_state(run_id: &str) -> RunState {
     let spec = ScenarioSpec {
@@ -93,6 +107,10 @@ fn store_for(path: &std::path::Path) -> SqliteRunStateStore {
     };
     SqliteRunStateStore::new(config).expect("store init")
 }
+
+// ============================================================================
+// SECTION: Tests
+// ============================================================================
 
 #[test]
 fn sqlite_store_roundtrip() {
@@ -201,6 +219,31 @@ fn sqlite_store_rejects_oversized_state_payload() {
         &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
         &run_id,
     );
+    assert!(matches!(result, Err(StoreError::Invalid(_))));
+}
+
+#[test]
+fn sqlite_store_rejects_oversized_state_on_save() {
+    let temp = TempDir::new().unwrap();
+    let path = temp.path().join("store.sqlite");
+    let store = store_for(&path);
+    let mut state = sample_state("run-oversize-save");
+
+    let payload_string = "x".repeat(MAX_STATE_BYTES + 64);
+    let payload_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, payload_string.as_bytes());
+    state.submissions.push(SubmissionRecord {
+        submission_id: "submission-1".to_string(),
+        run_id: state.run_id.clone(),
+        payload: PacketPayload::Json {
+            value: serde_json::Value::String(payload_string),
+        },
+        content_type: "application/json".to_string(),
+        content_hash: payload_hash,
+        submitted_at: Timestamp::Logical(0),
+        correlation_id: None,
+    });
+
+    let result = store.save(&state);
     assert!(matches!(result, Err(StoreError::Invalid(_))));
 }
 

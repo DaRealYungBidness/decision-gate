@@ -19,6 +19,7 @@ Minimal Go MCP provider that implements `tools/list` and `tools/call` for
 - [Overview](#overview)
 - [Files](#files)
 - [Run](#run)
+- [Tests](#tests)
 - [Customization](#customization)
 - [Framing Limits](#framing-limits)
 - [References](#references)
@@ -39,6 +40,12 @@ responses. Replace `handleEvidenceQuery` with provider-specific logic and keep
 go run .
 ```
 
+## Tests
+
+```bash
+go test ./...
+```
+
 ## Customization
 
 1. Define predicates and parameters in `handleEvidenceQuery`.
@@ -54,4 +61,3 @@ The template enforces:
 Requests exceeding these limits are rejected with JSON-RPC errors.
 
 ## References
-

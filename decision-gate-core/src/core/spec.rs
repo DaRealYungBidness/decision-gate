@@ -11,6 +11,8 @@
 //! gate logic, packet disclosures, and branching rules. Specs are validated at
 //! load time to enforce invariants such as unique identifiers and resolvable
 //! predicate definitions.
+//!
+//! Security posture: scenario specs are untrusted inputs; see `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports

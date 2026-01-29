@@ -9,8 +9,18 @@
 //! ## Overview
 //! These tests ensure contract generation is deterministic and that the
 //! verification routine succeeds against freshly generated artifacts.
+//! Security posture: tests validate deterministic contract artifacts; see
+//! `Docs/security/threat_model.md`.
+
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
 
 use decision_gate_contract::ContractBuilder;
+
+// ============================================================================
+// SECTION: Tests
+// ============================================================================
 
 /// Ensures contract bundle generation is deterministic.
 #[test]

@@ -10,6 +10,9 @@
 //! The control plane engine is the single canonical execution path for Decision Gate.
 //! All API surfaces (HTTP, MCP, SDKs) must call into these methods to preserve
 //! invariance and auditability.
+//!
+//! Security posture: inputs are untrusted and must fail closed; see
+//! `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports

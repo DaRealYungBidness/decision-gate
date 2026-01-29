@@ -10,6 +10,8 @@
 //! Comparator evaluation converts evidence results into tri-state outcomes.
 //! Missing or invalid evidence yields `Unknown` to preserve fail-closed
 //! behavior. Numeric ordering is decimal-aware and deterministic.
+//!
+//! Security posture: evidence values are untrusted; see `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports

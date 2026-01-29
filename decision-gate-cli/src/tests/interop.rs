@@ -10,6 +10,10 @@
 //! Validates the interop input checker rejects mismatched identifiers and
 //! accepts aligned inputs.
 
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
+
 use std::io::Read;
 use std::io::Write;
 use std::net::SocketAddr;
@@ -55,8 +59,13 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::interop::InteropConfig;
+use crate::interop::MAX_INTEROP_RESPONSE_BYTES;
 use crate::interop::run_interop;
 use crate::interop::validate_inputs;
+
+// ============================================================================
+// SECTION: Fixtures
+// ============================================================================
 
 fn minimal_spec(id: &str) -> ScenarioSpec {
     ScenarioSpec {
@@ -102,6 +111,10 @@ fn minimal_trigger(run_config: &RunConfig) -> TriggerEvent {
         correlation_id: None,
     }
 }
+
+// ============================================================================
+// SECTION: Test Server
+// ============================================================================
 
 type Responder = Arc<Mutex<Box<dyn FnMut(Value) -> Value + Send>>>;
 
@@ -182,6 +195,9 @@ fn handle_connection(
     stream
         .set_read_timeout(Some(Duration::from_secs(2)))
         .map_err(|err| format!("set read timeout: {err}"))?;
+    stream
+        .set_write_timeout(Some(Duration::from_secs(2)))
+        .map_err(|err| format!("set write timeout: {err}"))?;
     let request = read_json_body(stream)?;
     requests.lock().expect("requests lock").push(request.clone());
     let response = {
@@ -249,6 +265,10 @@ fn write_json_response(stream: &mut TcpStream, response: &Value) -> Result<(), S
     Ok(())
 }
 
+// ============================================================================
+// SECTION: JSON Helpers
+// ============================================================================
+
 fn jsonrpc_response<T: Serialize>(request: &Value, payload: &T) -> Value {
     let payload = serde_json::to_value(payload).expect("serialize payload");
     let id = request.get("id").cloned().unwrap_or(Value::Null);
@@ -271,6 +291,10 @@ fn jsonrpc_error(request: &Value, code: i64, message: &str) -> Value {
         "error": { "code": code, "message": message }
     })
 }
+
+// ============================================================================
+// SECTION: Tests
+// ============================================================================
 
 #[test]
 fn validate_inputs_accepts_matching_ids() {
@@ -498,5 +522,31 @@ async fn run_interop_rejects_define_scenario_mismatch() {
 
     let err = run_interop(config).await.expect_err("expected mismatch error");
     assert!(err.contains("scenario_define returned unexpected scenario_id"));
+    assert_eq!(server.requests().len(), 1);
+}
+
+#[tokio::test]
+async fn run_interop_rejects_oversized_response_body() {
+    let spec = minimal_spec("scenario-1");
+    let run_config = minimal_run_config(&spec.scenario_id);
+    let trigger = minimal_trigger(&run_config);
+    let oversized = Value::String("x".repeat(MAX_INTEROP_RESPONSE_BYTES));
+    let server = TestMcpServer::start(1, move |request| jsonrpc_response(&request, &oversized));
+
+    let config = InteropConfig {
+        mcp_url: server.url(),
+        spec,
+        run_config,
+        trigger,
+        started_at: Timestamp::Logical(1),
+        status_requested_at: Timestamp::Logical(2),
+        issue_entry_packets: false,
+        bearer_token: None,
+        client_subject: None,
+        timeout: Duration::from_secs(2),
+    };
+
+    let err = run_interop(config).await.expect_err("expected size limit error");
+    assert!(err.contains("response body exceeds size limit"), "unexpected error: {err}");
     assert_eq!(server.requests().len(), 1);
 }

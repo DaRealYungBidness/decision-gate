@@ -2,6 +2,8 @@
 // ============================================================================
 // Module: Core Requirement Tests
 // Description: Exhaustive tests for requirement evaluation and analysis.
+// Purpose: Validate boolean/tri-state evaluation and requirement analysis helpers.
+// Dependencies: ret_logic::requirement, ret_logic::tristate
 // ============================================================================
 //! ## Overview
 //! Integration tests for the core requirement types and evaluation paths.

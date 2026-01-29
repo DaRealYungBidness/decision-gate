@@ -2,7 +2,12 @@
 // ============================================================================
 // Module: HttpSource Unit Tests
 // Description: Comprehensive tests for the HTTP-backed payload source.
+// Purpose: Validate HTTP source input validation and size enforcement.
+// Dependencies: decision-gate-broker, decision-gate-core, reqwest, tiny_http
 // ============================================================================
+
+//! ## Overview
+//! Exercises [`decision_gate_broker::HttpSource`] fetch and validation paths.
 
 #![allow(
     clippy::panic,

@@ -17,12 +17,16 @@
 // ============================================================================
 
 mod interop;
+#[cfg(test)]
+mod main_tests;
 
 // ============================================================================
 // SECTION: Imports
 // ============================================================================
 
 use std::fs;
+use std::fs::File;
+use std::io::Read;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
@@ -914,7 +918,8 @@ enum ReadLimitError {
 
 /// Reads a file from disk while enforcing a hard size limit.
 fn read_bytes_with_limit(path: &Path, max_bytes: usize) -> Result<Vec<u8>, ReadLimitError> {
-    let metadata = fs::metadata(path).map_err(ReadLimitError::Io)?;
+    let file = File::open(path).map_err(ReadLimitError::Io)?;
+    let metadata = file.metadata().map_err(ReadLimitError::Io)?;
     let size = metadata.len();
     let limit = u64::try_from(max_bytes).map_err(|_| ReadLimitError::TooLarge {
         size,
@@ -926,7 +931,19 @@ fn read_bytes_with_limit(path: &Path, max_bytes: usize) -> Result<Vec<u8>, ReadL
             limit: max_bytes,
         });
     }
-    fs::read(path).map_err(ReadLimitError::Io)
+
+    let read_limit = limit.saturating_add(1);
+    let mut limited = file.take(read_limit);
+    let mut bytes = Vec::new();
+    limited.read_to_end(&mut bytes).map_err(ReadLimitError::Io)?;
+    if bytes.len() > max_bytes {
+        let actual = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+        return Err(ReadLimitError::TooLarge {
+            size: actual,
+            limit: max_bytes,
+        });
+    }
+    Ok(bytes)
 }
 
 /// Reads a JSON file for runpack export inputs.

@@ -11,6 +11,8 @@
 //! Evidence results include hashes, anchors, and references suitable for
 //! offline verification. The Decision Gate runtime applies comparators to evidence
 //! values to derive predicate truth values.
+//!
+//! Security posture: evidence inputs are untrusted; see `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports

@@ -69,6 +69,12 @@ pub enum SourceError {
         /// Actual payload size in bytes.
         actual_bytes: usize,
     },
+    /// Configured byte limit cannot be represented for I/O operations.
+    #[error("payload size limit exceeds platform bounds: {limit} bytes")]
+    LimitOverflow {
+        /// Configured size limit in bytes.
+        limit: usize,
+    },
 }
 
 /// Returns an error when a payload exceeds the configured size cap.
@@ -80,6 +86,13 @@ pub(crate) const fn enforce_max_bytes(actual_bytes: usize) -> Result<(), SourceE
         });
     }
     Ok(())
+}
+
+/// Converts the configured size limit to `u64` for I/O operations.
+pub(crate) fn max_source_bytes_u64() -> Result<u64, SourceError> {
+    u64::try_from(MAX_SOURCE_BYTES).map_err(|_| SourceError::LimitOverflow {
+        limit: MAX_SOURCE_BYTES,
+    })
 }
 
 // ============================================================================

@@ -2,7 +2,12 @@
 // ============================================================================
 // Module: InlineSource Unit Tests
 // Description: Comprehensive tests for the inline/embedded payload source.
+// Purpose: Validate inline base64 decoding and size enforcement.
+// Dependencies: decision-gate-broker, decision-gate-core, base64
 // ============================================================================
+
+//! ## Overview
+//! Exercises [`decision_gate_broker::InlineSource`] decoding and validation.
 
 #![allow(
     clippy::panic,

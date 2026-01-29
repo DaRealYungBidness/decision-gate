@@ -1,3 +1,22 @@
+// decision-gate-mcp/src/tools/tests.rs
+// ============================================================================
+// Module: MCP Tool Router Unit Tests
+// Description: Unit tests for MCP tool routing and runpack export behavior.
+// Purpose: Validate tool flows, auth context usage, and storage integration.
+// Dependencies: decision-gate-mcp, decision-gate-core, ret-logic
+// ============================================================================
+
+//! ## Overview
+//! Exercises tool routing behavior with in-memory stores, schema registries,
+//! and runpack storage stubs.
+//!
+//! Security posture: tests validate fail-closed behavior for tool routing and
+//! storage integration boundaries; see `Docs/security/threat_model.md`.
+
+// ============================================================================
+// SECTION: Lint Configuration
+// ============================================================================
+
 #![allow(
     clippy::expect_used,
     clippy::unwrap_used,
@@ -6,6 +25,10 @@
     clippy::unwrap_in_result,
     reason = "Test-only assertions favor direct unwrap/expect for clarity."
 )]
+
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
 
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
@@ -77,6 +100,10 @@ use crate::runpack_storage::RunpackStorageError;
 use crate::runpack_storage::RunpackStorageKey;
 use crate::tools::ProviderTransport;
 use crate::tools::SchemaRegistryLimits;
+
+// ============================================================================
+// SECTION: Test Fixtures
+// ============================================================================
 
 struct CountingObjectStore {
     objects: Mutex<std::collections::BTreeMap<String, Vec<u8>>>,

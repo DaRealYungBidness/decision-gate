@@ -6,7 +6,15 @@
 // Dependencies: decision-gate-contract, decision-gate-core, serde_json
 // ============================================================================
 
-//! Contract bundle authoring tests.
+//! ## Overview
+//! Validates that the bundled RON example normalizes to the canonical JSON
+//! example without drift.
+//! Security posture: authoring inputs are untrusted; see
+//! `Docs/security/threat_model.md`.
+
+// ============================================================================
+// SECTION: Lint Configuration
+// ============================================================================
 
 #![allow(
     clippy::panic,
@@ -18,11 +26,19 @@
     reason = "Test-only authoring validation uses panic-based assertions."
 )]
 
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
+
 use decision_gate_contract::AuthoringFormat;
 use decision_gate_contract::ContractBuilder;
 use decision_gate_contract::authoring::normalize_scenario;
 use decision_gate_core::ScenarioSpec;
 use decision_gate_core::hashing::canonical_json_bytes;
+
+// ============================================================================
+// SECTION: Helpers
+// ============================================================================
 
 fn artifact_bytes(
     bundle: &decision_gate_contract::ContractBundle,
@@ -35,6 +51,10 @@ fn artifact_bytes(
     }
     Err(format!("artifact not found: {path}").into())
 }
+
+// ============================================================================
+// SECTION: Tests
+// ============================================================================
 
 #[test]
 fn ron_example_normalizes_to_canonical_json_example() -> Result<(), Box<dyn std::error::Error>> {

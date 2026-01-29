@@ -2,6 +2,8 @@
 // ============================================================================
 // Module: Decision Gate Broker Tests
 // Description: Tests for sources, sinks, and composite broker behavior.
+// Purpose: Exercise broker sources, sinks, and composite dispatch wiring.
+// Dependencies: decision-gate-broker, decision-gate-core, base64, tempfile, tiny_http, url
 // ============================================================================
 //! ## Overview
 //! Validates broker sources, sinks, and dispatcher wiring.

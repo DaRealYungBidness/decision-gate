@@ -6,7 +6,11 @@
 // Dependencies: decision-gate-mcp, decision-gate-core
 // ============================================================================
 
-//! Policy engine tests for deterministic static rules.
+//! ## Overview
+//! Validates static policy engine matching and deterministic decision outputs.
+//!
+//! Security posture: tests verify fail-closed behavior for invalid policy
+//! configurations; see `Docs/security/threat_model.md`.
 
 #![allow(
     clippy::panic,

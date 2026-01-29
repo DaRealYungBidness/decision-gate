@@ -1,3 +1,22 @@
+// decision-gate-mcp/src/runpack_object_store/tests.rs
+// ============================================================================
+// Module: Runpack Object Store Tests
+// Description: Unit tests for object-store-backed runpack helpers.
+// Purpose: Validate path normalization, size limits, and deterministic prefixes.
+// Dependencies: decision-gate-mcp, decision-gate-core
+// ============================================================================
+
+//! ## Overview
+//! Exercises object-store runpack helpers for safe path handling, size limits,
+//! and deterministic storage prefixes.
+//!
+//! Security posture: Tests validate fail-closed handling for untrusted artifact
+//! paths; see `Docs/security/threat_model.md`.
+
+// ============================================================================
+// SECTION: Lint Configuration
+// ============================================================================
+
 #![allow(
     clippy::expect_used,
     clippy::unwrap_used,
@@ -7,7 +26,15 @@
     reason = "Test-only assertions favor direct unwrap/expect for clarity."
 )]
 
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
+
 use super::*;
+
+// ============================================================================
+// SECTION: Fixtures
+// ============================================================================
 
 fn sample_key() -> RunpackObjectKey {
     RunpackObjectKey {

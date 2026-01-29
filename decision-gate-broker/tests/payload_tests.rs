@@ -2,9 +2,12 @@
 // ============================================================================
 // Module: Payload Unit Tests
 // Description: Comprehensive tests for Payload and PayloadBody types.
+// Purpose: Validate payload construction and helper behavior.
+// Dependencies: decision-gate-broker, decision-gate-core, serde_json
 // ============================================================================
 
-//! Payload unit tests.
+//! ## Overview
+//! Exercises [`decision_gate_broker::Payload`] helpers and payload body variants.
 
 #![allow(
     clippy::panic,

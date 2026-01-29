@@ -3,7 +3,7 @@
 // Module: Tri-State Logic
 // Description: Tri-state truth values and configurable logic tables.
 // Purpose: Provide deterministic tri-state evaluation for requirement gates.
-// Dependencies: none
+// Dependencies: serde::{Deserialize, Serialize}
 // ============================================================================
 
 //! ## Overview
@@ -23,6 +23,9 @@ use serde::Serialize;
 // ============================================================================
 
 /// Tri-state truth value for evidence-aware evaluation
+///
+/// # Invariants
+/// - Represents a closed set of truth values: true, false, or unknown.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TriState {
     /// Definitively true
@@ -64,6 +67,9 @@ impl From<bool> for TriState {
 // ============================================================================
 
 /// Aggregated counts for group evaluation
+///
+/// # Invariants
+/// - Callers should ensure `satisfied + unknown <= total`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GroupCounts {
     /// Number of satisfied requirements
@@ -117,6 +123,9 @@ pub trait TriLogic {
 }
 
 /// Strong Kleene logic (default)
+///
+/// # Invariants
+/// - Zero-sized marker type; carries no state.
 #[derive(Debug, Clone, Copy)]
 pub struct KleeneLogic;
 
@@ -147,6 +156,9 @@ impl TriLogic for KleeneLogic {
 }
 
 /// Bochvar logic (infectious unknowns)
+///
+/// # Invariants
+/// - Zero-sized marker type; carries no state.
 #[derive(Debug, Clone, Copy)]
 pub struct BochvarLogic;
 
@@ -177,6 +189,9 @@ impl TriLogic for BochvarLogic {
 }
 
 /// Runtime-selectable logic mode
+///
+/// # Invariants
+/// - Enumerates the supported tri-state logic tables.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LogicMode {
     /// Strong Kleene logic (default)
@@ -225,6 +240,9 @@ pub trait RequirementTrace<P> {
 }
 
 /// No-op trace hook for fast paths
+///
+/// # Invariants
+/// - Zero-sized marker type; carries no state.
 #[derive(Debug, Default)]
 pub struct NoopTrace;
 

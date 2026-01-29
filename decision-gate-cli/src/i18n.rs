@@ -16,8 +16,16 @@
 //! - Missing keys fall back to the key itself to avoid panics.
 //! - Placeholder substitutions preserve deterministic order.
 
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
+
 use std::collections::HashMap;
 use std::sync::OnceLock;
+
+// ============================================================================
+// SECTION: Types
+// ============================================================================
 
 /// A formatted message argument captured by the [`macro@crate::t`] macro.
 #[derive(Clone)]
@@ -37,6 +45,10 @@ impl MessageArg {
         }
     }
 }
+
+// ============================================================================
+// SECTION: Catalog
+// ============================================================================
 
 /// Static catalog entries loaded into the localized message bundle.
 const CATALOG_ITEMS: &[(&str, &str)] = &[
@@ -191,6 +203,10 @@ const CATALOG_ITEMS: &[(&str, &str)] = &[
     ),
 ];
 
+// ============================================================================
+// SECTION: Translation
+// ============================================================================
+
 /// Translates `key` using the English fallback catalog while substituting `args`.
 #[must_use]
 pub fn translate(key: &str, args: Vec<MessageArg>) -> String {
@@ -213,6 +229,10 @@ fn catalog() -> &'static HashMap<&'static str, &'static str> {
 
     CATALOG.get_or_init(|| CATALOG_ITEMS.iter().copied().collect())
 }
+
+// ============================================================================
+// SECTION: Macro
+// ============================================================================
 
 /// Formats a localized message from a key and named arguments.
 ///

@@ -2,7 +2,12 @@
 // ============================================================================
 // Module: ChannelSink Unit Tests
 // Description: Comprehensive tests for the channel-based async payload sink.
+// Purpose: Validate channel dispatch behavior and receipt generation.
+// Dependencies: decision-gate-broker, decision-gate-core, tokio
 // ============================================================================
+
+//! ## Overview
+//! Exercises [`decision_gate_broker::ChannelSink`] message delivery behavior.
 
 #![allow(
     clippy::panic,

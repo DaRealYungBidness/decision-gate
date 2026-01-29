@@ -14,6 +14,10 @@
  * validated; see Docs/security/threat_model.md.
  */
 
+// ============================================================================
+// SECTION: Types
+// ============================================================================
+
 type JsonRpcId = number | string | null;
 
 interface JsonRpcRequest {
@@ -50,8 +54,8 @@ interface EvidenceQuery {
 }
 
 interface EvidenceContext {
-  tenant_id: string;
-  namespace_id: string;
+  tenant_id: number;
+  namespace_id: number;
   run_id: string;
   scenario_id: string;
   stage_id: string;
@@ -81,6 +85,10 @@ interface EvidenceProviderError {
   details: unknown | null;
 }
 
+// ============================================================================
+// SECTION: Tool Metadata
+// ============================================================================
+
 const TOOL_LIST_RESULT = {
   tools: [
     {
@@ -91,13 +99,25 @@ const TOOL_LIST_RESULT = {
   ],
 };
 
+// ============================================================================
+// SECTION: Framing Limits
+// ============================================================================
+
 const HEADER_SEPARATOR = "\r\n\r\n";
 const MAX_HEADER_BYTES = 8 * 1024;
 const MAX_BODY_BYTES = 1024 * 1024;
 
+// ============================================================================
+// SECTION: Stream State
+// ============================================================================
+
 let buffer = Buffer.alloc(0);
 let discardBytes = 0;
 let stopped = false;
+
+// ============================================================================
+// SECTION: Stream Processing
+// ============================================================================
 
 process.stdin.on("data", (chunk) => {
   if (stopped) {
@@ -120,6 +140,10 @@ process.stdin.on("data", (chunk) => {
   buffer = Buffer.concat([buffer, chunk]);
   processBuffer();
 });
+
+// ============================================================================
+// SECTION: JSON-RPC Handling
+// ============================================================================
 
 function processBuffer(): void {
   while (true) {
@@ -258,6 +282,10 @@ function handleToolCall(request: JsonRpcRequest): JsonRpcResponse {
   };
 }
 
+// ============================================================================
+// SECTION: Evidence Logic
+// ============================================================================
+
 function handleEvidenceQuery(
   query: EvidenceQuery,
   _context: EvidenceContext,
@@ -269,6 +297,8 @@ function handleEvidenceQuery(
 
   return {
     value: { kind: "json", value },
+    lane: "verified",
+    error: null,
     evidence_hash: null,
     evidence_ref: null,
     evidence_anchor: null,
@@ -276,6 +306,10 @@ function handleEvidenceQuery(
     content_type: "application/json",
   };
 }
+
+// ============================================================================
+// SECTION: Framing Output
+// ============================================================================
 
 function buildErrorResponse(id: JsonRpcId, code: number, message: string): JsonRpcResponse {
   return {

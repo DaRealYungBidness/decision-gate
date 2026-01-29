@@ -17,6 +17,13 @@ and stage advancement. It evaluates evidence-backed predicates, emits auditable
 decisions, and supports offline verification via runpacks. It does not run
 agent conversations.
 
+## Related Documentation
+- Repository overview and security posture: `README.md` and `SECURITY.md`.
+- Operational guidance and controls: `Docs/guides/security_guide.md`.
+- Standards and investigation workflow: `Docs/standards/codebase_engineering_standards.md`, `Docs/standards/agent_investigation_guide.md`.
+- Architecture references: `Docs/architecture/decision_gate_auth_disclosure_architecture.md`, `Docs/architecture/decision_gate_evidence_trust_anchor_architecture.md`, `Docs/architecture/decision_gate_runpack_architecture.md`, `Docs/architecture/decision_gate_namespace_registry_rbac_architecture.md`, `Docs/architecture/decision_gate_provider_capability_architecture.md`.
+- Component READMEs: `decision-gate-core/README.md`, `decision-gate-mcp/README.md`, `decision-gate-broker/README.md`, `decision-gate-providers/README.md`.
+
 ## Security Goals
 - Deterministic evaluation with no hidden mutation of state.
 - Evidence-backed disclosure only; fail closed on missing, invalid, or
@@ -38,11 +45,15 @@ agent conversations.
   tool calls.
 - Evidence values, hashes, anchors, and signatures.
 - Namespace authority configuration and namespace mappings.
+- Data shape registry records (JSON Schemas), versions, and optional signing metadata.
 - Dispatch payloads, envelopes, and receipts.
 - Runpack artifacts and manifest.
 - Provider contracts (capability contracts) and schemas.
-- Configuration files, provider auth tokens, and signature verification keys.
-- Run state store (SQLite/Postgres) and runpack output directory.
+- Audit logs (MCP tool calls, precheck, registry ACL, tenant authz, usage).
+- Configuration files, provider auth tokens, registry ACL/principal mappings,
+  and signature verification keys.
+- Run state store (SQLite or in-memory), schema registry store, and runpack
+  output directory.
 - Object storage buckets for runpack artifacts and archives (S3-compatible).
 
 ## Adversary Model
@@ -52,6 +63,7 @@ agent conversations.
 - Compromised insiders with access to configuration, storage, or logs.
 - Network attackers able to MITM, replay, or drop traffic.
 - Malicious or mistaken scenario authors who can define unsafe specs.
+- Malicious schema registrants or policy administrators who can poison registry entries.
 
 ## Trust Boundaries
 - MCP server transports (stdio, HTTP, SSE): all JSON-RPC inputs are untrusted.
@@ -60,17 +72,21 @@ agent conversations.
 - Namespace authority backend (Asset Core or registry): namespace validation is
   external and must fail closed.
 - Provider contracts and configuration files on disk.
+- Schema registry backend (in-memory/SQLite) and registry ACL decisions.
 - Run state store and runpack artifacts: treat storage as untrusted.
 - Runpack object storage (S3-compatible) and metadata: treat as untrusted and
   verify hashes for every artifact.
 - Broker sources (http/file/inline) and sinks (external systems).
 - Dispatch targets and downstream systems receiving disclosures.
 - Offline verification environment and artifact readers.
+- Tenant authorization adapters (if configured) are external decision points.
 
 ## Entry Points and Attack Surfaces
 - MCP tools: `scenario_define`, `scenario_start`, `scenario_status`,
   `scenario_next`, `scenario_submit`, `scenario_trigger`, `evidence_query`,
-  `runpack_export`, `runpack_verify`.
+  `runpack_export`, `runpack_verify`, `providers_list`,
+  `provider_contract_get`, `provider_schema_get`, `schemas_list`,
+  `schemas_register`, `schemas_get`, `scenarios_list`, `precheck`.
 - CLI commands: `serve`, `runpack export`, `runpack verify`, authoring
   validate/normalize.
 - External MCP provider processes and HTTP endpoints.
@@ -91,12 +107,20 @@ agent conversations.
   registration and precheck evaluation.
 - Namespace authority checks enforce tenant/namespace scoping and fail closed
   on unknown or unavailable catalogs.
+- Evidence trust lanes enforced (verified by default); dev-permissive explicitly
+  lowers trust to asserted for non-exempt providers only.
+- Schema registry ACL enforces role/policy-class access and can require signing
+  metadata; registry operations are audited.
 - Anchor policy enforcement rejects evidence missing required anchors and
   propagates anchor requirements into runpack verification.
 - Size and path limits for config files, provider contracts, runpack artifacts.
 - HTTP/SSE request body limits; provider-specific response size limits.
+- Inflight request caps and optional rate limiting for MCP tool calls.
 - MCP tool calls require explicit authn/authz (local-only by default; bearer or
   mTLS subject allowlists when configured) with audit logging.
+- Tenant authorization hook (if configured) gates tool calls and is audited.
+- Precheck is read-only: asserted evidence validated against schemas, no run
+  state mutation or disclosures.
 - Safe summaries for client-facing status; evidence redaction by policy.
 - Append-only run state logs and deterministic replay semantics.
 
@@ -126,6 +150,23 @@ agent conversations.
 - Evidence query results are redacted unless raw disclosure is explicitly
   allowed.
 
+### Schema Registry and Precheck
+- Schema registry operations can be abused to poison validation or leak schemas;
+  enforce ACLs, audit access, and apply size limits.
+- Registry signing metadata is presence-only; cryptographic verification is
+  external to OSS Decision Gate.
+- Precheck accepts asserted evidence; results are advisory and never mutate run
+  state or emit disclosures.
+
+### Provider Discovery and Metadata Disclosure
+- Provider contracts, schemas, and scenario listings can leak sensitive
+  capability information; restrict disclosure via tool authz/allowlists and
+  provider discovery allow/deny controls.
+
+### Trust Lane Downgrade
+- Dev-permissive mode lowers trust requirements to asserted lanes; treat as a
+  non-production feature and audit/alert on use.
+
 ### Storage and Runpack Integrity
 - SQLite store verifies hash consistency but does not provide tamper-proof
   authenticity.
@@ -153,17 +194,26 @@ agent conversations.
 
 ### Multi-Tenant and Isolation
 - Tenant and run identifiers are data labels, not access controls.
+- Default namespace access is denied unless explicitly allowlisted per tenant.
 - Any shared runtime must enforce authn/authz and rate limiting upstream.
+- Schema registry ACL and tenant authz are the primary isolation controls for
+  data shape management.
 
 ## Operational Requirements
 - Restrict MCP access to authenticated transports (mTLS, IPC ACLs, reverse
   proxy auth).
 - Configure `server.auth` for non-loopback deployments; rotate tokens and
   maintain tool allowlists.
+- Keep dev-permissive disabled in production; require verified trust lanes.
 - Require signature verification for external providers where integrity
   matters.
 - Configure allowlists for `env`, `json`, and `http` providers; avoid
   unrestricted file access.
+- Restrict `schemas_register`, `schemas_get`, `schemas_list`, `precheck`, and
+  `scenarios_list`, and provider discovery tools to trusted callers (tool
+  allowlists + tenant authz).
+- Configure schema registry ACL rules and signing metadata requirements where
+  provenance matters; protect the registry store.
 - Limit or disable `runpack_export` for untrusted callers; restrict output
   paths.
 - Store run state and runpacks in tamper-evident storage; sign manifests
@@ -179,3 +229,8 @@ agent conversations.
   and audit logging.
 - Added OSS object-store runpack exports with deterministic key derivation and
   size-limited artifact reads.
+- Added schema registry + ACL with optional signing metadata and precheck tool
+  handling for asserted evidence.
+- Added provider discovery tools with allow/deny disclosure controls.
+- Added trust-lane enforcement with dev-permissive relaxations and audit
+  posture logging.

@@ -15,6 +15,9 @@
 //! - Inputs are explicit; no wall-clock timestamps are generated here.
 //! - Scenario/run identifiers must match across spec, run config, and trigger.
 //! - MCP transcripts capture every tool call in order.
+//!
+//! Security posture: HTTP responses are untrusted; enforce strict size limits
+//! and fail closed on malformed responses (see `Docs/security/threat_model.md`).
 
 // ============================================================================
 // SECTION: Imports
@@ -28,6 +31,7 @@ use decision_gate_core::RunState;
 use decision_gate_core::ScenarioSpec;
 use decision_gate_core::Timestamp;
 use decision_gate_core::TriggerEvent;
+use decision_gate_core::runtime::MAX_RUNPACK_ARTIFACT_BYTES;
 use decision_gate_core::runtime::ScenarioStatus;
 use decision_gate_core::runtime::StatusRequest;
 use decision_gate_core::runtime::TriggerResult;
@@ -40,9 +44,19 @@ use reqwest::Client;
 use reqwest::header::AUTHORIZATION;
 use reqwest::header::HeaderMap;
 use reqwest::header::HeaderValue;
+use reqwest::redirect::Policy;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
+
+// ============================================================================
+// SECTION: Limits
+// ============================================================================
+
+/// Maximum response body size accepted from MCP HTTP servers.
+pub(crate) const MAX_INTEROP_RESPONSE_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;
+/// Maximum response body preview included in error strings.
+const MAX_INTEROP_ERROR_BODY_BYTES: usize = 2048;
 
 // ============================================================================
 // SECTION: Public Types
@@ -307,6 +321,8 @@ struct McpHttpClient {
     bearer_token: Option<String>,
     /// Optional client subject for downstream auth.
     client_subject: Option<String>,
+    /// Maximum response body size.
+    max_response_bytes: usize,
 }
 
 impl McpHttpClient {
@@ -319,6 +335,7 @@ impl McpHttpClient {
     ) -> Result<Self, String> {
         let client = Client::builder()
             .timeout(timeout)
+            .redirect(Policy::none())
             .build()
             .map_err(|err| format!("failed to build http client: {err}"))?;
         Ok(Self {
@@ -328,6 +345,7 @@ impl McpHttpClient {
             next_id: 1,
             bearer_token,
             client_subject,
+            max_response_bytes: MAX_INTEROP_RESPONSE_BYTES,
         })
     }
 
@@ -405,21 +423,25 @@ impl McpHttpClient {
         };
 
         let status = response.status();
-        let body = response.text().await.map_err(|err| {
-            let message = format!("failed to read response body: {err}");
-            self.push_transcript(
-                &request.method,
-                request_value.clone(),
-                Value::Null,
-                Some(message.clone()),
-            );
-            message
-        })?;
-        let response_value: Value =
-            serde_json::from_str(&body).unwrap_or_else(|_| Value::String(body.clone()));
+        let mut response = response;
+        let body_bytes = match self.read_body_with_limit(&mut response).await {
+            Ok(bytes) => bytes,
+            Err(message) => {
+                self.push_transcript(
+                    &request.method,
+                    request_value.clone(),
+                    Value::Null,
+                    Some(message.clone()),
+                );
+                return Err(message);
+            }
+        };
+        let response_value: Value = serde_json::from_slice(&body_bytes)
+            .unwrap_or_else(|_| Value::String(Self::body_preview(&body_bytes)));
 
         if !status.is_success() {
-            let message = format!("http status {status} with body {body}");
+            let body_preview = Self::body_preview(&body_bytes);
+            let message = format!("http status {status} with body {body_preview}");
             self.push_transcript(
                 &request.method,
                 request_value,
@@ -429,16 +451,17 @@ impl McpHttpClient {
             return Err(message);
         }
 
-        let parsed: JsonRpcResponse = serde_json::from_str(&body).map_err(|err| {
-            let message = format!("invalid json-rpc response: {err}");
-            self.push_transcript(
-                &request.method,
-                request_value.clone(),
-                response_value.clone(),
-                Some(message.clone()),
-            );
-            message
-        })?;
+        let parsed: JsonRpcResponse =
+            serde_json::from_value(response_value.clone()).map_err(|err| {
+                let message = format!("invalid json-rpc response: {err}");
+                self.push_transcript(
+                    &request.method,
+                    request_value.clone(),
+                    response_value.clone(),
+                    Some(message.clone()),
+                );
+                message
+            })?;
 
         if let Some(err) = &parsed.error {
             let message = format!("json-rpc error {}: {}", err.code, err.message);
@@ -453,6 +476,53 @@ impl McpHttpClient {
 
         self.push_transcript(&request.method, request_value, response_value, None);
         Ok(parsed)
+    }
+
+    /// Reads the response body while enforcing a strict size limit.
+    async fn read_body_with_limit(
+        &self,
+        response: &mut reqwest::Response,
+    ) -> Result<Vec<u8>, String> {
+        let limit = u64::try_from(self.max_response_bytes)
+            .map_err(|_| "response size limit out of range".to_string())?;
+        if let Some(length) = response.content_length() {
+            if length > limit {
+                return Err(format!("response body exceeds size limit ({length} > {limit})"));
+            }
+        }
+
+        let mut body = Vec::new();
+        while let Some(chunk) =
+            response.chunk().await.map_err(|err| format!("failed to read response body: {err}"))?
+        {
+            let next_len = body
+                .len()
+                .checked_add(chunk.len())
+                .ok_or_else(|| "response body exceeds size limit".to_string())?;
+            if next_len > self.max_response_bytes {
+                return Err(format!(
+                    "response body exceeds size limit ({next_len} > {})",
+                    self.max_response_bytes
+                ));
+            }
+            body.extend_from_slice(&chunk);
+        }
+        Ok(body)
+    }
+
+    /// Produces a bounded UTF-8 preview of response bodies for error reporting.
+    fn body_preview(bytes: &[u8]) -> String {
+        if bytes.is_empty() {
+            return String::new();
+        }
+        let preview_len = bytes.len().min(MAX_INTEROP_ERROR_BODY_BYTES);
+        let preview = String::from_utf8_lossy(&bytes[.. preview_len]);
+        if bytes.len() > preview_len {
+            let remaining = bytes.len() - preview_len;
+            format!("{preview}...[truncated {remaining} bytes]")
+        } else {
+            preview.to_string()
+        }
     }
 
     /// Returns the next JSON-RPC request identifier.

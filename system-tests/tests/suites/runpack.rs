@@ -589,12 +589,7 @@ async fn runpack_missing_artifact_fails() -> Result<(), Box<dyn std::error::Erro
     if verified.status != decision_gate_core::runtime::VerificationStatus::Fail {
         return Err(format!("expected verification fail, got {:?}", verified.status).into());
     }
-    if !verified
-        .report
-        .errors
-        .iter()
-        .any(|err| err.contains("artifact read failed"))
-    {
+    if !verified.report.errors.iter().any(|err| err.contains("artifact read failed")) {
         return Err("expected missing artifact error in verification report".into());
     }
 

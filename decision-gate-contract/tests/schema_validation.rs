@@ -6,7 +6,15 @@
 // Dependencies: decision-gate-contract, decision-gate-core, jsonschema
 // ============================================================================
 
-//! Contract schema validation tests for generated artifacts and runtime data.
+//! ## Overview
+//! Validates generated contract artifacts and runtime payloads against the
+//! canonical JSON schemas.
+//! Security posture: schemas gate untrusted inputs; see
+//! `Docs/security/threat_model.md`.
+
+// ============================================================================
+// SECTION: Lint Configuration
+// ============================================================================
 
 #![allow(
     clippy::panic,
@@ -17,6 +25,10 @@
     clippy::missing_docs_in_private_items,
     reason = "Test-only validation helpers use panic-based assertions for clarity."
 )]
+
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
 
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -78,6 +90,10 @@ use serde_json::Value;
 use serde_json::json;
 use url::Url;
 
+// ============================================================================
+// SECTION: Schema Resolver
+// ============================================================================
+
 #[derive(Clone)]
 struct ContractSchemaResolver {
     registry: Arc<BTreeMap<String, Value>>,
@@ -106,6 +122,10 @@ impl SchemaResolver for ContractSchemaResolver {
     }
 }
 
+// ============================================================================
+// SECTION: Schema Helpers
+// ============================================================================
+
 fn compile_schema(
     schema: &Value,
     resolver: &ContractSchemaResolver,
@@ -116,6 +136,10 @@ fn compile_schema(
     let compiled = options.compile(schema).map_err(|err| io::Error::other(err.to_string()))?;
     Ok(compiled)
 }
+
+// ============================================================================
+// SECTION: Validation Helpers
+// ============================================================================
 
 fn assert_valid(schema: &JSONSchema, instance: &Value, label: &str) -> Result<(), Box<dyn Error>> {
     match schema.validate(instance) {
@@ -138,6 +162,10 @@ fn assert_invalid(
         Ok(())
     }
 }
+
+// ============================================================================
+// SECTION: Artifact Helpers
+// ============================================================================
 
 fn artifact_json(
     bundle: &decision_gate_contract::ContractBundle,
@@ -175,6 +203,10 @@ fn build_registry(schemas: &[Value]) -> Result<ContractSchemaResolver, Box<dyn E
     }
     Ok(ContractSchemaResolver::new(registry))
 }
+
+// ============================================================================
+// SECTION: Tests
+// ============================================================================
 
 #[test]
 fn contract_schemas_validate_examples_and_reject_invalid() -> Result<(), Box<dyn Error>> {

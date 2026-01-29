@@ -3,7 +3,7 @@
 // Module: Requirement Builders
 // Description: Fluent builders over the universal requirement tree.
 // Purpose: Provide ergonomic, type-safe APIs for composing boolean requirements.
-// Dependencies: crate::requirement::requirement::{Requirement, RequirementGroup}
+// Dependencies: crate::requirement::Requirement
 // ============================================================================
 
 //! ## Overview
@@ -27,6 +27,9 @@ use crate::requirement::Requirement;
 ///
 /// # Type Parameter
 /// * `P` - The domain-specific predicate type
+///
+/// # Invariants
+/// - Holds a valid [`Requirement`] tree.
 pub struct RequirementBuilder<P> {
     /// Root requirement under construction.
     requirement: Requirement<P>,
@@ -113,6 +116,9 @@ impl<P> Not for RequirementBuilder<P> {
 // ============================================================================
 
 /// Builder for And requirements with fluent chaining
+///
+/// # Invariants
+/// - Requirements are accumulated in insertion order.
 pub struct AndBuilder<P> {
     /// Requirements collected for the And clause.
     requirements: Vec<Requirement<P>>,
@@ -163,6 +169,9 @@ impl<P> AndBuilder<P> {
 // ============================================================================
 
 /// Builder for Or requirements with fluent chaining
+///
+/// # Invariants
+/// - Requirements are accumulated in insertion order.
 pub struct OrBuilder<P> {
     /// Requirements collected for the Or clause.
     requirements: Vec<Requirement<P>>,
@@ -213,6 +222,9 @@ impl<P> OrBuilder<P> {
 // ============================================================================
 
 /// Builder for `RequireGroup` requirements with fluent chaining
+///
+/// # Invariants
+/// - `min` is stored verbatim and is not validated against the list length.
 pub struct GroupBuilder<P> {
     /// Minimum number of requirements that must pass.
     min: u8,

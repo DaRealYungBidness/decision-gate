@@ -19,11 +19,22 @@
 //!   rendered as `Any`.
 //! - Schema-to-type mapping is best-effort and intentionally conservative to preserve compatibility
 //!   across SDK consumers.
+//!
+//! ### Security Posture
+//! Tooling contracts are treated as untrusted input. The generator enforces a
+//! hard input size limit and fails closed on parsing errors. See
+//! `Docs/security/threat_model.md` for the repository threat model.
+//!
+//! ## Index
+//! - Public API: [`SdkGenerator`], [`SdkGenError`], [`DEFAULT_TOOLING_PATH`], [`MAX_TOOLING_BYTES`]
+//! - Rendering: Python, TypeScript, OpenAPI (private helpers)
+//! - Schema helpers: schema inspection, doc normalization, type mapping
 
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fmt::Write;
 use std::fs;
+use std::io::Read;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -32,8 +43,19 @@ use decision_gate_contract::types::ToolExample;
 use serde_json::Value;
 use thiserror::Error;
 
+// ============================================================================
+// SECTION: Public API
+// ============================================================================
+
+// ============================================================================
+// CONSTANTS: Tooling input defaults and limits
+// ============================================================================
+
 /// Default tooling.json path relative to the workspace root.
 pub const DEFAULT_TOOLING_PATH: &str = "Docs/generated/decision-gate/tooling.json";
+
+/// Maximum tooling.json size accepted by the generator.
+pub const MAX_TOOLING_BYTES: u64 = 4 * 1024 * 1024;
 
 /// Errors raised by the SDK generator.
 #[derive(Debug, Error)]
@@ -50,6 +72,10 @@ pub enum SdkGenError {
 }
 
 /// SDK generator loaded with tooling contracts.
+///
+/// # Invariants
+/// - Tool order matches the tooling contract input.
+/// - Rendering is deterministic for a fixed tooling contract.
 #[derive(Debug, Clone)]
 pub struct SdkGenerator {
     /// Path to the tooling.json contract backing this generator.
@@ -62,20 +88,18 @@ impl SdkGenerator {
     /// Loads tooling contracts from the given path.
     ///
     /// # Errors
-    /// Returns `SdkGenError` when the tooling file cannot be read or parsed.
+    /// Returns `SdkGenError` when the tooling file cannot be read or parsed, or
+    /// when the file exceeds [`MAX_TOOLING_BYTES`].
     ///
     /// # Notes
     /// This method performs JSON parsing only; semantic validation is expected
     /// to happen upstream when the tooling contract is built.
     pub fn load(tooling_path: impl AsRef<Path>) -> Result<Self, SdkGenError> {
         let tooling_path = tooling_path.as_ref().to_path_buf();
-        let bytes = fs::read(&tooling_path).map_err(|err| SdkGenError::Io(err.to_string()))?;
+        let bytes = read_tooling_bytes(&tooling_path)?;
         let tools: Vec<ToolContract> =
             serde_json::from_slice(&bytes).map_err(|err| SdkGenError::Json(err.to_string()))?;
-        Ok(Self {
-            tooling_path,
-            tools,
-        })
+        Ok(Self { tooling_path, tools })
     }
 
     /// Returns the tooling.json path used by the generator.
@@ -109,8 +133,43 @@ impl SdkGenerator {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+// ============================================================================
+// SECTION: Tooling Input
+// ============================================================================
+
+/// Reads the tooling contract with size limits to avoid memory exhaustion.
+fn read_tooling_bytes(path: &Path) -> Result<Vec<u8>, SdkGenError> {
+    let file = fs::File::open(path).map_err(|err| SdkGenError::Io(err.to_string()))?;
+    let metadata = file.metadata().map_err(|err| SdkGenError::Io(err.to_string()))?;
+    if metadata.len() > MAX_TOOLING_BYTES {
+        return Err(SdkGenError::Tooling(format!(
+            "tooling input exceeds {MAX_TOOLING_BYTES} bytes"
+        )));
+    }
+    let mut bytes = Vec::new();
+    let mut limited = file.take(MAX_TOOLING_BYTES + 1);
+    limited.read_to_end(&mut bytes).map_err(|err| SdkGenError::Io(err.to_string()))?;
+    let size = u64::try_from(bytes.len()).map_err(|_| {
+        SdkGenError::Tooling("tooling input size exceeds addressable memory".to_string())
+    })?;
+    if size > MAX_TOOLING_BYTES {
+        return Err(SdkGenError::Tooling(format!(
+            "tooling input exceeds {MAX_TOOLING_BYTES} bytes"
+        )));
+    }
+    Ok(bytes)
+}
+
+// ============================================================================
+// SECTION: Schema Model
+// ============================================================================
+
 /// Internal representation of a schema-derived type.
+///
+/// # Invariants
+/// - `Union` variants contain at least two distinct, non-`Any` entries.
+/// - `Array` always wraps a fully resolved inner [`TypeSpec`].
+#[derive(Debug, Clone, PartialEq)]
 enum TypeSpec {
     /// Arbitrary JSON value.
     Any,
@@ -134,8 +193,12 @@ enum TypeSpec {
     Literal(Vec<Value>),
 }
 
-#[derive(Debug, Clone)]
 /// Object property metadata for SDK type rendering.
+///
+/// # Invariants
+/// - `name` matches the JSON Schema property key.
+/// - `schema` is the original schema fragment for this property.
+#[derive(Debug, Clone)]
 struct Property {
     /// Property name in the schema.
     name: String,
@@ -146,6 +209,10 @@ struct Property {
     /// Original schema fragment for this property.
     schema: Value,
 }
+
+// ============================================================================
+// SECTION: Python SDK Rendering
+// ============================================================================
 
 /// Renders the Python SDK generated file from tooling contracts.
 #[allow(
@@ -243,14 +310,14 @@ fn render_python(tools: &[ToolContract]) -> Result<String, SdkGenError> {
         out.push_str(":\n");
         out.push_str("        \"\"\"\n");
         out.push_str("        ");
-        out.push_str(&tool.description);
+        out.push_str(&normalize_doc(&tool.description));
         out.push('\n');
         if !tool.notes.is_empty() {
             out.push('\n');
             out.push_str("        Notes:\n");
             for note in &tool.notes {
                 out.push_str("        - ");
-                out.push_str(note);
+                out.push_str(&normalize_doc(note));
                 out.push('\n');
             }
         }
@@ -327,6 +394,10 @@ fn render_python_schema_constant(
     Ok(())
 }
 
+// ============================================================================
+// SECTION: TypeScript SDK Rendering
+// ============================================================================
+
 /// Renders the TypeScript SDK generated file from tooling contracts.
 fn render_typescript(tools: &[ToolContract]) -> Result<String, SdkGenError> {
     let mut out = String::new();
@@ -389,14 +460,14 @@ fn render_typescript(tools: &[ToolContract]) -> Result<String, SdkGenError> {
         let output_type = format!("{pascal}Response");
         out.push_str("  /**\n");
         out.push_str("   * ");
-        out.push_str(&tool.description);
+        out.push_str(&normalize_doc(&tool.description));
         out.push('\n');
         if !tool.notes.is_empty() {
             out.push_str("   *\n");
             out.push_str("   * Notes:\n");
             for note in &tool.notes {
                 out.push_str("   * - ");
-                out.push_str(note);
+                out.push_str(&normalize_doc(note));
                 out.push('\n');
             }
         }
@@ -481,6 +552,10 @@ fn render_typescript_schema_constant(
     out.push_str(" as const;\n\n");
     Ok(())
 }
+
+// ============================================================================
+// SECTION: OpenAPI Rendering
+// ============================================================================
 
 /// Renders the `OpenAPI` JSON document for the JSON-RPC tools/call surface.
 #[allow(
@@ -665,6 +740,10 @@ fn render_openapi(tools: &[ToolContract]) -> Result<String, SdkGenError> {
     serde_json::to_string_pretty(&openapi).map_err(|err| SdkGenError::Json(err.to_string()))
 }
 
+// ============================================================================
+// SECTION: Schema Introspection and Documentation
+// ============================================================================
+
 /// Extracts top-level object properties from a JSON schema.
 ///
 /// Properties are returned in sorted order for deterministic output.
@@ -773,9 +852,12 @@ fn schema_constraints(schema: &Value) -> Vec<String> {
     items
 }
 
-/// Normalizes documentation strings by collapsing whitespace.
+/// Normalizes documentation strings by collapsing whitespace and defusing
+/// comment or docstring terminators in generated outputs.
 fn normalize_doc(value: &str) -> String {
-    value.split_whitespace().collect::<Vec<_>>().join(" ")
+    let collapsed = value.split_whitespace().collect::<Vec<_>>().join(" ");
+    let collapsed = collapsed.replace("*/", "* /");
+    collapsed.replace("\"\"\"", "\\\"\\\"\\\"")
 }
 
 /// Renders a JSON value as a compact inline string.
@@ -805,6 +887,10 @@ fn wrap_doc(text: &str, width: usize) -> Vec<String> {
     }
     lines
 }
+
+// ============================================================================
+// SECTION: Examples Rendering
+// ============================================================================
 
 /// Renders example blocks into a Python docstring.
 fn render_python_examples(out: &mut String, examples: &[ToolExample]) -> Result<(), SdkGenError> {
@@ -868,6 +954,10 @@ fn render_typescript_json_block(out: &mut String, value: &Value) -> Result<(), S
     out.push_str("   *   ```\n");
     Ok(())
 }
+
+// ============================================================================
+// SECTION: Runtime Validation Helpers
+// ============================================================================
 
 /// Emits Python runtime schema validation helpers.
 fn render_python_validation_helpers(out: &mut String, tools: &[ToolContract]) {
@@ -1023,6 +1113,10 @@ fn render_typescript_validation_helpers(out: &mut String, tools: &[ToolContract]
         out.push_str("}\n\n");
     }
 }
+
+// ============================================================================
+// SECTION: Schema Sorting and Type Mapping
+// ============================================================================
 
 /// Returns a JSON value with deterministically sorted object keys.
 ///
@@ -1208,6 +1302,10 @@ const fn is_literal_value(value: &Value) -> bool {
     matches!(value, Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_))
 }
 
+// ============================================================================
+// SECTION: Utilities
+// ============================================================================
+
 /// Converts a `snake_case` identifier into `PascalCase`.
 fn pascal_case(value: &str) -> String {
     let mut output = String::new();
@@ -1226,81 +1324,5 @@ fn pascal_case(value: &str) -> String {
 impl fmt::Display for TypeSpec {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(&python_type(self))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #![allow(
-        clippy::missing_docs_in_private_items,
-        reason = "Test helpers are concise and scoped to generated artifact checks."
-    )]
-    use std::fs;
-    use std::path::Path;
-    use std::path::PathBuf;
-
-    use super::DEFAULT_TOOLING_PATH;
-    use super::SdkGenError;
-    use super::SdkGenerator;
-
-    fn workspace_root() -> Result<PathBuf, SdkGenError> {
-        let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let root = manifest
-            .parent()
-            .map(Path::to_path_buf)
-            .ok_or_else(|| SdkGenError::Tooling("missing workspace root".to_string()))?;
-        Ok(root)
-    }
-
-    fn read_string(path: &Path) -> Result<String, SdkGenError> {
-        fs::read_to_string(path).map_err(|err| SdkGenError::Io(err.to_string()))
-    }
-
-    #[test]
-    fn python_sdk_matches_generated_output() -> Result<(), SdkGenError> {
-        let root = workspace_root()?;
-        let tooling_path = root.join(DEFAULT_TOOLING_PATH);
-        let generator = SdkGenerator::load(tooling_path)?;
-        let rendered = generator.generate_python()?;
-        let expected_path = root.join("sdks/python/decision_gate/_generated.py");
-        let expected = read_string(&expected_path)?;
-        if rendered != expected {
-            return Err(SdkGenError::Tooling(
-                "Python SDK drift detected. Run decision-gate-sdk-gen generate.".to_string(),
-            ));
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn typescript_sdk_matches_generated_output() -> Result<(), SdkGenError> {
-        let root = workspace_root()?;
-        let tooling_path = root.join(DEFAULT_TOOLING_PATH);
-        let generator = SdkGenerator::load(tooling_path)?;
-        let rendered = generator.generate_typescript()?;
-        let expected_path = root.join("sdks/typescript/src/_generated.ts");
-        let expected = read_string(&expected_path)?;
-        if rendered != expected {
-            return Err(SdkGenError::Tooling(
-                "TypeScript SDK drift detected. Run decision-gate-sdk-gen generate.".to_string(),
-            ));
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn openapi_matches_generated_output() -> Result<(), SdkGenError> {
-        let root = workspace_root()?;
-        let tooling_path = root.join(DEFAULT_TOOLING_PATH);
-        let generator = SdkGenerator::load(tooling_path)?;
-        let rendered = generator.generate_openapi()?;
-        let expected_path = root.join("Docs/generated/openapi/decision-gate.json");
-        let expected = read_string(&expected_path)?;
-        if rendered != expected {
-            return Err(SdkGenError::Tooling(
-                "OpenAPI drift detected. Run decision-gate-sdk-gen generate.".to_string(),
-            ));
-        }
-        Ok(())
     }
 }

@@ -218,13 +218,18 @@ impl DataShapeRegistry for InMemoryDataShapeRegistry {
         };
         let page_items: Vec<DataShapeRecord> =
             records.into_iter().skip(start_index).take(limit).collect();
-        let next_token = page_items.last().map(|record| {
-            serde_json::to_string(&RegistryCursor {
-                schema_id: record.schema_id.to_string(),
-                version: record.version.to_string(),
-            })
-            .unwrap_or_default()
-        });
+        let next_token = match page_items.last() {
+            Some(record) => {
+                let cursor = RegistryCursor {
+                    schema_id: record.schema_id.to_string(),
+                    version: record.version.to_string(),
+                };
+                Some(serde_json::to_string(&cursor).map_err(|err| {
+                    DataShapeRegistryError::Invalid(format!("failed to encode cursor: {err}"))
+                })?)
+            }
+            None => None,
+        };
         Ok(DataShapePage {
             items: page_items,
             next_token,

@@ -19,6 +19,7 @@ Minimal Node/TypeScript MCP provider that implements `tools/list` and
 - [Overview](#overview)
 - [Files](#files)
 - [Build and Run](#build-and-run)
+- [Tests](#tests)
 - [Customization](#customization)
 - [Framing Limits](#framing-limits)
 - [References](#references)
@@ -43,6 +44,12 @@ npm run build
 node dist/index.js
 ```
 
+## Tests
+
+```bash
+npm test
+```
+
 ## Customization
 
 1. Define predicates and parameters in `handleEvidenceQuery`.
@@ -59,4 +66,3 @@ The template enforces:
 Requests exceeding these limits are rejected with JSON-RPC errors.
 
 ## References
-

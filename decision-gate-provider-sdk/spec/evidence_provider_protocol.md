@@ -51,7 +51,8 @@ Decision Gate calls the provider with `tools/call`:
     "arguments": {
       "query": { "provider_id": "env", "predicate": "get", "params": { "key": "DEPLOY_ENV" } },
       "context": {
-        "tenant_id": "tenant-1",
+        "tenant_id": 1,
+        "namespace_id": 42,
         "run_id": "run-1",
         "scenario_id": "scenario-1",
         "stage_id": "stage-1",
@@ -73,15 +74,17 @@ The response must include a `content` array with a JSON EvidenceResult:
   "id": 1,
   "result": {
     "content": [
-      {
-        "type": "json",
-        "json": {
-          "value": { "kind": "json", "value": "production" },
-          "evidence_hash": null,
-          "evidence_ref": null,
-          "evidence_anchor": null,
-          "signature": null,
-          "content_type": "application/json"
+        {
+          "type": "json",
+          "json": {
+            "value": { "kind": "json", "value": "production" },
+            "lane": "verified",
+            "error": null,
+            "evidence_hash": null,
+            "evidence_ref": null,
+            "evidence_anchor": null,
+            "signature": null,
+            "content_type": "application/json"
         }
       }
     ]
@@ -103,7 +106,8 @@ The response must include a `content` array with a JSON EvidenceResult:
 
 ```json
 {
-  "tenant_id": "string",
+  "tenant_id": 1,
+  "namespace_id": 1,
   "run_id": "string",
   "scenario_id": "string",
   "stage_id": "string",
@@ -117,20 +121,21 @@ The response must include a `content` array with a JSON EvidenceResult:
 
 ```json
 {
-  "value": { "kind": "json|bytes", "value": "any" },
+  "value": { "kind": "json|bytes", "value": "any" } | null,
   "lane": "verified|asserted",
-  "error": { "code": "string", "message": "string", "details": "object|null" },
-  "evidence_hash": { "algorithm": "sha256", "value": "hex" },
-  "evidence_ref": { "uri": "string" },
-  "evidence_anchor": { "anchor_type": "string", "anchor_value": "string" },
-  "signature": { "scheme": "string", "key_id": "string", "signature": [0] },
-  "content_type": "string"
+  "error": { "code": "string", "message": "string", "details": "object|null" } | null,
+  "evidence_hash": { "algorithm": "sha256", "value": "hex" } | null,
+  "evidence_ref": { "uri": "string" } | null,
+  "evidence_anchor": { "anchor_type": "string", "anchor_value": "string" } | null,
+  "signature": { "scheme": "string", "key_id": "string", "signature": [0] } | null,
+  "content_type": "string|null"
 }
 ```
 
 ### Notes
 - `value.kind = "bytes"` encodes `value` as a JSON array of 0-255 integers.
 - `evidence_hash` is optional; Decision Gate can compute it if `value` is present.
+- `tenant_id` and `namespace_id` are numeric identifiers and serialize as JSON numbers.
 - Use JSON-RPC errors for unsupported predicates or malformed requests.
 - When evidence is invalid or missing, set `value = null` and include structured
   `error` metadata. This keeps evaluation fail-closed while enabling recovery.

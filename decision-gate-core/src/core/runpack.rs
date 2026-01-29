@@ -10,6 +10,8 @@
 //! Runpack manifests index Decision Gate artifacts with deterministic hashes. Verifiers
 //! rely on the manifest to locate control-plane logs, disclosures, and evidence
 //! metadata needed for offline verification.
+//!
+//! Security posture: runpack artifacts are untrusted inputs; see `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports

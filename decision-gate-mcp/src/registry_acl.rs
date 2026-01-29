@@ -6,7 +6,16 @@
 // Dependencies: decision-gate-core, decision-gate-mcp config/auth
 // ============================================================================
 
-//! Registry ACL enforcement for schema registry operations.
+//! ## Overview
+//! Registry ACL enforcement for schema registry operations, mapping authenticated
+//! principals to scoped roles and policy classes.
+//!
+//! Security posture: Registry ACL decisions gate schema disclosure and writes;
+//! see `Docs/security/threat_model.md`.
+
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
 
 use std::collections::BTreeMap;
 
@@ -24,6 +33,10 @@ use crate::config::RegistryAclEffect;
 use crate::config::RegistryAclMode;
 use crate::config::RegistryAclRule;
 use crate::config::ServerAuthConfig;
+
+// ============================================================================
+// SECTION: Role Constants
+// ============================================================================
 
 /// Role name: tenant-wide admin.
 const ROLE_TENANT_ADMIN: &str = "TenantAdmin";

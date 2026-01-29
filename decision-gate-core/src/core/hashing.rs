@@ -171,9 +171,9 @@ fn to_json_value<T: Serialize + ?Sized>(value: &T) -> Result<Value, HashError> {
     serde_json::to_value(value).map_err(|err| HashError::Canonicalization(err.to_string()))
 }
 
-// ============================================================================//
+// ============================================================================
 // SECTION: Non-finite Float Guard
-// ============================================================================//
+// ============================================================================
 
 #[derive(Debug)]
 /// Error returned when non-finite floats are encountered during serialization.

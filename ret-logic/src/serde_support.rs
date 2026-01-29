@@ -28,6 +28,9 @@ use crate::requirement::Requirement;
 // ============================================================================
 
 /// Error types that can occur during requirement serialization/deserialization
+///
+/// # Invariants
+/// - None. Variants capture structured validation failures.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SerdeError {
     /// Invalid requirement structure
@@ -110,6 +113,9 @@ impl std::error::Error for SerdeError {}
 // ============================================================================
 
 /// Configuration for requirement serialization/deserialization
+///
+/// # Invariants
+/// - No invariants are enforced; callers should choose safe bounds.
 #[derive(Debug, Clone)]
 pub struct SerdeConfig {
     /// Maximum allowed depth for requirement trees
@@ -141,6 +147,9 @@ impl Default for SerdeConfig {
 // ============================================================================
 
 /// Validator for requirement trees
+///
+/// # Invariants
+/// - Uses the stored [`SerdeConfig`] for all validation decisions.
 #[derive(Debug)]
 pub struct RequirementValidator {
     /// Validation configuration for structure limits.
@@ -253,7 +262,8 @@ impl RequirementValidator {
                 min,
                 reqs,
             } => {
-                if *min as usize > reqs.len() {
+                let min_required = usize::from(*min);
+                if min_required > reqs.len() {
                     return Err(SerdeError::InvalidGroup {
                         min: *min,
                         total: reqs.len(),
@@ -283,6 +293,9 @@ impl RequirementValidator {
 }
 
 /// Helper for serializing requirements with validation
+///
+/// # Invariants
+/// - Uses the stored [`RequirementValidator`] for structural checks.
 #[derive(Debug)]
 pub struct RequirementSerializer {
     /// Validator used to enforce structural limits.
@@ -517,6 +530,8 @@ pub mod ron_utils {
 
     /// Maximum allowed RON file size in bytes.
     const MAX_RON_FILE_BYTES: usize = 1024 * 1024;
+    /// Maximum allowed RON file size as u64 for I/O limits.
+    const MAX_RON_FILE_BYTES_U64: u64 = 1024 * 1024;
 
     /// Errors emitted while loading RON requirement files.
     #[derive(Debug)]
@@ -549,7 +564,7 @@ pub mod ron_utils {
     fn read_to_string_with_limit(path: impl AsRef<Path>) -> Result<String, Box<dyn Error>> {
         let file = fs::File::open(path)?;
         let mut contents = String::new();
-        let mut limited = file.take((MAX_RON_FILE_BYTES + 1) as u64);
+        let mut limited = file.take(MAX_RON_FILE_BYTES_U64 + 1);
         limited.read_to_string(&mut contents)?;
 
         if contents.len() > MAX_RON_FILE_BYTES {

@@ -1,7 +1,9 @@
 // ret-logic/tests/dsl.rs
 // ============================================================================
-// Test Module: Requirement DSL
-// Coverage: Happy-path parsing, precedence, group handling, and error cases.
+// Module: Requirement DSL Tests
+// Description: Tests for DSL parsing, precedence, and error handling.
+// Purpose: Validate DSL parsing and validation behavior across common scenarios.
+// Dependencies: ret_logic::dsl, ret_logic::requirement
 // ============================================================================
 //! ## Overview
 //! Integration tests for the requirement DSL parser.

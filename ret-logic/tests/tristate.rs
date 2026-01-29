@@ -2,6 +2,8 @@
 // ============================================================================
 // Module: Tri-State Tests
 // Description: Tests for tri-state logic, group semantics, and trace hooks.
+// Purpose: Validate tri-state logic tables and group semantics behavior.
+// Dependencies: ret_logic::tristate
 // ============================================================================
 //! ## Overview
 //! Validates tri-state evaluation modes and trace hooks for requirement gates.

@@ -6,7 +6,14 @@
 // Dependencies: decision-gate-contract, ron, serde_json
 // ============================================================================
 
-//! Edge case tests for RON authoring inputs.
+//! ## Overview
+//! Exercises RON-specific edge cases and schema enforcement behavior.
+//! Security posture: authoring inputs are untrusted; see
+//! `Docs/security/threat_model.md`.
+
+// ============================================================================
+// SECTION: Lint Configuration
+// ============================================================================
 
 #![allow(
     clippy::panic,
@@ -18,12 +25,20 @@
     reason = "Test-only authoring validation uses panic-based assertions."
 )]
 
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
+
 use decision_gate_contract::AuthoringError;
 use decision_gate_contract::AuthoringFormat;
 use decision_gate_contract::authoring::normalize_scenario;
 use ron::ser::PrettyConfig;
 use serde_json::Value;
 use serde_json::json;
+
+// ============================================================================
+// SECTION: Fixtures
+// ============================================================================
 
 fn minimal_spec_value() -> Value {
     json!({
@@ -66,6 +81,10 @@ fn ron_from_value(value: &Value) -> String {
     let pretty = PrettyConfig::new().depth_limit(6).separate_tuple_members(true);
     ron::ser::to_string_pretty(value, pretty).expect("ron serialize")
 }
+
+// ============================================================================
+// SECTION: Tests
+// ============================================================================
 
 /// Confirms explicit nulls for optional fields are accepted.
 #[test]

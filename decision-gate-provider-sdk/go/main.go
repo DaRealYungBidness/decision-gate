@@ -3,7 +3,7 @@
 // Module: Go Evidence Provider Template
 // Description: Minimal MCP stdio server for Decision Gate evidence queries.
 // Purpose: Provide a starter implementation for `evidence_query` providers.
-// Dependencies: Go standard library (bufio, encoding/json, io, os).
+// Dependencies: Go standard library (bufio, encoding/json, fmt, io, os, strconv, strings).
 // ============================================================================
 
 // ## Overview
@@ -23,8 +23,16 @@ import (
 	"strings"
 )
 
+// ============================================================================
+// SECTION: Limits and Constants
+// ============================================================================
+
 const maxHeaderBytes = 8 * 1024
 const maxBodyBytes = 1024 * 1024
+
+// ============================================================================
+// SECTION: JSON-RPC Types
+// ============================================================================
 
 type jsonRpcRequest struct {
 	JSONRPC string          `json:"jsonrpc"`
@@ -70,7 +78,8 @@ type evidenceQuery struct {
 }
 
 type evidenceContext struct {
-	TenantID      string `json:"tenant_id"`
+	TenantID      uint64 `json:"tenant_id"`
+	NamespaceID   uint64 `json:"namespace_id"`
 	RunID         string `json:"run_id"`
 	ScenarioID    string `json:"scenario_id"`
 	StageID       string `json:"stage_id"`
@@ -104,6 +113,10 @@ func (err frameError) Error() string {
 	return err.message
 }
 
+// ============================================================================
+// SECTION: Entry Point
+// ============================================================================
+
 func main() {
 	reader := bufio.NewReader(os.Stdin)
 	writer := bufio.NewWriter(os.Stdout)
@@ -135,6 +148,10 @@ func main() {
 		writeFrame(writer, response)
 	}
 }
+
+// ============================================================================
+// SECTION: JSON-RPC Handling
+// ============================================================================
 
 func handleRequest(request jsonRpcRequest) jsonRpcResponse {
 	if request.JSONRPC != "2.0" {
@@ -191,6 +208,10 @@ func handleToolCall(request jsonRpcRequest) jsonRpcResponse {
 	}
 }
 
+// ============================================================================
+// SECTION: Evidence Logic
+// ============================================================================
+
 func handleEvidenceQuery(query evidenceQuery, _ evidenceContext) (evidenceResult, error) {
 	if query.Params == nil {
 		return evidenceResult{}, fmt.Errorf("params.value is required")
@@ -223,6 +244,10 @@ func buildErrorResponse(id any, code int, message string) jsonRpcResponse {
 	}
 }
 
+// ============================================================================
+// SECTION: Framing
+// ============================================================================
+
 func readFrame(reader *bufio.Reader) ([]byte, error) {
 	contentLength := -1
 	headerBytes := 0
@@ -239,9 +264,9 @@ func readFrame(reader *bufio.Reader) ([]byte, error) {
 		if line == "" {
 			break
 		}
-		if strings.HasPrefix(strings.ToLower(line), "content-length:") {
-			value := strings.TrimSpace(strings.TrimPrefix(line, "content-length:"))
-			parsed, err := strconv.Atoi(value)
+		name, value, ok := strings.Cut(line, ":")
+		if ok && strings.EqualFold(strings.TrimSpace(name), "content-length") {
+			parsed, err := strconv.Atoi(strings.TrimSpace(value))
 			if err != nil {
 				return nil, frameError{message: "invalid content length", fatal: true}
 			}

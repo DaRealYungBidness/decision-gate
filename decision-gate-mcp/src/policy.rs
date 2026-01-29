@@ -6,9 +6,16 @@
 // Dependencies: decision-gate-core, serde
 // ============================================================================
 
-//! Policy engine adapters used to authorize packet dispatch.
+//! ## Overview
+//! Policy engine adapters used to authorize packet dispatch with deterministic,
+//! fail-closed decisions.
+//!
 //! Security posture: policy evaluation is a trust boundary; see
 //! `Docs/security/threat_model.md`.
+
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
 
 use decision_gate_core::DispatchTarget;
 use decision_gate_core::PacketEnvelope;

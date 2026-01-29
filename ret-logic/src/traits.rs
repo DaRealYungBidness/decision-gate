@@ -3,7 +3,7 @@
 // Module: Requirement Traits
 // Description: Row-based evaluation contracts for requirement executors.
 // Purpose: Define predicate, batch, and reader utilities for ECS chunk processing.
-// Dependencies: std
+// Dependencies: crate::tristate, std
 // ============================================================================
 
 //! ## Overview
@@ -114,6 +114,9 @@ pub trait TriStatePredicateEval {
 }
 
 /// Adapter for boolean predicates that should participate in tri-state evaluation
+///
+/// # Invariants
+/// - Holds a predicate value of type `P` with no additional constraints.
 #[derive(Debug, Clone, Copy)]
 pub struct BoolAsTri<P>(pub P);
 

@@ -3,7 +3,7 @@
 // Module: Requirement Executor
 // Description: Prepared plan execution infrastructure for requirements.
 // Purpose: Run compiled plans using domain dispatch tables and shared helpers.
-// Dependencies: crate::requirement::{error, plan, traits}
+// Dependencies: crate::{error, plan, traits}
 // ============================================================================
 
 //! ## Overview
@@ -11,6 +11,7 @@
 //! exposing helpers for dispatch table construction and optimized operation
 //! implementations. Domains implement `PredicateEval` for `PlanExecutor` via their
 //! reader types.
+//! Malformed plans or missing opcode handlers fail closed by returning `false`.
 
 // ============================================================================
 // SECTION: Imports
@@ -85,6 +86,9 @@ const MAX_PLAN_STACK_DEPTH: usize = 64;
 /// This structure bridges the gap between compiled plans and the evaluation trait system.
 /// Domains provide a dispatch table that maps opcodes to evaluation functions over their
 /// specific reader types.
+///
+/// # Invariants
+/// - `eval_table` is indexed by [`OpCode`] as `u8`; missing handlers fail closed.
 pub struct PlanExecutor<R: 'static> {
     /// The compiled plan to execute
     pub plan: Plan,
@@ -201,7 +205,8 @@ impl<R: 'static> PredicateEval for PlanExecutor<R> {
 
                 _ => {
                     // Domain-specific operation - delegate to dispatch table
-                    if let Some(eval_fn) = self.eval_table[operation.opcode as u8 as usize] {
+                    let opcode_index = usize::from(operation.opcode as u8);
+                    if let Some(eval_fn) = self.eval_table[opcode_index] {
                         match eval_fn(reader, row, *operation, &self.plan.constants) {
                             Ok(result) => {
                                 stack_values[stack_pointer] = stack_modes[stack_pointer]
@@ -220,6 +225,11 @@ impl<R: 'static> PredicateEval for PlanExecutor<R> {
                     }
                 }
             }
+        }
+
+        if stack_pointer != 0 {
+            // Malformed plan (unclosed group) - fail closed.
+            return false;
         }
 
         // Return the final result
@@ -259,7 +269,7 @@ macro_rules! build_dispatch_table {
             [None; 256];
 
         $(
-            table[$opcode as u8 as usize] = Some($handler);
+            table[usize::from($opcode as u8)] = Some($handler);
         )*
 
         table
@@ -271,6 +281,9 @@ macro_rules! build_dispatch_table {
 // ============================================================================
 
 /// Builder for creating plan executors with domain-specific dispatch tables
+///
+/// # Invariants
+/// - Unregistered opcodes default to `None` and fail closed at runtime.
 pub struct ExecutorBuilder<R: 'static> {
     /// Dispatch table used by the executor builder.
     eval_table: EvalTable<R>,
@@ -296,7 +309,7 @@ impl<R: 'static> ExecutorBuilder<R> {
         opcode: OpCode,
         handler: fn(&R, Row, Operation, &[Constant]) -> RequirementResult<bool>,
     ) -> Self {
-        self.eval_table[opcode as u8 as usize] = Some(handler);
+        self.eval_table[usize::from(opcode as u8)] = Some(handler);
         self
     }
 
@@ -345,7 +358,7 @@ pub mod operations {
         F: Fn(&R, Row, u16) -> Option<f32>,
     {
         let column_id = op.operand_a;
-        let constant_idx = op.operand_b as usize;
+        let constant_idx = usize::from(op.operand_b);
 
         let value = value_getter(reader, row, column_id)
             .ok_or_else(|| RequirementError::predicate_error("Missing value for comparison"))?;
@@ -373,7 +386,7 @@ pub mod operations {
         F: Fn(&R, Row, u16) -> Option<u64>,
     {
         let column_id = op.operand_a;
-        let constant_idx = op.operand_b as usize;
+        let constant_idx = usize::from(op.operand_b);
 
         let entity_flags = flags_getter(reader, row, column_id)
             .ok_or_else(|| RequirementError::predicate_error("Missing flags for check"))?;

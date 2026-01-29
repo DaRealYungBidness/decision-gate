@@ -6,7 +6,12 @@
 // Dependencies: decision-gate-mcp, decision-gate-core
 // ============================================================================
 
-//! Usage metering hook tests.
+//! ## Overview
+//! Validates usage meter hooks can deny tool calls before execution and record
+//! usage after success.
+//!
+//! Security posture: tests verify fail-closed behavior for quota enforcement;
+//! see `Docs/security/threat_model.md`.
 
 #![allow(
     clippy::unwrap_used,

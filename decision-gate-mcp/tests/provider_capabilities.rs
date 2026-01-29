@@ -6,7 +6,12 @@
 // Dependencies: decision-gate-core, decision-gate-mcp
 // ============================================================================
 
-//! MCP capability validation tests for scenario and evidence inputs.
+//! ## Overview
+//! Exercises capability contract enforcement for scenario definitions and
+//! evidence queries at the MCP boundary.
+//!
+//! Security posture: tests verify strict validation and fail-closed behavior;
+//! see `Docs/security/threat_model.md`.
 
 #![allow(
     clippy::unwrap_used,

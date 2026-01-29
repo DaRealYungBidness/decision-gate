@@ -10,6 +10,9 @@
 //! Packets are the atomic disclosure unit in Decision Gate. Each packet has a stable
 //! envelope and an associated payload. Dispatch targets are backend-agnostic
 //! recipients for controlled disclosure.
+//!
+//! Security posture: disclosure payloads may contain sensitive data; see
+//! `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports

@@ -3,6 +3,7 @@
 // Module: Builder Tests
 // Description: Tests for RequirementBuilder, AndBuilder, OrBuilder, GroupBuilder.
 // Purpose: Ensure builder combinators emit the expected requirement trees.
+// Dependencies: ret_logic::builder, ret_logic::requirement
 // ============================================================================
 //! ## Overview
 //! Integration tests covering the builder helpers for composing requirements.

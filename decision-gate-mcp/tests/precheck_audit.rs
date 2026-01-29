@@ -6,7 +6,12 @@
 // Dependencies: decision-gate-mcp, decision-gate-core
 // ============================================================================
 
-//! Precheck audit logging tests.
+//! ## Overview
+//! Validates precheck audit logging behavior, ensuring payload hashes are
+//! recorded and raw payloads remain redacted by default.
+//!
+//! Security posture: tests enforce redaction and fail-closed audit behavior;
+//! see `Docs/security/threat_model.md`.
 
 #![allow(
     clippy::panic,

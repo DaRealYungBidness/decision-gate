@@ -2,9 +2,13 @@
 // ============================================================================
 // Module: CompositeBroker Unit Tests
 // Description: Comprehensive unit tests for the broker dispatcher.
+// Purpose: Validate CompositeBroker payload resolution and dispatch behavior.
+// Dependencies: decision-gate-broker, decision-gate-core, base64, tempfile, url
 // ============================================================================
 
-//! `CompositeBroker` unit tests.
+//! ## Overview
+//! Exercises [`decision_gate_broker::CompositeBroker`] behavior for payload
+//! resolution, hashing, and dispatch.
 
 #![allow(
     clippy::panic,

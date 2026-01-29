@@ -27,6 +27,7 @@ use crate::source::Source;
 use crate::source::SourceError;
 use crate::source::SourcePayload;
 use crate::source::enforce_max_bytes;
+use crate::source::max_source_bytes_u64;
 
 // ============================================================================
 // SECTION: File Source
@@ -81,6 +82,7 @@ impl FileSource {
                     "file path escapes configured root".to_string(),
                 ));
             }
+            return Ok(resolved);
         }
 
         Ok(path)
@@ -95,7 +97,11 @@ impl FileSource {
                 SourceError::Io(err.to_string())
             }
         })?;
-        let mut limited = file.take((crate::source::MAX_SOURCE_BYTES + 1) as u64);
+        let max_bytes = max_source_bytes_u64()?;
+        let limit = max_bytes.checked_add(1).ok_or(SourceError::LimitOverflow {
+            limit: crate::source::MAX_SOURCE_BYTES,
+        })?;
+        let mut limited = file.take(limit);
         let mut bytes = Vec::new();
         limited.read_to_end(&mut bytes).map_err(|err| SourceError::Io(err.to_string()))?;
         enforce_max_bytes(bytes.len())?;

@@ -3,7 +3,7 @@
 # Module: Python Evidence Provider Template
 # Description: Minimal MCP stdio server for Decision Gate evidence queries.
 # Purpose: Provide a starter implementation for `evidence_query` providers.
-# Dependencies: Python standard library (json, sys).
+# Dependencies: Python standard library (json, sys, typing).
 # ============================================================================
 
 """
@@ -20,6 +20,10 @@ import json
 import sys
 from typing import Any, Dict, Optional
 
+# ============================================================================
+# SECTION: Limits and Constants
+# ============================================================================
+
 HEADER_SEPARATOR = b"\r\n\r\n"
 MAX_HEADER_BYTES = 8 * 1024
 MAX_BODY_BYTES = 1024 * 1024
@@ -35,6 +39,10 @@ TOOL_LIST_RESULT = {
     ]
 }
 
+# ============================================================================
+# SECTION: Exceptions
+# ============================================================================
+
 
 class FrameError(Exception):
     """Represents framing errors for Content-Length payloads."""
@@ -43,6 +51,10 @@ class FrameError(Exception):
         super().__init__(message)
         self.fatal = fatal
 
+
+# ============================================================================
+# SECTION: Entry Point
+# ============================================================================
 
 def main() -> None:
     """Entry point for the MCP stdio loop."""
@@ -65,6 +77,10 @@ def main() -> None:
         response = handle_request(request)
         write_frame(stdout, response)
 
+
+# ============================================================================
+# SECTION: Framing
+# ============================================================================
 
 def read_frame(stream: Any) -> Optional[bytes]:
     """Reads a Content-Length framed payload from stdio."""
@@ -108,6 +124,10 @@ def discard_bytes(stream: Any, count: int) -> None:
         remaining -= len(chunk)
 
 
+# ============================================================================
+# SECTION: JSON-RPC Handling
+# ============================================================================
+
 def parse_request(payload: bytes) -> Optional[Dict[str, Any]]:
     """Parses a JSON-RPC request payload."""
     try:
@@ -128,6 +148,10 @@ def handle_request(request: Dict[str, Any]) -> Dict[str, Any]:
         return handle_tool_call(request)
     return build_error_response(request.get("id"), -32601, "method not found")
 
+
+# ============================================================================
+# SECTION: Evidence Logic
+# ============================================================================
 
 def handle_tool_call(request: Dict[str, Any]) -> Dict[str, Any]:
     """Handles the evidence_query tool call."""
@@ -169,6 +193,10 @@ def handle_evidence_query(query: Dict[str, Any], _context: Dict[str, Any]) -> Di
         "content_type": "application/json",
     }
 
+
+# ============================================================================
+# SECTION: JSON-RPC Output
+# ============================================================================
 
 def build_error_response(request_id: Any, code: int, message: str) -> Dict[str, Any]:
     """Builds a JSON-RPC error response."""

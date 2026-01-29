@@ -10,6 +10,13 @@
 //! Provides safety checks for binding the MCP server to non-loopback addresses.
 //! The policy is fail-closed: explicit opt-in is required, and TLS + auth must
 //! be configured before network exposure is allowed.
+//!
+//! Security posture: fail closed on unsafe bind configuration; see
+//! `Docs/security/threat_model.md`.
+
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
 
 use std::env;
 use std::net::SocketAddr;
@@ -21,8 +28,16 @@ use decision_gate_mcp::config::ServerTransport;
 
 use crate::t;
 
+// ============================================================================
+// SECTION: Constants
+// ============================================================================
+
 /// Environment variable enabling non-loopback server binds.
 pub const ALLOW_NON_LOOPBACK_ENV: &str = "DECISION_GATE_ALLOW_NON_LOOPBACK";
+
+// ============================================================================
+// SECTION: Types
+// ============================================================================
 
 /// Bind outcome metadata for transport warnings.
 #[derive(Debug, Clone)]
@@ -42,6 +57,10 @@ pub struct BindOutcome {
     /// Whether rate limiting is enabled.
     pub rate_limit_enabled: bool,
 }
+
+// ============================================================================
+// SECTION: Errors
+// ============================================================================
 
 /// Serve policy failures for bind safety.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -114,6 +133,10 @@ impl std::fmt::Display for ServePolicyError {
         write!(f, "{message}")
     }
 }
+
+// ============================================================================
+// SECTION: Policy
+// ============================================================================
 
 /// Resolves the non-loopback opt-in flag from CLI and environment.
 ///
@@ -212,6 +235,10 @@ pub fn enforce_local_only(
     }
 }
 
+// ============================================================================
+// SECTION: Helpers
+// ============================================================================
+
 /// Parses a bool-ish string (true/false/1/0/yes/no/on/off).
 fn parse_boolish(value: &str) -> Option<bool> {
     let normalized = value.trim().to_ascii_lowercase();
@@ -233,6 +260,10 @@ fn parse_allow_non_loopback_value(value: &str) -> Result<bool, ServePolicyError>
         Ok,
     )
 }
+
+// ============================================================================
+// SECTION: Tests
+// ============================================================================
 
 #[cfg(test)]
 mod tests {

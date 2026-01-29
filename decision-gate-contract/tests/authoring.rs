@@ -6,7 +6,15 @@
 // Dependencies: decision-gate-contract, decision-gate-core, serde_json
 // ============================================================================
 
-//! Tests for Decision Gate authoring normalization.
+//! ## Overview
+//! Tests normalization of JSON/RON authoring into canonical JSON and schema
+//! enforcement outcomes.
+//! Security posture: authoring inputs are untrusted; see
+//! `Docs/security/threat_model.md`.
+
+// ============================================================================
+// SECTION: Lint Configuration
+// ============================================================================
 
 #![allow(
     clippy::panic,
@@ -18,12 +26,20 @@
     reason = "Test-only authoring validation uses panic-based assertions."
 )]
 
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
+
 use decision_gate_contract::AuthoringError;
 use decision_gate_contract::AuthoringFormat;
 use decision_gate_contract::authoring::normalize_scenario;
 use decision_gate_contract::examples;
 use decision_gate_core::hashing::canonical_json_bytes;
 use serde_json::json;
+
+// ============================================================================
+// SECTION: Tests
+// ============================================================================
 
 /// Confirms JSON authoring input normalizes to canonical JSON bytes.
 #[test]

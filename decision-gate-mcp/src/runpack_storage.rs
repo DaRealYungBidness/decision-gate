@@ -3,13 +3,23 @@
 // Module: Runpack Storage
 // Description: Optional runpack storage backend integration for managed cloud.
 // Purpose: Allow MCP to export runpacks to object storage via pluggable sinks.
+// Dependencies: decision-gate-core, thiserror
 // ============================================================================
 
+//! ## Overview
 //! Runpack storage integration for MCP exports.
 //!
 //! This module provides a pluggable interface for exporting runpacks to
 //! managed storage backends (for example, S3) without coupling MCP to
 //! enterprise storage crates.
+//!
+//! Security posture: storage backends are untrusted; runpack integrity must be
+//! verified on read and export errors must fail closed. See
+//! `Docs/security/threat_model.md`.
+
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
 
 use std::path::Path;
 

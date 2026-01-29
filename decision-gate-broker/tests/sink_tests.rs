@@ -2,9 +2,12 @@
 // ============================================================================
 // Module: Sink Tests Entry Point
 // Description: Entry point for nested sink test modules.
+// Purpose: Wire sink test modules and shared helpers.
+// Dependencies: decision-gate-broker
 // ============================================================================
 
-//! Sink unit tests.
+//! ## Overview
+//! Aggregates sink-focused test modules for the broker crate.
 
 #![allow(dead_code, reason = "Common module may have unused helpers.")]
 #![allow(

@@ -6,7 +6,12 @@
 // Dependencies: decision-gate-mcp, decision-gate-contract
 // ============================================================================
 
-//! Auth policy tests for MCP tool calls.
+//! ## Overview
+//! Exercises inbound MCP authn/authz policies for local-only, bearer token,
+//! and allowlist enforcement.
+//!
+//! Security posture: tests assert fail-closed behavior on auth failures; see
+//! `Docs/security/threat_model.md`.
 
 #![allow(
     clippy::panic,

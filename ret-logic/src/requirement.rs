@@ -3,7 +3,8 @@
 // Module: Requirement Core Types
 // Description: Universal Boolean algebra over typed predicates.
 // Purpose: Define `Requirement`, `RequirementId`, and `RequirementGroup` structures along with
-// helpers. Dependencies: serde::{Deserialize, Serialize}, smallvec::SmallVec
+//          helpers.
+// Dependencies: serde::{Deserialize, Serialize}, smallvec::SmallVec, std::fmt, std::num::NonZeroU64
 // ============================================================================
 
 //! ## Overview
@@ -37,11 +38,17 @@ use crate::tristate::TriState;
 ///
 /// This opaque identifier allows requirements to be referenced by ID
 /// rather than storing the full requirement structure inline.
+///
+/// # Invariants
+/// - Always non-zero (enforced by [`NonZeroU64`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct RequirementId(pub NonZeroU64);
 
 /// Errors that can occur while constructing a [`RequirementId`]
+///
+/// # Invariants
+/// - None. Variants are self-contained error categories.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RequirementIdError {
     /// The provided raw ID was zero, which is not allowed
@@ -103,6 +110,11 @@ impl TryFrom<u64> for RequirementId {
 /// The logical operators (And, Or, Not, `RequireGroup`) are universal and
 /// domain-agnostic, while the Predicate variant serves as the boundary
 /// where domain-specific semantics are injected.
+///
+/// # Invariants
+/// - Trees are acyclic by ownership (`Box` nodes).
+/// - When constructed via [`crate::serde_support::RequirementValidator`], `RequireGroup` satisfies
+///   `min <= reqs.len()`.
 #[derive(Debug, Clone, PartialEq, Hash, Serialize, Deserialize)]
 pub enum Requirement<P> {
     /// Logical AND: All sub-requirements must be satisfied
@@ -431,7 +443,7 @@ impl<P> Requirement<P> {
             } => {
                 let trivially_satisfied_count =
                     reqs.iter().filter(|r| r.is_trivially_satisfied()).count();
-                trivially_satisfied_count >= *min as usize
+                trivially_satisfied_count >= usize::from(*min)
             }
 
             // Predicates require domain-specific analysis
@@ -458,7 +470,7 @@ impl<P> Requirement<P> {
             Self::RequireGroup {
                 min,
                 reqs,
-            } if *min as usize > reqs.len() => true,
+            } if usize::from(*min) > reqs.len() => true,
 
             // Group is unsatisfiable if too many sub-requirements are trivially unsatisfiable
             Self::RequireGroup {
@@ -468,7 +480,7 @@ impl<P> Requirement<P> {
                 let unsatisfiable_count =
                     reqs.iter().filter(|r| r.is_trivially_unsatisfiable()).count();
                 let max_satisfiable = reqs.len() - unsatisfiable_count;
-                max_satisfiable < *min as usize
+                max_satisfiable < usize::from(*min)
             }
 
             // Predicates require domain-specific analysis
@@ -551,6 +563,10 @@ impl<P> Default for Requirement<P> {
 /// A group of requirements with a minimum satisfaction count
 ///
 /// This structure enables complex requirements like "complete at least 3 out of 5 tasks".
+///
+/// # Invariants
+/// - No invariants are enforced when fields are set directly.
+/// - When constructed via [`RequirementGroup::new`], `min_required <= requirements.len()`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RequirementGroup<P> {
     /// The requirements in this group
@@ -565,6 +581,9 @@ pub struct RequirementGroup<P> {
 // ============================================================================
 
 /// Errors that can occur while constructing a [`RequirementGroup`]
+///
+/// # Invariants
+/// - None. Variants are self-contained error categories.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RequirementGroupError {
     /// The requested minimum exceeds the number of provided requirements

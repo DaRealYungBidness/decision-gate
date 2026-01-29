@@ -6,7 +6,12 @@
 // Dependencies: decision-gate-contract, decision-gate-mcp
 // ============================================================================
 
-//! Capability registry coverage for contract validation edge cases.
+//! ## Overview
+//! Exercises capability registry validation for provider contracts, comparator
+//! allowlists, and schema constraints.
+//!
+//! Security posture: tests enforce strict contract validation and fail-closed
+//! behavior for malformed inputs; see `Docs/security/threat_model.md`.
 
 #![allow(
     clippy::unwrap_used,

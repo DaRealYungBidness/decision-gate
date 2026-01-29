@@ -67,6 +67,9 @@ const MAX_DSL_NESTING: usize = 32;
 // ============================================================================
 
 /// Errors that can occur while parsing or validating a DSL expression.
+///
+/// # Invariants
+/// - None. Variants capture structured parse and validation failures.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DslError {
     /// Input was empty or contained only whitespace.

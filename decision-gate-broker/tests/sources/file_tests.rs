@@ -2,7 +2,12 @@
 // ============================================================================
 // Module: FileSource Unit Tests
 // Description: Comprehensive tests for the file-backed payload source.
+// Purpose: Validate file source path handling and size enforcement.
+// Dependencies: decision-gate-broker, decision-gate-core, tempfile, url
 // ============================================================================
+
+//! ## Overview
+//! Exercises [`decision_gate_broker::FileSource`] file resolution paths.
 
 #![allow(
     clippy::panic,

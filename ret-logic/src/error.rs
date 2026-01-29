@@ -22,6 +22,9 @@ use serde::Serialize;
 /// from logical composition failures to domain-specific predicate failures.
 /// The error types are designed to provide clear diagnostic information
 /// while maintaining zero-allocation evaluation paths where possible.
+///
+/// # Invariants
+/// - None. Variants capture structured evaluation failures.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RequirementError {
     // ============================================================================

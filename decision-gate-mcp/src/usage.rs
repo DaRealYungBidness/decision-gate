@@ -6,7 +6,16 @@
 // Dependencies: decision-gate-core, decision-gate-contract
 // ============================================================================
 
+//! ## Overview
 //! Usage metering and quota hooks for MCP tool calls.
+//!
+//! Security posture: usage enforcement is a control-plane guardrail and must
+//! fail closed when deny decisions are returned. See
+//! `Docs/security/threat_model.md`.
+
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
 
 use decision_gate_contract::ToolName;
 use decision_gate_core::NamespaceId;

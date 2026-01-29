@@ -2,6 +2,8 @@
 // ============================================================================
 // Module: Plan Tests
 // Description: Tests for Plan, PlanBuilder, Operation, OpCode, Constant.
+// Purpose: Validate plan construction, constant handling, and opcode helpers.
+// Dependencies: ret_logic::plan
 // ============================================================================
 //! ## Overview
 //! Integration tests for plan compilation primitives and supporting types.

@@ -25,9 +25,17 @@
     reason = "Test-only output and panic-based assertions are permitted."
 )]
 
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
+
 use decision_gate_cli::i18n::MessageArg;
 use decision_gate_cli::i18n::translate;
 use decision_gate_cli::t;
+
+// ============================================================================
+// SECTION: Tests
+// ============================================================================
 
 /// Confirms message arguments capture key/value pairs.
 #[test]

@@ -26,6 +26,10 @@
     reason = "Test-only output and panic-based assertions are permitted."
 )]
 
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
+
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
