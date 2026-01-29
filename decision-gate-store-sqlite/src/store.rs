@@ -190,7 +190,10 @@ impl From<SqliteStoreError> for StoreError {
             SqliteStoreError::Corrupt(message) => Self::Corrupt(message),
             SqliteStoreError::VersionMismatch(message) => Self::VersionMismatch(message),
             SqliteStoreError::Invalid(message) => Self::Invalid(message),
-            SqliteStoreError::TooLarge { max_bytes, actual_bytes } => Self::Invalid(format!(
+            SqliteStoreError::TooLarge {
+                max_bytes,
+                actual_bytes,
+            } => Self::Invalid(format!(
                 "state_json exceeds size limit: {actual_bytes} bytes (max {max_bytes})"
             )),
         }
@@ -222,7 +225,10 @@ impl SqliteRunStateStore {
         ensure_parent_dir(&config.path)?;
         let mut connection = open_connection(&config)?;
         initialize_schema(&mut connection)?;
-        Ok(Self { config, connection: Arc::new(Mutex::new(connection)) })
+        Ok(Self {
+            config,
+            connection: Arc::new(Mutex::new(connection)),
+        })
     }
 }
 
@@ -438,7 +444,10 @@ impl DataShapeRegistry for SqliteRunStateStore {
             }
             None => None,
         };
-        Ok(DataShapePage { items: records, next_token })
+        Ok(DataShapePage {
+            items: records,
+            next_token,
+        })
     }
 }
 
@@ -858,7 +867,11 @@ fn fetch_run_state_payload(
                     |row| row.get(0),
                 )
                 .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-            Some(RunStatePayload { bytes, hash_value: hash, hash_algorithm: algorithm })
+            Some(RunStatePayload {
+                bytes,
+                hash_value: hash,
+                hash_algorithm: algorithm,
+            })
         } else {
             None
         };
@@ -931,7 +944,11 @@ fn build_signing(
         (Some(key_id), Some(signature))
             if !key_id.trim().is_empty() && !signature.trim().is_empty() =>
         {
-            Some(DataShapeSignature { key_id, signature, algorithm })
+            Some(DataShapeSignature {
+                key_id,
+                signature,
+                algorithm,
+            })
         }
         _ => None,
     }

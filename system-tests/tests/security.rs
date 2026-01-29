@@ -24,5 +24,7 @@ mod mcp_auth;
 mod namespace_defaults;
 #[path = "suites/registry_acl.rs"]
 mod registry_acl;
+#[path = "suites/schema_registry_fuzz.rs"]
+mod schema_registry_fuzz;
 #[path = "suites/security.rs"]
 mod security;

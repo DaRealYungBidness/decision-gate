@@ -75,10 +75,20 @@ def generate_coverage_report(registry: RegistryData, gaps: RegistryData) -> str:
             f"`{test.get('run_command', '')}`",
         ])
 
-    category_rows: List[List[str]] = [
-        [cat, str(count), categories.get(cat, {}).get("description", "-")]
-        for cat, count in sorted(by_category.items())
-    ]
+    gaps_by_category: Dict[str, int] = {}
+    for gap in gap_open:
+        gaps_by_category[gap.get("category", "unknown")] = gaps_by_category.get(
+            gap.get("category", "unknown"), 0
+        ) + 1
+
+    all_categories = set(by_category) | set(gaps_by_category)
+    category_rows: List[List[str]] = []
+    for cat in sorted(all_categories):
+        closed = by_category.get(cat, 0)
+        total = closed + gaps_by_category.get(cat, 0)
+        percent = int((closed / total) * 100) if total else 0
+        coverage = f"{closed}/{total} ({percent}%)"
+        category_rows.append([cat, coverage, categories.get(cat, {}).get("description", "-")])
 
     gap_rows: List[List[str]] = []
     for gap in gap_open:
@@ -89,6 +99,23 @@ def generate_coverage_report(registry: RegistryData, gaps: RegistryData) -> str:
             gap.get("category", ""),
             gap.get("status", ""),
         ])
+
+    total_closed = len(tests)
+    total_open = len(gap_open)
+    total_all = total_closed + total_open
+    total_percent = int((total_closed / total_all) * 100) if total_all else 0
+
+    gap_p0 = [gap for gap in gap_open if gap.get("priority") == "P0"]
+    gap_p1 = [gap for gap in gap_open if gap.get("priority") == "P1"]
+    gap_p2 = [gap for gap in gap_open if gap.get("priority") == "P2"]
+
+    p0_total = len(p0_tests) + len(gap_p0)
+    p1_total = len(p1_tests) + len(gap_p1)
+    p2_total = len(p2_tests) + len(gap_p2)
+
+    p0_percent = int((len(p0_tests) / p0_total) * 100) if p0_total else 0
+    p1_percent = int((len(p1_tests) / p1_total) * 100) if p1_total else 0
+    p2_percent = int((len(p2_tests) / p2_total) * 100) if p2_total else 0
 
     report = f"""# Decision Gate System-Test Coverage (Auto-Generated)
 
@@ -105,6 +132,10 @@ def generate_coverage_report(registry: RegistryData, gaps: RegistryData) -> str:
 - **P2:** {len(p2_tests)}
 - **Categories:** {len(by_category)}
 - **Open Gaps:** {len(gap_open)}
+- **Coverage (Closed/Total):** {total_closed}/{total_all} ({total_percent}%)
+- **P0 Coverage:** {len(p0_tests)}/{p0_total} ({p0_percent}%)
+- **P1 Coverage:** {len(p1_tests)}/{p1_total} ({p1_percent}%)
+- **P2 Coverage:** {len(p2_tests)}/{p2_total} ({p2_percent}%)
 
 ## P0 Tests
 
@@ -112,7 +143,7 @@ def generate_coverage_report(registry: RegistryData, gaps: RegistryData) -> str:
 
 ## Category Coverage
 
-{render_table(["Category", "Tests", "Description"], category_rows)}
+    {render_table(["Category", "Coverage", "Description"], category_rows)}
 
 """
 

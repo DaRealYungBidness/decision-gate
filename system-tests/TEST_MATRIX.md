@@ -37,7 +37,12 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `python_examples_runnable` | functional | Python repository examples execute end-to-end over MCP HTTP. |
 | `typescript_examples_runnable` | functional | TypeScript repository examples execute end-to-end over MCP HTTP. |
 | `http_transport_end_to_end` | mcp_transport | HTTP JSON-RPC transport works end-to-end. |
+| `sse_transport_end_to_end` | mcp_transport | SSE transport supports tools/list and tools/call end-to-end. |
 | `federated_provider_echo` | providers | External MCP provider integration works. |
+| `provider_template_python` | providers | Python provider template handles tools/list/tools/call and wiring. |
+| `provider_template_go` | providers | Go provider template handles tools/list/tools/call and wiring. |
+| `provider_template_typescript` | providers | TypeScript provider template handles tools/list/tools/call and wiring. |
+| `provider_template_error_fails_closed` | providers | Provider template errors fail closed in Decision Gate flows. |
 | `json_provider_missing_jsonpath_returns_error_metadata` | providers | JSON provider emits structured error metadata for missing JSONPath. |
 | `json_provider_rejects_path_outside_root` | providers | JSON provider blocks path traversal outside configured root. |
 | `json_provider_enforces_size_limit` | providers | JSON provider enforces max_bytes file size limit. |
@@ -79,6 +84,8 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `invalid_correlation_id_rejected` | security | Invalid correlation IDs are rejected with server correlation headers. |
 | `dev_permissive_emits_warning` | operations | Dev-permissive mode emits explicit warning. |
 | `precheck_audit_hash_only` | operations | Precheck audit logs are hash-only by default. |
+| `cli_workflows_end_to_end` | operations | CLI serve/runpack/authoring/config/provider/interop flows succeed. |
+| `cli_rejects_non_loopback_bind` | operations | CLI rejects non-loopback binds without explicit allow flag. |
 | `precheck_read_only_does_not_mutate_run_state` | functional | Precheck leaves run state unchanged. |
 | `policy_denies_dispatch_targets` | security | Static policy engine denies disclosure and fails the run. |
 | `policy_error_fails_closed` | security | Policy engine errors fail closed with explicit reason. |
@@ -99,11 +106,18 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `default_namespace_allowlist_enforced` | security | Default namespace allowlist blocks non-allowlisted tenants. |
 | `dev_permissive_assetcore_rejected` | security | Dev-permissive rejected when AssetCore authority configured. |
 | `registry_security_audit_events` | security | Registry/security audit events emitted for allow/deny. |
+| `schema_registry_cursor_rejects_invalid_inputs` | security | Malformed registry cursors/limits are rejected. |
+| `schema_registry_invalid_schema_and_precheck_rejected` | security | Invalid schemas and precheck payloads fail closed. |
+| `sqlite_registry_and_runpack_persist_across_restart` | reliability | SQLite registry + run state persist across restarts with runpack export. |
 
 ## P2 (Non-Gated / Extended Coverage)
 | Test | Category | Purpose |
 | --- | --- | --- |
+| `authoring_ron_normalize_and_execute` | functional | RON authoring normalizes and executes through Decision Gate. |
+| `authoring_invalid_ron_rejected` | functional | Invalid RON authoring input is rejected. |
+| `authoring_dsl_evaluates_and_rejects_deep_inputs` | functional | DSL authoring executes and deep inputs are rejected. |
 | `stdio_transport_end_to_end` | mcp_transport | Stdio JSON-RPC transport handles tools/list and tools/call. |
+| `sse_transport_bearer_rejects_missing_token` | mcp_transport | SSE transport rejects missing bearer token. |
 | `multi_transport_parity` | mcp_transport | HTTP, stdio, and CLI interop parity for decisions/runpacks. |
 | `runpack_export_includes_security_context` | runpack | Runpack manifests include security context metadata. |
 | `anchor_validation_fuzz_cases_fail_closed` | security | Malformed/oversized anchors fail closed with explicit errors. |
@@ -111,3 +125,5 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `stress_registry_concurrent_writes` | reliability | Concurrent schema registry writes remain stable and ordered. |
 | `stress_schema_list_paging_concurrent_reads` | reliability | Schemas list paging stays deterministic under concurrent reads. |
 | `stress_precheck_request_storm` | reliability | Precheck request storms fail closed and remain stable. |
+| `sdk_gen_cli_generate_and_check` | operations | SDK generator CLI generate/check and drift detection. |
+| `provider_discovery_denylist_and_size_limits` | contract | Provider discovery denylist and size limits enforced. |

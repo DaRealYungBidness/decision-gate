@@ -166,8 +166,9 @@ def handle_tool_call(request: Dict[str, Any]) -> Dict[str, Any]:
         return build_error_response(request.get("id"), -32602, "missing query or context")
 
     result = handle_evidence_query(query, context)
-    if "error" in result:
-        return build_error_response(request.get("id"), -32000, result["error"])
+    error = result.get("error")
+    if error:
+        return build_error_response(request.get("id"), -32000, str(error))
 
     return {
         "jsonrpc": "2.0",
@@ -181,6 +182,9 @@ def handle_evidence_query(query: Dict[str, Any], _context: Dict[str, Any]) -> Di
     params = query.get("params") or {}
     if "value" not in params:
         return {"error": "params.value is required"}
+
+    if params.get("value") == "error":
+        return {"error": "forced error"}
 
     return {
         "value": {"kind": "json", "value": params["value"]},

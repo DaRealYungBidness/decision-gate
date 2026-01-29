@@ -12,5 +12,7 @@ mod helpers;
 
 #[path = "suites/mcp_transport.rs"]
 mod mcp_transport;
+#[path = "suites/sse_transport.rs"]
+mod sse_transport;
 #[path = "suites/transport_parity.rs"]
 mod transport_parity;

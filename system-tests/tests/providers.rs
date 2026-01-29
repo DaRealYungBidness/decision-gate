@@ -12,5 +12,7 @@ mod helpers;
 
 #[path = "suites/assetcore_integration.rs"]
 mod assetcore_integration;
+#[path = "suites/provider_templates.rs"]
+mod provider_templates;
 #[path = "suites/providers.rs"]
 mod providers;

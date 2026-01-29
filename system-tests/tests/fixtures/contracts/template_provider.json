@@ -1,0 +1,63 @@
+{
+  "provider_id": "template",
+  "name": "Template Provider",
+  "description": "Test-only contract for MCP provider templates.",
+  "transport": "mcp",
+  "config_schema": {
+    "type": "object",
+    "additionalProperties": false
+  },
+  "predicates": [
+    {
+      "name": "value",
+      "description": "Return the params.value field as JSON.",
+      "determinism": "deterministic",
+      "params_required": true,
+      "params_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value"
+        ]
+      },
+      "result_schema": {
+        "type": "string",
+        "x-decision-gate": {
+          "allowed_comparators": [
+            "equals",
+            "not_equals",
+            "in_set"
+          ]
+        }
+      },
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "in_set"
+      ],
+      "anchor_types": [
+        "template"
+      ],
+      "content_types": [
+        "application/json"
+      ],
+      "examples": [
+        {
+          "description": "Echoes a string value.",
+          "params": {
+            "value": "example"
+          },
+          "result": "example"
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "Contract for provider template system-tests."
+  ]
+}

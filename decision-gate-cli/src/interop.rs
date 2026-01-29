@@ -54,7 +54,7 @@ use serde_json::Value;
 // ============================================================================
 
 /// Maximum response body size accepted from MCP HTTP servers.
-pub(crate) const MAX_INTEROP_RESPONSE_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;
+pub const MAX_INTEROP_RESPONSE_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;
 /// Maximum response body preview included in error strings.
 const MAX_INTEROP_ERROR_BODY_BYTES: usize = 2048;
 
@@ -485,10 +485,10 @@ impl McpHttpClient {
     ) -> Result<Vec<u8>, String> {
         let limit = u64::try_from(self.max_response_bytes)
             .map_err(|_| "response size limit out of range".to_string())?;
-        if let Some(length) = response.content_length() {
-            if length > limit {
-                return Err(format!("response body exceeds size limit ({length} > {limit})"));
-            }
+        if let Some(length) = response.content_length()
+            && length > limit
+        {
+            return Err(format!("response body exceeds size limit ({length} > {limit})"));
         }
 
         let mut body = Vec::new();

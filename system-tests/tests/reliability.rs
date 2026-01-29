@@ -16,6 +16,8 @@ mod determinism;
 mod metamorphic;
 #[path = "suites/reliability.rs"]
 mod reliability;
+#[path = "suites/sqlite_registry_runpack.rs"]
+mod sqlite_registry_runpack;
 #[path = "suites/store_persistence.rs"]
 mod store_persistence;
 #[path = "suites/stress.rs"]

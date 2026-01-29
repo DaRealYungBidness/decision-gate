@@ -15,7 +15,7 @@ A domain-agnostic requirement evaluation engine that separates propositional
 logic (AND/OR/NOT/RequireGroup) from predicate semantics. It provides a small
 core for evaluating requirements against user-defined predicates and readers.
 
-This crate comes from an attempt to derive the general class structure of "quests" for video games. At their core, quests ultimately culminate in the predicate "Has X been done?"; given the data-driven nature of those systems, we can generalize "X" to be "any data source." Structurally, "Kill five shidar at the behest of Arx the Purifier" is the same as "Did the football/soccer team score more than its opponent?" In both cases we can strip out the surrounding context and focus purely on the operative condition.
+This crate comes from an attempt to derive the general class structure of "quests" for video games. At their core, quests ultimately culminate in the predicate "Has X been done?"; given the data-driven nature of those systems, we can generalize "X" to be "any data source." Structurally, ["Kill five shidar at the behest of Arx the Purifier"](https://yungbidness.dev/#future) is the same as "Did the football/soccer team score more than its opponent?" In both cases we can strip out the surrounding context and focus purely on the operative condition.
 
 Hence this crate.
 
@@ -62,10 +62,8 @@ predicate means; you do.
 
 ```mermaid
 flowchart LR
-  Author[Authoring
-  (builder/DSL/RON)] --> Req[Requirement tree]
-  Req --> Eval[Row evaluation
-  via PredicateEval]
+  Author["Authoring<br/>(builder/DSL/RON)"] --> Req[Requirement tree]
+  Req --> Eval["Row evaluation<br/>via PredicateEval"]
 ```
 
 ## Quick Start

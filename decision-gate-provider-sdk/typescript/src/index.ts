@@ -264,7 +264,7 @@ function handleToolCall(request: JsonRpcRequest): JsonRpcResponse {
   }
 
   const result = handleEvidenceQuery(query, context);
-  if ("error" in result) {
+  if ("error" in result && result.error) {
     return buildErrorResponse(request.id, -32000, result.error);
   }
 
@@ -293,6 +293,9 @@ function handleEvidenceQuery(
   const value = query.params?.value;
   if (typeof value === "undefined") {
     return { error: "params.value is required" };
+  }
+  if (value === "error") {
+    return { error: "forced error" };
   }
 
   return {

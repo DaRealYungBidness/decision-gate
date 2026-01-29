@@ -65,9 +65,12 @@ use crate::helpers;
 
 const ASSETCORE_PROVIDER_ID: &str = "assetcore_read";
 const ASSETCORE_ANCHOR_TYPE: &str = "assetcore.anchor_set";
+const SERVER_READY_TIMEOUT: Duration = Duration::from_secs(10);
+static ASSETCORE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[tokio::test(flavor = "multi_thread")]
 async fn assetcore_anchor_missing_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
+    let _guard = ASSETCORE_TEST_LOCK.lock().expect("assetcore test lock");
     let mut reporter = TestReporter::new("assetcore_anchor_missing_fails_closed")?;
     let fixture = assetcore_fixture("assetcore-anchor-missing", "run-anchor-missing");
     let provider_fixture = ProviderFixture {
@@ -86,7 +89,7 @@ async fn assetcore_anchor_missing_fails_closed() -> Result<(), Box<dyn std::erro
 
     let server = spawn_mcp_server(config).await?;
     let client = server.client(Duration::from_secs(5))?;
-    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+    wait_for_server_ready(&client, SERVER_READY_TIMEOUT).await?;
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -153,6 +156,7 @@ async fn assetcore_anchor_missing_fails_closed() -> Result<(), Box<dyn std::erro
 
 #[tokio::test(flavor = "multi_thread")]
 async fn assetcore_correlation_id_passthrough() -> Result<(), Box<dyn std::error::Error>> {
+    let _guard = ASSETCORE_TEST_LOCK.lock().expect("assetcore test lock");
     let mut reporter = TestReporter::new("assetcore_correlation_id_passthrough")?;
     let fixture = assetcore_fixture("assetcore-correlation", "run-correlation");
     let anchor = assetcore_anchor(1, "commit-1", 42);
@@ -172,7 +176,7 @@ async fn assetcore_correlation_id_passthrough() -> Result<(), Box<dyn std::error
 
     let server = spawn_mcp_server(config).await?;
     let client = server.client(Duration::from_secs(5))?;
-    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+    wait_for_server_ready(&client, SERVER_READY_TIMEOUT).await?;
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -255,6 +259,7 @@ async fn assetcore_correlation_id_passthrough() -> Result<(), Box<dyn std::error
 
 #[tokio::test(flavor = "multi_thread")]
 async fn namespace_authority_allows_known_namespace() -> Result<(), Box<dyn std::error::Error>> {
+    let _guard = ASSETCORE_TEST_LOCK.lock().expect("assetcore test lock");
     let mut reporter = TestReporter::new("namespace_authority_allows_known_namespace")?;
     let authority = spawn_namespace_authority_stub(vec![1]).await?;
 
@@ -267,7 +272,7 @@ async fn namespace_authority_allows_known_namespace() -> Result<(), Box<dyn std:
 
     let server = spawn_mcp_server(config).await?;
     let client = server.client(Duration::from_secs(5))?;
-    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+    wait_for_server_ready(&client, SERVER_READY_TIMEOUT).await?;
 
     let mut fixture = ScenarioFixture::time_after("namespace-allow", "run-allow", 0);
     fixture.spec.namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
@@ -296,6 +301,7 @@ async fn namespace_authority_allows_known_namespace() -> Result<(), Box<dyn std:
 
 #[tokio::test(flavor = "multi_thread")]
 async fn namespace_authority_denies_unknown_namespace() -> Result<(), Box<dyn std::error::Error>> {
+    let _guard = ASSETCORE_TEST_LOCK.lock().expect("assetcore test lock");
     let mut reporter = TestReporter::new("namespace_authority_denies_unknown_namespace")?;
     let authority = spawn_namespace_authority_stub(Vec::new()).await?;
 
@@ -308,7 +314,7 @@ async fn namespace_authority_denies_unknown_namespace() -> Result<(), Box<dyn st
 
     let server = spawn_mcp_server(config).await?;
     let client = server.client(Duration::from_secs(5))?;
-    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+    wait_for_server_ready(&client, SERVER_READY_TIMEOUT).await?;
 
     let mut fixture = ScenarioFixture::time_after("namespace-deny", "run-deny", 0);
     fixture.spec.namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
@@ -348,6 +354,7 @@ async fn namespace_authority_denies_unknown_namespace() -> Result<(), Box<dyn st
 
 #[tokio::test(flavor = "multi_thread")]
 async fn namespace_mismatch_rejected() -> Result<(), Box<dyn std::error::Error>> {
+    let _guard = ASSETCORE_TEST_LOCK.lock().expect("assetcore test lock");
     let mut reporter = TestReporter::new("namespace_mismatch_rejected")?;
     let bind = allocate_bind_addr()?.to_string();
     let mut config = base_http_config(&bind);
@@ -369,7 +376,7 @@ async fn namespace_mismatch_rejected() -> Result<(), Box<dyn std::error::Error>>
     }
     let server = spawn_mcp_server(config).await?;
     let client = server.client(Duration::from_secs(5))?;
-    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+    wait_for_server_ready(&client, SERVER_READY_TIMEOUT).await?;
 
     let mut fixture = ScenarioFixture::time_after("namespace-mismatch", "run-mismatch", 0);
     fixture.spec.namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");

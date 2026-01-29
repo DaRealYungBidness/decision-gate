@@ -209,7 +209,9 @@ fn report_error(err: &SdkGenError) -> ExitCode {
 // CONSTANTS: Temporary output file handling
 // ============================================================================
 
+/// Maximum attempts to allocate a unique temporary output path.
 const TEMP_ATTEMPTS: usize = 16;
+/// Monotonic counter to avoid temp path collisions across retries.
 static TEMP_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 /// Creates a unique temporary output file alongside the destination.
@@ -225,7 +227,7 @@ fn create_temp_output(path: &Path) -> Result<(PathBuf, fs::File), SdkGenError> {
         let temp_path = parent.join(temp_name);
         match OpenOptions::new().write(true).create_new(true).open(&temp_path) {
             Ok(file) => return Ok((temp_path, file)),
-            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(err) => return Err(SdkGenError::Io(err.to_string())),
         }
     }

@@ -27,7 +27,7 @@
 //!
 //! ## Index
 //! - Public API: [`SdkGenerator`], [`SdkGenError`], [`DEFAULT_TOOLING_PATH`], [`MAX_TOOLING_BYTES`]
-//! - Rendering: Python, TypeScript, OpenAPI (private helpers)
+//! - Rendering: Python, TypeScript, `OpenAPI` (private helpers)
 //! - Schema helpers: schema inspection, doc normalization, type mapping
 
 use std::collections::BTreeMap;
@@ -99,7 +99,10 @@ impl SdkGenerator {
         let bytes = read_tooling_bytes(&tooling_path)?;
         let tools: Vec<ToolContract> =
             serde_json::from_slice(&bytes).map_err(|err| SdkGenError::Json(err.to_string()))?;
-        Ok(Self { tooling_path, tools })
+        Ok(Self {
+            tooling_path,
+            tools,
+        })
     }
 
     /// Returns the tooling.json path used by the generator.

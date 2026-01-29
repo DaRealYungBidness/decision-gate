@@ -10,7 +10,11 @@
 
 mod helpers;
 
+#[path = "suites/cli_workflows.rs"]
+mod cli_workflows;
 #[path = "suites/mcp_hardening.rs"]
 mod mcp_hardening;
 #[path = "suites/operations.rs"]
 mod operations;
+#[path = "suites/sdk_gen_cli.rs"]
+mod sdk_gen_cli;

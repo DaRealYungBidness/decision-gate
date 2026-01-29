@@ -14,5 +14,7 @@ mod helpers;
 mod json_evidence;
 #[path = "suites/precheck.rs"]
 mod precheck;
+#[path = "suites/ret_logic_authoring.rs"]
+mod ret_logic_authoring;
 #[path = "suites/validation.rs"]
 mod validation;

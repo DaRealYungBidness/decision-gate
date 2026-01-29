@@ -220,6 +220,9 @@ func handleEvidenceQuery(query evidenceQuery, _ evidenceContext) (evidenceResult
 	if !ok {
 		return evidenceResult{}, fmt.Errorf("params.value is required")
 	}
+	if valueStr, ok := value.(string); ok && valueStr == "error" {
+		return evidenceResult{}, fmt.Errorf("forced error")
+	}
 
 	return evidenceResult{
 		Value:          &evidenceValue{Kind: "json", Value: value},

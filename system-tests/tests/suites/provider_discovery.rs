@@ -141,3 +141,52 @@ type = "builtin"
     )?;
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn provider_discovery_denylist_and_size_limits() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("provider_discovery_denylist_and_size_limits")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let mut config = base_http_config(&bind);
+    config.provider_discovery.denylist = vec!["time".to_string()];
+    config.provider_discovery.max_response_bytes = 64;
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(Duration::from_secs(5))?;
+    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+
+    let denied_request = ProviderContractGetRequest {
+        provider_id: "time".to_string(),
+    };
+    let Err(err) =
+        client.call_tool("provider_contract_get", serde_json::to_value(&denied_request)?).await
+    else {
+        return Err("expected provider discovery denial".into());
+    };
+    if !err.contains("provider contract disclosure denied") && !err.contains("unauthorized") {
+        return Err(format!("unexpected denylist error: {err}").into());
+    }
+
+    let allowed_request = ProviderContractGetRequest {
+        provider_id: "env".to_string(),
+    };
+    let Err(err) =
+        client.call_tool("provider_contract_get", serde_json::to_value(&allowed_request)?).await
+    else {
+        return Err("expected provider discovery size limit rejection".into());
+    };
+    if !err.contains("provider discovery response exceeds size limit") {
+        return Err(format!("unexpected size limit error: {err}").into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["provider discovery denylist and size limits enforced".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+        ],
+    )?;
+    server.shutdown().await;
+    Ok(())
+}

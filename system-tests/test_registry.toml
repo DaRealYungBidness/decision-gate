@@ -1017,9 +1017,169 @@ run_command = "cargo test -p system-tests --features system-tests --test securit
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "audit.log"]
 estimated_runtime_sec = 10
 
+[[tests]]
+name = "schema_registry_cursor_rejects_invalid_inputs"
+category = "security"
+priority = "P1"
+description = "Schema registry rejects malformed cursors and invalid limits."
+files = ["system-tests/tests/suites/schema_registry_fuzz.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact schema_registry_fuzz::schema_registry_cursor_rejects_invalid_inputs"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 10
+
+[[tests]]
+name = "schema_registry_invalid_schema_and_precheck_rejected"
+category = "security"
+priority = "P1"
+description = "Invalid schema registrations and precheck payloads fail closed."
+files = ["system-tests/tests/suites/schema_registry_fuzz.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact schema_registry_fuzz::schema_registry_invalid_schema_and_precheck_rejected"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 10
+
+[[tests]]
+name = "cli_workflows_end_to_end"
+category = "operations"
+priority = "P1"
+description = "CLI serve/runpack/authoring/config/provider/interop workflows execute end-to-end."
+files = ["system-tests/tests/suites/cli_workflows.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact cli_workflows::cli_workflows_end_to_end"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "cli.serve.stdout.log", "cli.serve.stderr.log", "cli.runpack.export.stdout.log", "cli.runpack.export.stderr.log", "cli.runpack.verify.stdout.log", "cli.runpack.verify.stderr.log", "cli.authoring.validate.stdout.log", "cli.authoring.validate.stderr.log", "cli.authoring.normalize.stdout.log", "cli.authoring.normalize.stderr.log", "cli.config.validate.stdout.log", "cli.config.validate.stderr.log", "cli.interop.stdout.log", "cli.interop.stderr.log"]
+estimated_runtime_sec = 30
+
+[[tests]]
+name = "cli_rejects_non_loopback_bind"
+category = "operations"
+priority = "P1"
+description = "CLI serve rejects non-loopback bind without explicit allow flag."
+files = ["system-tests/tests/suites/cli_workflows.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact cli_workflows::cli_rejects_non_loopback_bind"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "cli.non_loopback.stdout.log", "cli.non_loopback.stderr.log"]
+estimated_runtime_sec = 5
+
+[[tests]]
+name = "provider_template_python"
+category = "providers"
+priority = "P1"
+description = "Python provider template handles tools/list, tools/call, and Decision Gate wiring."
+files = ["system-tests/tests/suites/provider_templates.rs", "decision-gate-provider-sdk/python/provider.py"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact provider_templates::provider_template_python"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runtime_notes.json"]
+estimated_runtime_sec = 15
+
+[[tests]]
+name = "provider_template_go"
+category = "providers"
+priority = "P1"
+description = "Go provider template handles tools/list, tools/call, and Decision Gate wiring."
+files = ["system-tests/tests/suites/provider_templates.rs", "decision-gate-provider-sdk/go/main.go"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact provider_templates::provider_template_go"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runtime_notes.json"]
+estimated_runtime_sec = 20
+
+[[tests]]
+name = "provider_template_typescript"
+category = "providers"
+priority = "P1"
+description = "TypeScript provider template handles tools/list, tools/call, and Decision Gate wiring."
+files = ["system-tests/tests/suites/provider_templates.rs", "decision-gate-provider-sdk/typescript/src/index.ts"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact provider_templates::provider_template_typescript"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runtime_notes.json"]
+estimated_runtime_sec = 20
+
+[[tests]]
+name = "provider_template_error_fails_closed"
+category = "providers"
+priority = "P1"
+description = "Provider template errors fail closed in Decision Gate flows."
+files = ["system-tests/tests/suites/provider_templates.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact provider_templates::provider_template_error_fails_closed"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runtime_notes.json"]
+estimated_runtime_sec = 15
+
+[[tests]]
+name = "sse_transport_end_to_end"
+category = "mcp_transport"
+priority = "P1"
+description = "SSE transport supports tools/list and tools/call end-to-end."
+files = ["system-tests/tests/suites/sse_transport.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test mcp_transport -- --exact sse_transport::sse_transport_end_to_end"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 12
+
+[[tests]]
+name = "sqlite_registry_and_runpack_persist_across_restart"
+category = "reliability"
+priority = "P1"
+description = "SQLite registry + run state persist across restarts with runpack export."
+files = ["system-tests/tests/suites/sqlite_registry_runpack.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test reliability -- --exact sqlite_registry_runpack::sqlite_registry_and_runpack_persist_across_restart"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runpack/"]
+estimated_runtime_sec = 25
+
 # =============================================================================
 # P2: Non-Gated / Extended Coverage
 # =============================================================================
+
+[[tests]]
+name = "authoring_ron_normalize_and_execute"
+category = "functional"
+priority = "P2"
+description = "RON authoring normalizes and executes through Decision Gate."
+files = ["system-tests/tests/suites/ret_logic_authoring.rs", "Docs/generated/decision-gate/examples/scenario.ron"]
+run_command = "cargo test -p system-tests --features system-tests --test functional -- --exact ret_logic_authoring::authoring_ron_normalize_and_execute"
+artifacts = ["summary.json", "summary.md", "authoring.normalize.stdout.log", "authoring.normalize.stderr.log", "tool_transcript.json"]
+estimated_runtime_sec = 15
+
+[[tests]]
+name = "authoring_invalid_ron_rejected"
+category = "functional"
+priority = "P2"
+description = "Malformed RON authoring input is rejected."
+files = ["system-tests/tests/suites/ret_logic_authoring.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test functional -- --exact ret_logic_authoring::authoring_invalid_ron_rejected"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "authoring.invalid.stdout.log", "authoring.invalid.stderr.log"]
+estimated_runtime_sec = 5
+
+[[tests]]
+name = "authoring_dsl_evaluates_and_rejects_deep_inputs"
+category = "functional"
+priority = "P2"
+description = "DSL-authored requirements execute and deep inputs fail closed."
+files = ["system-tests/tests/suites/ret_logic_authoring.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test functional -- --exact ret_logic_authoring::authoring_dsl_evaluates_and_rejects_deep_inputs"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 12
+
+[[tests]]
+name = "sdk_gen_cli_generate_and_check"
+category = "operations"
+priority = "P2"
+description = "SDK generator CLI generate/check workflows succeed and detect drift."
+files = ["system-tests/tests/suites/sdk_gen_cli.rs", "Docs/generated/decision-gate/tooling.json"]
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact sdk_gen_cli::sdk_gen_cli_generate_and_check"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "sdk_gen.generate.stdout.log", "sdk_gen.generate.stderr.log", "sdk_gen.check.stdout.log", "sdk_gen.check.stderr.log", "sdk_gen.drift.stdout.log", "sdk_gen.drift.stderr.log", "sdk_gen.invalid.stdout.log", "sdk_gen.invalid.stderr.log"]
+estimated_runtime_sec = 10
+
+[[tests]]
+name = "provider_discovery_denylist_and_size_limits"
+category = "contract"
+priority = "P2"
+description = "Provider discovery denylist and response size limits are enforced."
+files = ["system-tests/tests/suites/provider_discovery.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test contract -- --exact provider_discovery::provider_discovery_denylist_and_size_limits"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "sse_transport_bearer_rejects_missing_token"
+category = "mcp_transport"
+priority = "P2"
+description = "SSE transport rejects missing bearer tokens when configured."
+files = ["system-tests/tests/suites/sse_transport.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test mcp_transport -- --exact sse_transport::sse_transport_bearer_rejects_missing_token"
+artifacts = ["summary.json", "summary.md"]
+estimated_runtime_sec = 5
 
 [[tests]]
 name = "stdio_transport_end_to_end"
