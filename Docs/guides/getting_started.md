@@ -3,35 +3,82 @@ Docs/guides/getting_started.md
 ============================================================================
 Document: Decision Gate Getting Started
 Description: Quick-start guide for running Decision Gate MCP locally.
-Purpose: Provide a 5-minute walkthrough using built-in evidence providers.
+Purpose: Provide a short walkthrough using built-in evidence providers.
 Dependencies:
   - decision-gate-mcp
   - decision-gate-providers
 ============================================================================
 -->
 
-# Getting Started (5 Minutes)
+# Getting Started with Decision Gate
 
-## Overview
-This guide starts a local Decision Gate MCP server with built-in providers and
-walks through a minimal scenario lifecycle.
+## At a Glance
 
-## 1) Create a Local Config
-Create `decision-gate.toml`:
+**What:** Run a minimal Decision Gate scenario locally
+**Why:** See the full lifecycle: define -> start -> evaluate
+**Who:** Developers integrating Decision Gate into CI/CD, agents, or compliance workflows
+**Prerequisites:** Familiarity with JSON-RPC 2.0 and curl
+
+## Mental Model: Scenario Lifecycle
+
+Decision Gate evaluates **gates** using **predicates** (evidence checks). The lifecycle is:
+
+```
+1. scenario_define  -> registers a ScenarioSpec
+2. scenario_start   -> creates a RunState (new run)
+3. scenario_next    -> evaluates current stage and returns a DecisionRecord
+```
+
+Key API outputs:
+- `scenario_define` returns `{ scenario_id, spec_hash }`.
+- `scenario_start` returns the full `RunState`.
+- `scenario_next` returns `{ decision, packets, status }` (a `NextResult`).
+
+## What is a Scenario?
+
+A **scenario** is a workflow definition composed of:
+
+- **Stages**: Ordered steps in the workflow.
+- **Gates**: Decision points inside a stage.
+- **Predicates**: Evidence checks used by gates.
+- **Providers**: Evidence sources (builtin or MCP).
+
+Providers can be:
+- **Built-in**: `time`, `env`, `json`, `http`
+- **External MCP**: any tool implementing the `evidence_query` protocol
+
+---
+
+## Quick Start
+
+### Step 1: Create a Local Config
+
+Create `decision-gate.toml` in your working directory:
 
 ```toml
 [server]
 transport = "http"
 bind = "127.0.0.1:4000"
+mode = "strict"
+
+[namespace]
+# Enable the default namespace id = 1 for tenant 1 (local-only convenience).
+allow_default = true
+default_tenants = [1]
 
 [trust]
+# Audit mode (no signature enforcement).
+# For production, use require_signature with key files.
 default_policy = "audit"
+min_lane = "verified"
 
 [evidence]
+# Do not return raw values via evidence_query unless explicitly allowed.
 allow_raw_values = false
 require_provider_opt_in = true
 
 [run_state_store]
+# Use SQLite for local durability.
 type = "sqlite"
 path = "decision-gate.db"
 journal_mode = "wal"
@@ -47,21 +94,19 @@ name = "env"
 type = "builtin"
 ```
 
-Use `type = "memory"` for ephemeral local runs, but `sqlite` is the default
-for durable, audit-grade runs.
+Notes:
+- Default namespace id `1` is **blocked** unless `namespace.allow_default = true` **and** the tenant id is listed in `namespace.default_tenants`.
+- For non-loopback HTTP/SSE binds, Decision Gate requires `--allow-non-loopback` plus TLS and non-local auth. See [security_guide.md](security_guide.md).
 
-## 2) Start the MCP Server
+### Step 2: Start the MCP Server
+
 ```bash
 decision-gate serve --config decision-gate.toml
 ```
 
-The server emits a local-only warning unless `server.auth` is configured.
-If you enable bearer or mTLS subject auth, include the
-appropriate Authorization header when calling tools.
+### Step 3: Define a Scenario
 
-## 3) Define a Scenario
-Send a `scenario_define` request. If `server.auth` is enabled, add
-`-H 'Authorization: Bearer <token>'` to the request.
+This scenario gates on a time check: `time.after(timestamp)`.
 
 ```bash
 curl -s http://127.0.0.1:4000/rpc \
@@ -75,6 +120,7 @@ curl -s http://127.0.0.1:4000/rpc \
       "arguments": {
         "spec": {
           "scenario_id": "quickstart",
+          "namespace_id": 1,
           "spec_version": "v1",
           "stages": [
             {
@@ -97,7 +143,7 @@ curl -s http://127.0.0.1:4000/rpc \
               "query": {
                 "provider_id": "time",
                 "predicate": "after",
-                "params": { "timestamp": 1710000000000 }
+                "params": { "timestamp": 1700000000000 }
               },
               "comparator": "equals",
               "expected": true,
@@ -106,14 +152,30 @@ curl -s http://127.0.0.1:4000/rpc \
           ],
           "policies": [],
           "schemas": [],
-          "default_tenant_id": null
+          "default_tenant_id": 1
         }
       }
     }
   }'
 ```
 
-## 4) Start a Run and Evaluate
+**Time semantics (exact):** `time.after` returns `true` **only if** `trigger_time > timestamp` (strictly greater). Equality returns `false`.
+
+**Response:**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "scenario_id": "quickstart",
+    "spec_hash": { "algorithm": "sha256", "value": "<hex>" }
+  }
+}
+```
+
+### Step 4: Start a Run
+
 ```bash
 curl -s http://127.0.0.1:4000/rpc \
   -H 'Content-Type: application/json' \
@@ -127,6 +189,7 @@ curl -s http://127.0.0.1:4000/rpc \
         "scenario_id": "quickstart",
         "run_config": {
           "tenant_id": 1,
+          "namespace_id": 1,
           "run_id": "run-1",
           "scenario_id": "quickstart",
           "dispatch_targets": [],
@@ -138,6 +201,34 @@ curl -s http://127.0.0.1:4000/rpc \
     }
   }'
 ```
+
+**Response:** `scenario_start` returns the full `RunState`. Example (with empty logs):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "tenant_id": 1,
+    "namespace_id": 1,
+    "run_id": "run-1",
+    "scenario_id": "quickstart",
+    "spec_hash": { "algorithm": "sha256", "value": "<hex>" },
+    "current_stage_id": "main",
+    "stage_entered_at": { "kind": "unix_millis", "value": 1710000000000 },
+    "status": "active",
+    "dispatch_targets": [],
+    "triggers": [],
+    "gate_evals": [],
+    "decisions": [],
+    "packets": [],
+    "submissions": [],
+    "tool_calls": []
+  }
+}
+```
+
+### Step 5: Trigger Gate Evaluation
 
 ```bash
 curl -s http://127.0.0.1:4000/rpc \
@@ -152,6 +243,8 @@ curl -s http://127.0.0.1:4000/rpc \
         "scenario_id": "quickstart",
         "request": {
           "run_id": "run-1",
+          "tenant_id": 1,
+          "namespace_id": 1,
           "trigger_id": "trigger-1",
           "agent_id": "agent-1",
           "time": { "kind": "unix_millis", "value": 1710000000000 },
@@ -162,9 +255,74 @@ curl -s http://127.0.0.1:4000/rpc \
   }'
 ```
 
+With `time.after` and `timestamp = 1700000000000`, the predicate returns `true` because `1710000000000 > 1700000000000`.
+
+**Response (`NextResult`):**
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "result": {
+    "decision": {
+      "decision_id": "decision-1",
+      "seq": 1,
+      "trigger_id": "trigger-1",
+      "stage_id": "main",
+      "decided_at": { "kind": "unix_millis", "value": 1710000000000 },
+      "outcome": { "kind": "complete", "stage_id": "main" },
+      "correlation_id": null
+    },
+    "packets": [],
+    "status": "completed"
+  }
+}
+```
+
+---
+
+## Troubleshooting
+
+### Gate Outcome is `hold`
+
+If a gate cannot be proven `true` or `false`, the decision outcome will be `hold` and the response will include a `SafeSummary`:
+
+```json
+{
+  "decision": {
+    "outcome": {
+      "kind": "hold",
+      "summary": {
+        "status": "hold",
+        "unmet_gates": ["after-time"],
+        "retry_hint": "await_evidence",
+        "policy_tags": []
+      }
+    }
+  }
+}
+```
+
+**How to debug precisely:**
+1. **Export the runpack** with `runpack_export` and inspect `gate_evals` and evidence errors in the manifest.
+2. **Use `evidence_query`** (if disclosure policy allows) to reproduce the provider call and see its `EvidenceResult`.
+
+### Auth Required
+
+If you configure `[server.auth]`, include the appropriate auth header:
+
+```bash
+curl -s http://127.0.0.1:4000/rpc \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer YOUR_TOKEN' \
+  -d '{ ... }'
+```
+
+---
+
 ## Next Steps
-- Explore `Docs/guides/integration_patterns.md` for CI and agent-loop patterns.
-- For LLM-native workflows using precheck (inline evidence), see
-  `Docs/guides/llm_native_playbook.md`.
-- Run AssetCore interoperability via `Docs/guides/assetcore_interop_runbook.md`.
-- Use `decision-gate-cli` to export and verify runpacks.
+
+- [predicate_authoring.md](predicate_authoring.md): write precise predicates and comparators
+- [json_evidence_playbook.md](json_evidence_playbook.md): JSON evidence recipes
+- [llm_native_playbook.md](llm_native_playbook.md): precheck workflows for LLM agents
+- [security_guide.md](security_guide.md): production hardening (auth, TLS, signatures, anchors)

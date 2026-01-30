@@ -26,26 +26,27 @@ predicate algebra used by the engine.
 ## Table of Contents
 
 - [Overview](#overview)
+- [Quick Start](#quick-start)
+- [Docs](#docs)
+- [AssetCore Integration](#assetcore-integration)
 - [Current Status (Accuracy Notes)](#current-status-accuracy-notes)
 - [Architecture at a Glance](#architecture-at-a-glance)
 - [Evidence Sourcing Model](#evidence-sourcing-model)
 - [Why Built-ins + JSON Go Far](#why-built-ins--json-go-far)
-- [AssetCore Integration](#assetcore-integration)
 - [Repository Layout](#repository-layout)
 - [Core Concepts](#core-concepts)
 - [How Predicates Are Defined](#how-predicates-are-defined)
 - [Scenario Authoring Walkthrough](#scenario-authoring-walkthrough)
 - [Built-in Providers (Predicate Reference)](#built-in-providers-predicate-reference)
-- [Provider Example: MongoDB](#provider-example-mongodb)
+- [Provider Example: Database](#provider-example-database)
 - [MCP Tool Surface](#mcp-tool-surface)
 - [Contract Artifacts](#contract-artifacts)
 - [Runpacks and Verification](#runpacks-and-verification)
 - [Examples](#examples)
 - [Glossary](#glossary)
-- [Docs](#docs)
+- [How to Support This Project](#how-to-support-this-project)
 - [Security](#security)
 - [Formatting](#formatting)
-- [Quick Start](#quick-start)
 - [Contributing](#contributing)
 - [Authors](#authors)
 - [References](#references)
@@ -60,6 +61,47 @@ run state. Decision Gate does not execute arbitrary tasks; evidence is produced
 by providers or by a caller in precheck, and the core only evaluates it.
 In the operational sense, this is LLM/task evaluation: progress is gated until
 explicit requirements are satisfied.
+
+## Quick Start
+
+- Regenerate artifacts: `scripts/generate_all.sh`
+- Verify all (non-system tests): `scripts/verify_all.sh`
+- Verify all + system tests: `scripts/verify_all.sh --system-tests=p0`
+- Run core tests: `cargo test -p decision-gate-core`
+- Run broker tests: `cargo test -p decision-gate-broker`
+- Run examples:
+  - `cargo run -p decision-gate-example-minimal`
+  - `cargo run -p decision-gate-example-file-disclosure`
+  - `cargo run -p decision-gate-example-llm-scenario`
+  - `cargo run -p decision-gate-example-agent-loop`
+  - `cargo run -p decision-gate-example-ci-gate`
+  - `cargo run -p decision-gate-example-data-disclosure`
+- Run the CLI:
+  - `cargo run -p decision-gate-cli -- serve --config decision-gate.toml`
+- Durable run state: configure `run_state_store` in `decision-gate.toml` to use
+  the SQLite backend (see `Docs/configuration/decision-gate.toml.md`).
+
+## Docs
+
+- Getting started: `Docs/guides/getting_started.md`
+- Configuration: `Docs/configuration/decision-gate.toml.md`
+- Provider development: `Docs/guides/provider_development.md`
+- Security guide: `Docs/guides/security_guide.md`
+- Integration patterns: `Docs/guides/integration_patterns.md`
+- JSON evidence playbook: `Docs/guides/json_evidence_playbook.md`
+- LLM-native playbook: `Docs/guides/llm_native_playbook.md`
+- AssetCore integration hub: `Docs/integrations/assetcore/`
+- Hosted docs mirror + expanded explanations: [assetcore.io/docs/decision-gate](https://assetcore.io/docs/decision-gate)
+- Architecture:
+  - `Docs/architecture/comparator_validation_architecture.md`
+  - `Docs/architecture/decision_gate_assetcore_integration_contract.md`
+  - `Docs/architecture/decision_gate_namespace_registry_rbac_architecture.md`
+  - `Docs/architecture/decision_gate_auth_disclosure_architecture.md`
+  - `Docs/architecture/decision_gate_evidence_trust_anchor_architecture.md`
+  - `Docs/architecture/decision_gate_runpack_architecture.md`
+  - `Docs/architecture/decision_gate_scenario_state_architecture.md`
+  - `Docs/architecture/decision_gate_provider_capability_architecture.md`
+  - `Docs/architecture/decision_gate_system_test_architecture.md`
 
 ## AssetCore Integration
 
@@ -288,7 +330,7 @@ Examples:
 - `env` provider for environment gates
 - `json` provider for file queries
 - `http` provider for endpoint checks
-- `mongodb` provider for database checks (external MCP provider)
+- `database` provider for external database checks (external MCP provider)
 
 ### 2) Define Predicates
 
@@ -406,9 +448,9 @@ Params:
 { "url": "https://api.example.com/health" }
 ```
 
-## Provider Example: MongoDB
+## Provider Example: Database
 
-MongoDB is not built-in. It would be implemented as an external MCP provider.
+Databases are not built-in. They are implemented as external MCP providers.
 
 ### Predicate Example
 
@@ -416,27 +458,26 @@ MongoDB is not built-in. It would be implemented as an external MCP provider.
 {
   "predicate": "user_status",
   "query": {
-    "provider_id": "mongodb",
-    "predicate": "field_equals",
+    "provider_id": "database",
+    "predicate": "field_value",
     "params": {
-      "database": "app",
-      "collection": "users",
-      "filter": { "_id": "user-123" },
-      "field": "status",
-      "expected": "active"
+      "source": "app_db",
+      "table": "users",
+      "filter": { "id": "user-123" },
+      "field": "status"
     }
   },
   "comparator": "equals",
-  "expected": true,
+  "expected": "active",
   "policy_tags": []
 }
 ```
 
 ### What This Means
 
-- The predicate format (`field_equals` and its params) is defined by the
-  MongoDB provider, not by `ret-logic`.
-- Decision Gate treats it as a query to the `mongodb` provider and evaluates
+- The predicate format (`field_value` and its params) is defined by the
+  database provider, not by `ret-logic`.
+- Decision Gate treats it as a query to the `database` provider and evaluates
   the returned evidence with the comparator.
 
 ## MCP Tool Surface
@@ -522,26 +563,11 @@ enables offline verification of integrity and tamper detection.
 
 **Runpack**: A deterministic artifact bundle used for offline verification.
 
-## Docs
+## How to Support This Project
 
-- Getting started: `Docs/guides/getting_started.md`
-- Configuration: `Docs/configuration/decision-gate.toml.md`
-- Provider development: `Docs/guides/provider_development.md`
-- Security guide: `Docs/guides/security_guide.md`
-- Integration patterns: `Docs/guides/integration_patterns.md`
-- JSON evidence playbook: `Docs/guides/json_evidence_playbook.md`
-- LLM-native playbook: `Docs/guides/llm_native_playbook.md`
-- AssetCore integration hub: `Docs/integrations/assetcore/`
-- Architecture:
-  - `Docs/architecture/comparator_validation_architecture.md`
-  - `Docs/architecture/decision_gate_assetcore_integration_contract.md`
-  - `Docs/architecture/decision_gate_namespace_registry_rbac_architecture.md`
-  - `Docs/architecture/decision_gate_auth_disclosure_architecture.md`
-  - `Docs/architecture/decision_gate_evidence_trust_anchor_architecture.md`
-  - `Docs/architecture/decision_gate_runpack_architecture.md`
-  - `Docs/architecture/decision_gate_scenario_state_architecture.md`
-  - `Docs/architecture/decision_gate_provider_capability_architecture.md`
-  - `Docs/architecture/decision_gate_system_test_architecture.md`
+- Enterprise needs: see `Docs/enterprise/decision_gate_enterprise.md` and [assetcore.io/decision-gate](https://assetcore.io/decision-gate).
+- Individuals: fiction books at [yungbidness.dev/#books](https://yungbidness.dev/#books).
+- AssetCore early evaluation partners: we are looking to work closely with a small number of serious teams to harden deployment edges and usability before broader rollout. See [assetcore.io](https://assetcore.io/).
 
 ## Security
 
@@ -559,30 +585,9 @@ cargo +nightly fmt --all
 
 Do not use `cargo fmt` in this repo.
 
-## Quick Start
-
-- Regenerate artifacts: `scripts/generate_all.sh`
-- Verify all (non-system tests): `scripts/verify_all.sh`
-- Verify all + system tests: `scripts/verify_all.sh --system-tests=p0`
-- Run core tests: `cargo test -p decision-gate-core`
-- Run broker tests: `cargo test -p decision-gate-broker`
-- Run examples:
-  - `cargo run -p decision-gate-example-minimal`
-  - `cargo run -p decision-gate-example-file-disclosure`
-  - `cargo run -p decision-gate-example-llm-scenario`
-  - `cargo run -p decision-gate-example-agent-loop`
-  - `cargo run -p decision-gate-example-ci-gate`
-  - `cargo run -p decision-gate-example-data-disclosure`
-- Run the CLI:
-  - `cargo run -p decision-gate-cli -- serve --config decision-gate.toml`
-- Durable run state: configure `run_state_store` in `decision-gate.toml` to use
-  the SQLite backend (see `Docs/configuration/decision-gate.toml.md`).
-
 ## Contributing
 
-This project is not currently accepting pull requests. The codebase evolves
-rapidly and is undergoing internal review to establish long-term contribution
-standards.
+This project is not currently accepting pull requests.
 
 Please open an issue if you want to report a bug, propose a feature, or start a
 discussion. See `CONTRIBUTING.md` for details.

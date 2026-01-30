@@ -2,10 +2,9 @@
 Docs/guides/evidence_flow_and_execution_model.md
 ============================================================================
 Document: Evidence Flow + Execution Model
-Description: Narrative, end-to-end explanation of how Decision Gate handles
-             evidence, evaluation, and trust.
-Purpose: Provide a clear mental model for where data is authored, fetched, and
-         evaluated, and why the system is structured this way.
+Description: End-to-end explanation of how Decision Gate handles evidence,
+             evaluation, and trust.
+Purpose: Provide a precise mental model for data flow and evaluation.
 Dependencies:
   - decision-gate-core/src/runtime/engine.rs
   - decision-gate-mcp/src/tools.rs
@@ -16,287 +15,195 @@ Dependencies:
 
 # Evidence Flow + Execution Model
 
-This document is a narrative, high-level view of how Decision Gate works and
-why it is structured the way it is. It is intentionally explicit and verbose.
+## At a Glance
 
-If you only remember one sentence:
-**Decision Gate evaluates evidence; it does not execute arbitrary tasks.**
+**What:** How Decision Gate evaluates evidence and produces decisions
+**Why:** Understand exactly what is fetched, validated, and compared
+**Who:** Developers, security teams, and architects integrating Decision Gate
+**Prerequisites:** [getting_started.md](getting_started.md)
 
----
+## One Sentence You Must Remember
 
-## Mental Model (One Page)
-
-Decision Gate solves a single question:
-**"Has X been done?"**
-
-To answer that, DG evaluates evidence (data) against predicates and gates. If a
-problem can be expressed as data, DG can decide whether the requirement is met.
-If it cannot be expressed as data, DG is not the right tool.
-
-There are three ways evidence can be supplied:
-
-1) **Provider-pulled evidence (live runs)**  
-   DG calls a provider to fetch evidence. Providers are the data producers.
-
-2) **Asserted evidence (precheck only)**  
-   A caller supplies evidence payloads directly to precheck. DG validates the
-   payloads against schemas and evaluates gates without mutating run state.
-
-3) **Audit submissions (scenario.submit)**  
-   Payloads are recorded for audit and hashing, but do not affect evaluation.
-
-DG always uses the same evaluation model:
-**evidence -> comparator -> tri-state -> RET -> gate outcome**.
+**Decision Gate evaluates evidence; it does not execute tasks.**
 
 ---
 
-## Key Terms
+## Core Data Flow (Exact)
 
-- **Provider**: An evidence source that can answer evidence queries.
-- **EvidenceQuery**: `{ provider_id, predicate, params }`.
-- **EvidenceResult**: The provider response (value + optional hash/anchor/signature).
-- **Comparator**: Compares evidence to an expected value (equals, greater_than, etc).
-- **RET (Requirement Evaluation Tree)**: The logic tree that combines predicates.
-- **Trust lane**: Whether evidence is `verified` or `asserted`.
-
----
-
-## Where Information Is Authored
-
-Evidence is authored in one of two places:
-
-1) **Providers**  
-   Providers fetch or compute evidence and return an `EvidenceResult`. Providers
-   can be:
-   - **Built-in** (compiled into the server): `time`, `env`, `json`, `http`.
-   - **External MCP** (stdio or HTTP): any custom integration.
-
-2) **Precheck payloads**  
-   A caller supplies evidence directly to `precheck`. DG validates it against a
-   registered data shape, then evaluates gates without writing run state.
-
-This separation is intentional: it preserves determinism and auditability while
-making it easy to adopt DG in low-friction environments.
+```
+Trigger (scenario_next / scenario_trigger / precheck)
+  |
+  +-> Collect or accept evidence
+  |     - Live run: call providers
+  |     - Precheck: accept asserted payload
+  |
+  +-> Trust enforcement
+  |     - Trust lane minimum (min_lane)
+  |     - Signature policy (if required)
+  |     - Anchor validation (if configured)
+  |
+  +-> Comparator evaluation -> TriState
+  +-> RET evaluation -> Gate outcomes
+  |
+  +-> Decision
+        - Live run: state mutation + runpack storage
+        - Precheck: no state mutation
+```
 
 ---
 
-## Where Evaluation Happens (Always the Same Place)
+## Evidence Sources
 
-Evaluation always happens in the control plane (`decision-gate-core`).
-Providers never decide gate outcomes. They only return evidence.
+### 1) Providers (Live Runs)
 
-Evaluation pipeline:
+Providers fetch or compute evidence and return an `EvidenceResult`.
 
-1) **EvidenceResult** is produced (by provider or precheck).
-2) **Comparator** evaluates evidence vs expected.
-3) **Tri-state** is produced (`true`, `false`, `unknown`).
-4) **RET** combines predicate outcomes into a gate outcome.
+**Built-in providers:** `time`, `env`, `json`, `http`
 
-This ensures that every transport (MCP, HTTP, SDKs, batch) yields the same
-results for the same inputs.
+**External providers:** MCP servers called via `tools/call` with `evidence_query`.
 
----
+### 2) Asserted Evidence (Precheck)
 
-## Evidence Sourcing Modes (Detailed)
+Precheck **does not** call providers. The client supplies a payload that is:
+1. Validated against a registered **data shape** (JSON Schema).
+2. Converted into asserted `EvidenceResult` values.
 
-### 1) Provider-Pulled Evidence (Live Runs)
-
-This is the default mode for real runs. DG calls providers to fetch evidence.
-
-Flow:
-1. A run is active.
-2. A gate references predicates (evidence queries).
-3. DG calls providers for each EvidenceQuery.
-4. Providers return EvidenceResult.
-5. DG evaluates comparators + RET and updates run state.
-
-This gives strong guarantees when providers are trusted, signed, or anchored.
-
-### 2) Asserted Evidence (Precheck Only)
-
-Precheck is a read-only simulation: "What would happen if this evidence were true?"
-
-Flow:
-1. Caller supplies evidence payloads for predicates.
-2. DG validates payloads against registered data shapes.
-3. DG evaluates comparators + RET.
-4. No run state is mutated.
-
-This is useful for:
-- trusted agents,
-- rapid iteration,
-- hypothetical "what if" checks.
-
-### 3) Audit Submissions (scenario.submit)
-
-Submissions store payloads and hashes for audit, but do not drive evaluation.
-
-Flow:
-1. Caller submits a payload with `scenario_submit`.
-2. DG stores hashes and metadata in run state.
-3. Gates are unaffected; this is an audit trail, not evidence input.
+**Payload mapping is exact:**
+- If payload is an object: keys are predicate IDs.
+- If payload is not an object: it is only accepted when the scenario has exactly one predicate.
 
 ---
 
-## Why Built-ins + JSON Go Far
+## Trust Enforcement (Exact)
 
-The built-in providers are intentionally narrow and safe:
+### Trust Lanes
+- `Verified`: evidence returned by providers.
+- `Asserted`: evidence supplied via precheck payload.
 
-- **time**: compares against trigger time.
-- **env**: reads environment variables.
-- **json**: reads JSON/YAML files and evaluates JSONPath.
-- **http**: bounded HTTP checks.
+### Minimum Lane (`min_lane`)
+Configured in `decision-gate.toml`:
+```toml
+[trust]
+min_lane = "verified"   # or "asserted"
+```
 
-The **json** provider is the main bridge for local workflows:
-If a tool can emit JSON, DG can gate it.
+When `min_lane = "verified"`, asserted evidence is rejected (predicate becomes `unknown`).
 
-Examples:
-- Lint/format: tool emits JSON -> `json.path` checks `errors == 0`.
-- Tests: test runner emits JSON -> check `failed == 0`.
-- Coverage: JSON report -> check `coverage >= 80`.
-- Scanners: JSON output -> check severity counts.
+**Dev-permissive:** `min_lane` becomes `asserted` automatically, **except** for providers listed in `dev.permissive_exempt_providers` (those remain strict).
 
-This avoids arbitrary execution inside DG while still covering most workflows.
-
----
-
-## Why DG Does Not Execute Arbitrary Tasks
-
-Executing arbitrary tasks inside DG expands the attack surface:
-- arbitrary code execution,
-- secrets exposure,
-- filesystem/network risks,
-- unpredictable performance.
-
-DG’s design keeps execution outside the core:
-- Run tasks in CI or local workflows.
-- Emit JSON artifacts as evidence.
-- Let DG evaluate them deterministically.
-
-This makes DG safe-by-default and reduces reputational risk.
-
----
-
-## Live Run vs Precheck (Side-by-Side)
-
-| Aspect | Live Run | Precheck |
-| --- | --- | --- |
-| Evidence source | Providers | Caller-supplied |
-| Trust lane | Verified (or policy) | Asserted |
-| State mutation | Yes | No |
-| Audit artifacts | Run state + runpack | Optional audit log |
-| Use case | Production gating | Fast iteration |
-
----
-
-## How Providers Plug In
-
-Providers are registered by `provider_id` and handle EvidenceQuery:
-
+### Per-Predicate and Per-Gate Overrides
+You can raise the minimum lane in the scenario spec:
 ```json
 {
-  "provider_id": "json",
-  "predicate": "path",
-  "params": { "file": "report.json", "jsonpath": "$.summary.failed" }
+  "predicate": "tests_ok",
+  "trust": { "min_lane": "verified" }
 }
 ```
+Gate-level `trust` can also raise requirements. Effective requirement is the **stricter** of base and overrides.
 
-The provider returns:
+### Signature Verification
+Configured via `trust.default_policy`:
+```toml
+[trust]
+# Audit mode accepts unsigned evidence.
+default_policy = "audit"
 
-```json
-{
-  "value": { "kind": "json", "value": 0 },
-  "lane": "verified",
-  "error": null,
-  "evidence_hash": null,
-  "evidence_anchor": null,
-  "signature": null,
-  "content_type": "application/json"
-}
+# Require signatures from key files:
+# default_policy = { require_signature = { keys = ["/etc/decision-gate/keys/provider.pub"] } }
 ```
 
-DG applies the comparator (for example `equals` with expected `0`), produces a
-tri-state, then evaluates gates via RET.
+When `require_signature` is active:
+- `EvidenceResult.signature.scheme` must be `"ed25519"`.
+- `signature.key_id` must match a configured key entry.
+- The signature is verified over **canonical JSON of `evidence_hash`**.
 
-### Error Metadata (World-Class Recovery)
-Providers may return structured error metadata alongside a `null` value. This
-keeps the evaluation **fail-closed** while giving agents enough detail to
-repair their pipelines.
+If `evidence_hash` is missing, Decision Gate computes it from the evidence value.
 
-Example: JSONPath missing
-
-```json
-{
-  "value": null,
-  "lane": "verified",
-  "error": {
-    "code": "jsonpath_not_found",
-    "message": "jsonpath not found: $.summary.failed",
-    "details": { "jsonpath": "$.summary.failed" }
-  },
-  "evidence_hash": null,
-  "evidence_anchor": null,
-  "signature": null,
-  "content_type": null
-}
+### Anchor Validation
+Anchors are enforced via config (not the scenario spec):
+```toml
+[anchors]
+[[anchors.providers]]
+provider_id = "json"
+anchor_type = "file_path"
+required_fields = ["path"]
 ```
+
+`EvidenceResult.evidence_anchor.anchor_value` must be a **string** containing canonical JSON that parses to an **object**. Required fields must exist and must be scalar (string/number). Violations produce `error.code = "anchor_invalid"` and the predicate becomes `unknown`.
 
 ---
 
-## Evidence Flow Diagram (Text)
+## Comparator Evaluation (Exact)
 
-```
-Trigger or Next
-  |
-  | Scenario gates reference predicates
-  v
-EvidenceQuery (provider_id, predicate, params)
-  |
-  | Provider fetches/computes evidence
-  v
-EvidenceResult (value + hash/anchor/signature?)
-  |
-  | Comparator + tri-state
-  v
-RET evaluation (gate outcome)
-  |
-  | Decision + run state update
-  v
-Runpack artifacts (optional)
-```
+Comparators produce **TriState** results:
+- `true`
+- `false`
+- `unknown`
+
+Important exact behaviors (see [predicate_authoring.md](predicate_authoring.md)):
+- `equals`/`not_equals` return **false/true** on type mismatch (not `unknown`).
+- Ordering comparators (`greater_than`, etc.) return `unknown` unless both sides are numbers or RFC3339 date/time strings.
+- `exists`/`not_exists` test **presence of `EvidenceResult.value`**; JSON `null` still counts as `exists`.
 
 ---
 
-## Common Misconceptions
+## Live Run Flow (scenario_next)
 
-**"DG runs the tools."**  
-No. Providers or external workflows run tools and emit evidence. DG evaluates.
+1. A run exists (`scenario_start`).
+2. `scenario_next` is called with `run_id`, `tenant_id`, `namespace_id`, `trigger_id`, `agent_id`, and `time`.
+3. Decision Gate calls providers for each predicate.
+4. Trust requirements are enforced.
+5. Comparators and RET produce gate outcomes.
+6. A `DecisionRecord` is returned and the run state is updated.
 
-**"Precheck is the same as a live run."**  
-No. Precheck is read-only and uses asserted evidence.
+**Output:** `NextResult { decision, packets, status }` (no evidence values).
 
-**"MCP is required."**  
-No. Built-ins + JSON cover many workflows without external MCP providers.
-
----
-
-## When to Add a New Provider
-
-Add a provider only when evidence cannot be expressed via:
-- JSON artifacts,
-- HTTP checks,
-- time/env signals.
-
-If your workflow can emit JSON, prefer the `json` provider. This keeps the
-system simple and avoids new attack surfaces.
+To inspect evidence and gate details, use `runpack_export`.
 
 ---
 
-## Summary
+## Precheck Flow (precheck)
 
-Decision Gate is an evaluation engine:
-- It **does not execute arbitrary tasks**.
-- It **evaluates evidence** produced by providers or supplied in precheck.
-- It is **deterministic, auditable, and safe-by-default**.
+1. Client calls `schemas_register` to register a **data shape**.
+2. Client calls `precheck` with:
+   - `tenant_id`, `namespace_id`
+   - `scenario_id` **or** inline `spec`
+   - `data_shape` (schema id + version)
+   - `payload`
+3. Payload is validated against the schema.
+4. Payload is converted into asserted evidence.
+5. Gates are evaluated without mutating run state.
 
-Use built-ins and JSON artifacts first. Add providers only when necessary.
+**Output:** `PrecheckToolResponse { decision, gate_evaluations }`.
+
+`gate_evaluations` includes only gate status and predicate trace (no evidence values).
+
+---
+
+## Audit Submissions (scenario_submit)
+
+`scenario_submit` appends a submission record to the run state **without** affecting gate evaluation. Each submission stores a content hash and metadata for audit.
+
+---
+
+## Provider Interaction (External MCP)
+
+Decision Gate calls external MCP providers with `tools/call` and a single tool: `evidence_query`. It does **not** depend on `tools/list` at runtime; provider capabilities are loaded from `capabilities_path` in config.
+
+---
+
+## Common Misconceptions (Corrected)
+
+- **"DG runs the tools."** -> False. DG evaluates evidence; tools run elsewhere.
+- **"Precheck returns evidence errors."** -> False. It returns `decision` + `gate_evaluations` only.
+- **"scenario_next response includes evidence."** -> False. Use `runpack_export` or `evidence_query`.
+- **"Anchor policy is in the scenario."** -> False. It is configured under `[anchors]`.
+
+---
+
+## Glossary
+
+**EvidenceQuery:** `{ provider_id, predicate, params }`.
+**EvidenceResult:** `{ value, lane, error, evidence_hash, evidence_ref, evidence_anchor, signature, content_type }`.
+**Trust Lane:** `verified` or `asserted`.
+**Runpack:** Audit artifact bundle written for live runs.

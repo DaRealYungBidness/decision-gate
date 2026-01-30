@@ -1,51 +1,220 @@
 <!--
 Docs/guides/integration_patterns.md
 ============================================================================
-Document: Decision Gate Integration Patterns
-Description: Common integration patterns for Decision Gate.
-Purpose: Provide guidance for CI, agent loops, and disclosure workflows.
+Document: Integration Patterns
+Description: Common deployment patterns for Decision Gate
+Purpose: Show how to integrate DG into CI/CD, agents, and compliance workflows
 Dependencies:
-  - examples/agent-loop
-  - examples/ci-gate
-  - examples/data-disclosure
+  - examples/
 ============================================================================
 -->
 
 # Integration Patterns
 
-## Overview
-Decision Gate integrates into workflows as a deterministic gate evaluator.
-These patterns mirror common deployment scenarios and map directly to the
-examples in `examples/`.
+## At a Glance
 
-## Agent Loop Targets
-Use `scenario_status` to surface unmet predicates and let the agent plan
-toward satisfying them. Once predicates are satisfied, call `scenario_next`
-to advance the stage.
+**What:** Common deployment patterns for CI/CD, agent loops, and compliance workflows
+**Why:** Choose the right integration strategy for trust and audit needs
+**Who:** Architects and developers planning Decision Gate deployments
+**Prerequisites:** [getting_started.md](getting_started.md)
 
-Example: `examples/agent-loop`
+---
 
-For rapid, LLM-native iteration, use `precheck` with inline evidence. This
-avoids filesystem coordination while preserving deterministic evaluation.
+## Pattern Overview
 
-## CI/CD Gate
-Use predicates backed by CI provider evidence (build status, test results,
-review approvals). Gate advancement signals readiness to deploy.
+| Pattern | Trust Lane | Speed | Audit Trail | Use Case |
+|---------|------------|-------|-------------|----------|
+| **CI/CD Gate** | Verified | Slower | Full runpack | Production deployments |
+| **Agent Loop** | Asserted -> Verified | Fast -> Slow | Optional -> Full | LLM planning toward gates |
+| **Controlled Disclosure** | Verified | Slow | Full | Data release with audit |
+| **Compliance Workflow** | Verified | Slow | Full | Multi-stage gates |
+| **MCP Federation** | Verified | Varies | Full | External evidence sources |
 
-Example: `examples/ci-gate`
+---
 
-## Controlled Disclosure
-Use a review gate to unlock a disclosure stage that emits packet payloads.
-This creates a verifiable audit trail of what was released and when.
+## Pattern 1: CI/CD Gate
 
-Example: `examples/data-disclosure`
+**When to use:** Automated quality gates in CI/CD pipelines
 
-## Policy Integration
-Dispatch authorization can be routed through a swappable policy engine:
+**Flow:**
+1. Run tools -> emit JSON
+2. `scenario_start` -> create run
+3. `scenario_next` -> DG reads JSON via `json` provider
+4. Decision outcome drives deploy
 
-- Use `policy.engine = "static"` for deterministic, local rule evaluation.
-- Add adapters for external engines (OPA, Cedar, OpenFGA/Zanzibar-style) to
-  match existing org policy infrastructure.
+**Scenario (minimal, accurate fields):**
+```json
+{
+  "scenario_id": "ci-gate",
+  "namespace_id": 1,
+  "spec_version": "v1",
+  "stages": [
+    {
+      "stage_id": "quality",
+      "entry_packets": [],
+      "gates": [
+        {
+          "gate_id": "quality-checks",
+          "requirement": {
+            "And": [
+              { "Predicate": "tests_ok" },
+              { "Predicate": "coverage_ok" },
+              { "Predicate": "scan_ok" }
+            ]
+          }
+        }
+      ],
+      "advance_to": { "kind": "terminal" },
+      "timeout": null,
+      "on_timeout": "fail"
+    }
+  ],
+  "predicates": [
+    {
+      "predicate": "tests_ok",
+      "query": {
+        "provider_id": "json",
+        "predicate": "path",
+        "params": {
+          "file": "/workspace/test-results.json",
+          "jsonpath": "$.summary.failed"
+        }
+      },
+      "comparator": "equals",
+      "expected": 0,
+      "policy_tags": []
+    },
+    {
+      "predicate": "coverage_ok",
+      "query": {
+        "provider_id": "json",
+        "predicate": "path",
+        "params": {
+          "file": "/workspace/coverage.json",
+          "jsonpath": "$.total.lines.percent"
+        }
+      },
+      "comparator": "greater_than_or_equal",
+      "expected": 85,
+      "policy_tags": []
+    },
+    {
+      "predicate": "scan_ok",
+      "query": {
+        "provider_id": "json",
+        "predicate": "path",
+        "params": {
+          "file": "/workspace/scan.json",
+          "jsonpath": "$.summary.critical"
+        }
+      },
+      "comparator": "equals",
+      "expected": 0,
+      "policy_tags": []
+    }
+  ],
+  "policies": [],
+  "schemas": [],
+  "default_tenant_id": 1
+}
+```
 
-Keep policy evaluation deterministic and side-effect free; Decision Gate
-expects policy engines to fail closed on errors.
+**Interpreting `scenario_next` result:**
+- Look at `result.decision.outcome.kind`:
+  - `advance` / `complete` -> gates passed
+  - `hold` -> gates not satisfied
+  - `fail` -> run failed
+
+---
+
+## Pattern 2: Agent Loop
+
+**When to use:** LLM agents iterating toward gate satisfaction
+
+**Flow:**
+1. Agent runs tools -> extracts values
+2. `precheck` -> fast evaluation (asserted evidence)
+3. If gates pass -> run live `scenario_next`
+
+**Precheck output is limited:**
+- Returns `{ decision, gate_evaluations }`.
+- `gate_evaluations` contain `gate_id`, `status`, and predicate trace only.
+- It **does not** include evidence values or errors.
+
+If you need evidence errors, use `evidence_query` or `runpack_export` in a live run.
+
+---
+
+## Pattern 3: Controlled Disclosure
+
+**When to use:** Data release with audit trail
+
+Typical flow:
+1. Gate approvals using `RequireGroup`.
+2. On pass, use `scenario_submit` to record metadata.
+3. Dispatch data packets (policy-controlled).
+
+`scenario_submit` is audit-only and requires:
+- `run_id`, `tenant_id`, `namespace_id`, `submission_id`
+- `payload`, `content_type`, `submitted_at`
+
+---
+
+## Pattern 4: Compliance Workflow (Multi-Stage)
+
+Use stage ordering plus `advance_to.kind = "linear"` to move to the next stage in spec order:
+
+```json
+{
+  "stage_id": "dev",
+  "advance_to": { "kind": "linear" }
+}
+```
+
+Use `branch` when you need different destinations based on gate outcome.
+
+---
+
+## Pattern 5: MCP Federation (External Providers)
+
+**When to use:** Evidence sources outside built-ins
+
+**Config (exact):**
+```toml
+[[providers]]
+name = "git"
+type = "mcp"
+command = ["/usr/local/bin/git-provider"]
+capabilities_path = "contracts/git.json"
+
+[[providers]]
+name = "cloud"
+type = "mcp"
+url = "https://cloud.example.com/rpc"
+capabilities_path = "contracts/cloud.json"
+allow_insecure_http = false
+timeouts = { connect_timeout_ms = 2000, request_timeout_ms = 10000 }
+
+[trust]
+# Require signatures from these key files
+default_policy = { require_signature = { keys = ["/etc/decision-gate/keys/cloud.pub"] } }
+```
+
+---
+
+## Deployment Checklist (Accurate)
+
+- [ ] Config validates (`decision-gate config validate`)
+- [ ] Providers have valid `capabilities_path` files
+- [ ] `namespace.allow_default` set correctly for local-only usage
+- [ ] Auth + TLS configured for non-loopback binds
+- [ ] `trust.default_policy` and `min_lane` set for production
+- [ ] Evidence disclosure policy set (`allow_raw_values`, `require_provider_opt_in`)
+
+---
+
+## Cross-References
+
+- [json_evidence_playbook.md](json_evidence_playbook.md)
+- [llm_native_playbook.md](llm_native_playbook.md)
+- [security_guide.md](security_guide.md)

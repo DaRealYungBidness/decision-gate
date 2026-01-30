@@ -3,7 +3,7 @@ Docs/guides/security_guide.md
 ============================================================================
 Document: Decision Gate Security Guide
 Description: Security posture and trust policy guidance.
-Purpose: Explain evidence trust, disclosure policy, and local-only constraints.
+Purpose: Explain evidence trust, disclosure policy, auth, and anchor validation.
 Dependencies:
   - Docs/security/threat_model.md
   - decision-gate-mcp configuration
@@ -12,96 +12,215 @@ Dependencies:
 
 # Security Guide
 
-## Overview
-Decision Gate is built for hostile inputs and fails closed on missing or
-invalid evidence. This guide summarizes the trust and disclosure controls
-exposed by the MCP layer.
+## At a Glance
 
-## Trust Policies
-`decision-gate-mcp` enforces provider trust policies:
+**What:** Security controls for trust, signatures, disclosure, and access
+**Why:** Prevent evidence tampering and limit data exposure
+**Who:** Security engineers, compliance teams, production operators
+**Prerequisites:** [evidence_flow_and_execution_model.md](evidence_flow_and_execution_model.md)
 
-- `audit` (default): accept evidence without signature verification.
-- `require_signature`: verify Ed25519 signatures against configured keys.
+---
 
-When signature enforcement is enabled, unsigned or untrusted evidence is
-rejected and the gate remains held.
+## Fail-Closed Architecture (Exact)
 
-## Server Mode and Namespace Policy
-Decision Gate defaults to strict mode and explicit namespace allowlists:
+Decision Gate **fails closed**: missing or invalid evidence produces `unknown`, which holds gates.
 
-- `server.mode = "strict"` (default): only verified evidence is accepted.
-- `dev.permissive = true`: asserted evidence is allowed for dev use only.
-  Startup emits warnings so operators can detect non-production posture.
-  `server.mode = "dev_permissive"` remains as a legacy alias.
+Security controls applied (in order):
+1. **Trust lane minimum** (`min_lane`)
+2. **Anchor validation** (if configured)
+3. **Signature verification** (if required)
+4. **Comparator evaluation** (tri-state)
 
-The default namespace id (1) is **never** implicitly allowed. Enable it with:
+---
 
-- `namespace.allow_default = true`
-- `namespace.default_tenants = [1, ...]`
+## Access Control (Exact)
 
-Dev-permissive does **not** override namespace authority and is disallowed when
-`namespace.authority.mode = "assetcore_http"`.
+### Tool Access (MCP API)
+Tool access is controlled by `[server.auth]`.
 
-Use strict mode for production and high-assurance environments. Use
-dev-permissive only for local development, tests, or controlled sandboxes.
+```toml
+[server.auth]
+mode = "bearer_token"
+bearer_tokens = ["token-1", "token-2"]
+allowed_tools = ["scenario_define", "scenario_start", "scenario_next"]
+```
 
-## Precheck Audit Logging
-Precheck requests handle asserted payloads and are audited hash-only by default.
-Each precheck emits canonical JSON hashes for the request and response. Raw
-payload logging is disabled unless explicitly enabled via
-`server.audit.log_precheck_payloads = true`.
+Modes:
+- `local_only` (default): loopback + stdio only
+- `bearer_token`: HTTP `Authorization: Bearer <token>` required
+- `mtls`: uses the `x-decision-gate-client-subject` header from a trusted TLS-terminating proxy
 
-## Evidence Disclosure Policy
-`evidence_query` is a debug surface and is denied by default for raw values.
+### Non-Loopback Binding (Exact)
+Binding HTTP/SSE to non-loopback requires **all** of:
+1. `--allow-non-loopback` or `DECISION_GATE_ALLOW_NON_LOOPBACK=1`
+2. `[server.tls]` configured
+3. Non-local auth (`bearer_token` or `mtls`)
 
-Configuration controls:
-- `evidence.allow_raw_values = false` blocks raw values globally.
-- `evidence.require_provider_opt_in = true` requires providers to opt in.
-- Provider config `allow_raw = true` allows raw results for that provider.
+For `mtls`, `server.tls.client_ca_path` must be set and `require_client_cert = true`.
 
-## Dispatch Policy Engines
-Dispatch authorization is enforced by a swappable policy engine configured in
-`decision-gate.toml` under `[policy]`. The default engine is `permit_all` for
-ease of adoption, but production deployments should enable a real policy:
+---
 
-- `policy.engine = "static"` enables deterministic rule-based authorization.
-- Rule effects are `permit`, `deny`, or `error` (fail closed).
+## Trust Lanes (Exact)
 
-Policies apply to dispatch targets, packet visibility labels, policy tags, and
-schema/packet identifiers. Use deny-by-default (`static.default = "deny"`) for
-high-assurance deployments.
+Evidence is classified into lanes:
+- **Verified**: provider-fetched evidence
+- **Asserted**: precheck payloads
 
-## Provider Timeouts
-External MCP providers called over HTTP are guarded by strict connect and
-request timeouts. Overrides are supported per provider but are bounded to
-prevent disabling safeguards. Timeouts are treated as missing evidence and
-fail closed.
+Minimum lane is enforced by:
+```toml
+[trust]
+min_lane = "verified"   # or "asserted"
+```
 
-## MCP Tool Auth
-Inbound MCP tool calls enforce authn/authz. The default mode is local-only:
-stdio and loopback HTTP/SSE are permitted. The OSS CLI blocks non-loopback binds
-unless `--allow-non-loopback` (or `DECISION_GATE_ALLOW_NON_LOOPBACK=1`) is set
-**and** TLS + non-local auth are configured. Configure `server.auth` for
-`bearer_token` or `mtls`, and configure `[server.tls]` before exposing the
-service. Auth decisions are logged as structured JSON events on stderr.
+If evidence lane is below the minimum, the predicate becomes `unknown` and a `trust_lane` error is recorded in the runpack.
 
-## Schema Registry ACL
-Schema registry operations (`schemas_register`, `schemas_list`, `schemas_get`)
-are protected by `schema_registry.acl`. The default mode is built-in, deny-by-
-default behavior based on roles provided by `server.auth.principals`.
-Custom ACL rules can be configured for finer-grained allow/deny logic.
+### Dev-Permissive Mode (Exact)
 
-## Runpack Integrity
-Runpacks are hashed using RFC 8785 canonical JSON and verified offline with
-SHA-256 digests. Any missing or tampered artifacts fail verification.
+```toml
+[dev]
+permissive = true
+```
 
-## Run State Store (SQLite)
-SQLite-backed run state storage treats the database as untrusted input. The
-store verifies hashes on every load and fails closed on corruption or version
-mismatches. In production deployments:
+Effects:
+- Effective `min_lane` becomes `asserted` for most providers.
+- Providers listed in `dev.permissive_exempt_providers` remain strict (default: `assetcore`, `assetcore_read`).
+- Not allowed when `namespace.authority.mode = "assetcore_http"`.
 
-- Restrict filesystem permissions on the database and WAL files.
-- Back up the `.db`, `-wal`, and `-shm` files together.
-- Keep the storage path on a durable volume; do not use temp directories.
+---
 
-See `Docs/security/threat_model.md` for the full threat model.
+## Signature Verification (Exact)
+
+Configured with `trust.default_policy`:
+
+```toml
+[trust]
+# Require Ed25519 signatures from these public key files.
+default_policy = { require_signature = { keys = ["/etc/decision-gate/keys/provider.pub"] } }
+```
+
+Notes:
+- Each `keys` entry is a **file path**. The key file may contain raw 32-byte public key bytes or base64 text.
+- `EvidenceResult.signature.key_id` must match the configured key path string.
+- The signature is verified over **canonical JSON of the HashDigest**.
+
+If a signature check fails, the provider call fails and the predicate becomes `unknown` with `provider_error` recorded.
+
+---
+
+## Anchor Validation (Exact)
+
+Anchors are configured via **server config**, not the scenario:
+
+```toml
+[anchors]
+[[anchors.providers]]
+provider_id = "assetcore_read"
+anchor_type = "assetcore.anchor_set"
+required_fields = ["assetcore.namespace_id", "assetcore.commit_id", "assetcore.world_seq"]
+```
+
+Anchor rules (exact):
+- `EvidenceResult.evidence_anchor.anchor_type` must match.
+- `anchor_value` must be a **string** containing canonical JSON.
+- That JSON must parse to an **object**.
+- Required fields must exist and be scalar **string or number** (no booleans, arrays, objects, or nulls).
+
+Violations produce `anchor_invalid` and the predicate becomes `unknown`.
+
+---
+
+## Evidence Disclosure (Exact)
+
+`evidence_query` can return raw values, but disclosure is policy-controlled:
+
+```toml
+[evidence]
+allow_raw_values = false
+require_provider_opt_in = true
+
+[[providers]]
+name = "json"
+type = "builtin"
+allow_raw = true
+```
+
+Behavior:
+- If raw disclosure is blocked, Decision Gate **redacts** `value` and `content_type` but still returns hashes and anchors.
+- This is **not** a JSON-RPC error.
+
+---
+
+## Secure Production Configuration (Exact)
+
+```toml
+[server]
+transport = "http"
+bind = "0.0.0.0:4000"
+mode = "strict"
+
+[server.auth]
+mode = "bearer_token"
+bearer_tokens = ["token-1"]
+
+[server.tls]
+cert_path = "/etc/decision-gate/tls/cert.pem"
+key_path = "/etc/decision-gate/tls/key.pem"
+
+[trust]
+min_lane = "verified"
+default_policy = { require_signature = { keys = ["/etc/decision-gate/keys/provider.pub"] } }
+
+[evidence]
+allow_raw_values = false
+require_provider_opt_in = true
+
+[anchors]
+[[anchors.providers]]
+provider_id = "json"
+anchor_type = "file_path"
+required_fields = ["path"]
+
+[namespace]
+allow_default = false
+
+[policy]
+engine = "static"
+
+[policy.static]
+default = "deny"
+
+[run_state_store]
+type = "sqlite"
+path = "/var/lib/decision-gate/decision-gate.db"
+journal_mode = "wal"
+sync_mode = "full"
+```
+
+**Important:** For non-loopback binds, add `--allow-non-loopback` or set `DECISION_GATE_ALLOW_NON_LOOPBACK=1`.
+
+---
+
+## SQLite Integrity (Exact)
+
+The SQLite run state store saves canonical JSON snapshots and **verifies hashes on load**. Corruption or hash mismatches fail closed.
+
+Best practices:
+- Use a durable volume (avoid `/tmp`).
+- Backup the `.db`, `-wal`, and `-shm` files together.
+
+---
+
+## Common Pitfalls (Corrected)
+
+- **"Signature errors return signature_invalid."** -> No. Signature failures surface as `provider_error` during provider calls.
+- **"Anchor policy is in the scenario."** -> No. It is configured under `[anchors]`.
+- **"policy engine controls tool access."** -> No. `[policy]` controls **packet dispatch** only. Tool access is `[server.auth]`.
+- **"evidence_query returns an error when raw values are blocked."** -> No. Values are redacted, not rejected.
+
+---
+
+## Cross-Reference
+
+- [evidence_flow_and_execution_model.md](evidence_flow_and_execution_model.md)
+- [provider_protocol.md](provider_protocol.md)
+- [provider_development.md](provider_development.md)

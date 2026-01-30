@@ -13,108 +13,167 @@ Dependencies:
 
 # AssetCore Interop Runbook
 
-## Overview
-This runbook validates Decision Gate interoperability with AssetCore using two
-paths:
-- **Offline fixtures:** deterministic provider stub driven by the AssetCore
-  fixture map.
-- **Live mode:** Decision Gate evaluates predicates against a running AssetCore
-  Docker stack using the interop runner.
+## At a Glance
 
-The fixture map and provider contract are generated in AssetCore and synced
-into this repository under `system-tests/tests/fixtures/assetcore`.
-Anchor policy enforcement is enabled in the AssetCore test config; evidence
-must include the canonical ASC anchor set.
+**What:** Validate Decision Gate <-> AssetCore interoperability
+**Why:** Ensure AssetCore evidence integrates correctly with DG gates
+**Who:** Integration engineers, test operators
+**Prerequisites:** Docker (live mode), AssetCore repo access, Decision Gate CLI built
 
-For integration framing and architecture context, see
-`Docs/integrations/assetcore/`.
+---
 
-## Prerequisites
-- Docker installed and running.
-- AssetCore repository available for live mode and fixture refresh.
-- Decision Gate CLI built (`cargo build -p decision-gate-cli`) for interop runs.
+## Fixture vs Live Mode
 
-## Offline Fixture Validation (Recommended)
-Run the deterministic fixture suite against the provider stub:
+### Offline Fixtures (Deterministic)
+- Uses a provider stub with a fixture map.
+- Fully deterministic and fast.
 
-```bash
-cargo test -p system-tests --features system-tests --test providers -- --exact assetcore_integration::assetcore_interop_fixtures
+### Live Mode (Integration)
+- Runs AssetCore services in Docker.
+- Exercises real MCP calls and network paths.
+
+---
+
+## Anchor Policy (Exact)
+
+Decision Gate enforces anchor rules **via config**, not the scenario:
+
+```toml
+[anchors]
+[[anchors.providers]]
+provider_id = "assetcore_read"
+anchor_type = "assetcore.anchor_set"
+required_fields = ["assetcore.namespace_id", "assetcore.commit_id", "assetcore.world_seq"]
 ```
 
-The provider stub emits `assetcore.anchor_set` anchors derived from the fixture
-map and must satisfy the configured anchor policy.
+Evidence anchors: `anchor_value` is a **string** containing canonical JSON.
+Example EvidenceResult snippet:
 
-Artifacts are written under the system-tests run root:
-- `interop_spec.json`
-- `interop_run_config.json`
-- `interop_trigger.json`
-- `interop_fixture_map.json`
-- `interop_status.json`
-- `interop_decision.json`
+```json
+{
+  "evidence_anchor": {
+    "anchor_type": "assetcore.anchor_set",
+    "anchor_value": "{\"assetcore.namespace_id\":1,\"assetcore.commit_id\":\"c123\",\"assetcore.world_seq\":42}"
+  }
+}
+```
+
+---
+
+## Offline Fixture Validation (Recommended)
+
+```bash
+cargo test -p system-tests \
+  --features system-tests \
+  --test providers \
+  -- \
+  --exact assetcore_integration::assetcore_interop_fixtures
+```
+
+What happens:
+- Provider stub loads `system-tests/tests/fixtures/assetcore/interop/fixture_map.json`.
+- DG evaluates gates using fixture evidence.
+
+---
 
 ## Live Mode (AssetCore Docker)
-1) Load the AssetCore image bundle (pinned by digest):
+
+### Step 1: Load AssetCore Images
 
 ```bash
 cd <ASSETCORE_REPO_ROOT>
 starter-pack/scripts/load_images.sh --bundle starter-pack/docker-images
 ```
 
-2) Start AssetCore using the starter-pack compose file:
+### Step 2: Start AssetCore Stack
 
 ```bash
-docker compose --env-file starter-pack/docker/images.env -f starter-pack/docker/docker-compose.yml up -d
+docker compose \
+  --env-file starter-pack/docker/images.env \
+  -f starter-pack/docker/docker-compose.yml \
+  up -d
 ```
 
-3) Start the Decision Gate MCP server (in a separate terminal):
+### Step 3: Start Decision Gate MCP Server
 
 ```bash
-cargo run -p decision-gate-cli -- serve --config system-tests/tests/fixtures/assetcore/decision-gate.toml
+cargo run -p decision-gate-cli -- \
+  serve \
+  --config system-tests/tests/fixtures/assetcore/decision-gate.toml
 ```
 
-The config includes anchor policy requirements for AssetCore evidence and can
-optionally enable `namespace.authority` if the ASC write daemon is available.
+**Relevant fixture config (exact fields):**
 
-4) Run the Decision Gate interop evaluation:
+```toml
+[server]
+transport = "http"
+bind = "127.0.0.1:8088"
+
+[[providers]]
+name = "assetcore_read"
+type = "mcp"
+url = "http://127.0.0.1:9000/mcp"
+allow_insecure_http = true
+capabilities_path = "system-tests/tests/fixtures/assetcore/providers/assetcore_read.json"
+```
+
+### Step 4: Run Interop Evaluation
 
 ```bash
-cargo run -p decision-gate-cli -- interop eval \
+cargo run -p decision-gate-cli -- \
+  interop eval \
   --mcp-url http://127.0.0.1:8088/rpc \
   --spec system-tests/tests/fixtures/assetcore/interop/scenarios/assetcore-interop-full.json \
   --run-config system-tests/tests/fixtures/assetcore/interop/run-configs/assetcore-interop-full.json \
   --trigger system-tests/tests/fixtures/assetcore/interop/triggers/assetcore-interop-full.json
 ```
 
-5) Tear down the AssetCore stack:
+### Step 5: Tear Down AssetCore Stack
 
 ```bash
-docker compose --env-file starter-pack/docker/images.env -f starter-pack/docker/docker-compose.yml down
+docker compose \
+  --env-file starter-pack/docker/images.env \
+  -f starter-pack/docker/docker-compose.yml \
+  down
 ```
 
-## Refreshing Fixtures from AssetCore
-In AssetCore, regenerate the Decision Gate artifacts and copy the outputs into
-this repository:
+---
+
+## Refreshing Fixtures
+
+When AssetCore contracts change, regenerate fixtures from the AssetCore repo and copy them into this repo:
 
 ```bash
-# In the AssetCore repo
-cargo run --bin generate-decision-gate
-
-# From the decision-gate repo root
 cp <ASSETCORE_GENERATED_DIR>/decision-gate/interop/fixture_map.json \
   system-tests/tests/fixtures/assetcore/interop/fixture_map.json
-cp <ASSETCORE_GENERATED_DIR>/decision-gate/interop/seed_plan.json \
-  system-tests/tests/fixtures/assetcore/interop/seed_plan.json
-cp <ASSETCORE_GENERATED_DIR>/decision-gate/interop/scenarios/assetcore-interop-full.json \
-  system-tests/tests/fixtures/assetcore/interop/scenarios/assetcore-interop-full.json
-cp <ASSETCORE_GENERATED_DIR>/decision-gate/interop/run-configs/assetcore-interop-full.json \
-  system-tests/tests/fixtures/assetcore/interop/run-configs/assetcore-interop-full.json
-cp <ASSETCORE_GENERATED_DIR>/decision-gate/interop/triggers/assetcore-interop-full.json \
-  system-tests/tests/fixtures/assetcore/interop/triggers/assetcore-interop-full.json
+
 cp <ASSETCORE_GENERATED_DIR>/decision-gate/providers/assetcore_read.json \
   system-tests/tests/fixtures/assetcore/providers/assetcore_read.json
 ```
 
+---
+
+## Troubleshooting
+
+### AssetCore MCP connection refused
+- Verify AssetCore MCP adapter is running.
+- Check the provider URL in the Decision Gate config (`http://127.0.0.1:9000/mcp`).
+
+### Anchor validation failures
+- Confirm anchor policy under `[anchors]`.
+- Ensure `anchor_value` is a string containing canonical JSON with required fields.
+
+---
+
 ## Notes
-- All interop inputs are deterministic and must remain ASCII-only.
-- Live mode assumes the AssetCore MCP adapter is exposed on `http://127.0.0.1:8088/rpc`.
-- If any predicate output diverges from the fixture map, the test must fail closed.
+
+- Interop fixtures use deterministic timestamps (no wall clock).
+- Interop fixtures in this repo are ASCII-only; keep them that way for deterministic diffs.
+
+---
+
+## Glossary
+
+**Anchor:** External reference proving evidence provenance.
+**Fixture Map:** JSON mapping from queries to deterministic evidence results.
+**Interop:** Interoperability validation between DG and AssetCore.

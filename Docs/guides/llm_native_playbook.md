@@ -12,23 +12,34 @@ Dependencies:
 
 # LLM-Native Playbook
 
-## Overview
-Decision Gate is LLM-native when you treat evidence as **data**. Agents run
-external tools, emit JSON artifacts or inline evidence, and DG evaluates gates
-with deterministic comparators. No agent framework is required.
+## At a Glance
 
-Two primary flows:
-1) **Precheck (inline evidence)** – fastest iteration, no run state mutation.
-2) **Live run + JSON provider (file evidence)** – audit-grade, runpackable.
+**What:** LLM-optimized workflows for fast iteration (precheck) and auditable runs (live)
+**Why:** Agents can iterate toward gate satisfaction deterministically
+**Who:** LLM agent developers, automation engineers
+**Prerequisites:** [evidence_flow_and_execution_model.md](evidence_flow_and_execution_model.md)
 
 ---
 
-## Flow A: Precheck (Inline Evidence)
-Use precheck when you want LLMs to iterate quickly and avoid filesystem
-coordination. Evidence is asserted, schema-validated, and evaluated without
-mutating run state.
+## Mental Model: Two Paths
 
-### 1) Define a scenario
+```
+Path A: Precheck (fast, asserted)
+  - client supplies payload
+  - data shape validates payload
+  - gates evaluated, no run state mutation
+
+Path B: Live Run (audited, verified)
+  - providers fetch evidence
+  - run state mutated, runpack stored
+```
+
+---
+
+## Quick Start: Precheck
+
+### Step 1: Define a Scenario
+
 ```bash
 curl -s http://127.0.0.1:4000/rpc \
   -H 'Content-Type: application/json' \
@@ -41,13 +52,17 @@ curl -s http://127.0.0.1:4000/rpc \
       "arguments": {
         "spec": {
           "scenario_id": "llm-precheck",
+          "namespace_id": 1,
           "spec_version": "v1",
           "stages": [
             {
               "stage_id": "main",
               "entry_packets": [],
               "gates": [
-                { "gate_id": "quality", "requirement": { "Predicate": "report_ok" } }
+                {
+                  "gate_id": "quality",
+                  "requirement": { "Predicate": "report_ok" }
+                }
               ],
               "advance_to": { "kind": "terminal" },
               "timeout": null,
@@ -69,15 +84,14 @@ curl -s http://127.0.0.1:4000/rpc \
           ],
           "policies": [],
           "schemas": [],
-          "default_tenant_id": null
+          "default_tenant_id": 1
         }
       }
     }
   }'
 ```
 
-### 2) Register a payload schema
-Precheck requires a data shape so the asserted payload can be validated.
+### Step 2: Register a Data Shape (Schema)
 
 ```bash
 curl -s http://127.0.0.1:4000/rpc \
@@ -111,7 +125,8 @@ curl -s http://127.0.0.1:4000/rpc \
   }'
 ```
 
-### 3) Precheck with inline evidence
+### Step 3: Precheck with Inline Payload
+
 ```bash
 curl -s http://127.0.0.1:4000/rpc \
   -H 'Content-Type: application/json' \
@@ -134,49 +149,79 @@ curl -s http://127.0.0.1:4000/rpc \
   }'
 ```
 
-**Result**: Precheck returns gate outcomes without mutating state. Use this for
-LLM iteration loops and unit-style validation of evidence semantics.
+**Precheck response (exact shape):**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "result": {
+    "decision": {
+      "kind": "complete",
+      "stage_id": "main"
+    },
+    "gate_evaluations": [
+      {
+        "gate_id": "quality",
+        "status": "true",
+        "trace": [
+          { "predicate": "report_ok", "status": "true" }
+        ]
+      }
+    ]
+  }
+}
+```
 
-**Note**: Precheck evidence is asserted. If your server enforces
-`trust.min_lane = verified`, either relax it for precheck or add a predicate
-trust override that allows asserted evidence.
+**Important:** `precheck` does **not** return evidence values or provider errors.
 
 ---
 
-## Flow B: Live Run + JSON Provider (File Evidence)
-Use this for audit-grade runs where evidence must be fetched from deterministic
-sources and captured in runpacks.
+## Live Run Flow (Audited)
 
-### 1) Run your tool and write JSON
-Example artifact:
-```json
-{ "summary": { "failed": 0, "passed": 128 }, "tool": "tests" }
-```
-
-### 2) Call `evidence_query`
 ```bash
+# scenario_start
 curl -s http://127.0.0.1:4000/rpc \
   -H 'Content-Type: application/json' \
   -d '{
     "jsonrpc": "2.0",
-    "id": 3,
+    "id": 4,
     "method": "tools/call",
     "params": {
-      "name": "evidence_query",
+      "name": "scenario_start",
       "arguments": {
-        "query": {
-          "provider_id": "json",
-          "predicate": "path",
-          "params": { "file": "/abs/path/report.json", "jsonpath": "$.summary.failed" }
-        },
-        "context": {
+        "scenario_id": "llm-precheck",
+        "run_config": {
           "tenant_id": 1,
           "namespace_id": 1,
           "run_id": "run-1",
           "scenario_id": "llm-precheck",
-          "stage_id": "main",
+          "dispatch_targets": [],
+          "policy_tags": []
+        },
+        "started_at": { "kind": "unix_millis", "value": 1710000000000 },
+        "issue_entry_packets": false
+      }
+    }
+  }'
+
+# scenario_next
+curl -s http://127.0.0.1:4000/rpc \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 5,
+    "method": "tools/call",
+    "params": {
+      "name": "scenario_next",
+      "arguments": {
+        "scenario_id": "llm-precheck",
+        "request": {
+          "run_id": "run-1",
+          "tenant_id": 1,
+          "namespace_id": 1,
           "trigger_id": "trigger-1",
-          "trigger_time": { "kind": "logical", "value": 1 },
+          "agent_id": "agent-1",
+          "time": { "kind": "unix_millis", "value": 1710000000000 },
           "correlation_id": null
         }
       }
@@ -184,43 +229,34 @@ curl -s http://127.0.0.1:4000/rpc \
   }'
 ```
 
-### 3) Trigger evaluation
-Use `scenario_start` + `scenario_trigger` / `scenario_next` as in the standard
-workflow; DG will fetch evidence again during gate evaluation.
+**Live result:** `NextResult { decision, packets, status }`.
+
+To inspect evidence and errors, call `runpack_export` or `evidence_query` (if disclosure policy allows).
 
 ---
 
-## Error Metadata and Recovery
-Missing or invalid evidence yields **structured error metadata**, enabling
-agents to self-repair.
+## Error Recovery (Exact)
 
-Example response when JSONPath is missing:
-```json
-{
-  "value": null,
-  "lane": "verified",
-  "error": {
-    "code": "jsonpath_not_found",
-    "message": "jsonpath not found: $.summary.failed",
-    "details": { "jsonpath": "$.summary.failed" }
-  },
-  "evidence_hash": null,
-  "evidence_ref": null,
-  "evidence_anchor": null,
-  "signature": null,
-  "content_type": null
-}
-```
+Precheck failures are either:
+- **Tool errors** (schema not found, payload invalid), or
+- **Gate holds** (decision `hold`), with trace showing which predicates are unknown/false.
 
-**Agent loop strategy**:
-1) Detect `error.code`.
-2) Fix pipeline (adjust JSONPath or tool output).
-3) Re-run tool → call `precheck` again.
+Since precheck does not return evidence errors:
+1. Use `evidence_query` for provider debugging (subject to disclosure policy).
+2. Run a live evaluation and export the runpack to inspect evidence errors.
 
 ---
 
-## When to Use Each Flow
-- **Precheck**: fast iteration, LLM-native, no audit state.
-- **Live run**: audit-grade evidence, runpacks, external verification.
+## Schema Design Tips
 
-Both flows share the same comparator semantics and determinism guarantees.
+- Use an **object** payload keyed by predicate IDs.
+- Set `additionalProperties: false` to catch typos.
+- If your scenario has exactly one predicate, you may pass a non-object payload.
+
+---
+
+## Glossary
+
+**Precheck:** Asserted evidence evaluation; no state mutation.
+**Live Run:** Provider-fetched evaluation; runpack stored.
+**Data Shape:** JSON Schema used to validate precheck payloads.

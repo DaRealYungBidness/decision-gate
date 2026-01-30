@@ -59,6 +59,7 @@ __pycache__/
 /Docs/testing/MCP/results/run-2025-12-22-codex/artifacts
 /.venv
 /.venv-runpack
+/.cargo/advisory-db/
 
 # Node.js dependencies
 node_modules/

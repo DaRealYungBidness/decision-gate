@@ -40,6 +40,7 @@ Out of scope:
 ## Table of Contents
 
 - [Overview](#overview)
+- [Repository Note](#repository-note)
 - [Architecture](#architecture)
 - [Quick Start](#quick-start)
 - [Installation](#installation)
@@ -57,6 +58,13 @@ RET models requirements as trees of logical operators over domain predicates.
 Evaluation is performed by calling user-provided predicate logic against a
 reader type that exposes domain data. The library does not define what a
 predicate means; you do.
+
+## Repository Note
+
+`ret-logic` is designed to be a standalone, publishable crate. It currently
+lives inside the Decision Gate repository for convenience while the OSS stack
+stabilizes. Treat it as its own crate: it has its own `Cargo.lock`, does not
+require Decision Gate dependencies, and can be used independently.
 
 ## Architecture
 

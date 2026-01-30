@@ -13,165 +13,191 @@ Dependencies:
 
 # Predicate Authoring Cookbook
 
-## Overview
-Predicates bind a Requirement Evaluation Tree (RET) leaf to an evidence query.
-Every predicate must be deterministic, schema-valid, and auditable. This guide
-shows how to author predicates that are precise, stable, and easy to verify.
+## At a Glance
 
-## Anatomy of a PredicateSpec
-Predicate specs live in the ScenarioSpec `predicates` array. Each entry includes:
+**What:** Define predicates that evaluate deterministically and validate cleanly
+**Why:** Predicates connect gates to evidence; precision matters
+**Who:** Developers and operators authoring Decision Gate scenarios
+**Prerequisites:** [evidence_flow_and_execution_model.md](evidence_flow_and_execution_model.md)
 
-- `predicate`: stable identifier used by gates.
-- `query`: evidence provider + predicate + params payload.
-- `comparator`: comparison operator applied to evidence.
-- `expected`: value compared against evidence output (optional, but required for
-  most comparators).
-- `policy_tags`: policy labels applied to predicate evaluation.
+---
 
-Note: `query.predicate` is the provider check name from the provider contract.
-The top-level `predicate` key is the ScenarioSpec predicate identifier.
+## What is a Predicate?
 
-Minimal example:
+A predicate is an evidence check:
 
 ```json
 {
-  "predicate": "env_is_prod",
-  "query": {
-    "provider_id": "env",
-    "predicate": "get",
-    "params": { "key": "DEPLOY_ENV" }
-  },
-  "comparator": "equals",
-  "expected": "production",
-  "policy_tags": []
-}
-```
-
-## Comparator Semantics (Tri-State)
-Decision Gate evaluates predicates into tri-state outcomes:
-
-- `true`: evidence satisfies the comparator.
-- `false`: evidence contradicts the comparator.
-- `unknown`: evidence is missing or cannot be evaluated.
-
-Key rules from the runtime comparator:
-
-- `exists` / `not_exists` only test whether `evidence.value` is present.
-- All other comparators return `unknown` if `expected` is missing or if the
-  evidence value cannot be compared.
-- Non-numeric values with numeric comparators yield `unknown`.
-
-Gates fail closed: a gate only passes when the requirement evaluates to `true`.
-Unknown outcomes do not advance the run.
-
-## Comparator Quick Reference
-- `equals` / `not_equals`: JSON values or byte arrays; byte comparisons require an array of 0-255 integers.
-- `greater_than` / `greater_than_or_equal` / `less_than` / `less_than_or_equal`: JSON numbers only.
-- `contains`: string contains substring, or array contains all elements in the expected array.
-- `in_set`: expected must be an array; evidence matches when equal to any element.
-- `exists` / `not_exists`: ignore `expected` and only check for `evidence.value` presence.
-
-If `expected` is missing or mismatched with the evidence type, the comparator
-returns `unknown`.
-
-## Avoiding Unknown Outcomes
-- Always supply `expected` for every comparator except `exists`/`not_exists`.
-- Match `expected` types to the provider result schema.
-- Use provider examples from `providers.json` to sanity-check your payloads.
-
-## Provider Patterns
-Use `Docs/generated/decision-gate/providers.json` to confirm:
-
-- Supported predicates.
-- Param schemas and required fields.
-- Allowed comparators.
-- Example params/results.
-
-### time provider
-Uses trigger timestamps supplied by the caller (no wall-clock reads).
-
-```json
-{
-  "predicate": "after_freeze",
-  "query": {
-    "provider_id": "time",
-    "predicate": "after",
-    "params": { "timestamp": 1710000000000 }
-  },
-  "comparator": "equals",
-  "expected": true,
-  "policy_tags": []
-}
-```
-
-### env provider
-Reads environment variables with allow/deny policy and size limits.
-
-```json
-{
-  "predicate": "deploy_env",
-  "query": {
-    "provider_id": "env",
-    "predicate": "get",
-    "params": { "key": "DEPLOY_ENV" }
-  },
-  "comparator": "in_set",
-  "expected": ["staging", "production"],
-  "policy_tags": []
-}
-```
-
-### json provider
-Reads JSON or YAML files and evaluates JSONPath queries.
-
-```json
-{
-  "predicate": "config_version",
+  "predicate": "tests_ok",
   "query": {
     "provider_id": "json",
     "predicate": "path",
-    "params": { "file": "/etc/config.json", "jsonpath": "$.version" }
+    "params": { "file": "report.json", "jsonpath": "$.summary.failed" }
   },
   "comparator": "equals",
-  "expected": "1.2.3",
+  "expected": 0,
   "policy_tags": []
 }
 ```
 
-**Comparator notes (json.path)**:
-- Supports numeric ordering (`greater_than`, `less_than`, etc).
-- Supports lexicographic ordering for strings (`lex_*` comparators).
-- Supports `contains`, `in_set`, `deep_equals`, `deep_not_equals`, `exists`, `not_exists`.
-- Missing JSONPath returns `value: null` with structured error metadata and yields `unknown`.
+It consists of:
+1. **Query**: what evidence to fetch.
+2. **Comparator**: how to compare.
+3. **Expected value**: the value to compare against (if required).
 
-### http provider
-Issues bounded HTTP GET requests and returns status or body hashes.
+---
 
-```json
-{
-  "predicate": "health_ok",
-  "query": {
-    "provider_id": "http",
-    "predicate": "status",
-    "params": { "url": "https://api.example.com/health" }
-  },
-  "comparator": "equals",
-  "expected": 200,
-  "policy_tags": []
-}
+## Tri-State Outcomes (Exact)
+
+Comparators return **TriState**:
+- `true`
+- `false`
+- `unknown`
+
+Key rules (exact):
+- If `EvidenceResult.value` is **missing**, result is `unknown` (except `exists`/`not_exists`).
+- If `expected` is **missing**, result is `unknown` (except `exists`/`not_exists`).
+- `equals` / `not_equals` return **false/true** on type mismatch.
+- Ordering, lexicographic, contains, in_set, deep_* return `unknown` on type mismatch.
+
+---
+
+## Comparator Reference (Exact)
+
+### General Rules
+
+- `exists`/`not_exists` check **presence of EvidenceResult.value**, not JSON `null`.
+- JSON `null` is a **present value** (so `exists` returns true).
+
+### Comparator Table
+
+| Comparator | Evidence Types | Expected Required | Type Mismatch Behavior |
+|-----------|----------------|-------------------|------------------------|
+| `equals` | any JSON value, bytes | yes | returns **false** |
+| `not_equals` | any JSON value, bytes | yes | returns **true** |
+| `greater_than` / `>=` / `<` / `<=` | number or RFC3339 date/datetime string | yes | `unknown` |
+| `lex_*` | string | yes | `unknown` |
+| `contains` | string or array | yes | `unknown` |
+| `in_set` | scalar JSON | yes (array) | `unknown` |
+| `deep_equals` / `deep_not_equals` | object or array | yes | `unknown` |
+| `exists` / `not_exists` | any | no | n/a |
+
+### Details
+
+**Equality (`equals`, `not_equals`)**
+- Numbers compare via decimal-aware equality (`10` == `10.0`).
+- For non-numeric types, JSON equality is used.
+
+**Ordering (`greater_than`, etc.)**
+- Accepts **numbers** or **RFC3339 date/time strings** (including date-only `YYYY-MM-DD`).
+- Any other types -> `unknown`.
+
+**Lexicographic (`lex_*`)**
+- Strings only; compares Unicode code points.
+- Requires explicit config + schema opt-in (see "Strict Validation").
+
+**Contains**
+- String: substring match.
+- Array: evidence array must contain **all** elements of expected array.
+
+**In Set (`in_set`)**
+- Expected must be an array.
+- Evidence must be scalar (not array/object).
+
+**Deep Equals**
+- Objects/arrays only; mismatched types -> `unknown`.
+- Requires explicit config + schema opt-in.
+
+**Bytes**
+- Only `equals` / `not_equals` are defined.
+- Expected must be JSON array of integers `0..255`.
+
+---
+
+## Strict Validation (Default On)
+
+Decision Gate validates predicates at `scenario_define` time:
+
+- For provider-based predicates, the **provider contract** defines allowed comparators and result types.
+- For precheck, the **data shape schema** defines allowed comparators and types.
+
+Special comparators require **both**:
+1. Config flags (`validation.enable_lexicographic` / `validation.enable_deep_equals`), and
+2. Explicit schema opt-in via `x-decision-gate.allowed_comparators` (precheck) or contract `allowed_comparators`.
+
+If validation fails, `scenario_define` or `precheck` is rejected.
+
+---
+
+## Provider Patterns (Exact)
+
+### time Provider
+- **Predicates:** `now`, `after`, `before`.
+- `after`/`before` accept `timestamp` as **unix millis** or **RFC3339 string**.
+- `after` is **strictly greater-than**; `before` is **strictly less-than**.
+
+### env Provider
+- **Predicate:** `get`.
+- Missing key returns `value = None` with **no error**.
+- Blocked or invalid keys return a **provider error** (`provider_error` at the tool boundary).
+
+### json Provider
+- **Predicate:** `path`.
+- JSONPath no-match returns `error.code = "jsonpath_not_found"` and `value = None`.
+
+### http Provider
+- **Predicates:** `status`, `body_hash`.
+- `status` returns an integer HTTP status.
+- `body_hash` returns a HashDigest object `{ algorithm, value }`.
+- `body_hash` allows only `exists` / `not_exists` (per contract).
+
+---
+
+## Avoiding `unknown`
+
+To minimize `unknown` outcomes:
+
+1. **Provide `expected`** for all comparators except `exists`/`not_exists`.
+2. **Match types** exactly for non-equality comparators.
+3. **Use provider contracts** to confirm allowed comparators.
+
+---
+
+## Evidence Disclosure (Exact)
+
+Evidence values are **not** returned by `scenario_next`. To inspect evidence:
+- Use `evidence_query` (subject to disclosure policy), or
+- Export a runpack with `runpack_export`.
+
+Disclosure policy is configured in `decision-gate.toml`:
+```toml
+[evidence]
+allow_raw_values = false
+require_provider_opt_in = true
+
+[[providers]]
+name = "json"
+type = "builtin"
+allow_raw = true
 ```
 
-## Evidence Disclosure Guidance
-Predicates may return raw values, hashes, anchors, or references depending on
-policy and provider settings. Treat raw values as sensitive and ensure:
+`allow_raw` is a per-provider **config** flag (not part of the provider contract).
 
-- `decision-gate.toml` evidence policies allow raw output only when required.
-- Providers opt in to raw disclosure when policy demands it.
-- Anchors and hashes are preserved for audit and replay.
+---
 
 ## Checklist
-- Confirm the predicate exists in `providers.json`.
-- Match params and result schema types precisely.
-- Use only allowed comparators for the predicate.
-- Provide `expected` for all comparators except `exists`/`not_exists`.
-- Keep predicate keys stable and descriptive.
+
+- [ ] Predicate IDs are unique within the scenario.
+- [ ] Provider predicate name matches provider contract.
+- [ ] Comparator is allowed for the result schema.
+- [ ] Expected value type matches evidence type.
+- [ ] `policy_tags` present (required by schema, may be empty).
+
+---
+
+## Cross-References
+
+- [getting_started.md](getting_started.md)
+- [json_evidence_playbook.md](json_evidence_playbook.md)
+- [provider_schema_authoring.md](provider_schema_authoring.md)
+- [ret_logic.md](ret_logic.md)

@@ -11,142 +11,244 @@ Dependencies:
 
 # Provider Development Guide
 
-## Overview
-Evidence providers are standalone MCP servers that implement the `evidence_query`
-tool. Decision Gate federates providers via JSON-RPC 2.0 over stdio or HTTP.
+## At a Glance
 
-## Protocol Contract
-Providers must follow the MCP evidence provider protocol. See
-`Docs/guides/provider_protocol.md` for the wire-level request/response contract
-and schema references. The canonical SDK reference lives at
-`decision-gate-provider-sdk/spec/evidence_provider_protocol.md`.
+**What:** Build custom evidence providers for Decision Gate
+**Why:** Extend evidence sources without modifying core
+**Who:** Provider developers, integration engineers
+**Prerequisites:** [provider_protocol.md](provider_protocol.md), JSON-RPC 2.0
 
-## Start from a Template
-Use the provider SDK templates:
-- `decision-gate-provider-sdk/typescript`
-- `decision-gate-provider-sdk/python`
-- `decision-gate-provider-sdk/go`
+---
 
-Each template includes `tools/list`, `tools/call`, and Content-Length framing.
+## Provider Architecture (Exact)
 
-## Implement Evidence Queries
-Your provider should:
-1. Validate the incoming `query` and `context`.
-2. Fetch or compute evidence deterministically.
-3. Return an `EvidenceResult` with `value` and optional anchors or references.
+A provider is an MCP server that implements **one tool**: `evidence_query`.
 
-Example response shape:
+```
+Provider
+  - Provider Contract (JSON)
+    - provider_id, name, description
+    - transport = "mcp"
+    - config_schema
+    - predicates (params schema, result schema, comparators, examples)
+    - notes
+  - MCP Server
+    - tools/call -> evidence_query
+
+Decision Gate
+  - Loads contract from capabilities_path
+  - Validates ScenarioSpec predicates against contract
+  - Calls evidence_query during scenario_next
+```
+
+Decision Gate does **not** use `tools/list` at runtime. Implement it for MCP compatibility, but keep the contract file authoritative.
+
+---
+
+## Provider Types
+
+| Type | Config | Transport | Use Case |
+|------|--------|-----------|----------|
+| Built-in | `type = "builtin"` | In-process | `time`, `env`, `json`, `http` |
+| External MCP | `type = "mcp"` | stdio or HTTP | Custom providers |
+
+External MCP providers are configured with **either**:
+- `command = ["/path/to/provider", "arg"]` (stdio)
+- `url = "https://provider/rpc"` (HTTP)
+
+`capabilities_path` is required for all MCP providers.
+
+---
+
+## Quick Start: Minimal Provider
+
+### Step 1: Use an SDK Template
+
+Templates live in `decision-gate-provider-sdk/` (Python, TypeScript, Go). They implement:
+- Content-Length framing (stdio)
+- `tools/list` and `tools/call`
+- JSON-RPC parsing
+
+### Step 2: Implement `evidence_query`
+
+Your handler must return an **EvidenceResult** object (not a JSON-RPC error) for normal failures.
+
+Example (pseudocode):
+
+```python
+def handle_evidence_query(query, context):
+    if query["predicate"] != "file_exists":
+        return {
+            "value": None,
+            "lane": "verified",
+            "error": {
+                "code": "unsupported_predicate",
+                "message": "unknown predicate",
+                "details": {"predicate": query["predicate"]}
+            },
+            "evidence_hash": None,
+            "evidence_ref": None,
+            "evidence_anchor": None,
+            "signature": None,
+            "content_type": None
+        }
+
+    path = query.get("params", {}).get("path")
+    if not path:
+        return {
+            "value": None,
+            "lane": "verified",
+            "error": {
+                "code": "params_missing",
+                "message": "missing path",
+                "details": {"param": "path"}
+            },
+            "evidence_hash": None,
+            "evidence_ref": None,
+            "evidence_anchor": None,
+            "signature": None,
+            "content_type": None
+        }
+
+    exists = os.path.exists(path)
+    return {
+        "value": {"kind": "json", "value": exists},
+        "lane": "verified",
+        "error": None,
+        "evidence_hash": None,
+        "evidence_ref": {"uri": path},
+        "evidence_anchor": {
+            "anchor_type": "file_path",
+            "anchor_value": json.dumps({"path": path}, separators=(",", ":"), sort_keys=True)
+        },
+        "signature": None,
+        "content_type": "application/json"
+    }
+```
+
+### Step 3: Create a Provider Contract
+
+All fields below are **required** by the contract schema.
 
 ```json
 {
-  "value": { "kind": "json", "value": true },
-  "evidence_hash": null,
-  "evidence_ref": null,
-  "evidence_anchor": { "anchor_type": "receipt_id", "anchor_value": "abc" },
-  "signature": null,
-  "content_type": "application/json"
+  "provider_id": "file-provider",
+  "name": "File Provider",
+  "description": "File existence checks",
+  "transport": "mcp",
+  "config_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  },
+  "predicates": [
+    {
+      "name": "file_exists",
+      "description": "Check if a file exists",
+      "determinism": "external",
+      "params_required": true,
+      "params_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": { "path": { "type": "string" } },
+        "required": ["path"]
+      },
+      "result_schema": { "type": "boolean" },
+      "allowed_comparators": ["equals", "not_equals"],
+      "anchor_types": ["file_path"],
+      "content_types": ["application/json"],
+      "examples": [
+        {
+          "description": "Check a report file",
+          "params": { "path": "/tmp/report.json" },
+          "result": true
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "External: depends on the local filesystem state."
+  ]
 }
 ```
 
-Decision Gate recomputes `evidence_hash` from `value` when present, so providers
-may omit it. Always set `content_type` and return `value` whenever possible so
-hashing and audit logs stay complete. The MCP layer may redact `value` for
-`evidence_query` responses based on disclosure policy; this is handled by
-Decision Gate, not the provider.
+**Important contract rules:**
+- `allowed_comparators` must be **non-empty** and in canonical order.
+- `params_required` must match whether `params_schema` requires fields.
+- `transport` must be `"mcp"` for external providers.
 
-## Protocol Payloads at a Glance
-The provider receives a `tools/call` payload with:
+### Step 4: Configure Decision Gate
 
-- `query`: `provider_id`, `predicate`, and optional `params`.
-- `context`: tenant/run/scenario/stage identifiers plus trigger metadata.
-
-The provider returns a JSON-RPC response containing a JSON `EvidenceResult`:
-
-- `value`: JSON or bytes payload (optional).
-- `evidence_hash`: hash of the value (optional).
-- `evidence_anchor`: anchor metadata (optional).
-- `evidence_ref`: external URI reference (optional).
-- `signature`: signature metadata (optional).
-- `content_type`: MIME type for the evidence payload.
-
-Use the provider protocol doc for full JSON examples and field constraints.
-
-## Error Handling
-Return JSON-RPC errors for:
-- Unknown provider checks
-- Missing parameters
-- Upstream fetch failures
-
-Decision Gate treats errors as missing evidence and fails closed.
-
-## Timeout Expectations
-Decision Gate enforces HTTP timeouts for external MCP providers. Providers
-should respond quickly and avoid long-running work in the request path. If a
-provider must perform expensive work, move it upstream (precompute, cache) or
-return a fast error rather than blocking until completion. Timeout overrides
-can be configured per provider in `decision-gate.toml` and are bounded for
-safety.
-
-## Provider Contracts (Required)
-Decision Gate requires every MCP provider to ship a provider contract
-(sometimes called a capability contract) that declares:
-- Provider metadata (`provider_id`, description, transport)
-- Provider check names and descriptions (the `predicates` exposed by the provider)
-- JSON Schemas for provider inputs (`params`) and returned values
-- Determinism classification and allowed comparator allow-lists
-- Anchor types and content types emitted by each check
-- Example check payloads
-
-Terminology note: the provider contract uses a `predicates` array, but these
-entries are provider checks (the queryable signals exposed by a provider).
-ScenarioSpec predicates are a separate concept that reference provider checks
-by `EvidenceQuery.predicate`.
-
-The contract is loaded from `capabilities_path` in `decision-gate.toml` and is
-validated before any scenario or evidence query is accepted.
-
-Provider contracts are discoverable via MCP tools (`provider_contract_get` and
-`provider_schema_get`) when disclosure policy allows it.
-
-For a full authoring workflow (LLM-ready), see
-`Docs/guides/provider_schema_authoring.md`.
-
-Example configuration:
 ```toml
 [[providers]]
-name = "mongo"
+name = "file-provider"
 type = "mcp"
-command = ["mongo-provider", "--stdio"]
-capabilities_path = "contracts/mongo_provider.json"
+command = ["python3", "/path/to/provider.py"]
+capabilities_path = "contracts/file-provider.json"
 ```
 
-Use `Docs/generated/decision-gate/providers.json` as a reference for the
-canonical contract shape and provider check schema patterns.
+---
 
-## Provider Check Schema Guidance
-Provide precise JSON schemas for both provider inputs and returned values:
+## Timeouts (Exact)
 
-- Params schemas should set `additionalProperties: false` and declare required fields.
-- Result schemas should reflect actual value types returned in EvidenceResult.
-- Allowed comparators should be minimal and intentional for the data shape.
+Decision Gate only applies HTTP timeouts to **HTTP MCP** providers:
 
-Strict comparator validation is enforced by default:
-- Comparator allow-lists must be compatible with the result schema type or
-  scenario definition fails closed.
-- Lexicographic and deep-equality comparators are opt-in: the server must enable
-  them in `decision-gate.toml`, and the result schema must declare
-  `x-decision-gate.allowed_comparators`.
-- `in_set` requires `expected` to be an array of values that match the result
-  schema; `exists`/`not_exists` must omit `expected`.
+```toml
+[[providers]]
+name = "cloud"
+type = "mcp"
+url = "https://provider.example.com/rpc"
+capabilities_path = "contracts/cloud.json"
+timeouts = { connect_timeout_ms = 2000, request_timeout_ms = 10000 }
+```
 
-Include at least one example per check (params + result) to help authors
-build correct ScenarioSpec predicates.
+There is **no** Decision Gate timeout for stdio MCP providers; keep their handlers fast and deterministic.
 
-For scenario authors, see `Docs/guides/predicate_authoring.md`.
+---
 
-## Trust and Signatures
-If your provider signs evidence:
-- Populate `signature.scheme`, `signature.key_id`, and `signature.signature`.
-- Configure Decision Gate trust policy to require the signing key.
+## Signing Evidence (Exact)
 
-See `Docs/guides/security_guide.md` for trust policy details.
+When `trust.default_policy = { require_signature = { keys = [...] } }`, providers must include signatures:
+
+```json
+"signature": {
+  "scheme": "ed25519",
+  "key_id": "/etc/decision-gate/keys/provider.pub",
+  "signature": [1, 2, 3, 4]
+}
+```
+
+**Signing algorithm (exact):**
+1. Compute `evidence_hash` from the evidence value.
+   - JSON value -> canonical JSON bytes -> sha256
+   - Bytes value -> sha256
+2. Serialize the **HashDigest object** as canonical JSON.
+3. Sign those bytes with Ed25519.
+
+Decision Gate verifies that signature against the configured public key file. If `evidence_hash` is missing, DG computes it before verification.
+
+---
+
+## Error Handling (Exact)
+
+- Return **EvidenceResult.error** for expected errors.
+- Use JSON-RPC errors only for protocol failures (invalid JSON-RPC, internal crashes). DG converts JSON-RPC errors to `provider_error`.
+
+Error codes are provider-defined. Keep them stable and machine-readable (e.g., `params_missing`, `file_not_found`).
+
+---
+
+## Reference
+
+- Provider contract schema: `decision-gate-contract/src/schemas.rs` (`provider_contract_schema`)
+- Built-in provider contracts: `Docs/generated/decision-gate/providers.json`
+- SDK templates: `decision-gate-provider-sdk/`
+
+---
+
+## Glossary
+
+**EvidenceQuery:** Request `{ provider_id, predicate, params }`.
+**EvidenceResult:** Provider response value + metadata.
+**Provider Contract:** JSON document describing predicates, schemas, comparators, and examples.
+**Signature:** Ed25519 signature over canonical JSON of `evidence_hash`.
