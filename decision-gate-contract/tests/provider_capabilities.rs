@@ -88,32 +88,32 @@ fn compile_schema(schema: &Value) -> Result<Validator, String> {
 // ============================================================================
 
 #[test]
-fn provider_predicates_have_canonical_allowlists() {
+fn provider_checks_have_canonical_allowlists() {
     let contracts = provider_contracts();
     for provider in contracts {
-        for predicate in provider.predicates {
+        for check in provider.checks {
             assert!(
-                !predicate.allowed_comparators.is_empty(),
+                !check.allowed_comparators.is_empty(),
                 "{}.{} missing allowed_comparators",
                 provider.provider_id,
-                predicate.name
+                check.check_id
             );
             let mut seen: Vec<Comparator> = Vec::new();
-            for comparator in &predicate.allowed_comparators {
+            for comparator in &check.allowed_comparators {
                 assert!(
                     !seen.contains(comparator),
                     "{}.{} has duplicate comparator {:?}",
                     provider.provider_id,
-                    predicate.name,
+                    check.check_id,
                     comparator
                 );
                 seen.push(*comparator);
             }
             assert!(
-                is_canonical_order(&predicate.allowed_comparators),
+                is_canonical_order(&check.allowed_comparators),
                 "{}.{} comparators out of order",
                 provider.provider_id,
-                predicate.name
+                check.check_id
             );
         }
     }
@@ -127,10 +127,10 @@ fn time_provider_comparators_match_schema_expectations() -> Result<(), String> {
         .find(|provider| provider.provider_id == "time")
         .ok_or_else(|| "time provider missing".to_string())?;
     let now = time
-        .predicates
+        .checks
         .iter()
-        .find(|predicate| predicate.name == "now")
-        .ok_or_else(|| "time.now predicate missing".to_string())?;
+        .find(|check| check.check_id == "now")
+        .ok_or_else(|| "time.now check missing".to_string())?;
     let expected_now = vec![
         Comparator::Equals,
         Comparator::NotEquals,
@@ -147,10 +147,10 @@ fn time_provider_comparators_match_schema_expectations() -> Result<(), String> {
     }
 
     let after = time
-        .predicates
+        .checks
         .iter()
-        .find(|predicate| predicate.name == "after")
-        .ok_or_else(|| "time.after predicate missing".to_string())?;
+        .find(|check| check.check_id == "after")
+        .ok_or_else(|| "time.after check missing".to_string())?;
     let expected_after = vec![
         Comparator::Equals,
         Comparator::NotEquals,
@@ -171,9 +171,9 @@ fn provider_determinism_metadata_is_set() -> Result<(), String> {
         .iter()
         .find(|provider| provider.provider_id == "time")
         .ok_or_else(|| "time provider missing".to_string())?;
-    for predicate in &time.predicates {
-        if predicate.determinism != DeterminismClass::TimeDependent {
-            return Err("time predicate determinism mismatch".to_string());
+    for check in &time.checks {
+        if check.determinism != DeterminismClass::TimeDependent {
+            return Err("time check determinism mismatch".to_string());
         }
     }
 
@@ -181,41 +181,41 @@ fn provider_determinism_metadata_is_set() -> Result<(), String> {
         .iter()
         .find(|provider| provider.provider_id == "env")
         .ok_or_else(|| "env provider missing".to_string())?;
-    let env_predicate = env
-        .predicates
+    let env_check = env
+        .checks
         .iter()
-        .find(|predicate| predicate.name == "get")
-        .ok_or_else(|| "env.get predicate missing".to_string())?;
-    if env_predicate.determinism != DeterminismClass::External {
+        .find(|check| check.check_id == "get")
+        .ok_or_else(|| "env.get check missing".to_string())?;
+    if env_check.determinism != DeterminismClass::External {
         return Err("env.get determinism mismatch".to_string());
     }
     Ok(())
 }
 
 #[test]
-fn provider_predicate_examples_match_schemas() -> Result<(), String> {
+fn provider_check_examples_match_schemas() -> Result<(), String> {
     let contracts = provider_contracts();
     for provider in contracts {
-        for predicate in provider.predicates {
-            if predicate.examples.is_empty() {
+        for check in provider.checks {
+            if check.examples.is_empty() {
                 return Err(format!(
                     "{}.{} missing examples",
-                    provider.provider_id, predicate.name
+                    provider.provider_id, check.check_id
                 ));
             }
-            let params_schema = compile_schema(&predicate.params_schema)?;
-            let result_schema = compile_schema(&predicate.result_schema)?;
-            for example in predicate.examples {
+            let params_schema = compile_schema(&check.params_schema)?;
+            let result_schema = compile_schema(&check.result_schema)?;
+            for example in check.examples {
                 if !params_schema.is_valid(&example.params) {
                     return Err(format!(
                         "{}.{} example params failed",
-                        provider.provider_id, predicate.name
+                        provider.provider_id, check.check_id
                     ));
                 }
                 if !result_schema.is_valid(&example.result) {
                     return Err(format!(
                         "{}.{} example result failed",
-                        provider.provider_id, predicate.name
+                        provider.provider_id, check.check_id
                     ));
                 }
             }

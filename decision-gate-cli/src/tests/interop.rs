@@ -90,7 +90,7 @@ fn minimal_spec(id: &str) -> ScenarioSpec {
             timeout: None,
             on_timeout: TimeoutPolicy::Fail,
         }],
-        predicates: Vec::new(),
+        conditions: Vec::new(),
         policies: Vec::new(),
         schemas: Vec::new(),
         default_tenant_id: None,

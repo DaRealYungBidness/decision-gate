@@ -67,7 +67,7 @@ fn json_provider_selects_jsonpath() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "data.json", "jsonpath": "$.nested.value"})),
     };
 
@@ -91,7 +91,7 @@ fn json_provider_parses_yaml() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "config.yaml", "jsonpath": "$.version"})),
     };
 
@@ -115,7 +115,7 @@ fn json_provider_parses_yml_extension() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "config.yml", "jsonpath": "$.name"})),
     };
 
@@ -139,7 +139,7 @@ fn json_provider_multiple_jsonpath_matches() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "data.json", "jsonpath": "$.items[*].id"})),
     };
 
@@ -163,7 +163,7 @@ fn json_provider_jsonpath_no_match_returns_none() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "data.json", "jsonpath": "$.nonexistent"})),
     };
 
@@ -186,7 +186,7 @@ fn json_provider_reads_entire_file() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "data.json"})),
     };
 
@@ -210,7 +210,7 @@ fn json_provider_sets_evidence_metadata() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "data.json"})),
     };
 
@@ -245,7 +245,7 @@ fn json_path_traversal_basic_blocked() {
     // Attempt to escape the root directory
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "../../../etc/passwd"})),
     };
 
@@ -276,7 +276,7 @@ fn json_path_traversal_vectors_blocked() {
     for vector in path_traversal_vectors() {
         let query = EvidenceQuery {
             provider_id: ProviderId::new("json"),
-            predicate: "path".to_string(),
+            check_id: "path".to_string(),
             params: Some(json!({"file": vector})),
         };
 
@@ -310,7 +310,7 @@ fn json_absolute_path_outside_root_blocked() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": absolute})),
     };
 
@@ -345,7 +345,7 @@ fn json_file_exceeds_size_limit_rejected() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "large.json"})),
     };
 
@@ -370,7 +370,7 @@ fn json_file_at_size_limit_accepted() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "exact.json"})),
     };
 
@@ -395,7 +395,7 @@ fn json_invalid_json_rejected() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "invalid.json"})),
     };
 
@@ -417,7 +417,7 @@ fn json_invalid_yaml_rejected() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "invalid.yaml"})),
     };
 
@@ -440,7 +440,7 @@ fn json_yaml_disabled_rejects_yaml_files() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "config.yaml"})),
     };
 
@@ -462,7 +462,7 @@ fn json_invalid_jsonpath_rejected() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "data.json", "jsonpath": "$[invalid"})),
     };
 
@@ -475,13 +475,13 @@ fn json_invalid_jsonpath_rejected() {
 // SECTION: Error Path Tests - Invalid Parameters
 // ============================================================================
 
-/// Tests that unsupported predicates are rejected.
+/// Tests that unsupported checks are rejected.
 #[test]
-fn json_unsupported_predicate_rejected() {
+fn json_unsupported_check_rejected() {
     let provider = JsonProvider::new(JsonProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "read".to_string(),
+        check_id: "read".to_string(),
         params: Some(json!({"file": "test.json"})),
     };
 
@@ -497,7 +497,7 @@ fn json_missing_params_rejected() {
     let provider = JsonProvider::new(JsonProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: None,
     };
 
@@ -512,7 +512,7 @@ fn json_params_not_object_rejected() {
     let provider = JsonProvider::new(JsonProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!("not_an_object")),
     };
 
@@ -527,7 +527,7 @@ fn json_missing_file_param_rejected() {
     let provider = JsonProvider::new(JsonProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"other": "value"})),
     };
 
@@ -542,7 +542,7 @@ fn json_file_param_not_string_rejected() {
     let provider = JsonProvider::new(JsonProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": 12345})),
     };
 
@@ -564,7 +564,7 @@ fn json_jsonpath_param_not_string_rejected() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "data.json", "jsonpath": 123})),
     };
 
@@ -583,7 +583,7 @@ fn json_missing_file_returns_error() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "nonexistent.json"})),
     };
 
@@ -601,7 +601,7 @@ fn json_invalid_root_rejected() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "test.json"})),
     };
 
@@ -627,7 +627,7 @@ fn json_empty_object_handling() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "empty.json"})),
     };
 
@@ -651,7 +651,7 @@ fn json_empty_yaml_handling() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "empty.yaml"})),
     };
 
@@ -673,7 +673,7 @@ fn json_content_type_json() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "data.json"})),
     };
 
@@ -694,7 +694,7 @@ fn json_content_type_yaml() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "data.yaml"})),
     };
 
@@ -717,7 +717,7 @@ fn json_deeply_nested_document() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "deep.json", "jsonpath": "$.a.b.c.d.e"})),
     };
 
@@ -741,7 +741,7 @@ fn json_special_filename_handling() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "data-with-dash.json"})),
     };
 
@@ -764,7 +764,7 @@ fn json_subdirectory_access_allowed() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "subdir/data.json"})),
     };
 

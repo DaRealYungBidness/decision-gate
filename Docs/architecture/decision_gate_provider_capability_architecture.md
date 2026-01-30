@@ -5,7 +5,7 @@ Document: Decision Gate Provider Integration + Capability Registry Architecture
 Description: Current-state reference for provider configuration, capability
              contract loading, and evidence provider federation.
 Purpose: Provide an implementation-grade map of how DG integrates providers and
-         validates predicates/queries.
+         validates conditions/checks/queries.
 Dependencies:
   - decision-gate-config/src/config.rs
   - decision-gate-mcp/src/capabilities.rs
@@ -19,7 +19,7 @@ Last Updated: 2026-01-26 (UTC)
 # Decision Gate Provider Integration + Capability Registry Architecture
 
 > **Audience:** Engineers implementing provider integration or capability
-> validation for predicates and evidence queries.
+> validation for checks, conditions, and evidence queries.
 
 ---
 
@@ -42,7 +42,7 @@ Decision Gate supports two provider types:
 - **Built-in providers** (compiled into the binary)
 - **External MCP providers** (stdio or HTTP transport)
 
-Provider capability contracts are the authoritative schema for predicate
+Provider capability contracts are the authoritative schema for check
 parameters, results, and allowed comparators. The capability registry validates
 scenario specs and evidence queries before evaluation. Evidence federation
 routes queries to providers and enforces trust policies.
@@ -77,9 +77,9 @@ Validation enforces:
 ## Capability Registry
 
 The capability registry loads provider contracts and compiles JSON schemas for
-predicate params and results. It validates:
+check params and results. It validates:
 
-- Provider and predicate existence
+- Provider and check existence
 - Required params presence
 - Params schema conformance
 - Expected-value schema conformance
@@ -99,7 +99,7 @@ External providers must supply a contract JSON file that:
 
 - Matches the configured provider id
 - Declares `transport = "mcp"`
-- Defines predicates with allowed comparator lists
+- Defines checks with allowed comparator lists
 
 Contracts are size-limited and path validated; invalid contracts fail closed.
 [F:decision-gate-mcp/src/capabilities.rs L392-L451][F:decision-gate-mcp/src/capabilities.rs L457-L487]
@@ -131,8 +131,8 @@ Tool behavior enforces capability and disclosure policy:
 - `evidence_query` validates queries and applies raw evidence redaction policy.
 - `evidence_query` execution is offloaded to a blocking task to isolate
   blocking providers (HTTP) from the async MCP runtime.
-- `provider_contract_get` / `provider_schema_get` apply disclosure policy and
-  return canonical provider contracts or predicate schemas.
+- `provider_contract_get` / `provider_check_schema_get` apply disclosure policy and
+  return canonical provider contracts or check schemas.
 - Comparator allow-lists are enforced from provider contracts; `json.path`
   exposes the full comparator surface area for deterministic JSON evidence.
 

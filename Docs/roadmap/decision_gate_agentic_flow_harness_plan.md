@@ -197,7 +197,7 @@ and validates deterministic evidence handling.
 
 3. **Policy-Gated Disclosure** (json + time)  
    **Why:** Demonstrates packet disclosure with time-based gating. This is a
-   core DG value: controlled disclosure only after predicates pass, with
+   core DG value: controlled disclosure only after conditions pass, with
    audit-grade artifacts.
 
 4. **Attack Payload Rejection** (json + env)  
@@ -212,7 +212,7 @@ and validates deterministic evidence handling.
 
 6. **Namespace / Policy Collision** (env + time + policy)  
    **Why:** Multi-tenant correctness is non-negotiable. This scenario proves
-   namespace and policy constraints are enforced even when time-based predicates
+   namespace and policy constraints are enforced even when time-based conditions
    would otherwise pass.
 
 Each scenario must have:

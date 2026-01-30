@@ -36,12 +36,12 @@ def default_precheck_spec(scenario_id: str) -> dict:
         "default_tenant_id": None,
         "policies": [],
         "schemas": [],
-        "predicates": [
+        "conditions": [
             {
-                "predicate": "deploy_env",
+                "condition_id": "deploy_env",
                 "query": {
                     "provider_id": "env",
-                    "predicate": "get",
+                    "check_id": "get",
                     "params": {"key": "DEPLOY_ENV"},
                 },
                 "comparator": "equals",
@@ -57,7 +57,7 @@ def default_precheck_spec(scenario_id: str) -> dict:
                 "gates": [
                     {
                         "gate_id": "gate-time",
-                        "requirement": {"predicate": "deploy_env"},
+                        "requirement": {"Condition": "deploy_env"},
                         "trust": None,
                     }
                 ],

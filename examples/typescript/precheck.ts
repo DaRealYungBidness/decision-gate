@@ -29,12 +29,12 @@ function defaultPrecheckSpec(scenarioId: string): Record<string, unknown> {
     default_tenant_id: null,
     policies: [],
     schemas: [],
-    predicates: [
+    conditions: [
       {
-        predicate: "deploy_env",
+        condition_id: "deploy_env",
         query: {
           provider_id: "env",
-          predicate: "get",
+          check_id: "get",
           params: { key: "DEPLOY_ENV" },
         },
         comparator: "equals",
@@ -50,7 +50,7 @@ function defaultPrecheckSpec(scenarioId: string): Record<string, unknown> {
         gates: [
           {
             gate_id: "gate-time",
-            requirement: { predicate: "deploy_env" },
+            requirement: { Condition: "deploy_env" },
             trust: null,
           },
         ],

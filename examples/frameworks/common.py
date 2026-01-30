@@ -33,12 +33,12 @@ def default_precheck_spec(scenario_id: str) -> Dict[str, Any]:
         "default_tenant_id": None,
         "policies": [],
         "schemas": [],
-        "predicates": [
+        "conditions": [
             {
-                "predicate": "deploy_env",
+                "condition_id": "deploy_env",
                 "query": {
                     "provider_id": "env",
-                    "predicate": "get",
+                    "check_id": "get",
                     "params": {"key": "DEPLOY_ENV"},
                 },
                 "comparator": "equals",
@@ -54,7 +54,7 @@ def default_precheck_spec(scenario_id: str) -> Dict[str, Any]:
                 "gates": [
                     {
                         "gate_id": "gate-env",
-                        "requirement": {"predicate": "deploy_env"},
+                        "requirement": {"Condition": "deploy_env"},
                         "trust": None,
                     }
                 ],

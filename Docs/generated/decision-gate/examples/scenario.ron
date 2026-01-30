@@ -1,35 +1,35 @@
 {
-    "default_tenant_id": (),
-    "namespace_id": 1,
-    "policies": [],
-    "predicates": [
+    "conditions": [
         {
             "comparator": "equals",
+            "condition_id": "env_is_prod",
             "expected": "production",
             "policy_tags": [],
-            "predicate": "env_is_prod",
             "query": {
+                "check_id": "get",
                 "params": {
                     "key": "DEPLOY_ENV",
                 },
-                "predicate": "get",
                 "provider_id": "env",
             },
         },
         {
             "comparator": "equals",
+            "condition_id": "after_freeze",
             "expected": true,
             "policy_tags": [],
-            "predicate": "after_freeze",
             "query": {
+                "check_id": "after",
                 "params": {
                     "timestamp": 1710000000000,
                 },
-                "predicate": "after",
                 "provider_id": "time",
             },
         },
     ],
+    "default_tenant_id": (),
+    "namespace_id": 1,
+    "policies": [],
     "scenario_id": "example-scenario",
     "schemas": [],
     "spec_version": "v1",
@@ -58,13 +58,13 @@
                 {
                     "gate_id": "env_gate",
                     "requirement": {
-                        "Predicate": "env_is_prod",
+                        "Condition": "env_is_prod",
                     },
                 },
                 {
                     "gate_id": "time_gate",
                     "requirement": {
-                        "Predicate": "after_freeze",
+                        "Condition": "after_freeze",
                     },
                 },
             ],

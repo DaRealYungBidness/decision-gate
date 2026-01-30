@@ -13,7 +13,7 @@ export const TOOL_NAMES = [
     "runpack_verify",
     "providers_list",
     "provider_contract_get",
-    "provider_schema_get",
+    "provider_check_schema_get",
     "schemas_register",
     "schemas_list",
     "schemas_get",
@@ -32,7 +32,7 @@ export const TOOL_DESCRIPTIONS = {
     "runpack_verify": "Verify a runpack manifest and artifacts offline.",
     "providers_list": "List registered evidence providers and capabilities summary.",
     "provider_contract_get": "Fetch the canonical provider contract JSON and hash for a provider.",
-    "provider_schema_get": "Fetch predicate schema details (params/result/comparators) for a provider.",
+    "provider_check_schema_get": "Fetch check schema details (params/result/comparators) for a provider.",
     "schemas_register": "Register a data shape schema for a tenant and namespace.",
     "schemas_list": "List registered data shapes for a tenant and namespace.",
     "schemas_get": "Fetch a specific data shape by identifier and version.",
@@ -42,7 +42,7 @@ export const TOOL_DESCRIPTIONS = {
 export const TOOL_NOTES = {
     "scenario_define": [
         "Use before starting runs; scenario_id becomes the stable handle for later calls.",
-        "Validates stage/gate/predicate IDs, RET trees, and predicate references.",
+        "Validates stage/gate/condition IDs, RET trees, and condition references.",
         "Spec hash is deterministic; store it for audit and runpack integrity.",
         "Fails closed on invalid specs or duplicate scenario IDs.",
     ],
@@ -75,7 +75,7 @@ export const TOOL_NOTES = {
     "evidence_query": [
         "Disclosure policy may redact raw values; hashes/anchors still returned.",
         "Use for diagnostics or preflight checks; runtime uses the same provider logic.",
-        "Requires provider_id, predicate, and full EvidenceContext.",
+        "Requires provider_id, check_id, and full EvidenceContext.",
     ],
     "runpack_export": [
         "Writes manifest and logs to output_dir; generated_at is recorded in the manifest.",
@@ -96,9 +96,9 @@ export const TOOL_NOTES = {
         "Includes a canonical hash for audit and reproducibility.",
         "Subject to provider disclosure policy and authz.",
     ],
-    "provider_schema_get": [
-        "Returns compiled schema metadata for a single predicate.",
-        "Includes comparator allow-lists and predicate examples.",
+    "provider_check_schema_get": [
+        "Returns compiled schema metadata for a single check.",
+        "Includes comparator allow-lists and check examples.",
         "Subject to provider disclosure policy and authz.",
     ],
     "schemas_register": [
@@ -677,8 +677,8 @@ export const ScenarioStart_OUTPUT_SCHEMA = {
                                 "items": {
                                     "additionalProperties": false,
                                     "properties": {
-                                        "predicate": {
-                                            "description": "Predicate identifier.",
+                                        "condition_id": {
+                                            "description": "Condition identifier.",
                                             "type": "string"
                                         },
                                         "status": {
@@ -692,7 +692,7 @@ export const ScenarioStart_OUTPUT_SCHEMA = {
                                         }
                                     },
                                     "required": [
-                                        "predicate",
+                                        "condition_id",
                                         "status"
                                     ],
                                     "type": "object"
@@ -711,8 +711,8 @@ export const ScenarioStart_OUTPUT_SCHEMA = {
                         "items": {
                             "additionalProperties": false,
                             "properties": {
-                                "predicate": {
-                                    "description": "Predicate identifier.",
+                                "condition_id": {
+                                    "description": "Condition identifier.",
                                     "type": "string"
                                 },
                                 "result": {
@@ -967,7 +967,7 @@ export const ScenarioStart_OUTPUT_SCHEMA = {
                                 }
                             },
                             "required": [
-                                "predicate",
+                                "condition_id",
                                 "status",
                                 "result"
                             ],
@@ -4836,6 +4836,10 @@ export const EvidenceQuery_INPUT_SCHEMA = {
             "additionalProperties": false,
             "description": "Evidence query payload.",
             "properties": {
+                "check_id": {
+                    "description": "Provider check identifier.",
+                    "type": "string"
+                },
                 "params": {
                     "description": "Provider-specific parameter payload.",
                     "type": [
@@ -4847,10 +4851,6 @@ export const EvidenceQuery_INPUT_SCHEMA = {
                         "object"
                     ]
                 },
-                "predicate": {
-                    "description": "Provider predicate name.",
-                    "type": "string"
-                },
                 "provider_id": {
                     "description": "Evidence provider identifier.",
                     "type": "string"
@@ -4858,7 +4858,7 @@ export const EvidenceQuery_INPUT_SCHEMA = {
             },
             "required": [
                 "provider_id",
-                "predicate"
+                "check_id"
             ],
             "type": "object"
         }
@@ -5631,9 +5631,9 @@ export const ProvidersList_OUTPUT_SCHEMA = {
             "items": {
                 "additionalProperties": false,
                 "properties": {
-                    "predicates": {
+                    "checks": {
                         "items": {
-                            "description": "Predicate identifier.",
+                            "description": "Check identifier.",
                             "type": "string"
                         },
                         "type": "array"
@@ -5654,7 +5654,7 @@ export const ProvidersList_OUTPUT_SCHEMA = {
                 "required": [
                     "provider_id",
                     "transport",
-                    "predicates"
+                    "checks"
                 ],
                 "type": "object"
             },
@@ -5687,38 +5687,12 @@ export const ProviderContractGet_OUTPUT_SCHEMA = {
         "contract": {
             "additionalProperties": false,
             "properties": {
-                "config_schema": {
-                    "description": "Provider configuration schema.",
-                    "type": [
-                        "null",
-                        "boolean",
-                        "number",
-                        "string",
-                        "array",
-                        "object"
-                    ]
-                },
-                "description": {
-                    "description": "Provider description.",
-                    "type": "string"
-                },
-                "name": {
-                    "description": "Provider display name.",
-                    "type": "string"
-                },
-                "notes": {
-                    "description": "Provider notes and guidance.",
-                    "items": {
-                        "type": "string"
-                    },
-                    "type": "array"
-                },
-                "predicates": {
+                "checks": {
                     "items": {
                         "additionalProperties": false,
                         "properties": {
                             "allowed_comparators": {
-                                "description": "Comparator allow-list for this predicate.",
+                                "description": "Comparator allow-list for this check.",
                                 "items": {
                                     "description": "Comparator applied to evidence values.",
                                     "enum": [
@@ -5744,25 +5718,29 @@ export const ProviderContractGet_OUTPUT_SCHEMA = {
                                 "type": "array"
                             },
                             "anchor_types": {
-                                "description": "Anchor types emitted by this predicate.",
+                                "description": "Anchor types emitted by this check.",
                                 "items": {
                                     "type": "string"
                                 },
                                 "type": "array"
                             },
+                            "check_id": {
+                                "description": "Check identifier.",
+                                "type": "string"
+                            },
                             "content_types": {
-                                "description": "Content types for predicate output.",
+                                "description": "Content types for check output.",
                                 "items": {
                                     "type": "string"
                                 },
                                 "type": "array"
                             },
                             "description": {
-                                "description": "Predicate description.",
+                                "description": "Check description.",
                                 "type": "string"
                             },
                             "determinism": {
-                                "description": "Determinism classification for provider predicates.",
+                                "description": "Determinism classification for provider checks.",
                                 "enum": [
                                     "deterministic",
                                     "time_dependent",
@@ -5810,16 +5788,12 @@ export const ProviderContractGet_OUTPUT_SCHEMA = {
                                 },
                                 "type": "array"
                             },
-                            "name": {
-                                "description": "Predicate name.",
-                                "type": "string"
-                            },
                             "params_required": {
-                                "description": "Whether params are required for this predicate.",
+                                "description": "Whether params are required for this check.",
                                 "type": "boolean"
                             },
                             "params_schema": {
-                                "description": "JSON schema for predicate params.",
+                                "description": "JSON schema for check params.",
                                 "type": [
                                     "null",
                                     "boolean",
@@ -5830,7 +5804,7 @@ export const ProviderContractGet_OUTPUT_SCHEMA = {
                                 ]
                             },
                             "result_schema": {
-                                "description": "JSON schema for predicate result values.",
+                                "description": "JSON schema for check result values.",
                                 "type": [
                                     "null",
                                     "boolean",
@@ -5842,7 +5816,7 @@ export const ProviderContractGet_OUTPUT_SCHEMA = {
                             }
                         },
                         "required": [
-                            "name",
+                            "check_id",
                             "description",
                             "determinism",
                             "params_required",
@@ -5854,6 +5828,32 @@ export const ProviderContractGet_OUTPUT_SCHEMA = {
                             "examples"
                         ],
                         "type": "object"
+                    },
+                    "type": "array"
+                },
+                "config_schema": {
+                    "description": "Provider configuration schema.",
+                    "type": [
+                        "null",
+                        "boolean",
+                        "number",
+                        "string",
+                        "array",
+                        "object"
+                    ]
+                },
+                "description": {
+                    "description": "Provider description.",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Provider display name.",
+                    "type": "string"
+                },
+                "notes": {
+                    "description": "Provider notes and guidance.",
+                    "items": {
+                        "type": "string"
                     },
                     "type": "array"
                 },
@@ -5876,7 +5876,7 @@ export const ProviderContractGet_OUTPUT_SCHEMA = {
                 "description",
                 "transport",
                 "config_schema",
-                "predicates",
+                "checks",
                 "notes"
             ],
             "type": "object"
@@ -5934,12 +5934,12 @@ export const ProviderContractGet_OUTPUT_SCHEMA = {
     ],
     "type": "object"
 };
-export const ProviderSchemaGet_INPUT_SCHEMA = {
+export const ProviderCheckSchemaGet_INPUT_SCHEMA = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
-        "predicate": {
-            "description": "Provider predicate name.",
+        "check_id": {
+            "description": "Provider check identifier.",
             "type": "string"
         },
         "provider_id": {
@@ -5949,16 +5949,16 @@ export const ProviderSchemaGet_INPUT_SCHEMA = {
     },
     "required": [
         "provider_id",
-        "predicate"
+        "check_id"
     ],
     "type": "object"
 };
-export const ProviderSchemaGet_OUTPUT_SCHEMA = {
+export const ProviderCheckSchemaGet_OUTPUT_SCHEMA = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
     "properties": {
         "allowed_comparators": {
-            "description": "Comparator allow-list for this predicate.",
+            "description": "Comparator allow-list for this check.",
             "items": {
                 "description": "Comparator applied to evidence values.",
                 "enum": [
@@ -5984,14 +5984,18 @@ export const ProviderSchemaGet_OUTPUT_SCHEMA = {
             "type": "array"
         },
         "anchor_types": {
-            "description": "Anchor types emitted by this predicate.",
+            "description": "Anchor types emitted by this check.",
             "items": {
                 "type": "string"
             },
             "type": "array"
         },
+        "check_id": {
+            "description": "Check identifier.",
+            "type": "string"
+        },
         "content_types": {
-            "description": "Content types for predicate output.",
+            "description": "Content types for check output.",
             "items": {
                 "type": "string"
             },
@@ -6018,7 +6022,7 @@ export const ProviderSchemaGet_OUTPUT_SCHEMA = {
             "type": "object"
         },
         "determinism": {
-            "description": "Determinism classification for provider predicates.",
+            "description": "Determinism classification for provider checks.",
             "enum": [
                 "deterministic",
                 "time_dependent",
@@ -6067,11 +6071,11 @@ export const ProviderSchemaGet_OUTPUT_SCHEMA = {
             "type": "array"
         },
         "params_required": {
-            "description": "Whether params are required for this predicate.",
+            "description": "Whether params are required for this check.",
             "type": "boolean"
         },
         "params_schema": {
-            "description": "JSON schema for predicate params.",
+            "description": "JSON schema for check params.",
             "type": [
                 "null",
                 "boolean",
@@ -6081,16 +6085,12 @@ export const ProviderSchemaGet_OUTPUT_SCHEMA = {
                 "object"
             ]
         },
-        "predicate": {
-            "description": "Predicate name.",
-            "type": "string"
-        },
         "provider_id": {
             "description": "Provider identifier.",
             "type": "string"
         },
         "result_schema": {
-            "description": "JSON schema for predicate result value.",
+            "description": "JSON schema for check result value.",
             "type": [
                 "null",
                 "boolean",
@@ -6103,7 +6103,7 @@ export const ProviderSchemaGet_OUTPUT_SCHEMA = {
     },
     "required": [
         "provider_id",
-        "predicate",
+        "check_id",
         "params_required",
         "params_schema",
         "result_schema",
@@ -7075,8 +7075,8 @@ export const Precheck_OUTPUT_SCHEMA = {
                         "items": {
                             "additionalProperties": false,
                             "properties": {
-                                "predicate": {
-                                    "description": "Predicate identifier.",
+                                "condition_id": {
+                                    "description": "Condition identifier.",
                                     "type": "string"
                                 },
                                 "status": {
@@ -7090,7 +7090,7 @@ export const Precheck_OUTPUT_SCHEMA = {
                                 }
                             },
                             "required": [
-                                "predicate",
+                                "condition_id",
                                 "status"
                             ],
                             "type": "object"
@@ -7120,7 +7120,7 @@ export class GeneratedDecisionGateClient {
      *
      * Notes:
      * - Use before starting runs; scenario_id becomes the stable handle for later calls.
-     * - Validates stage/gate/predicate IDs, RET trees, and predicate references.
+     * - Validates stage/gate/condition IDs, RET trees, and condition references.
      * - Spec hash is deterministic; store it for audit and runpack integrity.
      * - Fails closed on invalid specs or duplicate scenario IDs.
      *
@@ -7130,37 +7130,37 @@ export class GeneratedDecisionGateClient {
      *   ```json
      *   {
      *     "spec": {
-     *       "default_tenant_id": null,
-     *       "namespace_id": 1,
-     *       "policies": [],
-     *       "predicates": [
+     *       "conditions": [
      *         {
      *           "comparator": "equals",
+     *           "condition_id": "env_is_prod",
      *           "expected": "production",
      *           "policy_tags": [],
-     *           "predicate": "env_is_prod",
      *           "query": {
+     *             "check_id": "get",
      *             "params": {
      *               "key": "DEPLOY_ENV"
      *             },
-     *             "predicate": "get",
      *             "provider_id": "env"
      *           }
      *         },
      *         {
      *           "comparator": "equals",
+     *           "condition_id": "after_freeze",
      *           "expected": true,
      *           "policy_tags": [],
-     *           "predicate": "after_freeze",
      *           "query": {
+     *             "check_id": "after",
      *             "params": {
      *               "timestamp": 1710000000000
      *             },
-     *             "predicate": "after",
      *             "provider_id": "time"
      *           }
      *         }
      *       ],
+     *       "default_tenant_id": null,
+     *       "namespace_id": 1,
+     *       "policies": [],
      *       "scenario_id": "example-scenario",
      *       "schemas": [],
      *       "spec_version": "v1",
@@ -7192,13 +7192,13 @@ export class GeneratedDecisionGateClient {
      *             {
      *               "gate_id": "env_gate",
      *               "requirement": {
-     *                 "Predicate": "env_is_prod"
+     *                 "Condition": "env_is_prod"
      *               }
      *             },
      *             {
      *               "gate_id": "time_gate",
      *               "requirement": {
-     *                 "Predicate": "after_freeze"
+     *                 "Condition": "after_freeze"
      *               }
      *             }
      *           ],
@@ -7517,7 +7517,7 @@ export class GeneratedDecisionGateClient {
      * Notes:
      * - Disclosure policy may redact raw values; hashes/anchors still returned.
      * - Use for diagnostics or preflight checks; runtime uses the same provider logic.
-     * - Requires provider_id, predicate, and full EvidenceContext.
+     * - Requires provider_id, check_id, and full EvidenceContext.
      *
      * Examples:
      * - Query an evidence provider using the run context.
@@ -7538,10 +7538,10 @@ export class GeneratedDecisionGateClient {
      *       }
      *     },
      *     "query": {
+     *       "check_id": "get",
      *       "params": {
      *         "key": "DEPLOY_ENV"
      *       },
-     *       "predicate": "get",
      *       "provider_id": "env"
      *     }
      *   }
@@ -7706,7 +7706,7 @@ export class GeneratedDecisionGateClient {
      *   {
      *     "providers": [
      *       {
-     *         "predicates": [
+     *         "checks": [
      *           "get"
      *         ],
      *         "provider_id": "env",
@@ -7739,6 +7739,7 @@ export class GeneratedDecisionGateClient {
      *   ```json
      *   {
      *     "contract": {
+     *       "checks": [],
      *       "config_schema": {
      *         "additionalProperties": false,
      *         "type": "object"
@@ -7746,7 +7747,6 @@ export class GeneratedDecisionGateClient {
      *       "description": "Reads JSON or YAML files and evaluates JSONPath.",
      *       "name": "JSON Provider",
      *       "notes": [],
-     *       "predicates": [],
      *       "provider_id": "json",
      *       "transport": "builtin"
      *     },
@@ -7764,19 +7764,19 @@ export class GeneratedDecisionGateClient {
         return this.callTool("provider_contract_get", request);
     }
     /**
-     * Fetch predicate schema details (params/result/comparators) for a provider.
+     * Fetch check schema details (params/result/comparators) for a provider.
      *
      * Notes:
-     * - Returns compiled schema metadata for a single predicate.
-     * - Includes comparator allow-lists and predicate examples.
+     * - Returns compiled schema metadata for a single check.
+     * - Includes comparator allow-lists and check examples.
      * - Subject to provider disclosure policy and authz.
      *
      * Examples:
-     * - Fetch predicate schema details for a provider.
+     * - Fetch check schema details for a provider.
      *   Input:
      *   ```json
      *   {
-     *     "predicate": "path",
+     *     "check_id": "path",
      *     "provider_id": "json"
      *   }
      *   ```
@@ -7790,6 +7790,7 @@ export class GeneratedDecisionGateClient {
      *       "not_exists"
      *     ],
      *     "anchor_types": [],
+     *     "check_id": "path",
      *     "content_types": [
      *       "application/json"
      *     ],
@@ -7814,7 +7815,6 @@ export class GeneratedDecisionGateClient {
      *       ],
      *       "type": "object"
      *     },
-     *     "predicate": "path",
      *     "provider_id": "json",
      *     "result_schema": {
      *       "type": [
@@ -7829,8 +7829,8 @@ export class GeneratedDecisionGateClient {
      *   }
      *   ```
      */
-    provider_schema_get(request) {
-        return this.callTool("provider_schema_get", request);
+    provider_check_schema_get(request) {
+        return this.callTool("provider_check_schema_get", request);
     }
     /**
      * Register a data shape schema for a tenant and namespace.
@@ -8247,17 +8247,17 @@ export async function validateProviderContractGetRequestWithAjv(payload) {
 export async function validateProviderContractGetResponseWithAjv(payload) {
     return validateSchemaWithAjv(ProviderContractGet_OUTPUT_SCHEMA, payload);
 }
-export function validateProviderSchemaGetRequest(payload, validator) {
-    validateSchemaWith(validator, ProviderSchemaGet_INPUT_SCHEMA, payload);
+export function validateProviderCheckSchemaGetRequest(payload, validator) {
+    validateSchemaWith(validator, ProviderCheckSchemaGet_INPUT_SCHEMA, payload);
 }
-export function validateProviderSchemaGetResponse(payload, validator) {
-    validateSchemaWith(validator, ProviderSchemaGet_OUTPUT_SCHEMA, payload);
+export function validateProviderCheckSchemaGetResponse(payload, validator) {
+    validateSchemaWith(validator, ProviderCheckSchemaGet_OUTPUT_SCHEMA, payload);
 }
-export async function validateProviderSchemaGetRequestWithAjv(payload) {
-    return validateSchemaWithAjv(ProviderSchemaGet_INPUT_SCHEMA, payload);
+export async function validateProviderCheckSchemaGetRequestWithAjv(payload) {
+    return validateSchemaWithAjv(ProviderCheckSchemaGet_INPUT_SCHEMA, payload);
 }
-export async function validateProviderSchemaGetResponseWithAjv(payload) {
-    return validateSchemaWithAjv(ProviderSchemaGet_OUTPUT_SCHEMA, payload);
+export async function validateProviderCheckSchemaGetResponseWithAjv(payload) {
+    return validateSchemaWithAjv(ProviderCheckSchemaGet_OUTPUT_SCHEMA, payload);
 }
 export function validateSchemasRegisterRequest(payload, validator) {
     validateSchemaWith(validator, SchemasRegister_INPUT_SCHEMA, payload);

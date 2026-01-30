@@ -30,11 +30,11 @@ ScenarioSpec JSON that passes strict validation.
   - JSON Schema validation (`schemas/scenario.schema.json`),
   - spec semantic validation (`ScenarioSpec::validate`), and
   - MCP validation (`CapabilityRegistry` + `StrictValidator`).
-- Make predicate authoring type-driven by provider result schemas or data shape
+- Make condition authoring type-driven by provider result schemas or data shape
   schemas, so allowed comparators and expected values "fall out" of the type.
 - Expose gate requirements as a structured tree (RET) or DSL that only accepts
-  existing predicate identifiers.
-- Support asserted-lane precheck flows by aligning data shapes with predicate
+  existing condition identifiers.
+- Support asserted-lane precheck flows by aligning data shapes with condition
   identifiers.
 
 ## Non-Goals
@@ -47,10 +47,10 @@ ScenarioSpec JSON that passes strict validation.
 ## Terminology
 
 - ScenarioSpec: canonical scenario definition (`decision-gate-core/src/core/spec.rs`).
-- PredicateSpec: provider query + comparator + expected value definition.
-- GateSpec: RET requirement tree over predicate identifiers.
+- ConditionSpec: provider query + comparator + expected value definition.
+- GateSpec: RET requirement tree over condition identifiers.
 - StageSpec: ordered stages, gates, packets, and advancement rules.
-- Provider contract: schema and comparator metadata for provider predicates.
+- Provider contract: schema and comparator metadata for provider checks.
 - Data shape: JSON Schema record for asserted evidence (precheck).
 - Strict validation: comparator/type compatibility and schema validation enforced
   at `scenario_define` and `precheck` time.
@@ -80,15 +80,15 @@ The builder must load the same sources of truth used at runtime:
 - Optional: `default_tenant_id` (single-tenant shortcut).
 
 2) Evidence sources and type selection
-- For each predicate, select:
-  - Provider `provider_id` and predicate `predicate` (from contracts), or
+- For each condition, select:
+  - Provider `provider_id` and check `check_id` (from contracts), or
   - Asserted payload property (for precheck scenarios).
 - The selected result schema determines allowed comparators and expected values.
 
-3) Predicate authoring
-- Create `PredicateSpec`:
-  - `predicate`: stable identifier used by gates.
-  - `query`: provider_id + predicate + params (schema-validated).
+3) Condition authoring
+- Create `ConditionSpec`:
+  - `condition_id`: stable identifier used by gates.
+  - `query`: provider_id + check_id + params (schema-validated).
   - `comparator`: derived from type rules and allowed lists (below).
   - `expected`: required for most comparators (see rules below).
   - `policy_tags`: optional.
@@ -96,7 +96,7 @@ The builder must load the same sources of truth used at runtime:
 
 Comparator selection algorithm:
 - Start with provider contract allowlist:
-  - `PredicateContract.allowed_comparators`.
+  - `CheckContract.allowed_comparators`.
 - Intersect with strict schema allowances:
   - Derived from provider result schema or data shape schema.
   - Respect `x-decision-gate.allowed_comparators` overrides.
@@ -113,10 +113,10 @@ Expected value rules:
 4) Gate authoring (RET)
 - Create `GateSpec` per stage with:
   - `gate_id`
-  - `requirement`: RET tree over predicate identifiers.
+  - `requirement`: RET tree over condition identifiers.
   - optional `trust`.
 - Use ret-logic DSL (`ret-logic/src/dsl.rs`) or build trees directly.
-- Validate that all predicates referenced by gates exist.
+- Validate that all conditions referenced by gates exist.
 
 5) Stage authoring
 - Define `StageSpec` with:
@@ -124,7 +124,7 @@ Expected value rules:
 - `advance_to` can be `linear`, `fixed`, `branch`, or `terminal`.
 - Branch rules must reference gate IDs in the same stage and stage targets that
   exist in the spec.
-- Ensure unique stage, gate, packet, and predicate identifiers.
+- Ensure unique stage, gate, packet, and condition identifiers.
 
 6) Optional references
 - `policies`: list of `PolicyRef` entries.
@@ -134,7 +134,7 @@ Expected value rules:
 - JSON schema validation: `schemas/scenario.schema.json`.
 - Spec semantic validation: `ScenarioSpec::validate`.
 - Capability validation:
-  - Provider and predicate exist.
+  - Provider and check exist.
   - Params validate.
   - Comparator allowed by provider contract.
   - Expected matches result schema.
@@ -148,17 +148,17 @@ Expected value rules:
 
 ## Precheck and Asserted Payload Mapping
 
-The precheck path maps asserted payloads to predicate identifiers:
+The precheck path maps asserted payloads to condition identifiers:
 
 - If the data shape schema is an object:
-  - Properties must include every predicate identifier, or a typed
+  - Properties must include every condition identifier, or a typed
     `additionalProperties` schema.
   - Un-typed `additionalProperties: true` is rejected.
-- If there is exactly one predicate:
-  - The data shape can be non-object; the payload maps to that predicate.
+- If there is exactly one condition:
+  - The data shape can be non-object; the payload maps to that condition.
 
 Builder guidance:
-- When targeting precheck, prefer object schemas keyed by predicate IDs so the
+- When targeting precheck, prefer object schemas keyed by condition IDs so the
   mapping is explicit and validation passes.
 
 ## Builder State Model (Suggested)
@@ -167,12 +167,12 @@ A minimal in-memory model for the builder:
 
 - ScenarioDraft:
   - metadata: scenario_id, namespace_id, spec_version, default_tenant_id
-  - predicates: PredicateDraft[]
+  - conditions: ConditionDraft[]
   - stages: StageDraft[]
   - policies: PolicyRef[]
   - schemas: SchemaRef[]
-- PredicateDraft:
-  - id, provider_id, predicate, params, comparator, expected, policy_tags, trust
+- ConditionDraft:
+  - condition_id, provider_id, check_id, params, comparator, expected, policy_tags, trust
   - derived: allowed_comparators (filtered list), expected_schema
 - GateDraft:
   - id, requirement (RET or DSL string), trust
@@ -186,14 +186,14 @@ Phase 0: Contract ingestion
 - Load strict validation config.
 - Load data shapes (if precheck builder is enabled).
 
-Phase 1: Predicate builder
-- Build predicate selection UI/flow from provider contracts.
+Phase 1: Condition builder
+- Build provider check selection UI/flow from provider contracts.
 - Implement comparator filtering + expected value validation.
 - Surface schema-derived type info to the user.
 
 Phase 2: Gate and requirement builder
 - Provide RET builder and/or DSL parsing.
-- Validate referenced predicate identifiers.
+- Validate referenced condition identifiers.
 
 Phase 3: Stage and packet builder
 - Add stage advancement rules and timeout policies.
@@ -205,7 +205,7 @@ Phase 4: Validation and output
 
 Phase 5: Precheck alignment
 - Enforce data shape mapping rules for asserted payloads.
-- Provide warnings when schema does not align with predicate IDs.
+- Provide warnings when schema does not align with condition IDs.
 
 Phase 6: Tests
 - Unit tests for comparator filtering and expected value validation.

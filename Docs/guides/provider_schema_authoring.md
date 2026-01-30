@@ -24,7 +24,7 @@ If you only remember one sentence:
 Decision Gate (DG) answers a single question:
 **"Has X been done?"**
 
-It does this by evaluating **evidence** against **predicates**, combining the
+It does this by evaluating **evidence** against **conditions**, combining the
 results with a **Requirement Evaluation Tree (RET)**, and deciding whether a
 **gate** passes.
 
@@ -63,13 +63,13 @@ This guide focuses on **providers** and their **provider contracts**.
 - **Provider contract**: A JSON document describing provider capabilities,
   schemas, and allowed comparators (this is what you are authoring).
 - **Provider check**: A single queryable capability exposed by a provider.
-  Provider checks live inside the provider contract under `predicates`.
-- **Scenario predicate**: A predicate in a ScenarioSpec that references a
-  provider check via `query.predicate`. Do not confuse these two concepts.
-- **EvidenceQuery**: `{ provider_id, predicate, params }` sent to a provider.
+  Provider checks live inside the provider contract under `checks`.
+- **Scenario condition**: A condition in a ScenarioSpec that references a
+  provider check via `query.check_id`. Do not confuse these two concepts.
+- **EvidenceQuery**: `{ provider_id, check_id, params }` sent to a provider.
 - **EvidenceResult**: Provider response with `value` plus optional hash/anchor.
 - **Comparator**: Operator that compares evidence to an expected value.
-- **RET**: Requirement Evaluation Tree that combines predicate outcomes.
+- **RET**: Requirement Evaluation Tree that combines condition outcomes.
 - **Determinism**: Classification of provider checks:
   - `deterministic`, `time_dependent`, or `external`.
 
@@ -84,12 +84,12 @@ Providers implement a single MCP tool named `evidence_query` and return an
 ```json
 {
   "provider_id": "string",
-  "predicate": "string",
+  "check_id": "string",
   "params": { "any": "json" }
 }
 ```
 
-- `params` is optional. If present, it must match the predicate's `params_schema`.
+- `params` is optional. If present, it must match the check's `params_schema`.
 - Most built-in providers require `params` to be a JSON object.
 
 ### EvidenceResult shape (value is what your contract describes)
@@ -128,8 +128,8 @@ It declares:
 - Determinism classification, anchors, content types, and examples.
 
 DG uses the contract to:
-- Validate ScenarioSpec predicates.
-- Enforce comparator allow-lists per predicate.
+- Validate ScenarioSpec conditions.
+- Enforce comparator allow-lists per check.
 - Generate tooling and UI forms.
 - Support discovery for LLMs and authoring tools.
 
@@ -172,16 +172,16 @@ Fields marked optional are allowed to be omitted.
     { "type": "object", "additionalProperties": false, "properties": {} }
     ```
 
-- `predicates` (array, required)
+- `checks` (array, required)
   - Each entry is a **provider check** definition.
   - The array may be empty, but then the provider exposes no usable checks.
 
-### 5.2 Predicate fields (all required)
+### 5.2 Check fields (all required)
 
-Each entry in `predicates` defines one provider check.
+Each entry in `checks` defines one provider check.
 
-- `name` (string)
-  - Stable identifier used in `EvidenceQuery.predicate`.
+- `check_id` (string)
+  - Stable identifier used in `EvidenceQuery.check_id`.
   - Use `snake_case` and keep it stable.
 
 - `description` (string)
@@ -206,12 +206,12 @@ Each entry in `predicates` defines one provider check.
   - Use the **tightest** schema possible.
 
 - `allowed_comparators` (array of strings)
-  - Comparator allow-list for this predicate.
+  - Comparator allow-list for this check.
   - Must be **non-empty** and in **canonical order** (see Section 7 list).
   - Should be compatible with `result_schema` and strict validation rules.
 
 - `anchor_types` (array of strings)
-  - Anchor kinds this predicate may emit.
+  - Anchor kinds this check may emit.
   - Use `[]` if none.
 
 - `content_types` (array of strings)
@@ -256,7 +256,7 @@ For byte evidence, **only** `equals` and `not_equals` are valid at runtime.
 Constrain `allowed_comparators` accordingly.
 
 ### Dynamic results (escape hatch)
-If a predicate can return arbitrary JSON shapes that cannot be expressed, mark
+If a check can return arbitrary JSON shapes that cannot be expressed, mark
 the result schema as dynamic:
 ```json
 {
@@ -437,7 +437,7 @@ This classification is used for audit and trust reasoning. Do not mislabel.
 
 ### Step 1: Gather required inputs
 You should have all of the following for each provider check:
-- Predicate name and description (what the result means).
+- Check name and description (what the result means).
 - Determinism classification.
 - Params schema (JSON Schema or full param list with types/required).
 - Result schema (JSON Schema for the evidence value).
@@ -477,7 +477,7 @@ Provider
 - config_schema (JSON Schema):
 - notes (required; use [] if none):
 
-Predicates (repeat per check)
+Checks (repeat per check)
 - name:
 - description (what the value means):
 - determinism: deterministic | time_dependent | external
@@ -512,16 +512,16 @@ Rules:
   ambiguous, output a JSON object with a single key "questions" containing an
   array of clarifying questions, then stop.
 - Use this exact contract shape:
-  provider_id, name, description, transport, config_schema, notes, predicates.
-- Each predicate must include:
-  name, description, determinism, params_required, params_schema, result_schema,
+  provider_id, name, description, transport, config_schema, notes, checks.
+- Each check must include:
+  check_id, description, determinism, params_required, params_schema, result_schema,
   allowed_comparators, anchor_types, content_types, examples.
 - allowed_comparators must be non-empty and in canonical order.
 - Comparators must be compatible with strict validation rules for the result_schema.
 - If you include lex_* or deep_* comparators and the result_schema is not dynamic,
   also add result_schema.x-decision-gate.allowed_comparators.
 - Note that server config must enable lex/deep comparator families for them to be used.
-- Provide at least one example per predicate unless explicitly told to omit.
+- Provide at least one example per check unless explicitly told to omit.
 
 Inputs:
 - Provider worksheet:

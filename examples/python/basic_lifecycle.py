@@ -36,12 +36,12 @@ def default_time_after_spec(scenario_id: str, threshold: int) -> dict:
         "default_tenant_id": None,
         "policies": [],
         "schemas": [],
-        "predicates": [
+        "conditions": [
             {
-                "predicate": "after",
+                "condition_id": "after",
                 "query": {
                     "provider_id": "time",
-                    "predicate": "after",
+                    "check_id": "after",
                     "params": {"timestamp": threshold},
                 },
                 "comparator": "equals",
@@ -57,7 +57,7 @@ def default_time_after_spec(scenario_id: str, threshold: int) -> dict:
                 "gates": [
                     {
                         "gate_id": "gate-time",
-                        "requirement": {"predicate": "after"},
+                        "requirement": {"Condition": "after"},
                         "trust": None,
                     }
                 ],

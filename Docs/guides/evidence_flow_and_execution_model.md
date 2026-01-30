@@ -69,8 +69,8 @@ Precheck **does not** call providers. The client supplies a payload that is:
 2. Converted into asserted `EvidenceResult` values.
 
 **Payload mapping is exact:**
-- If payload is an object: keys are predicate IDs.
-- If payload is not an object: it is only accepted when the scenario has exactly one predicate.
+- If payload is an object: keys are condition IDs.
+- If payload is not an object: it is only accepted when the scenario has exactly one condition.
 
 ---
 
@@ -87,15 +87,15 @@ Configured in `decision-gate.toml`:
 min_lane = "verified"   # or "asserted"
 ```
 
-When `min_lane = "verified"`, asserted evidence is rejected (predicate becomes `unknown`).
+When `min_lane = "verified"`, asserted evidence is rejected (condition becomes `unknown`).
 
 **Dev-permissive:** `min_lane` becomes `asserted` automatically, **except** for providers listed in `dev.permissive_exempt_providers` (those remain strict).
 
-### Per-Predicate and Per-Gate Overrides
+### Per-Condition and Per-Gate Overrides
 You can raise the minimum lane in the scenario spec:
 ```json
 {
-  "predicate": "tests_ok",
+  "condition_id": "tests_ok",
   "trust": { "min_lane": "verified" }
 }
 ```
@@ -129,7 +129,7 @@ anchor_type = "file_path"
 required_fields = ["path"]
 ```
 
-`EvidenceResult.evidence_anchor.anchor_value` must be a **string** containing canonical JSON that parses to an **object**. Required fields must exist and must be scalar (string/number). Violations produce `error.code = "anchor_invalid"` and the predicate becomes `unknown`.
+`EvidenceResult.evidence_anchor.anchor_value` must be a **string** containing canonical JSON that parses to an **object**. Required fields must exist and must be scalar (string/number). Violations produce `error.code = "anchor_invalid"` and the condition becomes `unknown`.
 
 ---
 
@@ -140,7 +140,7 @@ Comparators produce **TriState** results:
 - `false`
 - `unknown`
 
-Important exact behaviors (see [predicate_authoring.md](predicate_authoring.md)):
+Important exact behaviors (see [condition_authoring.md](condition_authoring.md)):
 - `equals`/`not_equals` return **false/true** on type mismatch (not `unknown`).
 - Ordering comparators (`greater_than`, etc.) return `unknown` unless both sides are numbers or RFC3339 date/time strings.
 - `exists`/`not_exists` test **presence of `EvidenceResult.value`**; JSON `null` still counts as `exists`.
@@ -151,7 +151,7 @@ Important exact behaviors (see [predicate_authoring.md](predicate_authoring.md))
 
 1. A run exists (`scenario_start`).
 2. `scenario_next` is called with `run_id`, `tenant_id`, `namespace_id`, `trigger_id`, `agent_id`, and `time`.
-3. Decision Gate calls providers for each predicate.
+3. Decision Gate calls providers for each condition.
 4. Trust requirements are enforced.
 5. Comparators and RET produce gate outcomes.
 6. A `DecisionRecord` is returned and the run state is updated.
@@ -176,7 +176,7 @@ To inspect evidence and gate details, use `runpack_export`.
 
 **Output:** `PrecheckToolResponse { decision, gate_evaluations }`.
 
-`gate_evaluations` includes only gate status and predicate trace (no evidence values).
+`gate_evaluations` includes only gate status and condition trace (no evidence values).
 
 ---
 
@@ -203,7 +203,7 @@ Decision Gate calls external MCP providers with `tools/call` and a single tool: 
 
 ## Glossary
 
-**EvidenceQuery:** `{ provider_id, predicate, params }`.
+**EvidenceQuery:** `{ provider_id, check_id, params }`.
 **EvidenceResult:** `{ value, lane, error, evidence_hash, evidence_ref, evidence_anchor, signature, content_type }`.
 **Trust Lane:** `verified` or `asserted`.
 **Runpack:** Audit artifact bundle written for live runs.

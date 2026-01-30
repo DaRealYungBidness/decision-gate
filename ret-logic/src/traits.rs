@@ -2,12 +2,12 @@
 // ============================================================================
 // Module: Requirement Traits
 // Description: Row-based evaluation contracts for requirement executors.
-// Purpose: Define predicate, batch, and reader utilities for ECS chunk processing.
+// Purpose: Define condition, batch, and reader utilities for ECS chunk processing.
 // Dependencies: crate::tristate, std
 // ============================================================================
 
 //! ## Overview
-//! Row-based contracts describe how predicates evaluate against chunk readers and
+//! Row-based contracts describe how conditions evaluate against chunk readers and
 //! provide helpers for mask-based batch evaluation and row iteration.
 
 // ============================================================================
@@ -27,26 +27,26 @@ pub type Row = usize;
 pub type Mask64 = u64;
 
 // ============================================================================
-// SECTION: Predicate Trait
+// SECTION: Condition Trait
 // ============================================================================
 
-/// Core trait for predicate evaluation over chunk readers
+/// Core trait for condition evaluation over chunk readers
 ///
-/// Predicates evaluate against a specific row within a reader that contains
+/// Conditions evaluate against a specific row within a reader that contains
 /// component slices from an ECS chunk. This design enables:
 ///
 /// - Direct slice access (no hash lookups)
 /// - Cache-friendly memory access patterns
 /// - SIMD optimization opportunities
 /// - Zero allocation in hot paths
-pub trait PredicateEval {
+pub trait ConditionEval {
     /// Domain-specific reader type containing component slices
     ///
     /// Examples: `ShipReader`<'a>, `ActorReader`<'a>, `NeuronReader`<'a>
     /// Each contains component slices needed for evaluation.
     type Reader<'a>;
 
-    /// Evaluate predicate for a specific row within the reader
+    /// Evaluate condition for a specific row within the reader
     ///
     /// This is the core hot path method. It should:
     /// - Access component data via direct array indexing: `reader.health[row]`
@@ -58,20 +58,20 @@ pub trait PredicateEval {
     /// * `row` - Index within the chunk (`0..chunk_len`)
     ///
     /// # Returns  
-    /// `true` if the predicate is satisfied for this row
+    /// `true` if the condition is satisfied for this row
     fn eval_row(&self, reader: &Self::Reader<'_>, row: Row) -> bool;
 }
 
 // ============================================================================
-// SECTION: Batch Predicate Trait
+// SECTION: Batch Condition Trait
 // ============================================================================
 
 /// Batch evaluation trait for vectorized processing
 ///
 /// Provides default window-based evaluation and allows domains to override
 /// with SIMD implementations for maximum performance.
-pub trait BatchPredicateEval: PredicateEval {
-    /// Evaluate predicate for up to 64 consecutive rows
+pub trait BatchConditionEval: ConditionEval {
+    /// Evaluate condition for up to 64 consecutive rows
     ///
     /// Returns a bitmask where bit N indicates whether row start+N passed.
     /// Default implementation calls `eval_row` in a loop. Domains can override
@@ -83,7 +83,7 @@ pub trait BatchPredicateEval: PredicateEval {
     /// * `count` - Number of rows to evaluate (clamped to 64)
     ///
     /// # Returns
-    /// Bitmask where bit N set means row start+N satisfied the predicate
+    /// Bitmask where bit N set means row start+N satisfied the condition
     #[inline]
     fn eval_block(&self, reader: &Self::Reader<'_>, start: Row, count: usize) -> Mask64 {
         let n = count.min(64);
@@ -100,34 +100,34 @@ pub trait BatchPredicateEval: PredicateEval {
 }
 
 // ============================================================================
-// SECTION: Tri-State Predicate Trait
+// SECTION: Tri-State Condition Trait
 // ============================================================================
-/// Predicate evaluation that can return `Unknown` for insufficient evidence
-pub trait TriStatePredicateEval {
+/// Condition evaluation that can return `Unknown` for insufficient evidence
+pub trait TriStateConditionEval {
     /// Domain-specific reader type containing component slices or evidence data
     type Reader<'a>;
 
-    /// Evaluate predicate for a specific row within the reader
+    /// Evaluate condition for a specific row within the reader
     ///
     /// Returns `TriState::Unknown` when evidence is missing or indeterminate.
     fn eval_row_tristate(&self, reader: &Self::Reader<'_>, row: Row) -> TriState;
 }
 
-/// Adapter for boolean predicates that should participate in tri-state evaluation
+/// Adapter for boolean conditions that should participate in tri-state evaluation
 ///
 /// # Invariants
-/// - Holds a predicate value of type `P` with no additional constraints.
+/// - Holds a condition value of type `P` with no additional constraints.
 #[derive(Debug, Clone, Copy)]
 pub struct BoolAsTri<P>(pub P);
 
 impl<P> BoolAsTri<P> {
-    /// Wraps a boolean predicate for tri-state evaluation
-    pub const fn new(predicate: P) -> Self {
-        Self(predicate)
+    /// Wraps a boolean condition for tri-state evaluation
+    pub const fn new(condition: P) -> Self {
+        Self(condition)
     }
 }
 
-impl<P: PredicateEval> TriStatePredicateEval for BoolAsTri<P> {
+impl<P: ConditionEval> TriStateConditionEval for BoolAsTri<P> {
     type Reader<'a> = P::Reader<'a>;
 
     fn eval_row_tristate(&self, reader: &Self::Reader<'_>, row: Row) -> TriState {
@@ -162,9 +162,9 @@ pub trait ReaderLen {
 /// Most domains will drive evaluation themselves to collect Entity IDs instead
 /// of row indices, but this provides a generic implementation for testing.
 #[inline]
-pub fn eval_reader_rows<P>(predicate: &P, reader: &P::Reader<'_>) -> Vec<Row>
+pub fn eval_reader_rows<P>(condition: &P, reader: &P::Reader<'_>) -> Vec<Row>
 where
-    P: BatchPredicateEval,
+    P: BatchConditionEval,
     for<'a> P::Reader<'a>: ReaderLen,
 {
     let mut passing_rows = Vec::new();
@@ -173,7 +173,7 @@ where
 
     while row < total_len {
         let count = (total_len - row).min(64);
-        let mask = predicate.eval_block(reader, row, count);
+        let mask = condition.eval_block(reader, row, count);
 
         // Extract set bits from mask
         for i in 0 .. count {

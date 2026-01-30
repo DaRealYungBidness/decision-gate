@@ -25,9 +25,9 @@ mod common;
 use std::path::Path;
 use std::path::PathBuf;
 
+use decision_gate_contract::types::CheckContract;
+use decision_gate_contract::types::CheckExample;
 use decision_gate_contract::types::DeterminismClass;
-use decision_gate_contract::types::PredicateContract;
-use decision_gate_contract::types::PredicateExample;
 use decision_gate_contract::types::ProviderContract;
 use decision_gate_core::Comparator;
 use decision_gate_core::EvidenceQuery;
@@ -115,15 +115,15 @@ fn base_contract(provider_id: &str) -> ProviderContract {
     ProviderContract {
         provider_id: provider_id.to_string(),
         name: "Echo Provider".to_string(),
-        description: "Echo predicate used for registry validation.".to_string(),
+        description: "Echo check used for registry validation.".to_string(),
         transport: "mcp".to_string(),
         config_schema: json!({
             "type": "object",
             "additionalProperties": false,
             "properties": {}
         }),
-        predicates: vec![PredicateContract {
-            name: "echo".to_string(),
+        checks: vec![CheckContract {
+            check_id: "echo".to_string(),
             description: "Return the provided boolean value.".to_string(),
             determinism: DeterminismClass::External,
             params_required: true,
@@ -144,7 +144,7 @@ fn base_contract(provider_id: &str) -> ProviderContract {
             ],
             anchor_types: vec![String::from("stub")],
             content_types: vec![String::from("application/json")],
-            examples: vec![PredicateExample {
+            examples: vec![CheckExample {
                 description: "Echo true.".to_string(),
                 params: json!({ "value": true }),
                 result: json!(true),
@@ -199,7 +199,7 @@ fn registry_rejects_empty_comparator_allowlist() {
     let temp = TempDir::new().unwrap();
     let contract_path = temp.path().join("provider.json");
     let mut contract = base_contract("echo");
-    contract.predicates[0].allowed_comparators = Vec::new();
+    contract.checks[0].allowed_comparators = Vec::new();
     write_contract(&contract_path, &contract).unwrap();
 
     let mut config = base_config();
@@ -214,7 +214,7 @@ fn registry_rejects_non_canonical_comparator_order() {
     let temp = TempDir::new().unwrap();
     let contract_path = temp.path().join("provider.json");
     let mut contract = base_contract("echo");
-    contract.predicates[0].allowed_comparators = vec![Comparator::NotEquals, Comparator::Equals];
+    contract.checks[0].allowed_comparators = vec![Comparator::NotEquals, Comparator::Equals];
     write_contract(&contract_path, &contract).unwrap();
 
     let mut config = base_config();
@@ -229,7 +229,7 @@ fn registry_rejects_invalid_schema() {
     let temp = TempDir::new().unwrap();
     let contract_path = temp.path().join("provider.json");
     let mut contract = base_contract("echo");
-    contract.predicates[0].params_schema = json!({ "type": 5 });
+    contract.checks[0].params_schema = json!({ "type": 5 });
     write_contract(&contract_path, &contract).unwrap();
 
     let mut config = base_config();
@@ -289,7 +289,7 @@ fn validate_query_rejects_optional_params_when_invalid() {
     let registry = CapabilityRegistry::from_config(&config).unwrap();
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "now".to_string(),
+        check_id: "now".to_string(),
         params: Some(json!({ "unexpected": true })),
     };
     let result = registry.validate_query(&query);
@@ -302,10 +302,10 @@ fn validate_spec_rejects_expected_schema_mismatch_non_boolean() {
     let config = common::sample_config();
     let registry = CapabilityRegistry::from_config(&config).unwrap();
     let mut spec = common::sample_spec();
-    spec.predicates[0].query.provider_id = ProviderId::new("env");
-    spec.predicates[0].query.predicate = "get".to_string();
-    spec.predicates[0].query.params = Some(json!({ "key": "PATH" }));
-    spec.predicates[0].expected = Some(json!(123));
+    spec.conditions[0].query.provider_id = ProviderId::new("env");
+    spec.conditions[0].query.check_id = "get".to_string();
+    spec.conditions[0].query.params = Some(json!({ "key": "PATH" }));
+    spec.conditions[0].expected = Some(json!(123));
 
     let result = registry.validate_spec(&spec);
     let err = result.err().expect("expected value schema mismatch");

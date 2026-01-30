@@ -8,7 +8,7 @@
 
 //! ## Overview
 //! Tests the HTTP provider for:
-//! - Happy path: Status and `body_hash` predicates
+//! - Happy path: Status and `body_hash` checks
 //! - Boundary enforcement: HTTPS-only, host allowlist, response size limits
 //! - Error handling: Invalid URLs, connection failures, unsupported schemes
 //! - Adversarial: SSRF prevention (internal IP blocking)
@@ -85,7 +85,7 @@ fn spawn_server<S: Into<String>>(body: S, status: u16) -> (String, thread::JoinH
 }
 
 // ============================================================================
-// SECTION: Happy Path Tests - Status Predicate
+// SECTION: Happy Path Tests - Status Check
 // ============================================================================
 
 /// Tests that HTTP provider returns status code for successful request.
@@ -96,7 +96,7 @@ fn http_provider_returns_status() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: Some(json!({"url": url})),
     };
     let result = provider.query(&query, &sample_context()).unwrap();
@@ -116,7 +116,7 @@ fn http_provider_returns_404_status() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: Some(json!({"url": url})),
     };
     let result = provider.query(&query, &sample_context()).unwrap();
@@ -136,7 +136,7 @@ fn http_provider_returns_500_status() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: Some(json!({"url": url})),
     };
     let result = provider.query(&query, &sample_context()).unwrap();
@@ -156,7 +156,7 @@ fn http_provider_sets_evidence_metadata() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: Some(json!({"url": &url})),
     };
     let result = provider.query(&query, &sample_context()).unwrap();
@@ -189,7 +189,7 @@ fn http_provider_does_not_follow_redirects() {
     let provider = local_provider();
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: Some(json!({"url": url})),
     };
     let result = provider.query(&query, &sample_context()).unwrap();
@@ -202,7 +202,7 @@ fn http_provider_does_not_follow_redirects() {
 }
 
 // ============================================================================
-// SECTION: Happy Path Tests - Body Hash Predicate
+// SECTION: Happy Path Tests - Body Hash Check
 // ============================================================================
 
 /// Tests that `body_hash` returns a hash of the response body.
@@ -213,7 +213,7 @@ fn http_provider_body_hash_returns_hash() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "body_hash".to_string(),
+        check_id: "body_hash".to_string(),
         params: Some(json!({"url": url})),
     };
     let result = provider.query(&query, &sample_context()).unwrap();
@@ -239,12 +239,12 @@ fn http_provider_body_hash_deterministic() {
 
     let query1 = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "body_hash".to_string(),
+        check_id: "body_hash".to_string(),
         params: Some(json!({"url": url1})),
     };
     let query2 = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "body_hash".to_string(),
+        check_id: "body_hash".to_string(),
         params: Some(json!({"url": url2})),
     };
 
@@ -267,12 +267,12 @@ fn http_provider_body_hash_differs_for_different_content() {
 
     let query1 = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "body_hash".to_string(),
+        check_id: "body_hash".to_string(),
         params: Some(json!({"url": url1})),
     };
     let query2 = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "body_hash".to_string(),
+        check_id: "body_hash".to_string(),
         params: Some(json!({"url": url2})),
     };
 
@@ -300,7 +300,7 @@ fn http_scheme_rejected_by_default() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: Some(json!({"url": "http://example.com/"})),
     };
     let result = provider.query(&query, &sample_context());
@@ -317,7 +317,7 @@ fn http_scheme_allowed_when_enabled() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: Some(json!({"url": url})),
     };
     let result = provider.query(&query, &sample_context());
@@ -333,7 +333,7 @@ fn http_ftp_scheme_rejected() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: Some(json!({"url": "ftp://example.com/file"})),
     };
     let result = provider.query(&query, &sample_context());
@@ -349,7 +349,7 @@ fn http_file_scheme_rejected() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: Some(json!({"url": "file:///etc/passwd"})),
     };
     let result = provider.query(&query, &sample_context());
@@ -378,7 +378,7 @@ fn http_host_not_in_allowlist_rejected() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: Some(json!({"url": "http://forbidden.example.com/"})),
     };
     let result = provider.query(&query, &sample_context());
@@ -395,7 +395,7 @@ fn http_host_in_allowlist_permitted() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: Some(json!({"url": url})),
     };
     let result = provider.query(&query, &sample_context());
@@ -416,7 +416,7 @@ fn http_empty_allowlist_rejects_all() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: Some(json!({"url": "http://any.example.com/"})),
     };
     let result = provider.query(&query, &sample_context());
@@ -436,7 +436,7 @@ fn http_no_allowlist_allows_all() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: Some(json!({"url": url})),
     };
     let result = provider.query(&query, &sample_context());
@@ -469,7 +469,7 @@ fn http_response_exceeds_size_limit_rejected() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "body_hash".to_string(),
+        check_id: "body_hash".to_string(),
         params: Some(json!({"url": url})),
     };
     let result = provider.query(&query, &sample_context());
@@ -484,21 +484,21 @@ fn http_response_exceeds_size_limit_rejected() {
 // SECTION: Error Path Tests - Invalid Parameters
 // ============================================================================
 
-/// Tests that unsupported predicates are rejected.
+/// Tests that unsupported checks are rejected.
 #[test]
-fn http_unsupported_predicate_rejected() {
+fn http_unsupported_check_rejected() {
     let provider = local_provider();
 
-    // Use localhost URL to pass host allowlist check and reach predicate validation
+    // Use localhost URL to pass host allowlist check and reach check validation
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"url": "http://127.0.0.1:9999/"})),
     };
     let result = provider.query(&query, &sample_context());
     assert!(result.is_err());
     let err = result.unwrap_err();
-    assert!(format!("{err:?}").contains("unsupported http predicate"));
+    assert!(format!("{err:?}").contains("unsupported http check"));
 }
 
 /// Tests that missing params are rejected.
@@ -508,7 +508,7 @@ fn http_missing_params_rejected() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: None,
     };
     let result = provider.query(&query, &sample_context());
@@ -524,7 +524,7 @@ fn http_params_not_object_rejected() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: Some(json!("not_an_object")),
     };
     let result = provider.query(&query, &sample_context());
@@ -540,7 +540,7 @@ fn http_missing_url_param_rejected() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: Some(json!({"other": "value"})),
     };
     let result = provider.query(&query, &sample_context());
@@ -556,7 +556,7 @@ fn http_url_param_not_string_rejected() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: Some(json!({"url": 12345})),
     };
     let result = provider.query(&query, &sample_context());
@@ -572,7 +572,7 @@ fn http_invalid_url_rejected() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: Some(json!({"url": "not-a-valid-url"})),
     };
     let result = provider.query(&query, &sample_context());
@@ -593,7 +593,7 @@ fn http_content_type_set() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: Some(json!({"url": url})),
     };
     let result = provider.query(&query, &sample_context()).unwrap();
@@ -610,7 +610,7 @@ fn http_empty_body_hash() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "body_hash".to_string(),
+        check_id: "body_hash".to_string(),
         params: Some(json!({"url": url})),
     };
     let result = provider.query(&query, &sample_context()).unwrap();
@@ -635,7 +635,7 @@ fn http_url_with_port() {
     // The URL from spawn_server already includes a port
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: Some(json!({"url": url})),
     };
     let result = provider.query(&query, &sample_context());
@@ -653,7 +653,7 @@ fn http_url_with_path() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: Some(json!({"url": url})),
     };
     let result = provider.query(&query, &sample_context());
@@ -671,7 +671,7 @@ fn http_url_with_query_string() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("http"),
-        predicate: "status".to_string(),
+        check_id: "status".to_string(),
         params: Some(json!({"url": url})),
     };
     let result = provider.query(&query, &sample_context());

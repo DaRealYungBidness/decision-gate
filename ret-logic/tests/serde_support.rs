@@ -35,21 +35,21 @@ use support::TestResult;
 use support::ensure;
 
 // ========================================================================
-// Mock Predicate Type
+// Mock Condition Type
 // ========================================================================
 
-/// Lightweight predicate type for serialization tests.
+/// Lightweight condition type for serialization tests.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-enum MockPredicate {
+enum MockCondition {
     /// Always returns true.
     AlwaysTrue,
     /// Always returns false.
     AlwaysFalse,
-    /// Value greater-than-or-equal predicate.
+    /// Value greater-than-or-equal condition.
     ValueGte(i32),
-    /// Value less-than-or-equal predicate.
+    /// Value less-than-or-equal condition.
     ValueLte(i32),
-    /// Value equality predicate.
+    /// Value equality condition.
     ValueEq(i32),
     /// Flags must include all bits.
     HasAllFlags(u64),
@@ -63,12 +63,12 @@ enum MockPredicate {
     RowIndexLt(usize),
 }
 
-fn ron_roundtrip(req: &Requirement<MockPredicate>) -> TestResult<Requirement<MockPredicate>> {
+fn ron_roundtrip(req: &Requirement<MockCondition>) -> TestResult<Requirement<MockCondition>> {
     let ron = convenience::to_ron(req)?;
     Ok(convenience::from_ron(&ron)?)
 }
 
-fn json_roundtrip(req: &Requirement<MockPredicate>) -> TestResult<Requirement<MockPredicate>> {
+fn json_roundtrip(req: &Requirement<MockCondition>) -> TestResult<Requirement<MockCondition>> {
     let json = convenience::to_json(req)?;
     Ok(convenience::from_json(&json)?)
 }
@@ -191,17 +191,17 @@ fn test_serde_config_custom() -> TestResult {
 #[test]
 fn test_validator_with_defaults() -> TestResult {
     let validator = RequirementValidator::with_defaults();
-    let req = Requirement::predicate(MockPredicate::AlwaysTrue);
-    ensure(validator.validate(&req).is_ok(), "Expected default validator to accept predicate")?;
+    let req = Requirement::condition(MockCondition::AlwaysTrue);
+    ensure(validator.validate(&req).is_ok(), "Expected default validator to accept condition")?;
     Ok(())
 }
 
-/// Tests validator validates predicate.
+/// Tests validator validates condition.
 #[test]
-fn test_validator_validates_predicate() -> TestResult {
+fn test_validator_validates_condition() -> TestResult {
     let validator = RequirementValidator::with_defaults();
-    let req = Requirement::predicate(MockPredicate::ValueGte(50));
-    ensure(validator.validate(&req).is_ok(), "Expected validator to accept ValueGte predicate")?;
+    let req = Requirement::condition(MockCondition::ValueGte(50));
+    ensure(validator.validate(&req).is_ok(), "Expected validator to accept ValueGte condition")?;
     Ok(())
 }
 
@@ -210,8 +210,8 @@ fn test_validator_validates_predicate() -> TestResult {
 fn test_validator_validates_and() -> TestResult {
     let validator = RequirementValidator::with_defaults();
     let req = Requirement::and(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysFalse),
     ]);
     ensure(validator.validate(&req).is_ok(), "Expected validator to accept AND")?;
     Ok(())
@@ -221,7 +221,7 @@ fn test_validator_validates_and() -> TestResult {
 #[test]
 fn test_validator_validates_empty_and() -> TestResult {
     let validator = RequirementValidator::with_defaults();
-    let req: Requirement<MockPredicate> = Requirement::and(vec![]);
+    let req: Requirement<MockCondition> = Requirement::and(vec![]);
     ensure(validator.validate(&req).is_ok(), "Expected validator to accept empty AND")?;
     Ok(())
 }
@@ -234,7 +234,7 @@ fn test_validator_rejects_empty_and_when_configured() -> TestResult {
         ..Default::default()
     };
     let validator = RequirementValidator::new(config);
-    let req: Requirement<MockPredicate> = Requirement::and(vec![]);
+    let req: Requirement<MockCondition> = Requirement::and(vec![]);
     ensure(
         matches!(validator.validate(&req), Err(SerdeError::InvalidStructure(_))),
         "Expected validator to reject empty AND when configured",
@@ -246,7 +246,7 @@ fn test_validator_rejects_empty_and_when_configured() -> TestResult {
 #[test]
 fn test_validator_validates_or() -> TestResult {
     let validator = RequirementValidator::with_defaults();
-    let req = Requirement::or(vec![Requirement::predicate(MockPredicate::AlwaysTrue)]);
+    let req = Requirement::or(vec![Requirement::condition(MockCondition::AlwaysTrue)]);
     ensure(validator.validate(&req).is_ok(), "Expected validator to accept OR")?;
     Ok(())
 }
@@ -255,7 +255,7 @@ fn test_validator_validates_or() -> TestResult {
 #[test]
 fn test_validator_validates_empty_or() -> TestResult {
     let validator = RequirementValidator::with_defaults();
-    let req: Requirement<MockPredicate> = Requirement::or(vec![]);
+    let req: Requirement<MockCondition> = Requirement::or(vec![]);
     ensure(validator.validate(&req).is_ok(), "Expected validator to accept empty OR")?;
     Ok(())
 }
@@ -268,7 +268,7 @@ fn test_validator_rejects_empty_or_when_configured() -> TestResult {
         ..Default::default()
     };
     let validator = RequirementValidator::new(config);
-    let req: Requirement<MockPredicate> = Requirement::or(vec![]);
+    let req: Requirement<MockCondition> = Requirement::or(vec![]);
     ensure(
         matches!(validator.validate(&req), Err(SerdeError::InvalidStructure(_))),
         "Expected validator to reject empty OR when configured",
@@ -280,7 +280,7 @@ fn test_validator_rejects_empty_or_when_configured() -> TestResult {
 #[test]
 fn test_validator_validates_not() -> TestResult {
     let validator = RequirementValidator::with_defaults();
-    let req = Requirement::negate(Requirement::predicate(MockPredicate::AlwaysTrue));
+    let req = Requirement::negate(Requirement::condition(MockCondition::AlwaysTrue));
     ensure(validator.validate(&req).is_ok(), "Expected validator to accept NOT")?;
     Ok(())
 }
@@ -292,9 +292,9 @@ fn test_validator_validates_require_group() -> TestResult {
     let req = Requirement::require_group(
         2,
         vec![
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysFalse),
-            Requirement::predicate(MockPredicate::ValueGte(10)),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysFalse),
+            Requirement::condition(MockCondition::ValueGte(10)),
         ],
     );
     ensure(validator.validate(&req).is_ok(), "Expected validator to accept RequireGroup")?;
@@ -308,8 +308,8 @@ fn test_validator_rejects_invalid_group() -> TestResult {
     let req = Requirement::require_group(
         5, // min > total
         vec![
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysFalse),
         ],
     );
     ensure(
@@ -330,7 +330,7 @@ fn test_validator_rejects_invalid_group() -> TestResult {
 fn test_validator_rejects_group_min_zero_with_elements() -> TestResult {
     let validator = RequirementValidator::with_defaults();
     let req =
-        Requirement::require_group(0, vec![Requirement::predicate(MockPredicate::AlwaysTrue)]);
+        Requirement::require_group(0, vec![Requirement::condition(MockCondition::AlwaysTrue)]);
     ensure(
         matches!(validator.validate(&req), Err(SerdeError::InvalidStructure(_))),
         "Expected validator to reject min=0 with elements",
@@ -344,14 +344,14 @@ fn test_validator_validates_nested() -> TestResult {
     let validator = RequirementValidator::with_defaults();
     let req = Requirement::and(vec![
         Requirement::or(vec![
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::negate(Requirement::predicate(MockPredicate::AlwaysFalse)),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::negate(Requirement::condition(MockCondition::AlwaysFalse)),
         ]),
         Requirement::require_group(
             1,
             vec![
-                Requirement::predicate(MockPredicate::ValueGte(10)),
-                Requirement::predicate(MockPredicate::ValueLte(100)),
+                Requirement::condition(MockCondition::ValueGte(10)),
+                Requirement::condition(MockCondition::ValueLte(100)),
             ],
         ),
     ]);
@@ -371,7 +371,7 @@ fn test_validator_rejects_too_deep() -> TestResult {
     // Build a 5-level deep tree
     let req =
         Requirement::and(vec![Requirement::and(vec![Requirement::and(vec![Requirement::and(
-            vec![Requirement::predicate(MockPredicate::AlwaysTrue)],
+            vec![Requirement::condition(MockCondition::AlwaysTrue)],
         )])])]);
 
     ensure(
@@ -391,8 +391,8 @@ fn test_validator_accepts_at_max_depth() -> TestResult {
     let validator = RequirementValidator::new(config);
 
     // Build a 3-level deep tree
-    let req = Requirement::and(vec![Requirement::and(vec![Requirement::predicate(
-        MockPredicate::AlwaysTrue,
+    let req = Requirement::and(vec![Requirement::and(vec![Requirement::condition(
+        MockCondition::AlwaysTrue,
     )])]);
 
     ensure(validator.validate(&req).is_ok(), "Expected validator to accept max-depth tree")?;
@@ -403,12 +403,12 @@ fn test_validator_accepts_at_max_depth() -> TestResult {
 // SECTION: RON Serialization Tests
 // ============================================================================
 
-/// Tests ron roundtrip predicate.
+/// Tests ron roundtrip condition.
 #[test]
-fn test_ron_roundtrip_predicate() -> TestResult {
-    let req = Requirement::predicate(MockPredicate::ValueGte(42));
+fn test_ron_roundtrip_condition() -> TestResult {
+    let req = Requirement::condition(MockCondition::ValueGte(42));
     let parsed = ron_roundtrip(&req)?;
-    ensure(req == parsed, "Expected RON roundtrip to preserve predicate")?;
+    ensure(req == parsed, "Expected RON roundtrip to preserve condition")?;
     Ok(())
 }
 
@@ -416,8 +416,8 @@ fn test_ron_roundtrip_predicate() -> TestResult {
 #[test]
 fn test_ron_roundtrip_and() -> TestResult {
     let req = Requirement::and(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysFalse),
     ]);
     let parsed = ron_roundtrip(&req)?;
     ensure(req == parsed, "Expected RON roundtrip to preserve AND")?;
@@ -428,8 +428,8 @@ fn test_ron_roundtrip_and() -> TestResult {
 #[test]
 fn test_ron_roundtrip_or() -> TestResult {
     let req = Requirement::or(vec![
-        Requirement::predicate(MockPredicate::ValueEq(10)),
-        Requirement::predicate(MockPredicate::ValueEq(20)),
+        Requirement::condition(MockCondition::ValueEq(10)),
+        Requirement::condition(MockCondition::ValueEq(20)),
     ]);
     let parsed = ron_roundtrip(&req)?;
     ensure(req == parsed, "Expected RON roundtrip to preserve OR")?;
@@ -439,7 +439,7 @@ fn test_ron_roundtrip_or() -> TestResult {
 /// Tests ron roundtrip not.
 #[test]
 fn test_ron_roundtrip_not() -> TestResult {
-    let req = Requirement::negate(Requirement::predicate(MockPredicate::HasAllFlags(0xFF)));
+    let req = Requirement::negate(Requirement::condition(MockCondition::HasAllFlags(0xFF)));
     let parsed = ron_roundtrip(&req)?;
     ensure(req == parsed, "Expected RON roundtrip to preserve NOT")?;
     Ok(())
@@ -451,9 +451,9 @@ fn test_ron_roundtrip_require_group() -> TestResult {
     let req = Requirement::require_group(
         2,
         vec![
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysFalse),
-            Requirement::predicate(MockPredicate::ValueGte(50)),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysFalse),
+            Requirement::condition(MockCondition::ValueGte(50)),
         ],
     );
     let parsed = ron_roundtrip(&req)?;
@@ -466,15 +466,15 @@ fn test_ron_roundtrip_require_group() -> TestResult {
 fn test_ron_roundtrip_complex_nested() -> TestResult {
     let req = Requirement::and(vec![
         Requirement::or(vec![
-            Requirement::predicate(MockPredicate::ValueGte(10)),
-            Requirement::predicate(MockPredicate::ValueLte(0)),
+            Requirement::condition(MockCondition::ValueGte(10)),
+            Requirement::condition(MockCondition::ValueLte(0)),
         ]),
-        Requirement::negate(Requirement::predicate(MockPredicate::HasNoneFlags(0b11))),
+        Requirement::negate(Requirement::condition(MockCondition::HasNoneFlags(0b11))),
         Requirement::require_group(
             1,
             vec![
-                Requirement::predicate(MockPredicate::RowIndexEven),
-                Requirement::predicate(MockPredicate::RowIndexLt(100)),
+                Requirement::condition(MockCondition::RowIndexEven),
+                Requirement::condition(MockCondition::RowIndexLt(100)),
             ],
         ),
     ]);
@@ -486,7 +486,7 @@ fn test_ron_roundtrip_complex_nested() -> TestResult {
 /// Tests ron from invalid string.
 #[test]
 fn test_ron_from_invalid_string() -> TestResult {
-    let result: Result<Requirement<MockPredicate>, _> = convenience::from_ron("not valid ron {{{");
+    let result: Result<Requirement<MockCondition>, _> = convenience::from_ron("not valid ron {{{");
     ensure(result.is_err(), "Expected invalid RON to return an error")?;
     Ok(())
 }
@@ -495,12 +495,12 @@ fn test_ron_from_invalid_string() -> TestResult {
 // SECTION: JSON Serialization Tests
 // ============================================================================
 
-/// Tests json roundtrip predicate.
+/// Tests json roundtrip condition.
 #[test]
-fn test_json_roundtrip_predicate() -> TestResult {
-    let req = Requirement::predicate(MockPredicate::ValueGte(42));
+fn test_json_roundtrip_condition() -> TestResult {
+    let req = Requirement::condition(MockCondition::ValueGte(42));
     let parsed = json_roundtrip(&req)?;
-    ensure(req == parsed, "Expected JSON roundtrip to preserve predicate")?;
+    ensure(req == parsed, "Expected JSON roundtrip to preserve condition")?;
     Ok(())
 }
 
@@ -508,8 +508,8 @@ fn test_json_roundtrip_predicate() -> TestResult {
 #[test]
 fn test_json_roundtrip_and() -> TestResult {
     let req = Requirement::and(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysFalse),
     ]);
     let parsed = json_roundtrip(&req)?;
     ensure(req == parsed, "Expected JSON roundtrip to preserve AND")?;
@@ -520,8 +520,8 @@ fn test_json_roundtrip_and() -> TestResult {
 #[test]
 fn test_json_roundtrip_nested() -> TestResult {
     let req = Requirement::and(vec![Requirement::or(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::negate(Requirement::predicate(MockPredicate::AlwaysFalse)),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::negate(Requirement::condition(MockCondition::AlwaysFalse)),
     ])]);
     let parsed = json_roundtrip(&req)?;
     ensure(req == parsed, "Expected JSON roundtrip to preserve nested requirement")?;
@@ -531,7 +531,7 @@ fn test_json_roundtrip_nested() -> TestResult {
 /// Tests json from invalid string.
 #[test]
 fn test_json_from_invalid_string() -> TestResult {
-    let result: Result<Requirement<MockPredicate>, _> = convenience::from_json("{not: valid}");
+    let result: Result<Requirement<MockCondition>, _> = convenience::from_json("{not: valid}");
     ensure(result.is_err(), "Expected invalid JSON to return an error")?;
     Ok(())
 }
@@ -543,7 +543,7 @@ fn test_json_from_invalid_string() -> TestResult {
 /// Tests convenience validate.
 #[test]
 fn test_convenience_validate() -> TestResult {
-    let req = Requirement::and(vec![Requirement::predicate(MockPredicate::AlwaysTrue)]);
+    let req = Requirement::and(vec![Requirement::condition(MockCondition::AlwaysTrue)]);
     ensure(convenience::validate(&req).is_ok(), "Expected convenience validate to succeed")?;
     Ok(())
 }
@@ -552,7 +552,7 @@ fn test_convenience_validate() -> TestResult {
 #[test]
 fn test_convenience_validate_invalid() -> TestResult {
     let req =
-        Requirement::require_group(10, vec![Requirement::predicate(MockPredicate::AlwaysTrue)]);
+        Requirement::require_group(10, vec![Requirement::condition(MockCondition::AlwaysTrue)]);
     ensure(convenience::validate(&req).is_err(), "Expected convenience validate to fail")?;
     Ok(())
 }
@@ -560,9 +560,9 @@ fn test_convenience_validate_invalid() -> TestResult {
 /// Tests convenience is valid.
 #[test]
 fn test_convenience_is_valid() -> TestResult {
-    let valid = Requirement::and(vec![Requirement::predicate(MockPredicate::AlwaysTrue)]);
+    let valid = Requirement::and(vec![Requirement::condition(MockCondition::AlwaysTrue)]);
     let invalid =
-        Requirement::require_group(10, vec![Requirement::predicate(MockPredicate::AlwaysTrue)]);
+        Requirement::require_group(10, vec![Requirement::condition(MockCondition::AlwaysTrue)]);
 
     ensure(convenience::is_valid(&valid), "Expected valid requirement to pass is_valid")?;
     ensure(!convenience::is_valid(&invalid), "Expected invalid requirement to fail is_valid")?;
@@ -577,10 +577,10 @@ fn test_convenience_is_valid() -> TestResult {
 #[test]
 fn test_serializer_with_defaults() -> TestResult {
     let serializer = RequirementSerializer::with_defaults();
-    let req = Requirement::predicate(MockPredicate::AlwaysTrue);
+    let req = Requirement::condition(MockCondition::AlwaysTrue);
 
     let ron = serializer.to_ron(&req)?;
-    let parsed: Requirement<MockPredicate> = serializer.from_ron(&ron)?;
+    let parsed: Requirement<MockCondition> = serializer.from_ron(&ron)?;
     ensure(req == parsed, "Expected serializer RON roundtrip to match")?;
     Ok(())
 }
@@ -589,7 +589,7 @@ fn test_serializer_with_defaults() -> TestResult {
 #[test]
 fn test_serializer_default_impl() -> TestResult {
     let serializer = RequirementSerializer::default();
-    let req = Requirement::predicate(MockPredicate::AlwaysTrue);
+    let req = Requirement::condition(MockCondition::AlwaysTrue);
 
     ensure(serializer.validate(&req).is_ok(), "Expected default serializer to validate")?;
     Ok(())
@@ -606,12 +606,12 @@ fn test_serializer_custom_config() -> TestResult {
     let serializer = RequirementSerializer::new(config);
 
     // Valid requirement
-    let valid_req = Requirement::predicate(MockPredicate::AlwaysTrue);
+    let valid_req = Requirement::condition(MockCondition::AlwaysTrue);
     ensure(serializer.to_ron(&valid_req).is_ok(), "Expected valid requirement to serialize")?;
 
     // Too deep
     let deep_req = Requirement::and(vec![Requirement::and(vec![Requirement::and(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysTrue),
     ])])]);
     ensure(serializer.to_ron(&deep_req).is_err(), "Expected deep requirement to fail")?;
     Ok(())
@@ -622,12 +622,12 @@ fn test_serializer_custom_config() -> TestResult {
 fn test_serializer_to_json() -> TestResult {
     let serializer = RequirementSerializer::with_defaults();
     let req = Requirement::or(vec![
-        Requirement::predicate(MockPredicate::ValueGte(10)),
-        Requirement::predicate(MockPredicate::ValueLte(0)),
+        Requirement::condition(MockCondition::ValueGte(10)),
+        Requirement::condition(MockCondition::ValueLte(0)),
     ]);
 
     let json = serializer.to_json(&req)?;
-    let parsed: Requirement<MockPredicate> = serializer.from_json(&json)?;
+    let parsed: Requirement<MockCondition> = serializer.from_json(&json)?;
     ensure(req == parsed, "Expected serializer JSON roundtrip to match")?;
     Ok(())
 }
@@ -637,7 +637,7 @@ fn test_serializer_to_json() -> TestResult {
 fn test_serializer_validates_on_serialize() -> TestResult {
     let serializer = RequirementSerializer::with_defaults();
     let invalid_req =
-        Requirement::require_group(10, vec![Requirement::predicate(MockPredicate::AlwaysTrue)]);
+        Requirement::require_group(10, vec![Requirement::condition(MockCondition::AlwaysTrue)]);
 
     ensure(
         serializer.to_ron(&invalid_req).is_err(),
@@ -653,7 +653,7 @@ fn test_serializer_validates_on_serialize() -> TestResult {
 /// Tests ron empty and.
 #[test]
 fn test_ron_empty_and() -> TestResult {
-    let req: Requirement<MockPredicate> = Requirement::and(vec![]);
+    let req: Requirement<MockCondition> = Requirement::and(vec![]);
     let parsed = ron_roundtrip(&req)?;
     ensure(req == parsed, "Expected empty AND to roundtrip")?;
     Ok(())
@@ -662,33 +662,33 @@ fn test_ron_empty_and() -> TestResult {
 /// Tests ron empty or.
 #[test]
 fn test_ron_empty_or() -> TestResult {
-    let req: Requirement<MockPredicate> = Requirement::or(vec![]);
+    let req: Requirement<MockCondition> = Requirement::or(vec![]);
     let parsed = ron_roundtrip(&req)?;
     ensure(req == parsed, "Expected empty OR to roundtrip")?;
     Ok(())
 }
 
-/// Tests ron all predicate variants.
+/// Tests ron all condition variants.
 #[test]
-fn test_ron_all_predicate_variants() -> TestResult {
-    let predicates = vec![
-        MockPredicate::AlwaysTrue,
-        MockPredicate::AlwaysFalse,
-        MockPredicate::ValueGte(100),
-        MockPredicate::ValueLte(-50),
-        MockPredicate::ValueEq(0),
-        MockPredicate::HasAllFlags(0xDEAD_BEEF),
-        MockPredicate::HasAnyFlags(0b10101),
-        MockPredicate::HasNoneFlags(0xFF00),
-        MockPredicate::RowIndexEven,
-        MockPredicate::RowIndexLt(1000),
+fn test_ron_all_condition_variants() -> TestResult {
+    let conditions = vec![
+        MockCondition::AlwaysTrue,
+        MockCondition::AlwaysFalse,
+        MockCondition::ValueGte(100),
+        MockCondition::ValueLte(-50),
+        MockCondition::ValueEq(0),
+        MockCondition::HasAllFlags(0xDEAD_BEEF),
+        MockCondition::HasAnyFlags(0b10101),
+        MockCondition::HasNoneFlags(0xFF00),
+        MockCondition::RowIndexEven,
+        MockCondition::RowIndexLt(1000),
     ];
 
-    for pred in predicates {
+    for pred in conditions {
         let label = format!("{pred:?}");
-        let req = Requirement::predicate(pred);
+        let req = Requirement::condition(pred);
         let parsed = ron_roundtrip(&req)?;
-        ensure(req == parsed, format!("Failed for predicate: {label}"))?;
+        ensure(req == parsed, format!("Failed for condition: {label}"))?;
     }
     Ok(())
 }
@@ -697,7 +697,7 @@ fn test_ron_all_predicate_variants() -> TestResult {
 #[test]
 fn test_ron_large_group() -> TestResult {
     let reqs: Vec<_> =
-        (0 .. 50).map(|i| Requirement::predicate(MockPredicate::ValueGte(i))).collect();
+        (0 .. 50).map(|i| Requirement::condition(MockCondition::ValueGte(i))).collect();
     let req = Requirement::require_group(25, reqs);
 
     let parsed = ron_roundtrip(&req)?;
@@ -710,8 +710,8 @@ fn test_ron_large_group() -> TestResult {
 fn test_json_pretty_format() -> TestResult {
     let serializer = RequirementSerializer::with_defaults();
     let req = Requirement::and(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysFalse),
     ]);
 
     let json = serializer.to_json(&req)?;

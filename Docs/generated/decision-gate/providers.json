@@ -1,23 +1,6 @@
 [
   {
-    "config_schema": {
-      "additionalProperties": false,
-      "properties": {
-        "allow_logical": {
-          "default": true,
-          "description": "Allow logical trigger timestamps in comparisons.",
-          "type": "boolean"
-        }
-      },
-      "type": "object"
-    },
-    "description": "Deterministic predicates derived from the trigger timestamp supplied by the caller.",
-    "name": "Time Provider",
-    "notes": [
-      "Deterministic: no wall-clock reads, only trigger timestamps.",
-      "Supports unix_millis and logical trigger timestamps."
-    ],
-    "predicates": [
+    "checks": [
       {
         "allowed_comparators": [
           "equals",
@@ -34,6 +17,7 @@
           "trigger_time_unix_millis",
           "trigger_time_logical"
         ],
+        "check_id": "now",
         "content_types": [
           "application/json"
         ],
@@ -46,7 +30,6 @@
             "result": 1710000000000
           }
         ],
-        "name": "now",
         "params_required": false,
         "params_schema": {
           "additionalProperties": false,
@@ -70,6 +53,7 @@
           "trigger_time_unix_millis",
           "trigger_time_logical"
         ],
+        "check_id": "after",
         "content_types": [
           "application/json"
         ],
@@ -84,7 +68,6 @@
             "result": true
           }
         ],
-        "name": "after",
         "params_required": true,
         "params_schema": {
           "additionalProperties": false,
@@ -122,6 +105,7 @@
           "trigger_time_unix_millis",
           "trigger_time_logical"
         ],
+        "check_id": "before",
         "content_types": [
           "application/json"
         ],
@@ -136,7 +120,6 @@
             "result": false
           }
         ],
-        "name": "before",
         "params_required": true,
         "params_schema": {
           "additionalProperties": false,
@@ -163,10 +146,81 @@
         }
       }
     ],
+    "config_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "allow_logical": {
+          "default": true,
+          "description": "Allow logical trigger timestamps in comparisons.",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "description": "Deterministic checks derived from the trigger timestamp supplied by the caller.",
+    "name": "Time Provider",
+    "notes": [
+      "Deterministic: no wall-clock reads, only trigger timestamps.",
+      "Supports unix_millis and logical trigger timestamps."
+    ],
     "provider_id": "time",
     "transport": "builtin"
   },
   {
+    "checks": [
+      {
+        "allowed_comparators": [
+          "equals",
+          "not_equals",
+          "contains",
+          "in_set",
+          "exists",
+          "not_exists"
+        ],
+        "anchor_types": [
+          "env"
+        ],
+        "check_id": "get",
+        "content_types": [
+          "text/plain"
+        ],
+        "description": "Fetch an environment variable by key.",
+        "determinism": "external",
+        "examples": [
+          {
+            "description": "Read DEPLOY_ENV.",
+            "params": {
+              "key": "DEPLOY_ENV"
+            },
+            "result": "production"
+          }
+        ],
+        "params_required": true,
+        "params_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "key": {
+              "description": "Environment variable key.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "key"
+          ],
+          "type": "object"
+        },
+        "result_schema": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    ],
     "config_schema": {
       "additionalProperties": false,
       "properties": {
@@ -213,64 +267,85 @@
       "Returns null when a key is missing or blocked by policy.",
       "Size limits apply to both key and value."
     ],
-    "predicates": [
-      {
-        "allowed_comparators": [
-          "equals",
-          "not_equals",
-          "contains",
-          "in_set",
-          "exists",
-          "not_exists"
-        ],
-        "anchor_types": [
-          "env"
-        ],
-        "content_types": [
-          "text/plain"
-        ],
-        "description": "Fetch an environment variable by key.",
-        "determinism": "external",
-        "examples": [
-          {
-            "description": "Read DEPLOY_ENV.",
-            "params": {
-              "key": "DEPLOY_ENV"
-            },
-            "result": "production"
-          }
-        ],
-        "name": "get",
-        "params_required": true,
-        "params_schema": {
-          "additionalProperties": false,
-          "properties": {
-            "key": {
-              "description": "Environment variable key.",
-              "type": "string"
-            }
-          },
-          "required": [
-            "key"
-          ],
-          "type": "object"
-        },
-        "result_schema": {
-          "oneOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      }
-    ],
     "provider_id": "env",
     "transport": "builtin"
   },
   {
+    "checks": [
+      {
+        "allowed_comparators": [
+          "equals",
+          "not_equals",
+          "greater_than",
+          "greater_than_or_equal",
+          "less_than",
+          "less_than_or_equal",
+          "lex_greater_than",
+          "lex_greater_than_or_equal",
+          "lex_less_than",
+          "lex_less_than_or_equal",
+          "contains",
+          "in_set",
+          "deep_equals",
+          "deep_not_equals",
+          "exists",
+          "not_exists"
+        ],
+        "anchor_types": [
+          "file_path"
+        ],
+        "check_id": "path",
+        "content_types": [
+          "application/json",
+          "application/yaml"
+        ],
+        "description": "Select values via JSONPath from a JSON/YAML file.",
+        "determinism": "external",
+        "examples": [
+          {
+            "description": "Read version from config.json.",
+            "params": {
+              "file": "/etc/config.json",
+              "jsonpath": "$.version"
+            },
+            "result": "1.2.3"
+          },
+          {
+            "description": "Return full document when jsonpath is omitted.",
+            "params": {
+              "file": "/etc/config.json"
+            },
+            "result": {
+              "version": "1.2.3"
+            }
+          }
+        ],
+        "params_required": true,
+        "params_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "file": {
+              "description": "Path to a JSON or YAML file.",
+              "type": "string"
+            },
+            "jsonpath": {
+              "description": "Optional JSONPath selector.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "file"
+          ],
+          "type": "object"
+        },
+        "result_schema": {
+          "description": "JSONPath result value (dynamic JSON type).",
+          "x-decision-gate": {
+            "dynamic_type": true
+          }
+        }
+      }
+    ],
     "config_schema": {
       "additionalProperties": false,
       "properties": {
@@ -299,7 +374,11 @@
       "JSONPath is optional; omitted means the full document.",
       "Missing JSONPath yields a null value with error metadata (jsonpath_not_found)."
     ],
-    "predicates": [
+    "provider_id": "json",
+    "transport": "builtin"
+  },
+  {
+    "checks": [
       {
         "allowed_comparators": [
           "equals",
@@ -308,76 +387,108 @@
           "greater_than_or_equal",
           "less_than",
           "less_than_or_equal",
-          "lex_greater_than",
-          "lex_greater_than_or_equal",
-          "lex_less_than",
-          "lex_less_than_or_equal",
-          "contains",
           "in_set",
-          "deep_equals",
-          "deep_not_equals",
           "exists",
           "not_exists"
         ],
         "anchor_types": [
-          "file_path"
+          "url"
         ],
+        "check_id": "status",
         "content_types": [
-          "application/json",
-          "application/yaml"
+          "application/json"
         ],
-        "description": "Select values via JSONPath from a JSON/YAML file.",
+        "description": "Return HTTP status code for a URL.",
         "determinism": "external",
         "examples": [
           {
-            "description": "Read version from config.json.",
+            "description": "Fetch status for a health endpoint.",
             "params": {
-              "file": "/etc/config.json",
-              "jsonpath": "$.version"
+              "url": "https://api.example.com/health"
             },
-            "result": "1.2.3"
-          },
-          {
-            "description": "Return full document when jsonpath is omitted.",
-            "params": {
-              "file": "/etc/config.json"
-            },
-            "result": {
-              "version": "1.2.3"
-            }
+            "result": 200
           }
         ],
-        "name": "path",
         "params_required": true,
         "params_schema": {
           "additionalProperties": false,
           "properties": {
-            "file": {
-              "description": "Path to a JSON or YAML file.",
-              "type": "string"
-            },
-            "jsonpath": {
-              "description": "Optional JSONPath selector.",
+            "url": {
+              "description": "URL to query.",
               "type": "string"
             }
           },
           "required": [
-            "file"
+            "url"
           ],
           "type": "object"
         },
         "result_schema": {
-          "description": "JSONPath result value (dynamic JSON type).",
-          "x-decision-gate": {
-            "dynamic_type": true
+          "type": "integer"
+        }
+      },
+      {
+        "allowed_comparators": [
+          "exists",
+          "not_exists"
+        ],
+        "anchor_types": [
+          "url"
+        ],
+        "check_id": "body_hash",
+        "content_types": [
+          "application/json"
+        ],
+        "description": "Return a hash of the response body.",
+        "determinism": "external",
+        "examples": [
+          {
+            "description": "Hash the body of a health endpoint.",
+            "params": {
+              "url": "https://api.example.com/health"
+            },
+            "result": {
+              "algorithm": "sha256",
+              "value": "7b4d0d3d16c8f85f67ad79b0870a2c9f1e88924c4cbb4ed4bb7f5c6a1d1b7f9a"
+            }
           }
+        ],
+        "params_required": true,
+        "params_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "url": {
+              "description": "URL to query.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "type": "object"
+        },
+        "result_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "algorithm": {
+              "enum": [
+                "sha256"
+              ],
+              "type": "string"
+            },
+            "value": {
+              "description": "Lowercase hex digest.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "algorithm",
+            "value"
+          ],
+          "type": "object"
         }
       }
     ],
-    "provider_id": "json",
-    "transport": "builtin"
-  },
-  {
     "config_schema": {
       "additionalProperties": false,
       "properties": {
@@ -426,117 +537,6 @@
     "notes": [
       "Scheme and host allowlists are enforced by configuration.",
       "Responses are size-limited and hashed deterministically."
-    ],
-    "predicates": [
-      {
-        "allowed_comparators": [
-          "equals",
-          "not_equals",
-          "greater_than",
-          "greater_than_or_equal",
-          "less_than",
-          "less_than_or_equal",
-          "in_set",
-          "exists",
-          "not_exists"
-        ],
-        "anchor_types": [
-          "url"
-        ],
-        "content_types": [
-          "application/json"
-        ],
-        "description": "Return HTTP status code for a URL.",
-        "determinism": "external",
-        "examples": [
-          {
-            "description": "Fetch status for a health endpoint.",
-            "params": {
-              "url": "https://api.example.com/health"
-            },
-            "result": 200
-          }
-        ],
-        "name": "status",
-        "params_required": true,
-        "params_schema": {
-          "additionalProperties": false,
-          "properties": {
-            "url": {
-              "description": "URL to query.",
-              "type": "string"
-            }
-          },
-          "required": [
-            "url"
-          ],
-          "type": "object"
-        },
-        "result_schema": {
-          "type": "integer"
-        }
-      },
-      {
-        "allowed_comparators": [
-          "exists",
-          "not_exists"
-        ],
-        "anchor_types": [
-          "url"
-        ],
-        "content_types": [
-          "application/json"
-        ],
-        "description": "Return a hash of the response body.",
-        "determinism": "external",
-        "examples": [
-          {
-            "description": "Hash the body of a health endpoint.",
-            "params": {
-              "url": "https://api.example.com/health"
-            },
-            "result": {
-              "algorithm": "sha256",
-              "value": "7b4d0d3d16c8f85f67ad79b0870a2c9f1e88924c4cbb4ed4bb7f5c6a1d1b7f9a"
-            }
-          }
-        ],
-        "name": "body_hash",
-        "params_required": true,
-        "params_schema": {
-          "additionalProperties": false,
-          "properties": {
-            "url": {
-              "description": "URL to query.",
-              "type": "string"
-            }
-          },
-          "required": [
-            "url"
-          ],
-          "type": "object"
-        },
-        "result_schema": {
-          "additionalProperties": false,
-          "properties": {
-            "algorithm": {
-              "enum": [
-                "sha256"
-              ],
-              "type": "string"
-            },
-            "value": {
-              "description": "Lowercase hex digest.",
-              "type": "string"
-            }
-          },
-          "required": [
-            "algorithm",
-            "value"
-          ],
-          "type": "object"
-        }
-      }
     ],
     "provider_id": "http",
     "transport": "builtin"

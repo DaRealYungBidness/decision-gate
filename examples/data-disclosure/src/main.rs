@@ -17,6 +17,7 @@ use std::sync::atomic::Ordering;
 
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::DecisionOutcome;
 use decision_gate_core::DispatchReceipt;
 use decision_gate_core::DispatchTarget;
@@ -35,7 +36,6 @@ use decision_gate_core::PacketPayload;
 use decision_gate_core::PacketSpec;
 use decision_gate_core::PolicyDecider;
 use decision_gate_core::PolicyDecision;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::ScenarioId;
@@ -105,8 +105,8 @@ impl EvidenceProvider for DisclosureEvidenceProvider {
         query: &EvidenceQuery,
         _ctx: &EvidenceContext,
     ) -> Result<EvidenceResult, EvidenceError> {
-        if query.predicate.as_str() != "policy_approved" {
-            return Err(EvidenceError::Provider(format!("unknown predicate: {}", query.predicate)));
+        if query.check_id.as_str() != "policy_approved" {
+            return Err(EvidenceError::Provider(format!("unknown check: {}", query.check_id)));
         }
         let approved = self.signals.policy_approved.load(Ordering::Relaxed);
         Ok(EvidenceResult {
@@ -175,7 +175,7 @@ fn build_spec(namespace_id: NamespaceId) -> ScenarioSpec {
                 entry_packets: Vec::new(),
                 gates: vec![GateSpec {
                     gate_id: GateId::new("policy-approved"),
-                    requirement: ret_logic::Requirement::predicate("policy_approved".into()),
+                    requirement: ret_logic::Requirement::condition("policy_approved".into()),
                     trust: None,
                 }],
                 advance_to: AdvanceTo::Fixed {
@@ -206,11 +206,11 @@ fn build_spec(namespace_id: NamespaceId) -> ScenarioSpec {
                 on_timeout: decision_gate_core::TimeoutPolicy::Fail,
             },
         ],
-        predicates: vec![PredicateSpec {
-            predicate: "policy_approved".into(),
+        conditions: vec![ConditionSpec {
+            condition_id: "policy_approved".into(),
             query: EvidenceQuery {
                 provider_id: ProviderId::new("policy"),
-                predicate: "policy_approved".to_string(),
+                check_id: "policy_approved".to_string(),
                 params: Some(json!({})),
             },
             comparator: Comparator::Equals,

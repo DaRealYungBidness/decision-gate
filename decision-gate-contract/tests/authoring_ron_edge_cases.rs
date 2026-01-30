@@ -52,19 +52,19 @@ fn minimal_spec_value() -> Value {
                 "gates": [
                     {
                         "gate_id": "gate-1",
-                        "requirement": { "Predicate": "pred-1" }
+                        "requirement": { "Condition": "cond-1" }
                     }
                 ],
                 "advance_to": { "kind": "terminal" },
                 "on_timeout": "fail"
             }
         ],
-        "predicates": [
+        "conditions": [
             {
-                "predicate": "pred-1",
+                "condition_id": "cond-1",
                 "query": {
                     "provider_id": "time",
-                    "predicate": "after",
+                    "check_id": "after",
                     "params": { "timestamp": 0 }
                 },
                 "comparator": "equals",
@@ -111,7 +111,7 @@ fn ron_empty_stages_rejected() {
 #[test]
 fn ron_invalid_enum_rejected() {
     let mut value = minimal_spec_value();
-    value["predicates"][0]["comparator"] = json!("bogus");
+    value["conditions"][0]["comparator"] = json!("bogus");
     let ron_input = ron_from_value(&value);
     let err = normalize_scenario(&ron_input, AuthoringFormat::Ron).unwrap_err();
     assert!(matches!(err, AuthoringError::Schema { .. }));

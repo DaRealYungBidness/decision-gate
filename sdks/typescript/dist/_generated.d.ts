@@ -2,7 +2,7 @@ export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | {
     [key: string]: JsonValue;
 };
-export declare const TOOL_NAMES: readonly ["scenario_define", "scenario_start", "scenario_status", "scenario_next", "scenario_submit", "scenario_trigger", "evidence_query", "runpack_export", "runpack_verify", "providers_list", "provider_contract_get", "provider_schema_get", "schemas_register", "schemas_list", "schemas_get", "scenarios_list", "precheck"];
+export declare const TOOL_NAMES: readonly ["scenario_define", "scenario_start", "scenario_status", "scenario_next", "scenario_submit", "scenario_trigger", "evidence_query", "runpack_export", "runpack_verify", "providers_list", "provider_contract_get", "provider_check_schema_get", "schemas_register", "schemas_list", "schemas_get", "scenarios_list", "precheck"];
 export declare const TOOL_DESCRIPTIONS: Record<string, string>;
 export declare const TOOL_NOTES: Record<string, string[]>;
 export interface ScenarioDefineRequest {
@@ -481,8 +481,8 @@ export declare const ScenarioStart_OUTPUT_SCHEMA: {
                                 readonly items: {
                                     readonly additionalProperties: false;
                                     readonly properties: {
-                                        readonly predicate: {
-                                            readonly description: "Predicate identifier.";
+                                        readonly condition_id: {
+                                            readonly description: "Condition identifier.";
                                             readonly type: "string";
                                         };
                                         readonly status: {
@@ -491,7 +491,7 @@ export declare const ScenarioStart_OUTPUT_SCHEMA: {
                                             readonly type: "string";
                                         };
                                     };
-                                    readonly required: readonly ["predicate", "status"];
+                                    readonly required: readonly ["condition_id", "status"];
                                     readonly type: "object";
                                 };
                                 readonly type: "array";
@@ -504,8 +504,8 @@ export declare const ScenarioStart_OUTPUT_SCHEMA: {
                         readonly items: {
                             readonly additionalProperties: false;
                             readonly properties: {
-                                readonly predicate: {
-                                    readonly description: "Predicate identifier.";
+                                readonly condition_id: {
+                                    readonly description: "Condition identifier.";
                                     readonly type: "string";
                                 };
                                 readonly result: {
@@ -678,7 +678,7 @@ export declare const ScenarioStart_OUTPUT_SCHEMA: {
                                     readonly type: "string";
                                 };
                             };
-                            readonly required: readonly ["predicate", "status", "result"];
+                            readonly required: readonly ["condition_id", "status", "result"];
                             readonly type: "object";
                         };
                         readonly type: "array";
@@ -3607,20 +3607,20 @@ export declare const EvidenceQuery_INPUT_SCHEMA: {
             readonly additionalProperties: false;
             readonly description: "Evidence query payload.";
             readonly properties: {
+                readonly check_id: {
+                    readonly description: "Provider check identifier.";
+                    readonly type: "string";
+                };
                 readonly params: {
                     readonly description: "Provider-specific parameter payload.";
                     readonly type: readonly ["null", "boolean", "number", "string", "array", "object"];
-                };
-                readonly predicate: {
-                    readonly description: "Provider predicate name.";
-                    readonly type: "string";
                 };
                 readonly provider_id: {
                     readonly description: "Evidence provider identifier.";
                     readonly type: "string";
                 };
             };
-            readonly required: readonly ["provider_id", "predicate"];
+            readonly required: readonly ["provider_id", "check_id"];
             readonly type: "object";
         };
     };
@@ -4220,9 +4220,9 @@ export declare const ProvidersList_OUTPUT_SCHEMA: {
             readonly items: {
                 readonly additionalProperties: false;
                 readonly properties: {
-                    readonly predicates: {
+                    readonly checks: {
                         readonly items: {
-                            readonly description: "Predicate identifier.";
+                            readonly description: "Check identifier.";
                             readonly type: "string";
                         };
                         readonly type: "array";
@@ -4237,7 +4237,7 @@ export declare const ProvidersList_OUTPUT_SCHEMA: {
                         readonly type: "string";
                     };
                 };
-                readonly required: readonly ["provider_id", "transport", "predicates"];
+                readonly required: readonly ["provider_id", "transport", "checks"];
                 readonly type: "object";
             };
             readonly type: "array";
@@ -4279,31 +4279,12 @@ export declare const ProviderContractGet_OUTPUT_SCHEMA: {
         readonly contract: {
             readonly additionalProperties: false;
             readonly properties: {
-                readonly config_schema: {
-                    readonly description: "Provider configuration schema.";
-                    readonly type: readonly ["null", "boolean", "number", "string", "array", "object"];
-                };
-                readonly description: {
-                    readonly description: "Provider description.";
-                    readonly type: "string";
-                };
-                readonly name: {
-                    readonly description: "Provider display name.";
-                    readonly type: "string";
-                };
-                readonly notes: {
-                    readonly description: "Provider notes and guidance.";
-                    readonly items: {
-                        readonly type: "string";
-                    };
-                    readonly type: "array";
-                };
-                readonly predicates: {
+                readonly checks: {
                     readonly items: {
                         readonly additionalProperties: false;
                         readonly properties: {
                             readonly allowed_comparators: {
-                                readonly description: "Comparator allow-list for this predicate.";
+                                readonly description: "Comparator allow-list for this check.";
                                 readonly items: {
                                     readonly description: "Comparator applied to evidence values.";
                                     readonly enum: readonly ["equals", "not_equals", "greater_than", "greater_than_or_equal", "less_than", "less_than_or_equal", "lex_greater_than", "lex_greater_than_or_equal", "lex_less_than", "lex_less_than_or_equal", "contains", "in_set", "deep_equals", "deep_not_equals", "exists", "not_exists"];
@@ -4312,25 +4293,29 @@ export declare const ProviderContractGet_OUTPUT_SCHEMA: {
                                 readonly type: "array";
                             };
                             readonly anchor_types: {
-                                readonly description: "Anchor types emitted by this predicate.";
+                                readonly description: "Anchor types emitted by this check.";
                                 readonly items: {
                                     readonly type: "string";
                                 };
                                 readonly type: "array";
                             };
+                            readonly check_id: {
+                                readonly description: "Check identifier.";
+                                readonly type: "string";
+                            };
                             readonly content_types: {
-                                readonly description: "Content types for predicate output.";
+                                readonly description: "Content types for check output.";
                                 readonly items: {
                                     readonly type: "string";
                                 };
                                 readonly type: "array";
                             };
                             readonly description: {
-                                readonly description: "Predicate description.";
+                                readonly description: "Check description.";
                                 readonly type: "string";
                             };
                             readonly determinism: {
-                                readonly description: "Determinism classification for provider predicates.";
+                                readonly description: "Determinism classification for provider checks.";
                                 readonly enum: readonly ["deterministic", "time_dependent", "external"];
                                 readonly type: "string";
                             };
@@ -4356,25 +4341,40 @@ export declare const ProviderContractGet_OUTPUT_SCHEMA: {
                                 };
                                 readonly type: "array";
                             };
-                            readonly name: {
-                                readonly description: "Predicate name.";
-                                readonly type: "string";
-                            };
                             readonly params_required: {
-                                readonly description: "Whether params are required for this predicate.";
+                                readonly description: "Whether params are required for this check.";
                                 readonly type: "boolean";
                             };
                             readonly params_schema: {
-                                readonly description: "JSON schema for predicate params.";
+                                readonly description: "JSON schema for check params.";
                                 readonly type: readonly ["null", "boolean", "number", "string", "array", "object"];
                             };
                             readonly result_schema: {
-                                readonly description: "JSON schema for predicate result values.";
+                                readonly description: "JSON schema for check result values.";
                                 readonly type: readonly ["null", "boolean", "number", "string", "array", "object"];
                             };
                         };
-                        readonly required: readonly ["name", "description", "determinism", "params_required", "params_schema", "result_schema", "allowed_comparators", "anchor_types", "content_types", "examples"];
+                        readonly required: readonly ["check_id", "description", "determinism", "params_required", "params_schema", "result_schema", "allowed_comparators", "anchor_types", "content_types", "examples"];
                         readonly type: "object";
+                    };
+                    readonly type: "array";
+                };
+                readonly config_schema: {
+                    readonly description: "Provider configuration schema.";
+                    readonly type: readonly ["null", "boolean", "number", "string", "array", "object"];
+                };
+                readonly description: {
+                    readonly description: "Provider description.";
+                    readonly type: "string";
+                };
+                readonly name: {
+                    readonly description: "Provider display name.";
+                    readonly type: "string";
+                };
+                readonly notes: {
+                    readonly description: "Provider notes and guidance.";
+                    readonly items: {
+                        readonly type: "string";
                     };
                     readonly type: "array";
                 };
@@ -4388,7 +4388,7 @@ export declare const ProviderContractGet_OUTPUT_SCHEMA: {
                     readonly type: "string";
                 };
             };
-            readonly required: readonly ["provider_id", "name", "description", "transport", "config_schema", "predicates", "notes"];
+            readonly required: readonly ["provider_id", "name", "description", "transport", "config_schema", "checks", "notes"];
             readonly type: "object";
         };
         readonly contract_hash: {
@@ -4427,41 +4427,41 @@ export declare const ProviderContractGet_OUTPUT_SCHEMA: {
     readonly required: readonly ["provider_id", "contract", "contract_hash", "source", "version"];
     readonly type: "object";
 };
-export interface ProviderSchemaGetRequest {
-    /** Provider predicate name. */
-    predicate: string;
+export interface ProviderCheckSchemaGetRequest {
+    /** Provider check identifier. */
+    check_id: string;
     /** Provider identifier. */
     provider_id: string;
 }
-export interface ProviderSchemaGetResponse {
-    /** Comparator allow-list for this predicate. */
+export interface ProviderCheckSchemaGetResponse {
+    /** Comparator allow-list for this check. */
     allowed_comparators: Array<"equals" | "not_equals" | "greater_than" | "greater_than_or_equal" | "less_than" | "less_than_or_equal" | "lex_greater_than" | "lex_greater_than_or_equal" | "lex_less_than" | "lex_less_than_or_equal" | "contains" | "in_set" | "deep_equals" | "deep_not_equals" | "exists" | "not_exists">;
-    /** Anchor types emitted by this predicate. */
+    /** Anchor types emitted by this check. */
     anchor_types: Array<string>;
-    /** Content types for predicate output. */
+    /** Check identifier. */
+    check_id: string;
+    /** Content types for check output. */
     content_types: Array<string>;
     contract_hash: Record<string, JsonValue>;
-    /** Determinism classification for provider predicates. Constraints: Allowed values: */
-    /** "deterministic", "time_dependent", "external". */
+    /** Determinism classification for provider checks. Constraints: Allowed values: "deterministic", */
+    /** "time_dependent", "external". */
     determinism: "deterministic" | "time_dependent" | "external";
     examples: Array<Record<string, JsonValue>>;
-    /** Whether params are required for this predicate. */
+    /** Whether params are required for this check. */
     params_required: boolean;
-    /** JSON schema for predicate params. */
+    /** JSON schema for check params. */
     params_schema: Array<JsonValue> | Record<string, JsonValue> | boolean | null | number | string;
-    /** Predicate name. */
-    predicate: string;
     /** Provider identifier. */
     provider_id: string;
-    /** JSON schema for predicate result value. */
+    /** JSON schema for check result value. */
     result_schema: Array<JsonValue> | Record<string, JsonValue> | boolean | null | number | string;
 }
-export declare const ProviderSchemaGet_INPUT_SCHEMA: {
+export declare const ProviderCheckSchemaGet_INPUT_SCHEMA: {
     readonly $schema: "https://json-schema.org/draft/2020-12/schema";
     readonly additionalProperties: false;
     readonly properties: {
-        readonly predicate: {
-            readonly description: "Provider predicate name.";
+        readonly check_id: {
+            readonly description: "Provider check identifier.";
             readonly type: "string";
         };
         readonly provider_id: {
@@ -4469,15 +4469,15 @@ export declare const ProviderSchemaGet_INPUT_SCHEMA: {
             readonly type: "string";
         };
     };
-    readonly required: readonly ["provider_id", "predicate"];
+    readonly required: readonly ["provider_id", "check_id"];
     readonly type: "object";
 };
-export declare const ProviderSchemaGet_OUTPUT_SCHEMA: {
+export declare const ProviderCheckSchemaGet_OUTPUT_SCHEMA: {
     readonly $schema: "https://json-schema.org/draft/2020-12/schema";
     readonly additionalProperties: false;
     readonly properties: {
         readonly allowed_comparators: {
-            readonly description: "Comparator allow-list for this predicate.";
+            readonly description: "Comparator allow-list for this check.";
             readonly items: {
                 readonly description: "Comparator applied to evidence values.";
                 readonly enum: readonly ["equals", "not_equals", "greater_than", "greater_than_or_equal", "less_than", "less_than_or_equal", "lex_greater_than", "lex_greater_than_or_equal", "lex_less_than", "lex_less_than_or_equal", "contains", "in_set", "deep_equals", "deep_not_equals", "exists", "not_exists"];
@@ -4486,14 +4486,18 @@ export declare const ProviderSchemaGet_OUTPUT_SCHEMA: {
             readonly type: "array";
         };
         readonly anchor_types: {
-            readonly description: "Anchor types emitted by this predicate.";
+            readonly description: "Anchor types emitted by this check.";
             readonly items: {
                 readonly type: "string";
             };
             readonly type: "array";
         };
+        readonly check_id: {
+            readonly description: "Check identifier.";
+            readonly type: "string";
+        };
         readonly content_types: {
-            readonly description: "Content types for predicate output.";
+            readonly description: "Content types for check output.";
             readonly items: {
                 readonly type: "string";
             };
@@ -4515,7 +4519,7 @@ export declare const ProviderSchemaGet_OUTPUT_SCHEMA: {
             readonly type: "object";
         };
         readonly determinism: {
-            readonly description: "Determinism classification for provider predicates.";
+            readonly description: "Determinism classification for provider checks.";
             readonly enum: readonly ["deterministic", "time_dependent", "external"];
             readonly type: "string";
         };
@@ -4542,27 +4546,23 @@ export declare const ProviderSchemaGet_OUTPUT_SCHEMA: {
             readonly type: "array";
         };
         readonly params_required: {
-            readonly description: "Whether params are required for this predicate.";
+            readonly description: "Whether params are required for this check.";
             readonly type: "boolean";
         };
         readonly params_schema: {
-            readonly description: "JSON schema for predicate params.";
+            readonly description: "JSON schema for check params.";
             readonly type: readonly ["null", "boolean", "number", "string", "array", "object"];
-        };
-        readonly predicate: {
-            readonly description: "Predicate name.";
-            readonly type: "string";
         };
         readonly provider_id: {
             readonly description: "Provider identifier.";
             readonly type: "string";
         };
         readonly result_schema: {
-            readonly description: "JSON schema for predicate result value.";
+            readonly description: "JSON schema for check result value.";
             readonly type: readonly ["null", "boolean", "number", "string", "array", "object"];
         };
     };
-    readonly required: readonly ["provider_id", "predicate", "params_required", "params_schema", "result_schema", "allowed_comparators", "determinism", "anchor_types", "content_types", "examples", "contract_hash"];
+    readonly required: readonly ["provider_id", "check_id", "params_required", "params_schema", "result_schema", "allowed_comparators", "determinism", "anchor_types", "content_types", "examples", "contract_hash"];
     readonly type: "object";
 };
 export interface SchemasRegisterRequest {
@@ -5350,8 +5350,8 @@ export declare const Precheck_OUTPUT_SCHEMA: {
                         readonly items: {
                             readonly additionalProperties: false;
                             readonly properties: {
-                                readonly predicate: {
-                                    readonly description: "Predicate identifier.";
+                                readonly condition_id: {
+                                    readonly description: "Condition identifier.";
                                     readonly type: "string";
                                 };
                                 readonly status: {
@@ -5360,7 +5360,7 @@ export declare const Precheck_OUTPUT_SCHEMA: {
                                     readonly type: "string";
                                 };
                             };
-                            readonly required: readonly ["predicate", "status"];
+                            readonly required: readonly ["condition_id", "status"];
                             readonly type: "object";
                         };
                         readonly type: "array";
@@ -5376,13 +5376,13 @@ export declare const Precheck_OUTPUT_SCHEMA: {
     readonly type: "object";
 };
 export declare abstract class GeneratedDecisionGateClient {
-    protected abstract callTool<T>(name: string, arguments_: JsonValue): Promise<T>;
+    protected abstract callTool<T>(name: string, arguments_: object): Promise<T>;
     /**
      * Register a ScenarioSpec, validate it, and return the canonical hash used for integrity checks.
      *
      * Notes:
      * - Use before starting runs; scenario_id becomes the stable handle for later calls.
-     * - Validates stage/gate/predicate IDs, RET trees, and predicate references.
+     * - Validates stage/gate/condition IDs, RET trees, and condition references.
      * - Spec hash is deterministic; store it for audit and runpack integrity.
      * - Fails closed on invalid specs or duplicate scenario IDs.
      *
@@ -5392,37 +5392,37 @@ export declare abstract class GeneratedDecisionGateClient {
      *   ```json
      *   {
      *     "spec": {
-     *       "default_tenant_id": null,
-     *       "namespace_id": 1,
-     *       "policies": [],
-     *       "predicates": [
+     *       "conditions": [
      *         {
      *           "comparator": "equals",
+     *           "condition_id": "env_is_prod",
      *           "expected": "production",
      *           "policy_tags": [],
-     *           "predicate": "env_is_prod",
      *           "query": {
+     *             "check_id": "get",
      *             "params": {
      *               "key": "DEPLOY_ENV"
      *             },
-     *             "predicate": "get",
      *             "provider_id": "env"
      *           }
      *         },
      *         {
      *           "comparator": "equals",
+     *           "condition_id": "after_freeze",
      *           "expected": true,
      *           "policy_tags": [],
-     *           "predicate": "after_freeze",
      *           "query": {
+     *             "check_id": "after",
      *             "params": {
      *               "timestamp": 1710000000000
      *             },
-     *             "predicate": "after",
      *             "provider_id": "time"
      *           }
      *         }
      *       ],
+     *       "default_tenant_id": null,
+     *       "namespace_id": 1,
+     *       "policies": [],
      *       "scenario_id": "example-scenario",
      *       "schemas": [],
      *       "spec_version": "v1",
@@ -5454,13 +5454,13 @@ export declare abstract class GeneratedDecisionGateClient {
      *             {
      *               "gate_id": "env_gate",
      *               "requirement": {
-     *                 "Predicate": "env_is_prod"
+     *                 "Condition": "env_is_prod"
      *               }
      *             },
      *             {
      *               "gate_id": "time_gate",
      *               "requirement": {
-     *                 "Predicate": "after_freeze"
+     *                 "Condition": "after_freeze"
      *               }
      *             }
      *           ],
@@ -5767,7 +5767,7 @@ export declare abstract class GeneratedDecisionGateClient {
      * Notes:
      * - Disclosure policy may redact raw values; hashes/anchors still returned.
      * - Use for diagnostics or preflight checks; runtime uses the same provider logic.
-     * - Requires provider_id, predicate, and full EvidenceContext.
+     * - Requires provider_id, check_id, and full EvidenceContext.
      *
      * Examples:
      * - Query an evidence provider using the run context.
@@ -5788,10 +5788,10 @@ export declare abstract class GeneratedDecisionGateClient {
      *       }
      *     },
      *     "query": {
+     *       "check_id": "get",
      *       "params": {
      *         "key": "DEPLOY_ENV"
      *       },
-     *       "predicate": "get",
      *       "provider_id": "env"
      *     }
      *   }
@@ -5950,7 +5950,7 @@ export declare abstract class GeneratedDecisionGateClient {
      *   {
      *     "providers": [
      *       {
-     *         "predicates": [
+     *         "checks": [
      *           "get"
      *         ],
      *         "provider_id": "env",
@@ -5981,6 +5981,7 @@ export declare abstract class GeneratedDecisionGateClient {
      *   ```json
      *   {
      *     "contract": {
+     *       "checks": [],
      *       "config_schema": {
      *         "additionalProperties": false,
      *         "type": "object"
@@ -5988,7 +5989,6 @@ export declare abstract class GeneratedDecisionGateClient {
      *       "description": "Reads JSON or YAML files and evaluates JSONPath.",
      *       "name": "JSON Provider",
      *       "notes": [],
-     *       "predicates": [],
      *       "provider_id": "json",
      *       "transport": "builtin"
      *     },
@@ -6004,19 +6004,19 @@ export declare abstract class GeneratedDecisionGateClient {
      */
     provider_contract_get(request: ProviderContractGetRequest): Promise<ProviderContractGetResponse>;
     /**
-     * Fetch predicate schema details (params/result/comparators) for a provider.
+     * Fetch check schema details (params/result/comparators) for a provider.
      *
      * Notes:
-     * - Returns compiled schema metadata for a single predicate.
-     * - Includes comparator allow-lists and predicate examples.
+     * - Returns compiled schema metadata for a single check.
+     * - Includes comparator allow-lists and check examples.
      * - Subject to provider disclosure policy and authz.
      *
      * Examples:
-     * - Fetch predicate schema details for a provider.
+     * - Fetch check schema details for a provider.
      *   Input:
      *   ```json
      *   {
-     *     "predicate": "path",
+     *     "check_id": "path",
      *     "provider_id": "json"
      *   }
      *   ```
@@ -6030,6 +6030,7 @@ export declare abstract class GeneratedDecisionGateClient {
      *       "not_exists"
      *     ],
      *     "anchor_types": [],
+     *     "check_id": "path",
      *     "content_types": [
      *       "application/json"
      *     ],
@@ -6054,7 +6055,6 @@ export declare abstract class GeneratedDecisionGateClient {
      *       ],
      *       "type": "object"
      *     },
-     *     "predicate": "path",
      *     "provider_id": "json",
      *     "result_schema": {
      *       "type": [
@@ -6069,7 +6069,7 @@ export declare abstract class GeneratedDecisionGateClient {
      *   }
      *   ```
      */
-    provider_schema_get(request: ProviderSchemaGetRequest): Promise<ProviderSchemaGetResponse>;
+    provider_check_schema_get(request: ProviderCheckSchemaGetRequest): Promise<ProviderCheckSchemaGetResponse>;
     /**
      * Register a data shape schema for a tenant and namespace.
      *
@@ -6369,10 +6369,10 @@ export declare function validateProviderContractGetRequest(payload: ProviderCont
 export declare function validateProviderContractGetResponse(payload: ProviderContractGetResponse, validator: SchemaValidator): void;
 export declare function validateProviderContractGetRequestWithAjv(payload: ProviderContractGetRequest): Promise<void>;
 export declare function validateProviderContractGetResponseWithAjv(payload: ProviderContractGetResponse): Promise<void>;
-export declare function validateProviderSchemaGetRequest(payload: ProviderSchemaGetRequest, validator: SchemaValidator): void;
-export declare function validateProviderSchemaGetResponse(payload: ProviderSchemaGetResponse, validator: SchemaValidator): void;
-export declare function validateProviderSchemaGetRequestWithAjv(payload: ProviderSchemaGetRequest): Promise<void>;
-export declare function validateProviderSchemaGetResponseWithAjv(payload: ProviderSchemaGetResponse): Promise<void>;
+export declare function validateProviderCheckSchemaGetRequest(payload: ProviderCheckSchemaGetRequest, validator: SchemaValidator): void;
+export declare function validateProviderCheckSchemaGetResponse(payload: ProviderCheckSchemaGetResponse, validator: SchemaValidator): void;
+export declare function validateProviderCheckSchemaGetRequestWithAjv(payload: ProviderCheckSchemaGetRequest): Promise<void>;
+export declare function validateProviderCheckSchemaGetResponseWithAjv(payload: ProviderCheckSchemaGetResponse): Promise<void>;
 export declare function validateSchemasRegisterRequest(payload: SchemasRegisterRequest, validator: SchemaValidator): void;
 export declare function validateSchemasRegisterResponse(payload: SchemasRegisterResponse, validator: SchemaValidator): void;
 export declare function validateSchemasRegisterRequestWithAjv(payload: SchemasRegisterRequest): Promise<void>;

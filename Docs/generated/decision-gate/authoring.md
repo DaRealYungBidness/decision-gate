@@ -18,7 +18,7 @@ Decision Gate accepts ScenarioSpec authoring input in JSON or RON. JSON is the c
 
 1. Parse JSON or RON into a structured value.
 2. Validate against `schemas/scenario.schema.json`.
-3. Run ScenarioSpec semantic validation (IDs, predicates, gates).
+3. Run ScenarioSpec semantic validation (IDs, conditions, gates).
 4. Canonicalize to JSON (RFC 8785).
 5. Compute the canonical spec hash.
 

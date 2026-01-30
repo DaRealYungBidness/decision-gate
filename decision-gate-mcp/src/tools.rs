@@ -35,10 +35,11 @@ use std::sync::Mutex;
 
 use decision_gate_contract::ToolName;
 pub use decision_gate_contract::tooling::ToolDefinition;
+use decision_gate_contract::types::CheckExample;
 use decision_gate_contract::types::DeterminismClass;
-use decision_gate_contract::types::PredicateExample;
 use decision_gate_core::ArtifactReader;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionId;
 use decision_gate_core::DataShapeId;
 use decision_gate_core::DataShapeRecord;
 use decision_gate_core::DataShapeRef;
@@ -62,7 +63,6 @@ use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketEnvelope;
 use decision_gate_core::PacketPayload;
 use decision_gate_core::PrecheckRequest as CorePrecheckRequest;
-use decision_gate_core::PredicateKey;
 use decision_gate_core::RunConfig;
 use decision_gate_core::RunId;
 use decision_gate_core::RunState;
@@ -370,8 +370,8 @@ impl ToolRouter {
             ToolName::ProviderContractGet => {
                 self.handle_provider_contract_get(context, &auth_ctx, payload)
             }
-            ToolName::ProviderSchemaGet => {
-                self.handle_provider_schema_get(context, &auth_ctx, payload)
+            ToolName::ProviderCheckSchemaGet => {
+                self.handle_provider_check_schema_get(context, &auth_ctx, payload)
             }
             ToolName::SchemasRegister => {
                 self.handle_schemas_register(context, &auth_ctx, payload).await
@@ -797,26 +797,25 @@ impl ToolRouter {
         serde_json::to_value(response).map_err(|_| ToolError::Serialization)
     }
 
-    /// Handles provider predicate schema discovery requests.
-    fn handle_provider_schema_get(
+    /// Handles provider check schema discovery requests.
+    fn handle_provider_check_schema_get(
         &self,
         _context: &RequestContext,
         _auth_ctx: &AuthContext,
         payload: Value,
     ) -> Result<Value, ToolError> {
-        let request = decode::<ProviderSchemaGetRequest>(payload)?;
+        let request = decode::<ProviderCheckSchemaGetRequest>(payload)?;
         if request.provider_id.trim().is_empty() {
             return Err(ToolError::InvalidParams("provider_id must be non-empty".to_string()));
         }
-        if request.predicate.trim().is_empty() {
-            return Err(ToolError::InvalidParams("predicate must be non-empty".to_string()));
+        if request.check_id.trim().is_empty() {
+            return Err(ToolError::InvalidParams("check_id must be non-empty".to_string()));
         }
         self.ensure_provider_disclosure_allowed(&request.provider_id)?;
-        let view =
-            self.capabilities.predicate_schema_view(&request.provider_id, &request.predicate)?;
-        let response = ProviderSchemaGetResponse {
+        let view = self.capabilities.check_schema_view(&request.provider_id, &request.check_id)?;
+        let response = ProviderCheckSchemaGetResponse {
             provider_id: view.provider_id,
-            predicate: view.predicate,
+            check_id: view.check_id,
             params_required: view.params_required,
             params_schema: view.params_schema,
             result_schema: view.result_schema,
@@ -1320,8 +1319,8 @@ pub struct ProviderSummary {
     pub provider_id: String,
     /// Provider transport type.
     pub transport: ProviderTransport,
-    /// Predicate identifiers available on the provider.
-    pub predicates: Vec<String>,
+    /// Check identifiers available on the provider.
+    pub checks: Vec<String>,
 }
 
 /// `providers_list` request payload.
@@ -1357,38 +1356,38 @@ pub struct ProviderContractGetResponse {
     pub version: Option<String>,
 }
 
-/// `provider_schema_get` request payload.
+/// `provider_check_schema_get` request payload.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProviderSchemaGetRequest {
+pub struct ProviderCheckSchemaGetRequest {
     /// Provider identifier.
     pub provider_id: String,
-    /// Predicate name.
-    pub predicate: String,
+    /// Check identifier.
+    pub check_id: String,
 }
 
-/// `provider_schema_get` response payload.
+/// `provider_check_schema_get` response payload.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProviderSchemaGetResponse {
+pub struct ProviderCheckSchemaGetResponse {
     /// Provider identifier.
     pub provider_id: String,
-    /// Predicate name.
-    pub predicate: String,
-    /// Whether params are required for this predicate.
+    /// Check identifier.
+    pub check_id: String,
+    /// Whether params are required for this check.
     pub params_required: bool,
-    /// JSON schema for predicate params.
+    /// JSON schema for check params.
     pub params_schema: Value,
-    /// JSON schema for predicate result values.
+    /// JSON schema for check result values.
     pub result_schema: Value,
     /// Comparator allow-list.
     pub allowed_comparators: Vec<Comparator>,
     /// Determinism classification.
     pub determinism: DeterminismClass,
-    /// Anchor types emitted by this predicate.
+    /// Anchor types emitted by this check.
     pub anchor_types: Vec<String>,
-    /// Content types for predicate output.
+    /// Content types for check output.
     pub content_types: Vec<String>,
-    /// Predicate examples.
-    pub examples: Vec<PredicateExample>,
+    /// Check examples.
+    pub examples: Vec<CheckExample>,
     /// Canonical contract hash.
     pub contract_hash: decision_gate_core::hashing::HashDigest,
 }
@@ -1909,10 +1908,10 @@ impl ToolRouter {
         })
     }
 
-    /// Lists configured providers and predicates.
+    /// Lists configured providers and checks.
     fn providers_list(&self, _request: &ProvidersListRequest) -> ProvidersListResponse {
         let mut providers = Vec::new();
-        for (provider_id, predicates) in self.capabilities.list_providers() {
+        for (provider_id, checks) in self.capabilities.list_providers() {
             let transport = self
                 .provider_transports
                 .get(&provider_id)
@@ -1921,7 +1920,7 @@ impl ToolRouter {
             providers.push(ProviderSummary {
                 provider_id,
                 transport,
-                predicates,
+                checks,
             });
         }
         ProvidersListResponse {
@@ -2750,26 +2749,27 @@ fn validate_payload(schema: &Validator, payload: &Value) -> Result<(), ToolError
 fn build_asserted_evidence(
     spec: &ScenarioSpec,
     payload: &Value,
-) -> Result<BTreeMap<PredicateKey, EvidenceResult>, ToolError> {
+) -> Result<BTreeMap<ConditionId, EvidenceResult>, ToolError> {
     let mut evidence = BTreeMap::new();
     match payload {
         Value::Object(map) => {
-            for predicate in &spec.predicates {
-                if let Some(value) = map.get(predicate.predicate.as_str()) {
-                    evidence.insert(predicate.predicate.clone(), asserted_evidence(value.clone()));
+            for condition in &spec.conditions {
+                if let Some(value) = map.get(condition.condition_id.as_str()) {
+                    evidence
+                        .insert(condition.condition_id.clone(), asserted_evidence(value.clone()));
                 }
             }
         }
         _ => {
-            if spec.predicates.len() == 1 {
-                let predicate =
-                    spec.predicates.first().map(|spec| spec.predicate.clone()).ok_or_else(
-                        || ToolError::InvalidParams("scenario has no predicates".to_string()),
+            if spec.conditions.len() == 1 {
+                let condition =
+                    spec.conditions.first().map(|spec| spec.condition_id.clone()).ok_or_else(
+                        || ToolError::InvalidParams("scenario has no conditions".to_string()),
                     )?;
-                evidence.insert(predicate, asserted_evidence(payload.clone()));
+                evidence.insert(condition, asserted_evidence(payload.clone()));
             } else {
                 return Err(ToolError::InvalidParams(
-                    "payload must be an object keyed by predicate ids".to_string(),
+                    "payload must be an object keyed by condition ids".to_string(),
                 ));
             }
         }

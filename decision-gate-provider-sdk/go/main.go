@@ -73,7 +73,7 @@ type toolCallParams struct {
 
 type evidenceQuery struct {
 	ProviderID string         `json:"provider_id"`
-	Predicate  string         `json:"predicate"`
+	CheckID    string         `json:"check_id"`
 	Params     map[string]any `json:"params,omitempty"`
 }
 

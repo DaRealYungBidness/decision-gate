@@ -31,7 +31,7 @@ use flags::FLAG_A;
 use flags::FLAG_AB;
 use flags::FLAG_B;
 use flags::FLAG_C;
-use mocks::MockPredicate;
+use mocks::MockCondition;
 use mocks::MockReader;
 use ret_logic::Requirement;
 use ret_logic::RequirementGroup;
@@ -44,9 +44,9 @@ use support::ensure;
 // SECTION: Mock Coverage
 // ========================================================================
 
-/// Tests mock predicate variants used.
+/// Tests mock condition variants used.
 #[test]
-fn test_mock_predicate_variants_used() {
+fn test_mock_condition_variants_used() {
     let _ = mocks::all_variants();
 }
 
@@ -161,13 +161,13 @@ fn test_requirement_id_clone_copy() -> TestResult {
 }
 
 // ============================================================================
-// SECTION: Predicate Evaluation Tests
+// SECTION: Condition Evaluation Tests
 // ============================================================================
 
-/// Tests predicate always true.
+/// Tests condition always true.
 #[test]
-fn test_predicate_always_true() -> TestResult {
-    let req = Requirement::predicate(MockPredicate::AlwaysTrue);
+fn test_condition_always_true() -> TestResult {
+    let req = Requirement::condition(MockCondition::AlwaysTrue);
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
 
@@ -175,10 +175,10 @@ fn test_predicate_always_true() -> TestResult {
     Ok(())
 }
 
-/// Tests predicate always false.
+/// Tests condition always false.
 #[test]
-fn test_predicate_always_false() -> TestResult {
-    let req = Requirement::predicate(MockPredicate::AlwaysFalse);
+fn test_condition_always_false() -> TestResult {
+    let req = Requirement::condition(MockCondition::AlwaysFalse);
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
 
@@ -186,10 +186,10 @@ fn test_predicate_always_false() -> TestResult {
     Ok(())
 }
 
-/// Tests predicate value gte.
+/// Tests condition value gte.
 #[test]
-fn test_predicate_value_gte() -> TestResult {
-    let req = Requirement::predicate(MockPredicate::ValueGte(50));
+fn test_condition_value_gte() -> TestResult {
+    let req = Requirement::condition(MockCondition::ValueGte(50));
     let values = vec![0, 49, 50, 51, 100];
     let flags = vec![0; 5];
     let reader = MockReader::new(&values, &flags);
@@ -202,10 +202,10 @@ fn test_predicate_value_gte() -> TestResult {
     Ok(())
 }
 
-/// Tests predicate value lte.
+/// Tests condition value lte.
 #[test]
-fn test_predicate_value_lte() -> TestResult {
-    let req = Requirement::predicate(MockPredicate::ValueLte(50));
+fn test_condition_value_lte() -> TestResult {
+    let req = Requirement::condition(MockCondition::ValueLte(50));
     let values = vec![0, 49, 50, 51, 100];
     let flags = vec![0; 5];
     let reader = MockReader::new(&values, &flags);
@@ -218,10 +218,10 @@ fn test_predicate_value_lte() -> TestResult {
     Ok(())
 }
 
-/// Tests predicate value eq.
+/// Tests condition value eq.
 #[test]
-fn test_predicate_value_eq() -> TestResult {
-    let req = Requirement::predicate(MockPredicate::ValueEq(42));
+fn test_condition_value_eq() -> TestResult {
+    let req = Requirement::condition(MockCondition::ValueEq(42));
     let values = vec![41, 42, 43];
     let flags = vec![0; 3];
     let reader = MockReader::new(&values, &flags);
@@ -232,10 +232,10 @@ fn test_predicate_value_eq() -> TestResult {
     Ok(())
 }
 
-/// Tests predicate has all flags.
+/// Tests condition has all flags.
 #[test]
-fn test_predicate_has_all_flags() -> TestResult {
-    let req = Requirement::predicate(MockPredicate::HasAllFlags(FLAG_AB));
+fn test_condition_has_all_flags() -> TestResult {
+    let req = Requirement::condition(MockCondition::HasAllFlags(FLAG_AB));
     let values = vec![0; 4];
     let flags = vec![
         0,       // None
@@ -252,10 +252,10 @@ fn test_predicate_has_all_flags() -> TestResult {
     Ok(())
 }
 
-/// Tests predicate has any flags.
+/// Tests condition has any flags.
 #[test]
-fn test_predicate_has_any_flags() -> TestResult {
-    let req = Requirement::predicate(MockPredicate::HasAnyFlags(FLAG_AB));
+fn test_condition_has_any_flags() -> TestResult {
+    let req = Requirement::condition(MockCondition::HasAnyFlags(FLAG_AB));
     let values = vec![0; 4];
     let flags = vec![
         0,      // None
@@ -272,10 +272,10 @@ fn test_predicate_has_any_flags() -> TestResult {
     Ok(())
 }
 
-/// Tests predicate has none flags.
+/// Tests condition has none flags.
 #[test]
-fn test_predicate_has_none_flags() -> TestResult {
-    let req = Requirement::predicate(MockPredicate::HasNoneFlags(FLAG_AB));
+fn test_condition_has_none_flags() -> TestResult {
+    let req = Requirement::condition(MockCondition::HasNoneFlags(FLAG_AB));
     let values = vec![0; 4];
     let flags = vec![
         0,       // None
@@ -292,10 +292,10 @@ fn test_predicate_has_none_flags() -> TestResult {
     Ok(())
 }
 
-/// Tests predicate row index even.
+/// Tests condition row index even.
 #[test]
-fn test_predicate_row_index_even() -> TestResult {
-    let req = Requirement::predicate(MockPredicate::RowIndexEven);
+fn test_condition_row_index_even() -> TestResult {
+    let req = Requirement::condition(MockCondition::RowIndexEven);
     let values = vec![0; 5];
     let flags = vec![0; 5];
     let reader = MockReader::new(&values, &flags);
@@ -308,10 +308,10 @@ fn test_predicate_row_index_even() -> TestResult {
     Ok(())
 }
 
-/// Tests predicate row index lt.
+/// Tests condition row index lt.
 #[test]
-fn test_predicate_row_index_lt() -> TestResult {
-    let req = Requirement::predicate(MockPredicate::RowIndexLt(3));
+fn test_condition_row_index_lt() -> TestResult {
+    let req = Requirement::condition(MockCondition::RowIndexLt(3));
     let values = vec![0; 5];
     let flags = vec![0; 5];
     let reader = MockReader::new(&values, &flags);
@@ -331,7 +331,7 @@ fn test_predicate_row_index_lt() -> TestResult {
 /// Tests and empty trivially satisfied.
 #[test]
 fn test_and_empty_trivially_satisfied() -> TestResult {
-    let req: Requirement<MockPredicate> = Requirement::and(vec![]);
+    let req: Requirement<MockCondition> = Requirement::and(vec![]);
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
 
@@ -343,7 +343,7 @@ fn test_and_empty_trivially_satisfied() -> TestResult {
 /// Tests and single true.
 #[test]
 fn test_and_single_true() -> TestResult {
-    let req = Requirement::and(vec![Requirement::predicate(MockPredicate::AlwaysTrue)]);
+    let req = Requirement::and(vec![Requirement::condition(MockCondition::AlwaysTrue)]);
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
 
@@ -354,7 +354,7 @@ fn test_and_single_true() -> TestResult {
 /// Tests and single false.
 #[test]
 fn test_and_single_false() -> TestResult {
-    let req = Requirement::and(vec![Requirement::predicate(MockPredicate::AlwaysFalse)]);
+    let req = Requirement::and(vec![Requirement::condition(MockCondition::AlwaysFalse)]);
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
 
@@ -366,9 +366,9 @@ fn test_and_single_false() -> TestResult {
 #[test]
 fn test_and_all_true() -> TestResult {
     let req = Requirement::and(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysTrue),
     ]);
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
@@ -381,9 +381,9 @@ fn test_and_all_true() -> TestResult {
 #[test]
 fn test_and_one_false() -> TestResult {
     let req = Requirement::and(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
-        Requirement::predicate(MockPredicate::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysTrue),
     ]);
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
@@ -396,8 +396,8 @@ fn test_and_one_false() -> TestResult {
 #[test]
 fn test_and_all_false() -> TestResult {
     let req = Requirement::and(vec![
-        Requirement::predicate(MockPredicate::AlwaysFalse),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysFalse),
     ]);
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
@@ -411,9 +411,9 @@ fn test_and_all_false() -> TestResult {
 fn test_and_short_circuit_on_first_false() -> TestResult {
     // The first false should cause immediate return
     let req = Requirement::and(vec![
-        Requirement::predicate(MockPredicate::AlwaysFalse),
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysTrue),
     ]);
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
@@ -422,13 +422,13 @@ fn test_and_short_circuit_on_first_false() -> TestResult {
     Ok(())
 }
 
-/// Tests and with value predicates.
+/// Tests and with value conditions.
 #[test]
-fn test_and_with_value_predicates() -> TestResult {
+fn test_and_with_value_conditions() -> TestResult {
     // Value must be >= 10 AND <= 20
     let req = Requirement::and(vec![
-        Requirement::predicate(MockPredicate::ValueGte(10)),
-        Requirement::predicate(MockPredicate::ValueLte(20)),
+        Requirement::condition(MockCondition::ValueGte(10)),
+        Requirement::condition(MockCondition::ValueLte(20)),
     ]);
     let values = vec![5, 10, 15, 20, 25];
     let flags = vec![0; 5];
@@ -449,7 +449,7 @@ fn test_and_with_value_predicates() -> TestResult {
 /// Tests or empty trivially unsatisfied.
 #[test]
 fn test_or_empty_trivially_unsatisfied() -> TestResult {
-    let req: Requirement<MockPredicate> = Requirement::or(vec![]);
+    let req: Requirement<MockCondition> = Requirement::or(vec![]);
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
 
@@ -461,7 +461,7 @@ fn test_or_empty_trivially_unsatisfied() -> TestResult {
 /// Tests or single true.
 #[test]
 fn test_or_single_true() -> TestResult {
-    let req = Requirement::or(vec![Requirement::predicate(MockPredicate::AlwaysTrue)]);
+    let req = Requirement::or(vec![Requirement::condition(MockCondition::AlwaysTrue)]);
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
 
@@ -472,7 +472,7 @@ fn test_or_single_true() -> TestResult {
 /// Tests or single false.
 #[test]
 fn test_or_single_false() -> TestResult {
-    let req = Requirement::or(vec![Requirement::predicate(MockPredicate::AlwaysFalse)]);
+    let req = Requirement::or(vec![Requirement::condition(MockCondition::AlwaysFalse)]);
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
 
@@ -484,8 +484,8 @@ fn test_or_single_false() -> TestResult {
 #[test]
 fn test_or_all_true() -> TestResult {
     let req = Requirement::or(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysTrue),
     ]);
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
@@ -498,9 +498,9 @@ fn test_or_all_true() -> TestResult {
 #[test]
 fn test_or_one_true() -> TestResult {
     let req = Requirement::or(vec![
-        Requirement::predicate(MockPredicate::AlwaysFalse),
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysFalse),
     ]);
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
@@ -513,9 +513,9 @@ fn test_or_one_true() -> TestResult {
 #[test]
 fn test_or_all_false() -> TestResult {
     let req = Requirement::or(vec![
-        Requirement::predicate(MockPredicate::AlwaysFalse),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysFalse),
     ]);
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
@@ -529,9 +529,9 @@ fn test_or_all_false() -> TestResult {
 fn test_or_short_circuit_on_first_true() -> TestResult {
     // The first true should cause immediate return
     let req = Requirement::or(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysFalse),
     ]);
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
@@ -540,13 +540,13 @@ fn test_or_short_circuit_on_first_true() -> TestResult {
     Ok(())
 }
 
-/// Tests or with value predicates.
+/// Tests or with value conditions.
 #[test]
-fn test_or_with_value_predicates() -> TestResult {
+fn test_or_with_value_conditions() -> TestResult {
     // Value < 10 OR value > 90
     let req = Requirement::or(vec![
-        Requirement::predicate(MockPredicate::ValueLte(10)),
-        Requirement::predicate(MockPredicate::ValueGte(90)),
+        Requirement::condition(MockCondition::ValueLte(10)),
+        Requirement::condition(MockCondition::ValueGte(90)),
     ]);
     let values = vec![5, 10, 50, 90, 95];
     let flags = vec![0; 5];
@@ -567,7 +567,7 @@ fn test_or_with_value_predicates() -> TestResult {
 /// Tests not true becomes false.
 #[test]
 fn test_not_true_becomes_false() -> TestResult {
-    let req = Requirement::negate(Requirement::predicate(MockPredicate::AlwaysTrue));
+    let req = Requirement::negate(Requirement::condition(MockCondition::AlwaysTrue));
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
 
@@ -578,7 +578,7 @@ fn test_not_true_becomes_false() -> TestResult {
 /// Tests not false becomes true.
 #[test]
 fn test_not_false_becomes_true() -> TestResult {
-    let req = Requirement::negate(Requirement::predicate(MockPredicate::AlwaysFalse));
+    let req = Requirement::negate(Requirement::condition(MockCondition::AlwaysFalse));
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
 
@@ -590,7 +590,7 @@ fn test_not_false_becomes_true() -> TestResult {
 #[test]
 fn test_not_double_negation() -> TestResult {
     let req =
-        Requirement::negate(Requirement::negate(Requirement::predicate(MockPredicate::AlwaysTrue)));
+        Requirement::negate(Requirement::negate(Requirement::condition(MockCondition::AlwaysTrue)));
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
 
@@ -598,11 +598,11 @@ fn test_not_double_negation() -> TestResult {
     Ok(())
 }
 
-/// Tests not with value predicate.
+/// Tests not with value condition.
 #[test]
-fn test_not_with_value_predicate() -> TestResult {
+fn test_not_with_value_condition() -> TestResult {
     // NOT (value >= 50) is equivalent to value < 50
-    let req = Requirement::negate(Requirement::predicate(MockPredicate::ValueGte(50)));
+    let req = Requirement::negate(Requirement::condition(MockCondition::ValueGte(50)));
     let values = vec![0, 49, 50, 51, 100];
     let flags = vec![0; 5];
     let reader = MockReader::new(&values, &flags);
@@ -620,8 +620,8 @@ fn test_not_with_value_predicate() -> TestResult {
 fn test_not_and_becomes_nand() -> TestResult {
     // NOT(A AND B) is NAND
     let req = Requirement::negate(Requirement::and(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysFalse),
     ]));
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
@@ -635,8 +635,8 @@ fn test_not_and_becomes_nand() -> TestResult {
 fn test_not_or_becomes_nor() -> TestResult {
     // NOT(A OR B) is NOR
     let req = Requirement::negate(Requirement::or(vec![
-        Requirement::predicate(MockPredicate::AlwaysFalse),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysFalse),
     ]));
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
@@ -655,8 +655,8 @@ fn test_require_group_min_zero_always_satisfied() -> TestResult {
     let req = Requirement::require_group(
         0,
         vec![
-            Requirement::predicate(MockPredicate::AlwaysFalse),
-            Requirement::predicate(MockPredicate::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysFalse),
         ],
     );
     let (values, flags) = (vec![0], vec![0]);
@@ -674,9 +674,9 @@ fn test_require_group_min_equals_total() -> TestResult {
     let req = Requirement::require_group(
         3,
         vec![
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysTrue),
         ],
     );
     let (values, flags) = (vec![0], vec![0]);
@@ -693,9 +693,9 @@ fn test_require_group_min_one_equivalent_to_or() -> TestResult {
     let req = Requirement::require_group(
         1,
         vec![
-            Requirement::predicate(MockPredicate::AlwaysFalse),
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysFalse),
         ],
     );
     let (values, flags) = (vec![0], vec![0]);
@@ -712,9 +712,9 @@ fn test_require_group_exact_min_satisfied() -> TestResult {
     let req = Requirement::require_group(
         2,
         vec![
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysFalse),
         ],
     );
     let (values, flags) = (vec![0], vec![0]);
@@ -731,9 +731,9 @@ fn test_require_group_more_than_min_satisfied() -> TestResult {
     let req = Requirement::require_group(
         2,
         vec![
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysTrue),
         ],
     );
     let (values, flags) = (vec![0], vec![0]);
@@ -750,9 +750,9 @@ fn test_require_group_less_than_min_satisfied() -> TestResult {
     let req = Requirement::require_group(
         2,
         vec![
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysFalse),
-            Requirement::predicate(MockPredicate::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysFalse),
         ],
     );
     let (values, flags) = (vec![0], vec![0]);
@@ -768,9 +768,9 @@ fn test_require_group_none_satisfied() -> TestResult {
     let req = Requirement::require_group(
         2,
         vec![
-            Requirement::predicate(MockPredicate::AlwaysFalse),
-            Requirement::predicate(MockPredicate::AlwaysFalse),
-            Requirement::predicate(MockPredicate::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysFalse),
         ],
     );
     let (values, flags) = (vec![0], vec![0]);
@@ -787,9 +787,9 @@ fn test_require_group_early_success_exit() -> TestResult {
     let req = Requirement::require_group(
         2,
         vec![
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysFalse), // Won't be evaluated
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysFalse), // Won't be evaluated
         ],
     );
     let (values, flags) = (vec![0], vec![0]);
@@ -806,9 +806,9 @@ fn test_require_group_early_failure_exit() -> TestResult {
     let req = Requirement::require_group(
         3,
         vec![
-            Requirement::predicate(MockPredicate::AlwaysFalse),
-            Requirement::predicate(MockPredicate::AlwaysFalse),
-            Requirement::predicate(MockPredicate::AlwaysTrue), // Can't help now
+            Requirement::condition(MockCondition::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysTrue), // Can't help now
         ],
     );
     let (values, flags) = (vec![0], vec![0]);
@@ -818,16 +818,16 @@ fn test_require_group_early_failure_exit() -> TestResult {
     Ok(())
 }
 
-/// Tests require group with value predicates.
+/// Tests require group with value conditions.
 #[test]
-fn test_require_group_with_value_predicates() -> TestResult {
+fn test_require_group_with_value_conditions() -> TestResult {
     // Need at least 2 of: value >= 10, value >= 20, value >= 30
     let req = Requirement::require_group(
         2,
         vec![
-            Requirement::predicate(MockPredicate::ValueGte(10)),
-            Requirement::predicate(MockPredicate::ValueGte(20)),
-            Requirement::predicate(MockPredicate::ValueGte(30)),
+            Requirement::condition(MockCondition::ValueGte(10)),
+            Requirement::condition(MockCondition::ValueGte(20)),
+            Requirement::condition(MockCondition::ValueGte(30)),
         ],
     );
     let values = vec![5, 15, 25, 35];
@@ -851,10 +851,10 @@ fn test_nested_and_in_or() -> TestResult {
     // (A AND B) OR C
     let req = Requirement::or(vec![
         Requirement::and(vec![
-            Requirement::predicate(MockPredicate::AlwaysFalse),
-            Requirement::predicate(MockPredicate::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysTrue),
         ]),
-        Requirement::predicate(MockPredicate::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysTrue),
     ]);
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
@@ -868,10 +868,10 @@ fn test_nested_and_in_or() -> TestResult {
 fn test_nested_or_in_and() -> TestResult {
     // A AND (B OR C)
     let req = Requirement::and(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysTrue),
         Requirement::or(vec![
-            Requirement::predicate(MockPredicate::AlwaysFalse),
-            Requirement::predicate(MockPredicate::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysTrue),
         ]),
     ]);
     let (values, flags) = (vec![0], vec![0]);
@@ -886,10 +886,10 @@ fn test_nested_or_in_and() -> TestResult {
 fn test_deeply_nested() -> TestResult {
     // NOT(A AND (B OR (NOT C)))
     let req = Requirement::negate(Requirement::and(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysTrue),
         Requirement::or(vec![
-            Requirement::predicate(MockPredicate::AlwaysFalse),
-            Requirement::negate(Requirement::predicate(MockPredicate::AlwaysFalse)),
+            Requirement::condition(MockCondition::AlwaysFalse),
+            Requirement::negate(Requirement::condition(MockCondition::AlwaysFalse)),
         ]),
     ]));
     let (values, flags) = (vec![0], vec![0]);
@@ -912,13 +912,13 @@ fn test_group_with_nested_requirements() -> TestResult {
         2,
         vec![
             Requirement::and(vec![
-                Requirement::predicate(MockPredicate::AlwaysTrue),
-                Requirement::predicate(MockPredicate::AlwaysTrue),
+                Requirement::condition(MockCondition::AlwaysTrue),
+                Requirement::condition(MockCondition::AlwaysTrue),
             ]),
-            Requirement::predicate(MockPredicate::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysFalse),
             Requirement::or(vec![
-                Requirement::predicate(MockPredicate::AlwaysFalse),
-                Requirement::predicate(MockPredicate::AlwaysTrue),
+                Requirement::condition(MockCondition::AlwaysFalse),
+                Requirement::condition(MockCondition::AlwaysTrue),
             ]),
         ],
     );
@@ -938,7 +938,7 @@ fn test_group_with_nested_requirements() -> TestResult {
 /// Tests is trivially satisfied empty and.
 #[test]
 fn test_is_trivially_satisfied_empty_and() -> TestResult {
-    let req: Requirement<MockPredicate> = Requirement::and(vec![]);
+    let req: Requirement<MockCondition> = Requirement::and(vec![]);
     check!(req.is_trivially_satisfied());
     Ok(())
 }
@@ -946,7 +946,7 @@ fn test_is_trivially_satisfied_empty_and() -> TestResult {
 /// Tests is trivially satisfied and of trivial.
 #[test]
 fn test_is_trivially_satisfied_and_of_trivial() -> TestResult {
-    let req: Requirement<MockPredicate> =
+    let req: Requirement<MockCondition> =
         Requirement::and(vec![Requirement::and(vec![]), Requirement::and(vec![])]);
     check!(req.is_trivially_satisfied());
     Ok(())
@@ -955,9 +955,9 @@ fn test_is_trivially_satisfied_and_of_trivial() -> TestResult {
 /// Tests is trivially satisfied or of trivial.
 #[test]
 fn test_is_trivially_satisfied_or_of_trivial() -> TestResult {
-    let req: Requirement<MockPredicate> = Requirement::or(vec![
+    let req: Requirement<MockCondition> = Requirement::or(vec![
         Requirement::and(vec![]),
-        Requirement::predicate(MockPredicate::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysTrue),
     ]);
     check!(req.is_trivially_satisfied());
     Ok(())
@@ -966,7 +966,7 @@ fn test_is_trivially_satisfied_or_of_trivial() -> TestResult {
 /// Tests is trivially satisfied not of unsatisfiable.
 #[test]
 fn test_is_trivially_satisfied_not_of_unsatisfiable() -> TestResult {
-    let req: Requirement<MockPredicate> = Requirement::negate(Requirement::or(vec![]));
+    let req: Requirement<MockCondition> = Requirement::negate(Requirement::or(vec![]));
     check!(req.is_trivially_satisfied());
     Ok(())
 }
@@ -975,7 +975,7 @@ fn test_is_trivially_satisfied_not_of_unsatisfiable() -> TestResult {
 #[test]
 fn test_is_trivially_satisfied_group_min_zero() -> TestResult {
     let req =
-        Requirement::require_group(0, vec![Requirement::predicate(MockPredicate::AlwaysFalse)]);
+        Requirement::require_group(0, vec![Requirement::condition(MockCondition::AlwaysFalse)]);
     check!(req.is_trivially_satisfied());
     Ok(())
 }
@@ -983,30 +983,30 @@ fn test_is_trivially_satisfied_group_min_zero() -> TestResult {
 /// Tests is trivially satisfied group enough trivial.
 #[test]
 fn test_is_trivially_satisfied_group_enough_trivial() -> TestResult {
-    let req: Requirement<MockPredicate> = Requirement::require_group(
+    let req: Requirement<MockCondition> = Requirement::require_group(
         2,
         vec![
             Requirement::and(vec![]),
             Requirement::and(vec![]),
-            Requirement::predicate(MockPredicate::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysFalse),
         ],
     );
     check!(req.is_trivially_satisfied());
     Ok(())
 }
 
-/// Tests is not trivially satisfied predicate.
+/// Tests is not trivially satisfied condition.
 #[test]
-fn test_is_not_trivially_satisfied_predicate() -> TestResult {
-    let req = Requirement::predicate(MockPredicate::AlwaysTrue);
+fn test_is_not_trivially_satisfied_condition() -> TestResult {
+    let req = Requirement::condition(MockCondition::AlwaysTrue);
     check!(!req.is_trivially_satisfied());
     Ok(())
 }
 
-/// Tests is not trivially satisfied and with predicate.
+/// Tests is not trivially satisfied and with condition.
 #[test]
-fn test_is_not_trivially_satisfied_and_with_predicate() -> TestResult {
-    let req = Requirement::and(vec![Requirement::predicate(MockPredicate::AlwaysTrue)]);
+fn test_is_not_trivially_satisfied_and_with_condition() -> TestResult {
+    let req = Requirement::and(vec![Requirement::condition(MockCondition::AlwaysTrue)]);
     check!(!req.is_trivially_satisfied());
     Ok(())
 }
@@ -1018,7 +1018,7 @@ fn test_is_not_trivially_satisfied_and_with_predicate() -> TestResult {
 /// Tests is trivially unsatisfiable empty or.
 #[test]
 fn test_is_trivially_unsatisfiable_empty_or() -> TestResult {
-    let req: Requirement<MockPredicate> = Requirement::or(vec![]);
+    let req: Requirement<MockCondition> = Requirement::or(vec![]);
     check!(req.is_trivially_unsatisfiable());
     Ok(())
 }
@@ -1026,9 +1026,9 @@ fn test_is_trivially_unsatisfiable_empty_or() -> TestResult {
 /// Tests is trivially unsatisfiable and of unsatisfiable.
 #[test]
 fn test_is_trivially_unsatisfiable_and_of_unsatisfiable() -> TestResult {
-    let req: Requirement<MockPredicate> = Requirement::and(vec![
+    let req: Requirement<MockCondition> = Requirement::and(vec![
         Requirement::or(vec![]),
-        Requirement::predicate(MockPredicate::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysTrue),
     ]);
     check!(req.is_trivially_unsatisfiable());
     Ok(())
@@ -1037,7 +1037,7 @@ fn test_is_trivially_unsatisfiable_and_of_unsatisfiable() -> TestResult {
 /// Tests is trivially unsatisfiable or of all unsatisfiable.
 #[test]
 fn test_is_trivially_unsatisfiable_or_of_all_unsatisfiable() -> TestResult {
-    let req: Requirement<MockPredicate> =
+    let req: Requirement<MockCondition> =
         Requirement::or(vec![Requirement::or(vec![]), Requirement::or(vec![])]);
     check!(req.is_trivially_unsatisfiable());
     Ok(())
@@ -1046,7 +1046,7 @@ fn test_is_trivially_unsatisfiable_or_of_all_unsatisfiable() -> TestResult {
 /// Tests is trivially unsatisfiable not of satisfied.
 #[test]
 fn test_is_trivially_unsatisfiable_not_of_satisfied() -> TestResult {
-    let req: Requirement<MockPredicate> = Requirement::negate(Requirement::and(vec![]));
+    let req: Requirement<MockCondition> = Requirement::negate(Requirement::and(vec![]));
     check!(req.is_trivially_unsatisfiable());
     Ok(())
 }
@@ -1057,8 +1057,8 @@ fn test_is_trivially_unsatisfiable_group_min_exceeds_total() -> TestResult {
     let req = Requirement::require_group(
         5,
         vec![
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysTrue),
         ],
     );
     check!(req.is_trivially_unsatisfiable());
@@ -1068,22 +1068,22 @@ fn test_is_trivially_unsatisfiable_group_min_exceeds_total() -> TestResult {
 /// Tests is trivially unsatisfiable group too many unsatisfiable.
 #[test]
 fn test_is_trivially_unsatisfiable_group_too_many_unsatisfiable() -> TestResult {
-    let req: Requirement<MockPredicate> = Requirement::require_group(
+    let req: Requirement<MockCondition> = Requirement::require_group(
         2,
         vec![
             Requirement::or(vec![]), // Trivially unsatisfiable
             Requirement::or(vec![]), // Trivially unsatisfiable
-            Requirement::predicate(MockPredicate::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysTrue),
         ],
     );
     check!(req.is_trivially_unsatisfiable());
     Ok(())
 }
 
-/// Tests is not trivially unsatisfiable predicate.
+/// Tests is not trivially unsatisfiable condition.
 #[test]
-fn test_is_not_trivially_unsatisfiable_predicate() -> TestResult {
-    let req = Requirement::predicate(MockPredicate::AlwaysFalse);
+fn test_is_not_trivially_unsatisfiable_condition() -> TestResult {
+    let req = Requirement::condition(MockCondition::AlwaysFalse);
     check!(!req.is_trivially_unsatisfiable());
     Ok(())
 }
@@ -1092,10 +1092,10 @@ fn test_is_not_trivially_unsatisfiable_predicate() -> TestResult {
 // SECTION: Complexity Tests
 // ============================================================================
 
-/// Tests complexity predicate.
+/// Tests complexity condition.
 #[test]
-fn test_complexity_predicate() -> TestResult {
-    let req = Requirement::predicate(MockPredicate::AlwaysTrue);
+fn test_complexity_condition() -> TestResult {
+    let req = Requirement::condition(MockCondition::AlwaysTrue);
     check_eq!(req.complexity(), 1);
     Ok(())
 }
@@ -1103,8 +1103,8 @@ fn test_complexity_predicate() -> TestResult {
 /// Tests complexity not.
 #[test]
 fn test_complexity_not() -> TestResult {
-    let req = Requirement::negate(Requirement::predicate(MockPredicate::AlwaysTrue));
-    check_eq!(req.complexity(), 2); // 1 for NOT + 1 for predicate
+    let req = Requirement::negate(Requirement::condition(MockCondition::AlwaysTrue));
+    check_eq!(req.complexity(), 2); // 1 for NOT + 1 for condition
     Ok(())
 }
 
@@ -1112,10 +1112,10 @@ fn test_complexity_not() -> TestResult {
 #[test]
 fn test_complexity_and() -> TestResult {
     let req = Requirement::and(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysFalse),
     ]);
-    check_eq!(req.complexity(), 3); // 1 for AND + 2 for predicates
+    check_eq!(req.complexity(), 3); // 1 for AND + 2 for conditions
     Ok(())
 }
 
@@ -1123,18 +1123,18 @@ fn test_complexity_and() -> TestResult {
 #[test]
 fn test_complexity_or() -> TestResult {
     let req = Requirement::or(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
-        Requirement::predicate(MockPredicate::ValueGte(10)),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysFalse),
+        Requirement::condition(MockCondition::ValueGte(10)),
     ]);
-    check_eq!(req.complexity(), 4); // 1 for OR + 3 for predicates
+    check_eq!(req.complexity(), 4); // 1 for OR + 3 for conditions
     Ok(())
 }
 
 /// Tests complexity empty and.
 #[test]
 fn test_complexity_empty_and() -> TestResult {
-    let req: Requirement<MockPredicate> = Requirement::and(vec![]);
+    let req: Requirement<MockCondition> = Requirement::and(vec![]);
     check_eq!(req.complexity(), 1); // Just the AND node
     Ok(())
 }
@@ -1145,11 +1145,11 @@ fn test_complexity_require_group() -> TestResult {
     let req = Requirement::require_group(
         2,
         vec![
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysFalse),
         ],
     );
-    check_eq!(req.complexity(), 3); // 1 for group + 2 for predicates
+    check_eq!(req.complexity(), 3); // 1 for group + 2 for conditions
     Ok(())
 }
 
@@ -1158,10 +1158,10 @@ fn test_complexity_require_group() -> TestResult {
 fn test_complexity_nested() -> TestResult {
     let req = Requirement::and(vec![
         Requirement::or(vec![
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysFalse),
         ]),
-        Requirement::negate(Requirement::predicate(MockPredicate::ValueGte(10))),
+        Requirement::negate(Requirement::condition(MockCondition::ValueGte(10))),
     ]);
     // AND(1) + OR(1) + pred(1) + pred(1) + NOT(1) + pred(1) = 6
     check_eq!(req.complexity(), 6);
@@ -1176,8 +1176,8 @@ fn test_complexity_nested() -> TestResult {
 #[test]
 fn test_constructor_and() -> TestResult {
     let req = Requirement::and(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysFalse),
     ]);
     if let Requirement::And(reqs) = req {
         check_eq!(reqs.len(), 2);
@@ -1189,7 +1189,7 @@ fn test_constructor_and() -> TestResult {
 /// Tests constructor or.
 #[test]
 fn test_constructor_or() -> TestResult {
-    let req = Requirement::or(vec![Requirement::predicate(MockPredicate::AlwaysTrue)]);
+    let req = Requirement::or(vec![Requirement::condition(MockCondition::AlwaysTrue)]);
     if let Requirement::Or(reqs) = req {
         check_eq!(reqs.len(), 1);
         return Ok(());
@@ -1200,7 +1200,7 @@ fn test_constructor_or() -> TestResult {
 /// Tests constructor not.
 #[test]
 fn test_constructor_not() -> TestResult {
-    let req = Requirement::negate(Requirement::predicate(MockPredicate::AlwaysTrue));
+    let req = Requirement::negate(Requirement::condition(MockCondition::AlwaysTrue));
     if matches!(req, Requirement::Not(_)) {
         return Ok(());
     }
@@ -1213,9 +1213,9 @@ fn test_constructor_require_group() -> TestResult {
     let req = Requirement::require_group(
         2,
         vec![
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysFalse),
-            Requirement::predicate(MockPredicate::ValueGte(10)),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysFalse),
+            Requirement::condition(MockCondition::ValueGte(10)),
         ],
     );
     match req {
@@ -1231,14 +1231,14 @@ fn test_constructor_require_group() -> TestResult {
     }
 }
 
-/// Tests constructor predicate.
+/// Tests constructor condition.
 #[test]
-fn test_constructor_predicate() -> TestResult {
-    let req = Requirement::predicate(MockPredicate::ValueEq(42));
-    if matches!(req, Requirement::Predicate(MockPredicate::ValueEq(42))) {
+fn test_constructor_condition() -> TestResult {
+    let req = Requirement::condition(MockCondition::ValueEq(42));
+    if matches!(req, Requirement::Condition(MockCondition::ValueEq(42))) {
         return Ok(());
     }
-    Err("Expected Predicate(ValueEq(42)) variant".into())
+    Err("Expected Condition(ValueEq(42)) variant".into())
 }
 
 // ============================================================================
@@ -1248,7 +1248,7 @@ fn test_constructor_predicate() -> TestResult {
 /// Tests default is empty and.
 #[test]
 fn test_default_is_empty_and() -> TestResult {
-    let req: Requirement<MockPredicate> = Requirement::default();
+    let req: Requirement<MockCondition> = Requirement::default();
     if let Requirement::And(reqs) = req {
         check!(reqs.is_empty());
         return Ok(());
@@ -1259,7 +1259,7 @@ fn test_default_is_empty_and() -> TestResult {
 /// Tests default is trivially satisfied.
 #[test]
 fn test_default_is_trivially_satisfied() -> TestResult {
-    let req: Requirement<MockPredicate> = Requirement::default();
+    let req: Requirement<MockCondition> = Requirement::default();
     check!(req.is_trivially_satisfied());
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
@@ -1276,8 +1276,8 @@ fn test_default_is_trivially_satisfied() -> TestResult {
 fn test_requirement_group_new() -> TestResult {
     let group = RequirementGroup::new(
         vec![
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysFalse),
         ],
         1,
     )?;
@@ -1291,8 +1291,8 @@ fn test_requirement_group_new() -> TestResult {
 fn test_requirement_group_panics_on_invalid_min() -> TestResult {
     let result = RequirementGroup::new(
         vec![
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysFalse),
         ],
         3, // More than available
     );
@@ -1313,9 +1313,9 @@ fn test_requirement_group_panics_on_invalid_min() -> TestResult {
 #[test]
 fn test_requirement_group_all() -> TestResult {
     let group = RequirementGroup::all(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
-        Requirement::predicate(MockPredicate::ValueGte(10)),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysFalse),
+        Requirement::condition(MockCondition::ValueGte(10)),
     ]);
     check_eq!(group.min_required, 3);
     check_eq!(group.requirements.len(), 3);
@@ -1326,8 +1326,8 @@ fn test_requirement_group_all() -> TestResult {
 #[test]
 fn test_requirement_group_any() -> TestResult {
     let group = RequirementGroup::any(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysFalse),
     ])?;
     check_eq!(group.min_required, 1);
     check_eq!(group.requirements.len(), 2);
@@ -1341,7 +1341,7 @@ fn test_requirement_group_any() -> TestResult {
 /// Tests eval out of bounds row.
 #[test]
 fn test_eval_out_of_bounds_row() -> TestResult {
-    let req = Requirement::predicate(MockPredicate::ValueGte(50));
+    let req = Requirement::condition(MockCondition::ValueGte(50));
     let values = vec![100];
     let flags = vec![0];
     let reader = MockReader::new(&values, &flags);
@@ -1354,7 +1354,7 @@ fn test_eval_out_of_bounds_row() -> TestResult {
 /// Tests eval empty reader.
 #[test]
 fn test_eval_empty_reader() -> TestResult {
-    let req = Requirement::predicate(MockPredicate::AlwaysTrue);
+    let req = Requirement::condition(MockCondition::AlwaysTrue);
     let reader = MockReader::new(&[], &[]);
 
     // Even "always true" returns false for out-of-bounds with value checks
@@ -1367,7 +1367,7 @@ fn test_eval_empty_reader() -> TestResult {
 #[test]
 fn test_many_nested_levels() -> TestResult {
     // Build a deeply nested requirement: NOT(NOT(NOT(NOT(true))))
-    let mut req = Requirement::predicate(MockPredicate::AlwaysTrue);
+    let mut req = Requirement::condition(MockCondition::AlwaysTrue);
     for _ in 0 .. 10 {
         req = Requirement::negate(req);
     }
@@ -1384,14 +1384,14 @@ fn test_many_nested_levels() -> TestResult {
 #[test]
 fn test_large_and_requirement() -> TestResult {
     let reqs: Vec<_> =
-        (0 .. 100).map(|_| Requirement::predicate(MockPredicate::AlwaysTrue)).collect();
+        (0 .. 100).map(|_| Requirement::condition(MockCondition::AlwaysTrue)).collect();
     let req = Requirement::and(reqs);
 
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
 
     check!(req.eval(&reader, 0));
-    check_eq!(req.complexity(), 101); // 1 for AND + 100 for predicates
+    check_eq!(req.complexity(), 101); // 1 for AND + 100 for conditions
     Ok(())
 }
 
@@ -1399,7 +1399,7 @@ fn test_large_and_requirement() -> TestResult {
 #[test]
 fn test_large_or_requirement() -> TestResult {
     let reqs: Vec<_> =
-        (0 .. 100).map(|_| Requirement::predicate(MockPredicate::AlwaysFalse)).collect();
+        (0 .. 100).map(|_| Requirement::condition(MockCondition::AlwaysFalse)).collect();
     let req = Requirement::or(reqs);
 
     let (values, flags) = (vec![0], vec![0]);
@@ -1413,10 +1413,10 @@ fn test_large_or_requirement() -> TestResult {
 #[test]
 fn test_requirement_clone() -> TestResult {
     let req = Requirement::and(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysTrue),
         Requirement::or(vec![
-            Requirement::predicate(MockPredicate::AlwaysFalse),
-            Requirement::predicate(MockPredicate::ValueGte(10)),
+            Requirement::condition(MockCondition::AlwaysFalse),
+            Requirement::condition(MockCondition::ValueGte(10)),
         ]),
     ]);
 
@@ -1429,16 +1429,16 @@ fn test_requirement_clone() -> TestResult {
 #[test]
 fn test_requirement_equality() -> TestResult {
     let req1 = Requirement::and(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysFalse),
     ]);
     let req2 = Requirement::and(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysFalse),
     ]);
     let req3 = Requirement::and(vec![
-        Requirement::predicate(MockPredicate::AlwaysFalse),
-        Requirement::predicate(MockPredicate::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysTrue),
     ]);
 
     check_eq!(req1, req2);
@@ -1451,7 +1451,7 @@ fn test_requirement_equality() -> TestResult {
 // ============================================================================
 
 fn eval_block_by_rows(
-    req: &Requirement<MockPredicate>,
+    req: &Requirement<MockCondition>,
     reader: &MockReader<'_>,
     start: usize,
     count: usize,
@@ -1470,10 +1470,10 @@ fn eval_block_by_rows(
 #[test]
 fn test_eval_block_matches_row_eval_for_compound_logic() -> TestResult {
     let req = Requirement::and(vec![
-        Requirement::negate(Requirement::predicate(MockPredicate::AlwaysFalse)),
+        Requirement::negate(Requirement::condition(MockCondition::AlwaysFalse)),
         Requirement::or(vec![
-            Requirement::predicate(MockPredicate::RowIndexEven),
-            Requirement::predicate(MockPredicate::RowIndexLt(3)),
+            Requirement::condition(MockCondition::RowIndexEven),
+            Requirement::condition(MockCondition::RowIndexLt(3)),
         ]),
     ]);
 
@@ -1492,9 +1492,9 @@ fn test_eval_block_matches_row_eval_for_require_group_threshold() -> TestResult 
     let req = Requirement::require_group(
         2,
         vec![
-            Requirement::predicate(MockPredicate::HasAllFlags(FLAG_A)),
-            Requirement::predicate(MockPredicate::RowIndexEven),
-            Requirement::predicate(MockPredicate::RowIndexLt(2)),
+            Requirement::condition(MockCondition::HasAllFlags(FLAG_A)),
+            Requirement::condition(MockCondition::RowIndexEven),
+            Requirement::condition(MockCondition::RowIndexLt(2)),
         ],
     );
 
@@ -1512,8 +1512,8 @@ fn test_eval_block_matches_row_eval_for_require_group_threshold() -> TestResult 
 #[test]
 fn test_eval_block_respects_start_and_count_window() -> TestResult {
     let req = Requirement::or(vec![
-        Requirement::predicate(MockPredicate::RowIndexEven),
-        Requirement::predicate(MockPredicate::RowIndexLt(5)),
+        Requirement::condition(MockCondition::RowIndexEven),
+        Requirement::condition(MockCondition::RowIndexLt(5)),
     ]);
 
     let (values, flags) = (vec![0; 20], vec![0; 20]);

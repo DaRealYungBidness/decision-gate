@@ -37,7 +37,7 @@ use crate::common::local_request_context;
 fn scenario_define_rejects_disallowed_comparator() {
     let router = common::sample_router();
     let mut spec = common::sample_spec();
-    spec.predicates[0].comparator = Comparator::GreaterThan;
+    spec.conditions[0].comparator = Comparator::GreaterThan;
 
     let request = ScenarioDefineRequest {
         spec,
@@ -60,7 +60,7 @@ fn scenario_define_rejects_disallowed_comparator() {
 fn scenario_define_rejects_expected_schema_mismatch() {
     let router = common::sample_router();
     let mut spec = common::sample_spec();
-    spec.predicates[0].expected = Some(json!("not-a-boolean"));
+    spec.conditions[0].expected = Some(json!("not-a-boolean"));
 
     let request = ScenarioDefineRequest {
         spec,
@@ -83,8 +83,8 @@ fn scenario_define_rejects_expected_schema_mismatch() {
 fn scenario_define_rejects_in_set_without_array_expected() {
     let router = common::sample_router();
     let mut spec = common::sample_spec();
-    spec.predicates[0].comparator = Comparator::InSet;
-    spec.predicates[0].expected = Some(json!(true));
+    spec.conditions[0].comparator = Comparator::InSet;
+    spec.conditions[0].expected = Some(json!(true));
 
     let request = ScenarioDefineRequest {
         spec,
@@ -109,7 +109,7 @@ fn evidence_query_rejects_missing_params() {
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("env"),
-            predicate: "get".to_string(),
+            check_id: "get".to_string(),
             params: None,
         },
         context: common::sample_context(),
@@ -134,7 +134,7 @@ fn evidence_query_rejects_invalid_params() {
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("time"),
-            predicate: "after".to_string(),
+            check_id: "after".to_string(),
             params: Some(json!({ "timestamp": true })),
         },
         context: common::sample_context(),

@@ -144,28 +144,28 @@ impl EvidenceProvider for CountingProvider {
 
 /// Builds a spec that references a single provider.
 fn build_spec(provider_id: &str) -> ScenarioSpec {
-    build_spec_with_predicates(&[(provider_id, "check")])
+    build_spec_with_conditions(&[(provider_id, "check")])
 }
 
-/// Builds a spec that references multiple providers via predicates.
-fn build_spec_with_predicates(predicates: &[(&str, &str)]) -> ScenarioSpec {
-    let gates: Vec<decision_gate_core::GateSpec> = predicates
+/// Builds a spec that references multiple providers via conditions.
+fn build_spec_with_conditions(conditions: &[(&str, &str)]) -> ScenarioSpec {
+    let gates: Vec<decision_gate_core::GateSpec> = conditions
         .iter()
         .enumerate()
-        .map(|(i, (_, pred))| decision_gate_core::GateSpec {
+        .map(|(i, (_, condition_id))| decision_gate_core::GateSpec {
             gate_id: decision_gate_core::GateId::new(format!("gate-{i}")),
-            requirement: ret_logic::Requirement::predicate((*pred).into()),
+            requirement: ret_logic::Requirement::condition((*condition_id).into()),
             trust: None,
         })
         .collect();
 
-    let predicate_specs: Vec<decision_gate_core::PredicateSpec> = predicates
+    let condition_specs: Vec<decision_gate_core::ConditionSpec> = conditions
         .iter()
-        .map(|(provider_id, pred)| decision_gate_core::PredicateSpec {
-            predicate: (*pred).into(),
+        .map(|(provider_id, condition_id)| decision_gate_core::ConditionSpec {
+            condition_id: (*condition_id).into(),
             query: EvidenceQuery {
                 provider_id: ProviderId::new(*provider_id),
-                predicate: (*pred).to_string(),
+                check_id: (*condition_id).to_string(),
                 params: Some(json!({})),
             },
             comparator: decision_gate_core::Comparator::Equals,
@@ -187,7 +187,7 @@ fn build_spec_with_predicates(predicates: &[(&str, &str)]) -> ScenarioSpec {
             timeout: None,
             on_timeout: decision_gate_core::TimeoutPolicy::Fail,
         }],
-        predicates: predicate_specs,
+        conditions: condition_specs,
         policies: Vec::new(),
         schemas: Vec::new(),
         default_tenant_id: None,
@@ -209,7 +209,7 @@ fn query_routes_to_correct_provider() {
     // Query provider A
     let query_a = EvidenceQuery {
         provider_id: ProviderId::new("provider-a"),
-        predicate: "test".to_string(),
+        check_id: "test".to_string(),
         params: None,
     };
     let result_a = registry.query(&query_a, &ctx).unwrap();
@@ -221,7 +221,7 @@ fn query_routes_to_correct_provider() {
     // Query provider B
     let query_b = EvidenceQuery {
         provider_id: ProviderId::new("provider-b"),
-        predicate: "test".to_string(),
+        check_id: "test".to_string(),
         params: None,
     };
     let result_b = registry.query(&query_b, &ctx).unwrap();
@@ -245,7 +245,7 @@ fn query_only_calls_targeted_provider() {
     // Query only provider A
     let query = EvidenceQuery {
         provider_id: ProviderId::new("provider-a"),
-        predicate: "test".to_string(),
+        check_id: "test".to_string(),
         params: None,
     };
     registry.query(&query, &ctx).unwrap();
@@ -262,7 +262,7 @@ fn query_unregistered_provider_fails() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("nonexistent"),
-        predicate: "test".to_string(),
+        check_id: "test".to_string(),
         params: None,
     };
     let result = registry.query(&query, &ctx);
@@ -281,7 +281,7 @@ fn register_provider_replaces_existing() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("test"),
-        predicate: "check".to_string(),
+        check_id: "check".to_string(),
         params: None,
     };
     let result = registry.query(&query, &ctx).unwrap();
@@ -311,7 +311,7 @@ fn policy_allowlist_permits_listed_providers() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("allowed"),
-        predicate: "test".to_string(),
+        check_id: "test".to_string(),
         params: None,
     };
     let result = registry.query(&query, &ctx);
@@ -334,7 +334,7 @@ fn policy_allowlist_blocks_unlisted_providers() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("blocked"),
-        predicate: "test".to_string(),
+        check_id: "test".to_string(),
         params: None,
     };
     let result = registry.query(&query, &ctx);
@@ -363,7 +363,7 @@ fn policy_denylist_blocks_listed_providers() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("blocked"),
-        predicate: "test".to_string(),
+        check_id: "test".to_string(),
         params: None,
     };
     let result = registry.query(&query, &ctx);
@@ -388,7 +388,7 @@ fn policy_denylist_permits_unlisted_providers() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("allowed"),
-        predicate: "test".to_string(),
+        check_id: "test".to_string(),
         params: None,
     };
     let result = registry.query(&query, &ctx);
@@ -413,7 +413,7 @@ fn policy_denylist_takes_precedence_over_allowlist() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("both"),
-        predicate: "test".to_string(),
+        check_id: "test".to_string(),
         params: None,
     };
     let result = registry.query(&query, &ctx);
@@ -431,7 +431,7 @@ fn policy_allow_all_permits_any_provider() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("any"),
-        predicate: "test".to_string(),
+        check_id: "test".to_string(),
         params: None,
     };
     let result = registry.query(&query, &ctx);
@@ -471,7 +471,7 @@ fn validate_reports_blocked_provider() {
 #[test]
 fn validate_reports_multiple_missing_providers() {
     let registry = ProviderRegistry::new(ProviderAccessPolicy::default());
-    let spec = build_spec_with_predicates(&[
+    let spec = build_spec_with_conditions(&[
         ("missing-a", "pred-a"),
         ("missing-b", "pred-b"),
         ("missing-c", "pred-c"),
@@ -489,7 +489,7 @@ fn validate_reports_multiple_missing_providers() {
 fn validate_reports_required_capabilities() {
     let registry = ProviderRegistry::new(ProviderAccessPolicy::default());
     let spec =
-        build_spec_with_predicates(&[("missing", "capability-a"), ("missing", "capability-b")]);
+        build_spec_with_conditions(&[("missing", "capability-a"), ("missing", "capability-b")]);
     let error = registry.validate_providers(&spec).unwrap_err();
     assert!(error.required_capabilities.contains(&"capability-a".to_string()));
     assert!(error.required_capabilities.contains(&"capability-b".to_string()));
@@ -501,7 +501,7 @@ fn validate_passes_when_all_providers_present() {
     let mut registry = ProviderRegistry::new(ProviderAccessPolicy::default());
     registry.register_provider("provider-a", DummyProvider);
     registry.register_provider("provider-b", DummyProvider);
-    let spec = build_spec_with_predicates(&[("provider-a", "pred-a"), ("provider-b", "pred-b")]);
+    let spec = build_spec_with_conditions(&[("provider-a", "pred-a"), ("provider-b", "pred-b")]);
     let result = registry.validate_providers(&spec);
     assert!(result.is_ok());
 }
@@ -519,7 +519,7 @@ fn validate_reports_mixed_missing_and_blocked() {
     registry.register_provider("allowed", DummyProvider);
     registry.register_provider("blocked", DummyProvider); // registered but not in allowlist
 
-    let spec = build_spec_with_predicates(&[
+    let spec = build_spec_with_conditions(&[
         ("allowed", "pred-allowed"),
         ("blocked", "pred-blocked"),
         ("missing", "pred-missing"),
@@ -547,7 +547,7 @@ fn builtin_providers_registers_expected_providers() {
     // Verify time provider is registered
     let time_query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "now".to_string(),
+        check_id: "now".to_string(),
         params: None,
     };
     let time_result = registry.query(&time_query, &ctx);
@@ -556,7 +556,7 @@ fn builtin_providers_registers_expected_providers() {
     // Verify env provider is registered
     let env_query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"key": "PATH"})),
     };
     let env_result = registry.query(&env_query, &ctx);
@@ -566,7 +566,7 @@ fn builtin_providers_registers_expected_providers() {
     // (even though the query params are invalid, it should reach the provider)
     let json_query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({"file": "nonexistent.json", "jsonpath": "$.test"})),
     };
     let json_result = registry.query(&json_query, &ctx);
@@ -611,7 +611,7 @@ fn empty_allowlist_blocks_all_providers() {
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("any"),
-        predicate: "test".to_string(),
+        check_id: "test".to_string(),
         params: None,
     };
     let result = registry.query(&query, &ctx);
@@ -628,7 +628,7 @@ fn provider_ids_are_case_sensitive() {
     // Query with exact case
     let query_exact = EvidenceQuery {
         provider_id: ProviderId::new("Provider"),
-        predicate: "test".to_string(),
+        check_id: "test".to_string(),
         params: None,
     };
     assert!(registry.query(&query_exact, &ctx).is_ok());
@@ -636,7 +636,7 @@ fn provider_ids_are_case_sensitive() {
     // Query with different case should fail
     let query_lower = EvidenceQuery {
         provider_id: ProviderId::new("provider"),
-        predicate: "test".to_string(),
+        check_id: "test".to_string(),
         params: None,
     };
     assert!(registry.query(&query_lower, &ctx).is_err());

@@ -14,6 +14,8 @@ use std::path::PathBuf;
 
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionId;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::DataShapeId;
 use decision_gate_core::DataShapeRecord;
 use decision_gate_core::DataShapeRef;
@@ -23,8 +25,6 @@ use decision_gate_core::EvidenceQuery;
 use decision_gate_core::GateId;
 use decision_gate_core::GateSpec;
 use decision_gate_core::NamespaceId;
-use decision_gate_core::PredicateKey;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::ScenarioId;
 use decision_gate_core::ScenarioSpec;
@@ -64,7 +64,7 @@ fn time_now_spec(scenario_id: &str) -> ScenarioSpec {
     let scenario_id = ScenarioId::new(scenario_id);
     let namespace_id = namespace_id_one();
     let stage_id = StageId::new("stage-1");
-    let predicate_key = PredicateKey::new("value");
+    let condition_id = ConditionId::new("value");
     ScenarioSpec {
         scenario_id,
         namespace_id,
@@ -74,18 +74,18 @@ fn time_now_spec(scenario_id: &str) -> ScenarioSpec {
             entry_packets: Vec::new(),
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-1"),
-                requirement: Requirement::predicate(predicate_key.clone()),
+                requirement: Requirement::condition(condition_id.clone()),
                 trust: None,
             }],
             advance_to: AdvanceTo::Terminal,
             timeout: None,
             on_timeout: TimeoutPolicy::Fail,
         }],
-        predicates: vec![PredicateSpec {
-            predicate: predicate_key,
+        conditions: vec![ConditionSpec {
+            condition_id,
             query: EvidenceQuery {
                 provider_id: ProviderId::new("time"),
-                predicate: "now".to_string(),
+                check_id: "now".to_string(),
                 params: None,
             },
             comparator: Comparator::GreaterThan,
@@ -103,7 +103,7 @@ fn time_now_in_set_spec(scenario_id: &str, expected: Value) -> ScenarioSpec {
     let scenario_id = ScenarioId::new(scenario_id);
     let namespace_id = namespace_id_one();
     let stage_id = StageId::new("stage-1");
-    let predicate_key = PredicateKey::new("value");
+    let condition_id = ConditionId::new("value");
     ScenarioSpec {
         scenario_id,
         namespace_id,
@@ -113,18 +113,18 @@ fn time_now_in_set_spec(scenario_id: &str, expected: Value) -> ScenarioSpec {
             entry_packets: Vec::new(),
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-1"),
-                requirement: Requirement::predicate(predicate_key.clone()),
+                requirement: Requirement::condition(condition_id.clone()),
                 trust: None,
             }],
             advance_to: AdvanceTo::Terminal,
             timeout: None,
             on_timeout: TimeoutPolicy::Fail,
         }],
-        predicates: vec![PredicateSpec {
-            predicate: predicate_key,
+        conditions: vec![ConditionSpec {
+            condition_id,
             query: EvidenceQuery {
                 provider_id: ProviderId::new("time"),
-                predicate: "now".to_string(),
+                check_id: "now".to_string(),
                 params: None,
             },
             comparator: Comparator::InSet,
@@ -142,7 +142,7 @@ fn env_contains_spec(scenario_id: &str) -> ScenarioSpec {
     let scenario_id = ScenarioId::new(scenario_id);
     let namespace_id = namespace_id_one();
     let stage_id = StageId::new("stage-1");
-    let predicate_key = PredicateKey::new("value");
+    let condition_id = ConditionId::new("value");
     ScenarioSpec {
         scenario_id,
         namespace_id,
@@ -152,18 +152,18 @@ fn env_contains_spec(scenario_id: &str) -> ScenarioSpec {
             entry_packets: Vec::new(),
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-1"),
-                requirement: Requirement::predicate(predicate_key.clone()),
+                requirement: Requirement::condition(condition_id.clone()),
                 trust: None,
             }],
             advance_to: AdvanceTo::Terminal,
             timeout: None,
             on_timeout: TimeoutPolicy::Fail,
         }],
-        predicates: vec![PredicateSpec {
-            predicate: predicate_key,
+        conditions: vec![ConditionSpec {
+            condition_id,
             query: EvidenceQuery {
                 provider_id: ProviderId::new("env"),
-                predicate: "get".to_string(),
+                check_id: "get".to_string(),
                 params: Some(json!({"key": "ENV_TEST"})),
             },
             comparator: Comparator::Contains,
@@ -181,8 +181,8 @@ fn strict_provider_spec(scenario_id: &str) -> ScenarioSpec {
     let scenario_id = ScenarioId::new(scenario_id);
     let namespace_id = namespace_id_one();
     let stage_id = StageId::new("stage-1");
-    let lex_key = PredicateKey::new("lex");
-    let deep_key = PredicateKey::new("deep");
+    let lex_key = ConditionId::new("lex");
+    let deep_key = ConditionId::new("deep");
     ScenarioSpec {
         scenario_id,
         namespace_id,
@@ -193,12 +193,12 @@ fn strict_provider_spec(scenario_id: &str) -> ScenarioSpec {
             gates: vec![
                 GateSpec {
                     gate_id: GateId::new("gate-lex"),
-                    requirement: Requirement::predicate(lex_key.clone()),
+                    requirement: Requirement::condition(lex_key.clone()),
                     trust: None,
                 },
                 GateSpec {
                     gate_id: GateId::new("gate-deep"),
-                    requirement: Requirement::predicate(deep_key.clone()),
+                    requirement: Requirement::condition(deep_key.clone()),
                     trust: None,
                 },
             ],
@@ -206,12 +206,12 @@ fn strict_provider_spec(scenario_id: &str) -> ScenarioSpec {
             timeout: None,
             on_timeout: TimeoutPolicy::Fail,
         }],
-        predicates: vec![
-            PredicateSpec {
-                predicate: lex_key,
+        conditions: vec![
+            ConditionSpec {
+                condition_id: lex_key,
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("strict"),
-                    predicate: "lex_value".to_string(),
+                    check_id: "lex_value".to_string(),
                     params: None,
                 },
                 comparator: Comparator::LexGreaterThan,
@@ -219,11 +219,11 @@ fn strict_provider_spec(scenario_id: &str) -> ScenarioSpec {
                 policy_tags: Vec::new(),
                 trust: None,
             },
-            PredicateSpec {
-                predicate: deep_key,
+            ConditionSpec {
+                condition_id: deep_key,
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("strict"),
-                    predicate: "deep_value".to_string(),
+                    check_id: "deep_value".to_string(),
                     params: None,
                 },
                 comparator: Comparator::DeepEquals,

@@ -26,7 +26,7 @@ use crate::requirement::Requirement;
 /// provides compile-time safety for requirement construction.
 ///
 /// # Type Parameter
-/// * `P` - The domain-specific predicate type
+/// * `P` - The domain-specific condition type
 ///
 /// # Invariants
 /// - Holds a valid [`Requirement`] tree.
@@ -43,10 +43,10 @@ impl<P> RequirementBuilder<P> {
         }
     }
 
-    /// Creates a builder starting with a predicate
+    /// Creates a builder starting with a condition
     #[must_use]
-    pub const fn predicate(predicate: P) -> Self {
-        Self::new(Requirement::Predicate(predicate))
+    pub const fn condition(condition: P) -> Self {
+        Self::new(Requirement::Condition(condition))
     }
 
     /// Creates a builder starting with an And requirement
@@ -99,8 +99,8 @@ impl<P> RequirementBuilder<P> {
 /// ```
 /// # use ret_logic::builder::RequirementBuilder;
 /// # use ret_logic::Requirement;
-/// # let predicate = ();
-/// let builder = RequirementBuilder::predicate(predicate);
+/// # let condition = ();
+/// let builder = RequirementBuilder::condition(condition);
 /// let negated = !builder; // Equivalent to Requirement::negate(...)
 /// ```
 impl<P> Not for RequirementBuilder<P> {
@@ -140,10 +140,10 @@ impl<P> AndBuilder<P> {
         self
     }
 
-    /// Adds a predicate to the And clause
+    /// Adds a condition to the And clause
     #[must_use]
-    pub fn with_predicate(mut self, predicate: P) -> Self {
-        self.requirements.push(Requirement::Predicate(predicate));
+    pub fn with_condition(mut self, condition: P) -> Self {
+        self.requirements.push(Requirement::Condition(condition));
         self
     }
 
@@ -193,10 +193,10 @@ impl<P> OrBuilder<P> {
         self
     }
 
-    /// Adds a predicate to the Or clause
+    /// Adds a condition to the Or clause
     #[must_use]
-    pub fn with_predicate(mut self, predicate: P) -> Self {
-        self.requirements.push(Requirement::Predicate(predicate));
+    pub fn with_condition(mut self, condition: P) -> Self {
+        self.requirements.push(Requirement::Condition(condition));
         self
     }
 
@@ -249,10 +249,10 @@ impl<P> GroupBuilder<P> {
         self
     }
 
-    /// Adds a predicate to the group
+    /// Adds a condition to the group
     #[must_use]
-    pub fn with_predicate(mut self, predicate: P) -> Self {
-        self.requirements.push(Requirement::Predicate(predicate));
+    pub fn with_condition(mut self, condition: P) -> Self {
+        self.requirements.push(Requirement::Condition(condition));
         self
     }
 
@@ -328,9 +328,9 @@ pub mod convenience {
         Requirement::require_group(min, requirements)
     }
 
-    /// Creates a requirement from a predicate
+    /// Creates a requirement from a condition
     #[must_use]
-    pub const fn predicate<P>(predicate: P) -> Requirement<P> {
-        Requirement::predicate(predicate)
+    pub const fn condition<P>(condition: P) -> Requirement<P> {
+        Requirement::condition(condition)
     }
 }

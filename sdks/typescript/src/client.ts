@@ -7,7 +7,6 @@
 // ============================================================================
 
 import { GeneratedDecisionGateClient } from "./_generated.js";
-import type { JsonValue } from "./_generated.js";
 import {
   DecisionGateProtocolError,
   DecisionGateRpcError,
@@ -50,7 +49,7 @@ export class DecisionGateClient extends GeneratedDecisionGateClient {
     this.userAgent = options.userAgent ?? "decision-gate-typescript-sdk/0.1.0";
   }
 
-  protected async callTool<T>(name: string, arguments_: JsonValue): Promise<T> {
+  protected async callTool<T>(name: string, arguments_: object): Promise<T> {
     const payload = {
       jsonrpc: "2.0",
       id: this.nextRequestId(),

@@ -28,11 +28,11 @@ use crate::core::disclosure::PacketRecord;
 use crate::core::evidence::EvidenceResult;
 use crate::core::evidence::ProviderMissingError;
 use crate::core::hashing::HashDigest;
+use crate::core::identifiers::ConditionId;
 use crate::core::identifiers::CorrelationId;
 use crate::core::identifiers::DecisionId;
 use crate::core::identifiers::GateId;
 use crate::core::identifiers::NamespaceId;
-use crate::core::identifiers::PredicateKey;
 use crate::core::identifiers::RunId;
 use crate::core::identifiers::ScenarioId;
 use crate::core::identifiers::StageId;
@@ -132,12 +132,12 @@ pub struct TriggerRecord {
 // SECTION: Evidence Records
 // ============================================================================
 
-/// Evidence record logged for predicate evaluation.
+/// Evidence record logged for condition evaluation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvidenceRecord {
-    /// Predicate key that was evaluated.
-    pub predicate: PredicateKey,
-    /// Predicate status derived by comparator.
+    /// Condition identifier that was evaluated.
+    pub condition_id: ConditionId,
+    /// Condition status derived by comparator.
     pub status: TriState,
     /// Evidence result metadata.
     pub result: EvidenceResult,
@@ -147,12 +147,12 @@ pub struct EvidenceRecord {
 // SECTION: Gate Evaluation Records
 // ============================================================================
 
-/// Trace entry for predicate evaluation.
+/// Trace entry for condition evaluation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GateTraceEntry {
-    /// Predicate key that was evaluated.
-    pub predicate: PredicateKey,
-    /// Result of the predicate evaluation.
+    /// Condition identifier that was evaluated.
+    pub condition_id: ConditionId,
+    /// Result of the condition evaluation.
     pub status: TriState,
 }
 
@@ -163,7 +163,7 @@ pub struct GateEvaluation {
     pub gate_id: GateId,
     /// Final gate status.
     pub status: TriState,
-    /// Predicate evaluation trace.
+    /// Condition evaluation trace.
     pub trace: Vec<GateTraceEntry>,
 }
 
@@ -176,7 +176,7 @@ pub struct GateEvalRecord {
     pub stage_id: StageId,
     /// Gate evaluation output.
     pub evaluation: GateEvaluation,
-    /// Evidence records for predicates used by this gate.
+    /// Evidence records for conditions used by this gate.
     pub evidence: Vec<EvidenceRecord>,
 }
 

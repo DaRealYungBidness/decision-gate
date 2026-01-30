@@ -116,7 +116,7 @@ impl EvidenceProvider for HttpProvider {
         let url = extract_url(query.params.as_ref())?;
         validate_url(&url, &self.config)?;
 
-        match query.predicate.as_str() {
+        match query.check_id.as_str() {
             "status" => {
                 let response = self
                     .client
@@ -167,7 +167,7 @@ impl EvidenceProvider for HttpProvider {
                     content_type: Some("application/json".to_string()),
                 })
             }
-            _ => Err(EvidenceError::Provider("unsupported http predicate".to_string())),
+            _ => Err(EvidenceError::Provider("unsupported http check".to_string())),
         }
     }
 
@@ -182,8 +182,8 @@ impl EvidenceProvider for HttpProvider {
 
 /// Extracts the URL from query parameters.
 fn extract_url(params: Option<&Value>) -> Result<Url, EvidenceError> {
-    let params = params
-        .ok_or_else(|| EvidenceError::Provider("http predicate requires params".to_string()))?;
+    let params =
+        params.ok_or_else(|| EvidenceError::Provider("http check requires params".to_string()))?;
     let Value::Object(map) = params else {
         return Err(EvidenceError::Provider("http params must be an object".to_string()));
     };

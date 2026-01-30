@@ -2,7 +2,7 @@
 // ============================================================================
 // Module: Time Evidence Provider
 // Description: Evidence provider for trigger-time comparisons.
-// Purpose: Expose deterministic time-based predicates without wall-clock access.
+// Purpose: Expose deterministic time-based checks without wall-clock access.
 // Dependencies: decision-gate-core, serde_json, time
 // ============================================================================
 
@@ -55,7 +55,7 @@ impl Default for TimeProviderConfig {
 // SECTION: Provider Implementation
 // ============================================================================
 
-/// Evidence provider for trigger-time predicates.
+/// Evidence provider for trigger-time checks.
 pub struct TimeProvider {
     /// Provider configuration, including logical timestamp policy.
     config: TimeProviderConfig,
@@ -78,7 +78,7 @@ impl EvidenceProvider for TimeProvider {
         ctx: &EvidenceContext,
     ) -> Result<EvidenceResult, EvidenceError> {
         let anchor = anchor_for_time(ctx.trigger_time);
-        match query.predicate.as_str() {
+        match query.check_id.as_str() {
             "now" => {
                 let value = timestamp_value(ctx.trigger_time, self.config)?;
                 Ok(EvidenceResult {
@@ -95,7 +95,7 @@ impl EvidenceProvider for TimeProvider {
             "after" | "before" => {
                 let threshold =
                     parse_threshold(query.params.as_ref(), ctx.trigger_time, self.config)?;
-                let result = compare_time(ctx.trigger_time, threshold, query.predicate.as_str());
+                let result = compare_time(ctx.trigger_time, threshold, query.check_id.as_str());
                 Ok(EvidenceResult {
                     value: Some(EvidenceValue::Json(Value::Bool(result))),
                     lane: TrustLane::Verified,
@@ -107,7 +107,7 @@ impl EvidenceProvider for TimeProvider {
                     content_type: Some("application/json".to_string()),
                 })
             }
-            _ => Err(EvidenceError::Provider("unsupported time predicate".to_string())),
+            _ => Err(EvidenceError::Provider("unsupported time check".to_string())),
         }
     }
 
@@ -152,14 +152,14 @@ fn timestamp_value(
     }
 }
 
-/// Parses the predicate threshold from query parameters.
+/// Parses the check threshold from query parameters.
 fn parse_threshold(
     params: Option<&Value>,
     timestamp: Timestamp,
     config: TimeProviderConfig,
 ) -> Result<Timestamp, EvidenceError> {
-    let params = params
-        .ok_or_else(|| EvidenceError::Provider("time predicate requires params".to_string()))?;
+    let params =
+        params.ok_or_else(|| EvidenceError::Provider("time check requires params".to_string()))?;
     let Value::Object(map) = params else {
         return Err(EvidenceError::Provider("time params must be an object".to_string()));
     };
@@ -221,15 +221,15 @@ fn parse_logical(value: &Value) -> Result<Timestamp, EvidenceError> {
     Ok(Timestamp::Logical(raw))
 }
 
-/// Compares the trigger timestamp against the threshold for a predicate.
-fn compare_time(now: Timestamp, threshold: Timestamp, predicate: &str) -> bool {
+/// Compares the trigger timestamp against the threshold for a check.
+fn compare_time(now: Timestamp, threshold: Timestamp, check_id: &str) -> bool {
     match (now, threshold) {
-        (Timestamp::UnixMillis(now), Timestamp::UnixMillis(threshold)) => match predicate {
+        (Timestamp::UnixMillis(now), Timestamp::UnixMillis(threshold)) => match check_id {
             "after" => now > threshold,
             "before" => now < threshold,
             _ => false,
         },
-        (Timestamp::Logical(now), Timestamp::Logical(threshold)) => match predicate {
+        (Timestamp::Logical(now), Timestamp::Logical(threshold)) => match check_id {
             "after" => now > threshold,
             "before" => now < threshold,
             _ => false,

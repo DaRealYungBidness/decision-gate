@@ -88,8 +88,8 @@ impl EvidenceProvider for JsonProvider {
         query: &EvidenceQuery,
         _ctx: &EvidenceContext,
     ) -> Result<EvidenceResult, EvidenceError> {
-        if query.predicate.as_str() != "path" {
-            return Err(EvidenceError::Provider("unsupported json predicate".to_string()));
+        if query.check_id.as_str() != "path" {
+            return Err(EvidenceError::Provider("unsupported json check".to_string()));
         }
 
         let (file_path, jsonpath) = match extract_params(query.params.as_ref()) {
@@ -162,7 +162,7 @@ impl EvidenceProvider for JsonProvider {
 /// Extracts file path and optional `JSONPath` from query parameters.
 fn extract_params(params: Option<&Value>) -> Result<(&str, Option<String>), EvidenceProviderError> {
     let params = params
-        .ok_or_else(|| provider_error("params_missing", "json predicate requires params", None))?;
+        .ok_or_else(|| provider_error("params_missing", "json check requires params", None))?;
     let Value::Object(map) = params else {
         return Err(provider_error("params_invalid", "json params must be an object", None));
     };

@@ -57,9 +57,9 @@ Dependencies:
           "gate_id": "quality-checks",
           "requirement": {
             "And": [
-              { "Predicate": "tests_ok" },
-              { "Predicate": "coverage_ok" },
-              { "Predicate": "scan_ok" }
+              { "Condition": "tests_ok" },
+              { "Condition": "coverage_ok" },
+              { "Condition": "scan_ok" }
             ]
           }
         }
@@ -69,12 +69,12 @@ Dependencies:
       "on_timeout": "fail"
     }
   ],
-  "predicates": [
+  "conditions": [
     {
-      "predicate": "tests_ok",
+      "condition_id": "tests_ok",
       "query": {
         "provider_id": "json",
-        "predicate": "path",
+        "check_id": "path",
         "params": {
           "file": "/workspace/test-results.json",
           "jsonpath": "$.summary.failed"
@@ -85,10 +85,10 @@ Dependencies:
       "policy_tags": []
     },
     {
-      "predicate": "coverage_ok",
+      "condition_id": "coverage_ok",
       "query": {
         "provider_id": "json",
-        "predicate": "path",
+        "check_id": "path",
         "params": {
           "file": "/workspace/coverage.json",
           "jsonpath": "$.total.lines.percent"
@@ -99,10 +99,10 @@ Dependencies:
       "policy_tags": []
     },
     {
-      "predicate": "scan_ok",
+      "condition_id": "scan_ok",
       "query": {
         "provider_id": "json",
-        "predicate": "path",
+        "check_id": "path",
         "params": {
           "file": "/workspace/scan.json",
           "jsonpath": "$.summary.critical"
@@ -138,7 +138,7 @@ Dependencies:
 
 **Precheck output is limited:**
 - Returns `{ decision, gate_evaluations }`.
-- `gate_evaluations` contain `gate_id`, `status`, and predicate trace only.
+- `gate_evaluations` contain `gate_id`, `status`, and condition trace only.
 - It **does not** include evidence values or errors.
 
 If you need evidence errors, use `evidence_query` or `runpack_export` in a live run.

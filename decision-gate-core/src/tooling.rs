@@ -41,8 +41,8 @@ pub enum ToolName {
     ProvidersList,
     /// Fetch a provider contract by provider identifier.
     ProviderContractGet,
-    /// Fetch predicate schema details for a provider.
-    ProviderSchemaGet,
+    /// Fetch check schema details for a provider.
+    ProviderCheckSchemaGet,
     /// List registered data shapes.
     SchemasList,
     /// Register a data shape schema.
@@ -71,7 +71,7 @@ impl ToolName {
             Self::RunpackVerify => "runpack_verify",
             Self::ProvidersList => "providers_list",
             Self::ProviderContractGet => "provider_contract_get",
-            Self::ProviderSchemaGet => "provider_schema_get",
+            Self::ProviderCheckSchemaGet => "provider_check_schema_get",
             Self::SchemasList => "schemas_list",
             Self::SchemasRegister => "schemas_register",
             Self::SchemasGet => "schemas_get",
@@ -95,7 +95,7 @@ impl ToolName {
             Self::RunpackVerify,
             Self::ProvidersList,
             Self::ProviderContractGet,
-            Self::ProviderSchemaGet,
+            Self::ProviderCheckSchemaGet,
             Self::SchemasRegister,
             Self::SchemasList,
             Self::SchemasGet,
@@ -119,7 +119,7 @@ impl ToolName {
             "runpack_verify" => Some(Self::RunpackVerify),
             "providers_list" => Some(Self::ProvidersList),
             "provider_contract_get" => Some(Self::ProviderContractGet),
-            "provider_schema_get" => Some(Self::ProviderSchemaGet),
+            "provider_check_schema_get" => Some(Self::ProviderCheckSchemaGet),
             "schemas_list" => Some(Self::SchemasList),
             "schemas_register" => Some(Self::SchemasRegister),
             "schemas_get" => Some(Self::SchemasGet),

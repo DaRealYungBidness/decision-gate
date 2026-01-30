@@ -32,8 +32,8 @@ mod tests;
 // SECTION: Re-Exports
 // ============================================================================
 
+pub use dsl::ConditionResolver;
 pub use dsl::DslError;
-pub use dsl::PredicateResolver;
 pub use dsl::parse_requirement;
 pub use error::RequirementError;
 pub use error::RequirementResult;
@@ -51,13 +51,13 @@ pub use requirement::RequirementGroup;
 pub use requirement::RequirementGroupError;
 pub use requirement::RequirementId;
 pub use requirement::RequirementIdError;
-pub use traits::BatchPredicateEval;
+pub use traits::BatchConditionEval;
 pub use traits::BoolAsTri;
+pub use traits::ConditionEval;
 pub use traits::Mask64;
-pub use traits::PredicateEval;
 pub use traits::ReaderLen;
 pub use traits::Row;
-pub use traits::TriStatePredicateEval;
+pub use traits::TriStateConditionEval;
 pub use traits::eval_reader_rows;
 pub use tristate::BochvarLogic;
 pub use tristate::GroupCounts;
@@ -100,10 +100,10 @@ pub mod convenience {
         Requirement::require_group(min, requirements)
     }
 
-    /// Creates a requirement from a predicate
+    /// Creates a requirement from a condition
     #[must_use]
-    pub const fn predicate<P>(predicate: P) -> Requirement<P> {
-        Requirement::predicate(predicate)
+    pub const fn condition<P>(condition: P) -> Requirement<P> {
+        Requirement::condition(condition)
     }
 }
 
@@ -118,24 +118,24 @@ pub mod convenience {
 /// ```ignore
 /// let req = requirement! {
 ///     and [
-///         predicate(my_predicate),
+///         condition(my_condition),
 ///         or [
-///             predicate(other_predicate),
-///             not(predicate(third_predicate))
+///             condition(other_condition),
+///             not(condition(third_condition))
 ///         ],
 ///         require_group(2, [
-///             predicate(option_a),
-///             predicate(option_b),
-///             predicate(option_c)
+///             condition(option_a),
+///             condition(option_b),
+///             condition(option_c)
 ///         ])
 ///     ]
 /// };
 /// ```
 #[macro_export]
 macro_rules! requirement {
-    // Base case: predicate
-    (predicate($pred:expr)) => {
-        $crate::requirement::Requirement::predicate($pred)
+    // Base case: condition
+    (condition($pred:expr)) => {
+        $crate::requirement::Requirement::condition($pred)
     };
 
     // Not case

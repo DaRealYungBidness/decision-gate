@@ -315,13 +315,13 @@ impl From<String> for GateId {
     }
 }
 
-/// Predicate identifier referenced in requirements.
+/// Condition identifier referenced in requirements.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct PredicateKey(String);
+pub struct ConditionId(String);
 
-impl PredicateKey {
-    /// Creates a new predicate key.
+impl ConditionId {
+    /// Creates a new condition identifier.
     #[must_use]
     pub fn new(key: impl Into<String>) -> Self {
         Self(key.into())
@@ -334,19 +334,19 @@ impl PredicateKey {
     }
 }
 
-impl fmt::Display for PredicateKey {
+impl fmt::Display for ConditionId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
 }
 
-impl From<&str> for PredicateKey {
+impl From<&str> for ConditionId {
     fn from(value: &str) -> Self {
         Self::new(value)
     }
 }
 
-impl From<String> for PredicateKey {
+impl From<String> for ConditionId {
     fn from(value: String) -> Self {
         Self::new(value)
     }

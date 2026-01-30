@@ -1204,7 +1204,7 @@
                       "runpack_verify",
                       "providers_list",
                       "provider_contract_get",
-                      "provider_schema_get",
+                      "provider_check_schema_get",
                       "schemas_register",
                       "schemas_list",
                       "schemas_get",

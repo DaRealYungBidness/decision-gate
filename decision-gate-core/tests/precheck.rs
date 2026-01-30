@@ -21,6 +21,8 @@ use std::sync::atomic::Ordering;
 
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionId;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::DecisionOutcome;
 use decision_gate_core::DispatchReceipt;
 use decision_gate_core::DispatchTarget;
@@ -37,8 +39,6 @@ use decision_gate_core::PacketEnvelope;
 use decision_gate_core::PacketPayload;
 use decision_gate_core::PolicyDecider;
 use decision_gate_core::PolicyDecision;
-use decision_gate_core::PredicateKey;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunId;
 use decision_gate_core::RunState;
@@ -150,18 +150,18 @@ fn sample_spec() -> ScenarioSpec {
             entry_packets: Vec::new(),
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-ready"),
-                requirement: ret_logic::Requirement::predicate("ready".into()),
+                requirement: ret_logic::Requirement::condition("ready".into()),
                 trust: None,
             }],
             advance_to: AdvanceTo::Terminal,
             timeout: None,
             on_timeout: decision_gate_core::TimeoutPolicy::Fail,
         }],
-        predicates: vec![PredicateSpec {
-            predicate: PredicateKey::new("ready"),
+        conditions: vec![ConditionSpec {
+            condition_id: ConditionId::new("ready"),
             query: EvidenceQuery {
                 provider_id: ProviderId::new("noop"),
-                predicate: "ready".to_string(),
+                check_id: "ready".to_string(),
                 params: None,
             },
             comparator: Comparator::Equals,
@@ -178,8 +178,8 @@ fn sample_spec() -> ScenarioSpec {
 fn sample_spec_two_stages() -> ScenarioSpec {
     let stage_one = StageId::new("stage-1");
     let stage_two = StageId::new("stage-2");
-    let ready_predicate = PredicateKey::new("ready");
-    let approved_predicate = PredicateKey::new("approved");
+    let ready_condition = ConditionId::new("ready");
+    let approved_condition = ConditionId::new("approved");
     ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
         namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
@@ -190,7 +190,7 @@ fn sample_spec_two_stages() -> ScenarioSpec {
                 entry_packets: Vec::new(),
                 gates: vec![GateSpec {
                     gate_id: GateId::new("gate-ready"),
-                    requirement: ret_logic::Requirement::predicate(ready_predicate.clone()),
+                    requirement: ret_logic::Requirement::condition(ready_condition.clone()),
                     trust: None,
                 }],
                 advance_to: AdvanceTo::Fixed {
@@ -204,7 +204,7 @@ fn sample_spec_two_stages() -> ScenarioSpec {
                 entry_packets: Vec::new(),
                 gates: vec![GateSpec {
                     gate_id: GateId::new("gate-approved"),
-                    requirement: ret_logic::Requirement::predicate(approved_predicate.clone()),
+                    requirement: ret_logic::Requirement::condition(approved_condition.clone()),
                     trust: None,
                 }],
                 advance_to: AdvanceTo::Terminal,
@@ -212,12 +212,12 @@ fn sample_spec_two_stages() -> ScenarioSpec {
                 on_timeout: decision_gate_core::TimeoutPolicy::Fail,
             },
         ],
-        predicates: vec![
-            PredicateSpec {
-                predicate: ready_predicate,
+        conditions: vec![
+            ConditionSpec {
+                condition_id: ready_condition,
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("noop"),
-                    predicate: "ready".to_string(),
+                    check_id: "ready".to_string(),
                     params: None,
                 },
                 comparator: Comparator::Equals,
@@ -225,11 +225,11 @@ fn sample_spec_two_stages() -> ScenarioSpec {
                 policy_tags: Vec::new(),
                 trust: None,
             },
-            PredicateSpec {
-                predicate: approved_predicate,
+            ConditionSpec {
+                condition_id: approved_condition,
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("noop"),
-                    predicate: "approved".to_string(),
+                    check_id: "approved".to_string(),
                     params: None,
                 },
                 comparator: Comparator::Equals,
@@ -270,7 +270,7 @@ fn precheck_completes_on_verified_evidence() {
     let control = build_control_plane(TrustLane::Verified);
     let mut evidence = BTreeMap::new();
     evidence.insert(
-        PredicateKey::new("ready"),
+        ConditionId::new("ready"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
@@ -304,7 +304,7 @@ fn precheck_holds_on_untrusted_evidence() {
     let control = build_control_plane(TrustLane::Verified);
     let mut evidence = BTreeMap::new();
     evidence.insert(
-        PredicateKey::new("ready"),
+        ConditionId::new("ready"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Asserted,
@@ -342,7 +342,7 @@ fn precheck_respects_gate_trust_override() {
 
     let mut evidence = BTreeMap::new();
     evidence.insert(
-        PredicateKey::new("ready"),
+        ConditionId::new("ready"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Asserted,
@@ -364,7 +364,7 @@ fn precheck_respects_gate_trust_override() {
 
     let mut evidence = BTreeMap::new();
     evidence.insert(
-        PredicateKey::new("ready"),
+        ConditionId::new("ready"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
@@ -392,7 +392,7 @@ fn precheck_uses_stage_override() {
         build_control_plane_with_store(spec, TrustLane::Verified, InMemoryRunStateStore::new());
     let mut evidence = BTreeMap::new();
     evidence.insert(
-        PredicateKey::new("approved"),
+        ConditionId::new("approved"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
@@ -445,7 +445,7 @@ fn precheck_does_not_write_run_state() {
     let control = build_control_plane_with_store(sample_spec(), TrustLane::Verified, store.clone());
     let mut evidence = BTreeMap::new();
     evidence.insert(
-        PredicateKey::new("ready"),
+        ConditionId::new("ready"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
@@ -473,7 +473,7 @@ fn precheck_advances_to_next_stage() {
         build_control_plane_with_store(spec, TrustLane::Verified, InMemoryRunStateStore::new());
     let mut evidence = BTreeMap::new();
     evidence.insert(
-        PredicateKey::new("ready"),
+        ConditionId::new("ready"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
@@ -517,8 +517,8 @@ fn precheck_rejects_unknown_stage() {
 // ============================================================================
 
 fn spec_with_and_gate() -> ScenarioSpec {
-    let ready_predicate = PredicateKey::new("ready");
-    let approved_predicate = PredicateKey::new("approved");
+    let ready_condition = ConditionId::new("ready");
+    let approved_condition = ConditionId::new("approved");
     ScenarioSpec {
         scenario_id: ScenarioId::new("and-gate-scenario"),
         namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
@@ -530,8 +530,8 @@ fn spec_with_and_gate() -> ScenarioSpec {
                 gate_id: GateId::new("gate-and"),
                 // AND: both ready AND approved must be true
                 requirement: ret_logic::Requirement::and(vec![
-                    ret_logic::Requirement::predicate(ready_predicate.clone()),
-                    ret_logic::Requirement::predicate(approved_predicate.clone()),
+                    ret_logic::Requirement::condition(ready_condition.clone()),
+                    ret_logic::Requirement::condition(approved_condition.clone()),
                 ]),
                 trust: None,
             }],
@@ -539,12 +539,12 @@ fn spec_with_and_gate() -> ScenarioSpec {
             timeout: None,
             on_timeout: decision_gate_core::TimeoutPolicy::Fail,
         }],
-        predicates: vec![
-            PredicateSpec {
-                predicate: ready_predicate,
+        conditions: vec![
+            ConditionSpec {
+                condition_id: ready_condition,
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("noop"),
-                    predicate: "ready".to_string(),
+                    check_id: "ready".to_string(),
                     params: None,
                 },
                 comparator: Comparator::Equals,
@@ -552,11 +552,11 @@ fn spec_with_and_gate() -> ScenarioSpec {
                 policy_tags: Vec::new(),
                 trust: None,
             },
-            PredicateSpec {
-                predicate: approved_predicate,
+            ConditionSpec {
+                condition_id: approved_condition,
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("noop"),
-                    predicate: "approved".to_string(),
+                    check_id: "approved".to_string(),
                     params: None,
                 },
                 comparator: Comparator::Equals,
@@ -572,8 +572,8 @@ fn spec_with_and_gate() -> ScenarioSpec {
 }
 
 fn spec_with_or_gate() -> ScenarioSpec {
-    let ready_predicate = PredicateKey::new("ready");
-    let approved_predicate = PredicateKey::new("approved");
+    let ready_condition = ConditionId::new("ready");
+    let approved_condition = ConditionId::new("approved");
     ScenarioSpec {
         scenario_id: ScenarioId::new("or-gate-scenario"),
         namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
@@ -585,8 +585,8 @@ fn spec_with_or_gate() -> ScenarioSpec {
                 gate_id: GateId::new("gate-or"),
                 // OR: either ready OR approved must be true
                 requirement: ret_logic::Requirement::or(vec![
-                    ret_logic::Requirement::predicate(ready_predicate.clone()),
-                    ret_logic::Requirement::predicate(approved_predicate.clone()),
+                    ret_logic::Requirement::condition(ready_condition.clone()),
+                    ret_logic::Requirement::condition(approved_condition.clone()),
                 ]),
                 trust: None,
             }],
@@ -594,12 +594,12 @@ fn spec_with_or_gate() -> ScenarioSpec {
             timeout: None,
             on_timeout: decision_gate_core::TimeoutPolicy::Fail,
         }],
-        predicates: vec![
-            PredicateSpec {
-                predicate: ready_predicate,
+        conditions: vec![
+            ConditionSpec {
+                condition_id: ready_condition,
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("noop"),
-                    predicate: "ready".to_string(),
+                    check_id: "ready".to_string(),
                     params: None,
                 },
                 comparator: Comparator::Equals,
@@ -607,11 +607,11 @@ fn spec_with_or_gate() -> ScenarioSpec {
                 policy_tags: Vec::new(),
                 trust: None,
             },
-            PredicateSpec {
-                predicate: approved_predicate,
+            ConditionSpec {
+                condition_id: approved_condition,
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("noop"),
-                    predicate: "approved".to_string(),
+                    check_id: "approved".to_string(),
                     params: None,
                 },
                 comparator: Comparator::Equals,
@@ -635,7 +635,7 @@ fn precheck_and_gate_all_true_passes() {
     );
     let mut evidence = BTreeMap::new();
     evidence.insert(
-        PredicateKey::new("ready"),
+        ConditionId::new("ready"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
@@ -648,7 +648,7 @@ fn precheck_and_gate_all_true_passes() {
         },
     );
     evidence.insert(
-        PredicateKey::new("approved"),
+        ConditionId::new("approved"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
@@ -686,7 +686,7 @@ fn precheck_and_gate_any_false_fails() {
     );
     let mut evidence = BTreeMap::new();
     evidence.insert(
-        PredicateKey::new("ready"),
+        ConditionId::new("ready"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
@@ -699,7 +699,7 @@ fn precheck_and_gate_any_false_fails() {
         },
     );
     evidence.insert(
-        PredicateKey::new("approved"),
+        ConditionId::new("approved"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(false))), // This will fail
             lane: TrustLane::Verified,
@@ -738,7 +738,7 @@ fn precheck_and_gate_any_unknown_holds() {
     );
     let mut evidence = BTreeMap::new();
     evidence.insert(
-        PredicateKey::new("ready"),
+        ConditionId::new("ready"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
@@ -777,7 +777,7 @@ fn precheck_or_gate_any_true_passes() {
     );
     let mut evidence = BTreeMap::new();
     evidence.insert(
-        PredicateKey::new("ready"),
+        ConditionId::new("ready"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
@@ -817,7 +817,7 @@ fn precheck_or_gate_all_false_holds() {
     );
     let mut evidence = BTreeMap::new();
     evidence.insert(
-        PredicateKey::new("ready"),
+        ConditionId::new("ready"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(false))),
             lane: TrustLane::Verified,
@@ -830,7 +830,7 @@ fn precheck_or_gate_all_false_holds() {
         },
     );
     evidence.insert(
-        PredicateKey::new("approved"),
+        ConditionId::new("approved"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(false))),
             lane: TrustLane::Verified,
@@ -866,7 +866,7 @@ fn precheck_or_gate_all_unknown_holds() {
         TrustLane::Verified,
         InMemoryRunStateStore::new(),
     );
-    // No evidence at all -> both predicates Unknown
+    // No evidence at all -> both conditions Unknown
 
     let result = control
         .precheck(&PrecheckRequest {
@@ -889,14 +889,14 @@ fn precheck_or_gate_all_unknown_holds() {
 // ============================================================================
 
 #[test]
-fn precheck_config_verified_predicate_asserted_gate_verified_rejects_asserted_evidence() {
+fn precheck_config_verified_condition_asserted_gate_verified_rejects_asserted_evidence() {
     // Config: Verified (default)
-    // Predicate: Asserted (relaxed)
+    // Condition: Asserted (relaxed)
     // Gate: Verified (tightened)
     // Evidence: Asserted
     // Result: Should reject because gate requires Verified
     let mut spec = sample_spec();
-    spec.predicates[0].trust = Some(TrustRequirement {
+    spec.conditions[0].trust = Some(TrustRequirement {
         min_lane: TrustLane::Asserted,
     });
     spec.stages[0].gates[0].trust = Some(TrustRequirement {
@@ -907,7 +907,7 @@ fn precheck_config_verified_predicate_asserted_gate_verified_rejects_asserted_ev
         build_control_plane_with_store(spec, TrustLane::Verified, InMemoryRunStateStore::new());
     let mut evidence = BTreeMap::new();
     evidence.insert(
-        PredicateKey::new("ready"),
+        ConditionId::new("ready"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Asserted, // Asserted evidence
@@ -932,14 +932,14 @@ fn precheck_config_verified_predicate_asserted_gate_verified_rejects_asserted_ev
 }
 
 #[test]
-fn precheck_config_asserted_predicate_verified_gate_none_accepts_verified_evidence() {
+fn precheck_config_asserted_condition_verified_gate_none_accepts_verified_evidence() {
     // Config: Asserted (relaxed)
-    // Predicate: Verified (tightened)
-    // Gate: None (inherits predicate)
+    // Condition: Verified (tightened)
+    // Gate: None (inherits condition)
     // Evidence: Verified
     // Result: Should pass
     let mut spec = sample_spec();
-    spec.predicates[0].trust = Some(TrustRequirement {
+    spec.conditions[0].trust = Some(TrustRequirement {
         min_lane: TrustLane::Verified,
     });
 
@@ -947,7 +947,7 @@ fn precheck_config_asserted_predicate_verified_gate_none_accepts_verified_eviden
         build_control_plane_with_store(spec, TrustLane::Asserted, InMemoryRunStateStore::new());
     let mut evidence = BTreeMap::new();
     evidence.insert(
-        PredicateKey::new("ready"),
+        ConditionId::new("ready"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
@@ -977,10 +977,10 @@ fn precheck_config_asserted_predicate_verified_gate_none_accepts_verified_eviden
 }
 
 #[test]
-fn precheck_gate_override_stricter_than_predicate_honored() {
-    // Predicate allows Asserted, Gate requires Verified
+fn precheck_gate_override_stricter_than_condition_honored() {
+    // Condition allows Asserted, Gate requires Verified
     let mut spec = sample_spec();
-    spec.predicates[0].trust = Some(TrustRequirement {
+    spec.conditions[0].trust = Some(TrustRequirement {
         min_lane: TrustLane::Asserted,
     });
     spec.stages[0].gates[0].trust = Some(TrustRequirement {
@@ -991,7 +991,7 @@ fn precheck_gate_override_stricter_than_predicate_honored() {
         build_control_plane_with_store(spec, TrustLane::Asserted, InMemoryRunStateStore::new());
     let mut evidence = BTreeMap::new();
     evidence.insert(
-        PredicateKey::new("ready"),
+        ConditionId::new("ready"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Asserted,
@@ -1016,10 +1016,10 @@ fn precheck_gate_override_stricter_than_predicate_honored() {
 }
 
 #[test]
-fn precheck_predicate_override_stricter_than_config_honored() {
-    // Config allows Asserted, Predicate requires Verified
+fn precheck_condition_override_stricter_than_config_honored() {
+    // Config allows Asserted, Condition requires Verified
     let mut spec = sample_spec();
-    spec.predicates[0].trust = Some(TrustRequirement {
+    spec.conditions[0].trust = Some(TrustRequirement {
         min_lane: TrustLane::Verified,
     });
 
@@ -1027,7 +1027,7 @@ fn precheck_predicate_override_stricter_than_config_honored() {
         build_control_plane_with_store(spec, TrustLane::Asserted, InMemoryRunStateStore::new());
     let mut evidence = BTreeMap::new();
     evidence.insert(
-        PredicateKey::new("ready"),
+        ConditionId::new("ready"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Asserted,
@@ -1047,7 +1047,7 @@ fn precheck_predicate_override_stricter_than_config_honored() {
         })
         .expect("precheck result");
 
-    // Predicate's stricter requirement wins
+    // Condition's stricter requirement wins
     assert_eq!(result.gate_evaluations[0].status, TriState::Unknown);
 }
 
@@ -1060,7 +1060,7 @@ fn precheck_repeated_calls_same_input_produce_same_result() {
     let control = build_control_plane(TrustLane::Verified);
     let mut evidence = BTreeMap::new();
     evidence.insert(
-        PredicateKey::new("ready"),
+        ConditionId::new("ready"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified,
@@ -1099,7 +1099,7 @@ fn precheck_verified_evidence_passes_asserted_requirement() {
     let control = build_control_plane(TrustLane::Asserted);
     let mut evidence = BTreeMap::new();
     evidence.insert(
-        PredicateKey::new("ready"),
+        ConditionId::new("ready"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Verified, // Higher trust than required
@@ -1133,7 +1133,7 @@ fn precheck_trust_lane_error_includes_error_code() {
     let control = build_control_plane(TrustLane::Verified);
     let mut evidence = BTreeMap::new();
     evidence.insert(
-        PredicateKey::new("ready"),
+        ConditionId::new("ready"),
         EvidenceResult {
             value: Some(EvidenceValue::Json(json!(true))),
             lane: TrustLane::Asserted, // Lower trust than required

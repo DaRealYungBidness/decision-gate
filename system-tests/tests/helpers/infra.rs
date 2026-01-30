@@ -7,17 +7,15 @@
 // ============================================================================
 
 use std::env;
-use std::sync::LazyLock;
 
 use aws_config::BehaviorVersion;
 use aws_config::Region;
 use aws_sdk_s3::Client;
-use testcontainers::Container;
+use testcontainers::ContainerAsync;
 use testcontainers::GenericImage;
-use testcontainers::RunnableImage;
-use testcontainers::clients::Cli;
-
-static DOCKER: LazyLock<Cli> = LazyLock::new(Cli::default);
+use testcontainers::ImageExt;
+use testcontainers::core::IntoContainerPort;
+use testcontainers::runners::AsyncRunner;
 
 pub struct S3Fixture {
     pub endpoint: String,
@@ -26,7 +24,7 @@ pub struct S3Fixture {
     pub access_key: String,
     pub secret_key: String,
     pub force_path_style: bool,
-    _container: Option<Container<'static, GenericImage>>,
+    _container: Option<ContainerAsync<GenericImage>>,
 }
 
 impl S3Fixture {
@@ -60,20 +58,26 @@ impl S3Fixture {
         let secret_key = "minioadmin".to_string();
         let region = "us-east-1".to_string();
         let bucket = "decision-gate-system-tests".to_string();
-        let image = GenericImage::new("minio/minio", "latest")
-            .with_env_var("MINIO_ROOT_USER", access_key.clone())
-            .with_env_var("MINIO_ROOT_PASSWORD", secret_key.clone())
-            .with_env_var("MINIO_REGION", region.clone())
-            .with_exposed_port(9000)
-            .with_entrypoint("/usr/bin/minio");
         let args = vec![
             "server".to_string(),
             "/data".to_string(),
             "--console-address".to_string(),
             ":9001".to_string(),
         ];
-        let container = DOCKER.run(RunnableImage::from((image, args)));
-        let port = container.get_host_port_ipv4(9000);
+        let container = GenericImage::new("minio/minio", "latest")
+            .with_exposed_port(9000.tcp())
+            .with_entrypoint("/usr/bin/minio")
+            .with_env_var("MINIO_ROOT_USER", access_key.clone())
+            .with_env_var("MINIO_ROOT_PASSWORD", secret_key.clone())
+            .with_env_var("MINIO_REGION", region.clone())
+            .with_cmd(args)
+            .start()
+            .await
+            .map_err(|err| format!("failed to start minio container: {err}"))?;
+        let port = container
+            .get_host_port_ipv4(9000.tcp())
+            .await
+            .map_err(|err| format!("failed to resolve minio port: {err}"))?;
         let endpoint = format!("http://127.0.0.1:{port}");
         let fixture = Self {
             endpoint,

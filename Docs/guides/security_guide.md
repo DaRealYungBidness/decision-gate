@@ -72,7 +72,7 @@ Minimum lane is enforced by:
 min_lane = "verified"   # or "asserted"
 ```
 
-If evidence lane is below the minimum, the predicate becomes `unknown` and a `trust_lane` error is recorded in the runpack.
+If evidence lane is below the minimum, the condition becomes `unknown` and a `trust_lane` error is recorded in the runpack.
 
 ### Dev-Permissive Mode
 
@@ -103,7 +103,7 @@ Notes:
 - `EvidenceResult.signature.key_id` must match the configured key path string.
 - The signature is verified over **canonical JSON of the HashDigest**.
 
-If a signature check fails, the provider call fails and the predicate becomes `unknown` with `provider_error` recorded.
+If a signature check fails, the provider call fails and the condition becomes `unknown` with `provider_error` recorded.
 
 ---
 
@@ -125,7 +125,7 @@ Anchor rules (exact):
 - That JSON must parse to an **object**.
 - Required fields must exist and be scalar **string or number** (no booleans, arrays, objects, or nulls).
 
-Violations produce `anchor_invalid` and the predicate becomes `unknown`.
+Violations produce `anchor_invalid` and the condition becomes `unknown`.
 
 ---
 

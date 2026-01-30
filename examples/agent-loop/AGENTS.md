@@ -4,7 +4,7 @@
 > **Goal:** Keep the loop deterministic and aligned with core evaluation.
 
 ## In scope
-- Updating predicates and flow for current APIs.
+- Updating conditions and flow for current APIs.
 - Improving clarity of staged progression.
 
 ## Out of scope

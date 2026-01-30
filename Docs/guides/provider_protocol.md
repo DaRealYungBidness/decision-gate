@@ -72,7 +72,7 @@ Built-in providers use `type = "builtin"` and are **not** MCP servers.
     "arguments": {
       "query": {
         "provider_id": "file-provider",
-        "predicate": "file_size",
+        "check_id": "file_size",
         "params": { "path": "/tmp/report.json" }
       },
       "context": {
@@ -123,23 +123,23 @@ Built-in providers use `type = "builtin"` and are **not** MCP servers.
 
 ---
 
-## EvidenceQuery (Exact Structure)
+## EvidenceQuery Structure
 
 ```json
 {
   "provider_id": "string",
-  "predicate": "string",
+  "check_id": "string",
   "params": "any"  // optional
 }
 ```
 
 - `provider_id` matches the provider name in config.
-- `predicate` is the provider's capability name (not the scenario predicate ID).
+- `check_id` is the provider's capability name (not the scenario condition ID).
 - `params` is provider-specific; it may be omitted or `null`.
 
 ---
 
-## EvidenceContext (Exact Structure)
+## EvidenceContext Structure
 
 ```json
 {
@@ -158,7 +158,7 @@ The context is provided by Decision Gate and is available to providers for deter
 
 ---
 
-## EvidenceResult (Exact Structure)
+## EvidenceResult Structure
 
 ```json
 {
@@ -202,7 +202,7 @@ If the provider returns a **JSON-RPC error**, Decision Gate treats it as a provi
 
 ## Glossary
 
-**EvidenceQuery:** Provider request `{ provider_id, predicate, params }`.
+**EvidenceQuery:** Provider request `{ provider_id, check_id, params }`.
 **EvidenceResult:** Provider response (value + metadata).
 **MCP:** Model Context Protocol (JSON-RPC 2.0 tool calls).
-**Provider Contract:** JSON file declaring predicates, params schema, result schema, and allowed comparators.
+**Provider Contract:** JSON file declaring checks, params schema, result schema, and allowed comparators.

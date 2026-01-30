@@ -52,7 +52,7 @@ npm test
 
 ## Customization
 
-1. Define predicates and parameters in `handleEvidenceQuery`.
+1. Define checks and parameters in `handleEvidenceQuery`.
 2. Populate `tools/list` with the `evidence_query` tool metadata.
 3. Generate a provider contract JSON (capabilities) and register it in
    `decision-gate.toml` via `capabilities_path`.

@@ -5,48 +5,6 @@
   "default_tenant_id": 1,
   "policies": [],
   "schemas": [],
-  "predicates": [
-    {
-      "predicate": "fetch_allowed",
-      "query": {
-        "provider_id": "env",
-        "predicate": "get",
-        "params": {
-          "key": "FETCH_ALLOWED"
-        }
-      },
-      "comparator": "equals",
-      "expected": "true",
-      "policy_tags": []
-    },
-    {
-      "predicate": "fetch_status",
-      "query": {
-        "provider_id": "http",
-        "predicate": "status",
-        "params": {
-          "url": "{{HTTP_BASE_URL}}/fetch.json"
-        }
-      },
-      "comparator": "equals",
-      "expected": 200,
-      "policy_tags": []
-    },
-    {
-      "predicate": "policy_allowed",
-      "query": {
-        "provider_id": "json",
-        "predicate": "path",
-        "params": {
-          "file": "fetch_policy.json",
-          "jsonpath": "$.allowed"
-        }
-      },
-      "comparator": "equals",
-      "expected": true,
-      "policy_tags": []
-    }
-  ],
   "stages": [
     {
       "stage_id": "main",
@@ -57,13 +15,13 @@
           "requirement": {
             "And": [
               {
-                "Predicate": "fetch_allowed"
+                "Condition": "fetch_allowed"
               },
               {
-                "Predicate": "fetch_status"
+                "Condition": "fetch_status"
               },
               {
-                "Predicate": "policy_allowed"
+                "Condition": "policy_allowed"
               }
             ]
           }
@@ -74,6 +32,48 @@
       },
       "timeout": null,
       "on_timeout": "fail"
+    }
+  ],
+  "conditions": [
+    {
+      "query": {
+        "provider_id": "env",
+        "params": {
+          "key": "FETCH_ALLOWED"
+        },
+        "check_id": "get"
+      },
+      "comparator": "equals",
+      "expected": "true",
+      "policy_tags": [],
+      "condition_id": "fetch_allowed"
+    },
+    {
+      "query": {
+        "provider_id": "http",
+        "params": {
+          "url": "{{HTTP_BASE_URL}}/fetch.json"
+        },
+        "check_id": "status"
+      },
+      "comparator": "equals",
+      "expected": 200,
+      "policy_tags": [],
+      "condition_id": "fetch_status"
+    },
+    {
+      "query": {
+        "provider_id": "json",
+        "params": {
+          "file": "fetch_policy.json",
+          "jsonpath": "$.allowed"
+        },
+        "check_id": "path"
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": [],
+      "condition_id": "policy_allowed"
     }
   ]
 }

@@ -5,34 +5,6 @@
   "default_tenant_id": 1,
   "policies": [],
   "schemas": [],
-  "predicates": [
-    {
-      "predicate": "policy_env_ok",
-      "query": {
-        "provider_id": "env",
-        "predicate": "get",
-        "params": {
-          "key": "POLICY_ENV"
-        }
-      },
-      "comparator": "equals",
-      "expected": "trusted",
-      "policy_tags": []
-    },
-    {
-      "predicate": "after_window",
-      "query": {
-        "provider_id": "time",
-        "predicate": "after",
-        "params": {
-          "timestamp": 0
-        }
-      },
-      "comparator": "equals",
-      "expected": true,
-      "policy_tags": []
-    }
-  ],
   "stages": [
     {
       "stage_id": "check",
@@ -43,10 +15,10 @@
           "requirement": {
             "And": [
               {
-                "Predicate": "policy_env_ok"
+                "Condition": "policy_env_ok"
               },
               {
-                "Predicate": "after_window"
+                "Condition": "after_window"
               }
             ]
           }
@@ -88,6 +60,34 @@
       },
       "timeout": null,
       "on_timeout": "fail"
+    }
+  ],
+  "conditions": [
+    {
+      "query": {
+        "provider_id": "env",
+        "params": {
+          "key": "POLICY_ENV"
+        },
+        "check_id": "get"
+      },
+      "comparator": "equals",
+      "expected": "trusted",
+      "policy_tags": [],
+      "condition_id": "policy_env_ok"
+    },
+    {
+      "query": {
+        "provider_id": "time",
+        "params": {
+          "timestamp": 0
+        },
+        "check_id": "after"
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": [],
+      "condition_id": "after_window"
     }
   ]
 }

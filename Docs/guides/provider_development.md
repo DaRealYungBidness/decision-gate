@@ -30,14 +30,14 @@ Provider
     - provider_id, name, description
     - transport = "mcp"
     - config_schema
-    - predicates (params schema, result schema, comparators, examples)
+    - checks (params schema, result schema, comparators, examples)
     - notes
   - MCP Server
     - tools/call -> evidence_query
 
 Decision Gate
   - Loads contract from capabilities_path
-  - Validates ScenarioSpec predicates against contract
+  - Validates ScenarioSpec conditions against contract
   - Calls evidence_query during scenario_next
 ```
 
@@ -77,14 +77,14 @@ Example (pseudocode):
 
 ```python
 def handle_evidence_query(query, context):
-    if query["predicate"] != "file_exists":
+    if query["check_id"] != "file_exists":
         return {
             "value": None,
             "lane": "verified",
             "error": {
-                "code": "unsupported_predicate",
-                "message": "unknown predicate",
-                "details": {"predicate": query["predicate"]}
+                "code": "unsupported_check",
+                "message": "unknown check",
+                "details": {"check_id": query["check_id"]}
             },
             "evidence_hash": None,
             "evidence_ref": None,
@@ -141,9 +141,9 @@ All fields below are **required** by the contract schema.
     "additionalProperties": false,
     "properties": {}
   },
-  "predicates": [
+  "checks": [
     {
-      "name": "file_exists",
+      "check_id": "file_exists",
       "description": "Check if a file exists",
       "determinism": "external",
       "params_required": true,
@@ -248,7 +248,7 @@ Error codes are provider-defined. Keep them stable and machine-readable (e.g., `
 
 ## Glossary
 
-**EvidenceQuery:** Request `{ provider_id, predicate, params }`.
+**EvidenceQuery:** Request `{ provider_id, check_id, params }`.
 **EvidenceResult:** Provider response value + metadata.
-**Provider Contract:** JSON document describing predicates, schemas, comparators, and examples.
+**Provider Contract:** JSON document describing checks, schemas, comparators, and examples.
 **Signature:** Ed25519 signature over canonical JSON of `evidence_hash`.

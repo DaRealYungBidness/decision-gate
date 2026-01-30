@@ -13,6 +13,8 @@ use std::num::NonZeroU64;
 
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionId;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::DecisionOutcome;
 use decision_gate_core::DispatchTarget;
 use decision_gate_core::GateId;
@@ -21,8 +23,6 @@ use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketId;
 use decision_gate_core::PacketPayload;
 use decision_gate_core::PacketSpec;
-use decision_gate_core::PredicateKey;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunStatus;
 use decision_gate_core::ScenarioId;
@@ -73,7 +73,7 @@ async fn evidence_redaction_default() -> Result<(), Box<dyn std::error::Error>> 
     let request = EvidenceQueryRequest {
         query: decision_gate_core::EvidenceQuery {
             provider_id: decision_gate_core::ProviderId::new("time"),
-            predicate: "now".to_string(),
+            check_id: "now".to_string(),
             params: None,
         },
         context: fixture.evidence_context("trigger-ctx", Timestamp::Logical(10)),
@@ -307,7 +307,7 @@ async fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Erro
     let namespace_id = NamespaceId::new(NonZeroU64::MIN);
     let stage1_id = StageId::new("stage-1");
     let stage2_id = StageId::new("stage-2");
-    let predicate_key = PredicateKey::new("after");
+    let condition_id = ConditionId::new("after");
     let spec = ScenarioSpec {
         scenario_id: scenario_id.clone(),
         namespace_id,
@@ -318,7 +318,7 @@ async fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Erro
                 entry_packets: Vec::new(),
                 gates: vec![GateSpec {
                     gate_id: GateId::new("gate-allow"),
-                    requirement: Requirement::predicate(predicate_key.clone()),
+                    requirement: Requirement::condition(condition_id.clone()),
                     trust: None,
                 }],
                 advance_to: AdvanceTo::Fixed {
@@ -346,11 +346,11 @@ async fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Erro
                 on_timeout: decision_gate_core::TimeoutPolicy::Fail,
             },
         ],
-        predicates: vec![PredicateSpec {
-            predicate: predicate_key,
+        conditions: vec![ConditionSpec {
+            condition_id,
             query: decision_gate_core::EvidenceQuery {
                 provider_id: ProviderId::new("time"),
-                predicate: "after".to_string(),
+                check_id: "after".to_string(),
                 params: Some(json!({"timestamp": 0})),
             },
             comparator: Comparator::Equals,
@@ -501,7 +501,7 @@ async fn policy_error_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
     let namespace_id = NamespaceId::new(NonZeroU64::MIN);
     let stage1_id = StageId::new("stage-1");
     let stage2_id = StageId::new("stage-2");
-    let predicate_key = PredicateKey::new("after");
+    let condition_id = ConditionId::new("after");
     let spec = ScenarioSpec {
         scenario_id: scenario_id.clone(),
         namespace_id,
@@ -512,7 +512,7 @@ async fn policy_error_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
                 entry_packets: Vec::new(),
                 gates: vec![GateSpec {
                     gate_id: GateId::new("gate-allow"),
-                    requirement: Requirement::predicate(predicate_key.clone()),
+                    requirement: Requirement::condition(condition_id.clone()),
                     trust: None,
                 }],
                 advance_to: AdvanceTo::Fixed {
@@ -540,11 +540,11 @@ async fn policy_error_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
                 on_timeout: decision_gate_core::TimeoutPolicy::Fail,
             },
         ],
-        predicates: vec![PredicateSpec {
-            predicate: predicate_key,
+        conditions: vec![ConditionSpec {
+            condition_id,
             query: decision_gate_core::EvidenceQuery {
                 provider_id: ProviderId::new("time"),
-                predicate: "after".to_string(),
+                check_id: "after".to_string(),
                 params: Some(json!({"timestamp": 0})),
             },
             comparator: Comparator::Equals,

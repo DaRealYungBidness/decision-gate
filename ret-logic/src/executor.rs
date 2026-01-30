@@ -9,7 +9,7 @@
 //! ## Overview
 //! Executes compiled requirement plans with a reusable stack machine while
 //! exposing helpers for dispatch table construction and optimized operation
-//! implementations. Domains implement `PredicateEval` for `PlanExecutor` via their
+//! implementations. Domains implement `ConditionEval` for `PlanExecutor` via their
 //! reader types.
 //! Malformed plans or missing opcode handlers fail closed by returning `false`.
 
@@ -23,8 +23,8 @@ use super::plan::Constant;
 use super::plan::OpCode;
 use super::plan::Operation;
 use super::plan::Plan;
-use super::traits::BatchPredicateEval;
-use super::traits::PredicateEval;
+use super::traits::BatchConditionEval;
+use super::traits::ConditionEval;
 use super::traits::Row;
 
 // ============================================================================
@@ -133,10 +133,10 @@ impl<R: 'static> PlanExecutor<R> {
 }
 
 // ============================================================================
-// SECTION: Predicate Evaluation
+// SECTION: Condition Evaluation
 // ============================================================================
 
-impl<R: 'static> PredicateEval for PlanExecutor<R> {
+impl<R: 'static> ConditionEval for PlanExecutor<R> {
     type Reader<'a> = R;
 
     fn eval_row(&self, reader: &Self::Reader<'_>, row: Row) -> bool {
@@ -241,7 +241,7 @@ impl<R: 'static> PredicateEval for PlanExecutor<R> {
 // SECTION: Batch Evaluation
 // ============================================================================
 
-impl<R: 'static> BatchPredicateEval for PlanExecutor<R> {
+impl<R: 'static> BatchConditionEval for PlanExecutor<R> {
     // Use default implementation that calls eval_row in a loop
     // Domains can create specialized batch executors if they need SIMD optimization
 }
@@ -361,12 +361,12 @@ pub mod operations {
         let constant_idx = usize::from(op.operand_b);
 
         let value = value_getter(reader, row, column_id)
-            .ok_or_else(|| RequirementError::predicate_error("Missing value for comparison"))?;
+            .ok_or_else(|| RequirementError::condition_error("Missing value for comparison"))?;
 
         let threshold = constants
             .get(constant_idx)
             .and_then(super::super::plan::Constant::as_float)
-            .ok_or_else(|| RequirementError::predicate_error("Invalid threshold constant"))?;
+            .ok_or_else(|| RequirementError::condition_error("Invalid threshold constant"))?;
 
         Ok(value >= threshold)
     }
@@ -389,12 +389,12 @@ pub mod operations {
         let constant_idx = usize::from(op.operand_b);
 
         let entity_flags = flags_getter(reader, row, column_id)
-            .ok_or_else(|| RequirementError::predicate_error("Missing flags for check"))?;
+            .ok_or_else(|| RequirementError::condition_error("Missing flags for check"))?;
 
         let required_flags = constants
             .get(constant_idx)
             .and_then(super::super::plan::Constant::as_flags)
-            .ok_or_else(|| RequirementError::predicate_error("Invalid flags constant"))?;
+            .ok_or_else(|| RequirementError::condition_error("Invalid flags constant"))?;
 
         Ok((entity_flags & required_flags) == required_flags)
     }

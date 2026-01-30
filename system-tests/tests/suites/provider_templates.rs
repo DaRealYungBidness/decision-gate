@@ -24,11 +24,11 @@ use std::time::Duration;
 
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionId;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::GateId;
 use decision_gate_core::GateSpec;
 use decision_gate_core::NamespaceId;
-use decision_gate_core::PredicateKey;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::ScenarioId;
 use decision_gate_core::ScenarioSpec;
@@ -187,7 +187,7 @@ fn tools_call_request(value: &str) -> Value {
             "arguments": {
                 "query": {
                     "provider_id": "template",
-                    "predicate": "value",
+                    "check_id": "value",
                     "params": { "value": value }
                 },
                 "context": {
@@ -219,7 +219,7 @@ fn template_scenario(value: &str, include_value_param: bool) -> ScenarioSpec {
     let scenario_id = ScenarioId::new("template-scenario");
     let namespace_id = namespace_id_one();
     let stage_id = StageId::new("stage-1");
-    let predicate_key = PredicateKey::new("value_check");
+    let condition_id = ConditionId::new("value_check");
     ScenarioSpec {
         scenario_id,
         namespace_id,
@@ -229,18 +229,18 @@ fn template_scenario(value: &str, include_value_param: bool) -> ScenarioSpec {
             entry_packets: Vec::new(),
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-1"),
-                requirement: ret_logic::Requirement::predicate(predicate_key.clone()),
+                requirement: ret_logic::Requirement::condition(condition_id.clone()),
                 trust: None,
             }],
             advance_to: AdvanceTo::Terminal,
             timeout: None,
             on_timeout: TimeoutPolicy::Fail,
         }],
-        predicates: vec![PredicateSpec {
-            predicate: predicate_key,
+        conditions: vec![ConditionSpec {
+            condition_id,
             query: decision_gate_core::EvidenceQuery {
                 provider_id: ProviderId::new("template"),
-                predicate: "value".to_string(),
+                check_id: "value".to_string(),
                 params: if include_value_param {
                     Some(serde_json::json!({ "value": value }))
                 } else {

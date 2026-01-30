@@ -233,10 +233,10 @@ impl TriLogic for LogicMode {
 // SECTION: Trace Hooks
 // ============================================================================
 
-/// Trace hook for predicate evaluation
+/// Trace hook for condition evaluation
 pub trait RequirementTrace<P> {
-    /// Called whenever a predicate is evaluated
-    fn on_predicate_evaluated(&mut self, predicate: &P, result: TriState);
+    /// Called whenever a condition is evaluated
+    fn on_condition_evaluated(&mut self, condition: &P, result: TriState);
 }
 
 /// No-op trace hook for fast paths
@@ -247,5 +247,5 @@ pub trait RequirementTrace<P> {
 pub struct NoopTrace;
 
 impl<P> RequirementTrace<P> for NoopTrace {
-    fn on_predicate_evaluated(&mut self, _predicate: &P, _result: TriState) {}
+    fn on_condition_evaluated(&mut self, _condition: &P, _result: TriState) {}
 }

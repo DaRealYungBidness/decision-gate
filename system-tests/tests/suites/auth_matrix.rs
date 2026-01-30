@@ -415,7 +415,7 @@ async fn exercise_mapping(
         let request = decision_gate_mcp::tools::EvidenceQueryRequest {
             query: decision_gate_core::EvidenceQuery {
                 provider_id: decision_gate_core::ProviderId::new("time"),
-                predicate: "after".to_string(),
+                check_id: "after".to_string(),
                 params: Some(json!({"timestamp": 0})),
             },
             context: EvidenceContext {
@@ -439,7 +439,7 @@ async fn exercise_mapping(
         let request = decision_gate_mcp::tools::EvidenceQueryRequest {
             query: decision_gate_core::EvidenceQuery {
                 provider_id: decision_gate_core::ProviderId::new("time"),
-                predicate: "after".to_string(),
+                check_id: "after".to_string(),
                 params: Some(json!({"timestamp": 0})),
             },
             context: EvidenceContext {

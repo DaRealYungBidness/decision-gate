@@ -24,13 +24,13 @@
     reason = "Test-only output and panic-based assertions are permitted."
 )]
 
+use decision_gate_core::ConditionId;
 use decision_gate_core::CorrelationId;
 use decision_gate_core::DecisionId;
 use decision_gate_core::GateId;
 use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketId;
 use decision_gate_core::PolicyId;
-use decision_gate_core::PredicateKey;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunId;
 use decision_gate_core::ScenarioId;
@@ -83,7 +83,7 @@ fn identifiers_roundtrip_with_serde_and_display() {
     assert_id_roundtrip!(StageId, "stage-1");
     assert_id_roundtrip!(PacketId, "packet-1");
     assert_id_roundtrip!(GateId, "gate-1");
-    assert_id_roundtrip!(PredicateKey, "predicate-1");
+    assert_id_roundtrip!(ConditionId, "condition-1");
     assert_id_roundtrip!(ProviderId, "provider-1");
     assert_id_roundtrip!(TriggerId, "trigger-1");
     assert_id_roundtrip!(DecisionId, "decision-1");

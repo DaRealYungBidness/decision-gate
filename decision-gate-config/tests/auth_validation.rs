@@ -195,7 +195,7 @@ fn auth_bearer_tokens_array_at_max_64() -> TestResult {
 
 #[test]
 fn auth_bearer_tokens_array_exceeds_max_65() -> TestResult {
-    let tokens: Vec<String> = (0..=MAX_AUTH_TOKENS).map(|i| format!("token{i}")).collect();
+    let tokens: Vec<String> = (0 ..= MAX_AUTH_TOKENS).map(|i| format!("token{i}")).collect();
     let auth = ServerAuthConfig {
         mode: ServerAuthMode::BearerToken,
         bearer_tokens: tokens,
@@ -334,8 +334,7 @@ fn auth_mtls_subjects_array_at_max_64() -> TestResult {
 
 #[test]
 fn auth_mtls_subjects_array_exceeds_max_65() -> TestResult {
-    let subjects: Vec<String> =
-        (0..=MAX_AUTH_TOKENS).map(|i| format!("CN=subject{i}")).collect();
+    let subjects: Vec<String> = (0 ..= MAX_AUTH_TOKENS).map(|i| format!("CN=subject{i}")).collect();
     let auth = ServerAuthConfig {
         mode: ServerAuthMode::Mtls,
         bearer_tokens: Vec::new(),
@@ -421,7 +420,7 @@ fn auth_allowed_tools_array_at_max_128() -> TestResult {
 #[test]
 fn auth_allowed_tools_array_exceeds_max_129() -> TestResult {
     let mut tools = Vec::new();
-    for i in 0..=MAX_AUTH_TOOL_RULES {
+    for i in 0 ..= MAX_AUTH_TOOL_RULES {
         if i % 2 == 0 {
             tools.push("precheck".to_string());
         } else {
@@ -604,7 +603,7 @@ fn auth_principal_roles_at_max_128() -> TestResult {
 
 #[test]
 fn auth_principal_roles_exceeds_max_129() -> TestResult {
-    let roles: Vec<PrincipalRoleConfig> = (0..=MAX_PRINCIPAL_ROLES)
+    let roles: Vec<PrincipalRoleConfig> = (0 ..= MAX_PRINCIPAL_ROLES)
         .map(|i| PrincipalRoleConfig {
             name: format!("role{i}"),
             tenant_id: None,
@@ -655,7 +654,7 @@ fn auth_principals_array_at_max_64() -> TestResult {
 
 #[test]
 fn auth_principals_array_exceeds_max_65() -> TestResult {
-    let principals: Vec<PrincipalConfig> = (0..=MAX_AUTH_TOKENS)
+    let principals: Vec<PrincipalConfig> = (0 ..= MAX_AUTH_TOKENS)
         .map(|i| PrincipalConfig {
             subject: format!("user{i}@example.com"),
             policy_class: None,

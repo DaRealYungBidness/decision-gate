@@ -5,62 +5,6 @@
   "default_tenant_id": 1,
   "policies": [],
   "schemas": [],
-  "predicates": [
-    {
-      "predicate": "env_is_prod",
-      "query": {
-        "provider_id": "env",
-        "predicate": "get",
-        "params": {
-          "key": "DEPLOY_ENV"
-        }
-      },
-      "comparator": "equals",
-      "expected": "production",
-      "policy_tags": []
-    },
-    {
-      "predicate": "tests_pass",
-      "query": {
-        "provider_id": "json",
-        "predicate": "path",
-        "params": {
-          "file": "ci_report.json",
-          "jsonpath": "$.tests.passed"
-        }
-      },
-      "comparator": "equals",
-      "expected": true,
-      "policy_tags": []
-    },
-    {
-      "predicate": "coverage_ok",
-      "query": {
-        "provider_id": "json",
-        "predicate": "path",
-        "params": {
-          "file": "ci_report.json",
-          "jsonpath": "$.coverage.percent"
-        }
-      },
-      "comparator": "greater_than_or_equal",
-      "expected": 90,
-      "policy_tags": []
-    },
-    {
-      "predicate": "after_freeze",
-      "query": {
-        "provider_id": "time",
-        "predicate": "after",
-        "params": {
-          "timestamp": 0
-        }
-      },
-      "comparator": "equals",
-      "expected": true,
-      "policy_tags": []
-    }
-  ],
   "stages": [
     {
       "stage_id": "main",
@@ -71,16 +15,16 @@
           "requirement": {
             "And": [
               {
-                "Predicate": "env_is_prod"
+                "Condition": "env_is_prod"
               },
               {
-                "Predicate": "tests_pass"
+                "Condition": "tests_pass"
               },
               {
-                "Predicate": "coverage_ok"
+                "Condition": "coverage_ok"
               },
               {
-                "Predicate": "after_freeze"
+                "Condition": "after_freeze"
               }
             ]
           }
@@ -91,6 +35,62 @@
       },
       "timeout": null,
       "on_timeout": "fail"
+    }
+  ],
+  "conditions": [
+    {
+      "query": {
+        "provider_id": "env",
+        "params": {
+          "key": "DEPLOY_ENV"
+        },
+        "check_id": "get"
+      },
+      "comparator": "equals",
+      "expected": "production",
+      "policy_tags": [],
+      "condition_id": "env_is_prod"
+    },
+    {
+      "query": {
+        "provider_id": "json",
+        "params": {
+          "file": "ci_report.json",
+          "jsonpath": "$.tests.passed"
+        },
+        "check_id": "path"
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": [],
+      "condition_id": "tests_pass"
+    },
+    {
+      "query": {
+        "provider_id": "json",
+        "params": {
+          "file": "ci_report.json",
+          "jsonpath": "$.coverage.percent"
+        },
+        "check_id": "path"
+      },
+      "comparator": "greater_than_or_equal",
+      "expected": 90,
+      "policy_tags": [],
+      "condition_id": "coverage_ok"
+    },
+    {
+      "query": {
+        "provider_id": "time",
+        "params": {
+          "timestamp": 0
+        },
+        "check_id": "after"
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": [],
+      "condition_id": "after_freeze"
     }
   ]
 }

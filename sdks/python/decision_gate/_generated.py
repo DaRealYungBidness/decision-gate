@@ -32,7 +32,7 @@ TOOL_NAMES: Sequence[str] = (
     "runpack_verify",
     "providers_list",
     "provider_contract_get",
-    "provider_schema_get",
+    "provider_check_schema_get",
     "schemas_register",
     "schemas_list",
     "schemas_get",
@@ -52,7 +52,7 @@ TOOL_DESCRIPTIONS: Mapping[str, str] = {
     "runpack_verify": "Verify a runpack manifest and artifacts offline.",
     "providers_list": "List registered evidence providers and capabilities summary.",
     "provider_contract_get": "Fetch the canonical provider contract JSON and hash for a provider.",
-    "provider_schema_get": "Fetch predicate schema details (params/result/comparators) for a provider.",
+    "provider_check_schema_get": "Fetch check schema details (params/result/comparators) for a provider.",
     "schemas_register": "Register a data shape schema for a tenant and namespace.",
     "schemas_list": "List registered data shapes for a tenant and namespace.",
     "schemas_get": "Fetch a specific data shape by identifier and version.",
@@ -63,7 +63,7 @@ TOOL_DESCRIPTIONS: Mapping[str, str] = {
 TOOL_NOTES: Mapping[str, Sequence[str]] = {
     "scenario_define": [
         "Use before starting runs; scenario_id becomes the stable handle for later calls.",
-        "Validates stage/gate/predicate IDs, RET trees, and predicate references.",
+        "Validates stage/gate/condition IDs, RET trees, and condition references.",
         "Spec hash is deterministic; store it for audit and runpack integrity.",
         "Fails closed on invalid specs or duplicate scenario IDs.",
     ],
@@ -96,7 +96,7 @@ TOOL_NOTES: Mapping[str, Sequence[str]] = {
     "evidence_query": [
         "Disclosure policy may redact raw values; hashes/anchors still returned.",
         "Use for diagnostics or preflight checks; runtime uses the same provider logic.",
-        "Requires provider_id, predicate, and full EvidenceContext.",
+        "Requires provider_id, check_id, and full EvidenceContext.",
     ],
     "runpack_export": [
         "Writes manifest and logs to output_dir; generated_at is recorded in the manifest.",
@@ -117,9 +117,9 @@ TOOL_NOTES: Mapping[str, Sequence[str]] = {
         "Includes a canonical hash for audit and reproducibility.",
         "Subject to provider disclosure policy and authz.",
     ],
-    "provider_schema_get": [
-        "Returns compiled schema metadata for a single predicate.",
-        "Includes comparator allow-lists and predicate examples.",
+    "provider_check_schema_get": [
+        "Returns compiled schema metadata for a single check.",
+        "Includes comparator allow-lists and check examples.",
         "Subject to provider disclosure policy and authz.",
     ],
     "schemas_register": [
@@ -755,8 +755,8 @@ ScenarioStart_OUTPUT_SCHEMA = _json.loads(r"""
                 "items": {
                   "additionalProperties": false,
                   "properties": {
-                    "predicate": {
-                      "description": "Predicate identifier.",
+                    "condition_id": {
+                      "description": "Condition identifier.",
                       "type": "string"
                     },
                     "status": {
@@ -770,7 +770,7 @@ ScenarioStart_OUTPUT_SCHEMA = _json.loads(r"""
                     }
                   },
                   "required": [
-                    "predicate",
+                    "condition_id",
                     "status"
                   ],
                   "type": "object"
@@ -789,8 +789,8 @@ ScenarioStart_OUTPUT_SCHEMA = _json.loads(r"""
             "items": {
               "additionalProperties": false,
               "properties": {
-                "predicate": {
-                  "description": "Predicate identifier.",
+                "condition_id": {
+                  "description": "Condition identifier.",
                   "type": "string"
                 },
                 "result": {
@@ -1045,7 +1045,7 @@ ScenarioStart_OUTPUT_SCHEMA = _json.loads(r"""
                 }
               },
               "required": [
-                "predicate",
+                "condition_id",
                 "status",
                 "result"
               ],
@@ -5014,6 +5014,10 @@ EvidenceQuery_INPUT_SCHEMA = _json.loads(r"""
       "additionalProperties": false,
       "description": "Evidence query payload.",
       "properties": {
+        "check_id": {
+          "description": "Provider check identifier.",
+          "type": "string"
+        },
         "params": {
           "description": "Provider-specific parameter payload.",
           "type": [
@@ -5025,10 +5029,6 @@ EvidenceQuery_INPUT_SCHEMA = _json.loads(r"""
             "object"
           ]
         },
-        "predicate": {
-          "description": "Provider predicate name.",
-          "type": "string"
-        },
         "provider_id": {
           "description": "Evidence provider identifier.",
           "type": "string"
@@ -5036,7 +5036,7 @@ EvidenceQuery_INPUT_SCHEMA = _json.loads(r"""
       },
       "required": [
         "provider_id",
-        "predicate"
+        "check_id"
       ],
       "type": "object"
     }
@@ -5877,9 +5877,9 @@ ProvidersList_OUTPUT_SCHEMA = _json.loads(r"""
       "items": {
         "additionalProperties": false,
         "properties": {
-          "predicates": {
+          "checks": {
             "items": {
-              "description": "Predicate identifier.",
+              "description": "Check identifier.",
               "type": "string"
             },
             "type": "array"
@@ -5900,7 +5900,7 @@ ProvidersList_OUTPUT_SCHEMA = _json.loads(r"""
         "required": [
           "provider_id",
           "transport",
-          "predicates"
+          "checks"
         ],
         "type": "object"
       },
@@ -5955,38 +5955,12 @@ ProviderContractGet_OUTPUT_SCHEMA = _json.loads(r"""
     "contract": {
       "additionalProperties": false,
       "properties": {
-        "config_schema": {
-          "description": "Provider configuration schema.",
-          "type": [
-            "null",
-            "boolean",
-            "number",
-            "string",
-            "array",
-            "object"
-          ]
-        },
-        "description": {
-          "description": "Provider description.",
-          "type": "string"
-        },
-        "name": {
-          "description": "Provider display name.",
-          "type": "string"
-        },
-        "notes": {
-          "description": "Provider notes and guidance.",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "predicates": {
+        "checks": {
           "items": {
             "additionalProperties": false,
             "properties": {
               "allowed_comparators": {
-                "description": "Comparator allow-list for this predicate.",
+                "description": "Comparator allow-list for this check.",
                 "items": {
                   "description": "Comparator applied to evidence values.",
                   "enum": [
@@ -6012,25 +5986,29 @@ ProviderContractGet_OUTPUT_SCHEMA = _json.loads(r"""
                 "type": "array"
               },
               "anchor_types": {
-                "description": "Anchor types emitted by this predicate.",
+                "description": "Anchor types emitted by this check.",
                 "items": {
                   "type": "string"
                 },
                 "type": "array"
               },
+              "check_id": {
+                "description": "Check identifier.",
+                "type": "string"
+              },
               "content_types": {
-                "description": "Content types for predicate output.",
+                "description": "Content types for check output.",
                 "items": {
                   "type": "string"
                 },
                 "type": "array"
               },
               "description": {
-                "description": "Predicate description.",
+                "description": "Check description.",
                 "type": "string"
               },
               "determinism": {
-                "description": "Determinism classification for provider predicates.",
+                "description": "Determinism classification for provider checks.",
                 "enum": [
                   "deterministic",
                   "time_dependent",
@@ -6078,16 +6056,12 @@ ProviderContractGet_OUTPUT_SCHEMA = _json.loads(r"""
                 },
                 "type": "array"
               },
-              "name": {
-                "description": "Predicate name.",
-                "type": "string"
-              },
               "params_required": {
-                "description": "Whether params are required for this predicate.",
+                "description": "Whether params are required for this check.",
                 "type": "boolean"
               },
               "params_schema": {
-                "description": "JSON schema for predicate params.",
+                "description": "JSON schema for check params.",
                 "type": [
                   "null",
                   "boolean",
@@ -6098,7 +6072,7 @@ ProviderContractGet_OUTPUT_SCHEMA = _json.loads(r"""
                 ]
               },
               "result_schema": {
-                "description": "JSON schema for predicate result values.",
+                "description": "JSON schema for check result values.",
                 "type": [
                   "null",
                   "boolean",
@@ -6110,7 +6084,7 @@ ProviderContractGet_OUTPUT_SCHEMA = _json.loads(r"""
               }
             },
             "required": [
-              "name",
+              "check_id",
               "description",
               "determinism",
               "params_required",
@@ -6122,6 +6096,32 @@ ProviderContractGet_OUTPUT_SCHEMA = _json.loads(r"""
               "examples"
             ],
             "type": "object"
+          },
+          "type": "array"
+        },
+        "config_schema": {
+          "description": "Provider configuration schema.",
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "array",
+            "object"
+          ]
+        },
+        "description": {
+          "description": "Provider description.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Provider display name.",
+          "type": "string"
+        },
+        "notes": {
+          "description": "Provider notes and guidance.",
+          "items": {
+            "type": "string"
           },
           "type": "array"
         },
@@ -6144,7 +6144,7 @@ ProviderContractGet_OUTPUT_SCHEMA = _json.loads(r"""
         "description",
         "transport",
         "config_schema",
-        "predicates",
+        "checks",
         "notes"
       ],
       "type": "object"
@@ -6204,44 +6204,44 @@ ProviderContractGet_OUTPUT_SCHEMA = _json.loads(r"""
 }
 """)
 
-class ProviderSchemaGetRequest(TypedDict):
-    """Schema for ProviderSchemaGetRequest."""
-    #: Provider predicate name.
-    predicate: str
+class ProviderCheckSchemaGetRequest(TypedDict):
+    """Schema for ProviderCheckSchemaGetRequest."""
+    #: Provider check identifier.
+    check_id: str
     #: Provider identifier.
     provider_id: str
 
-class ProviderSchemaGetResponse(TypedDict):
-    """Schema for ProviderSchemaGetResponse."""
-    #: Comparator allow-list for this predicate.
+class ProviderCheckSchemaGetResponse(TypedDict):
+    """Schema for ProviderCheckSchemaGetResponse."""
+    #: Comparator allow-list for this check.
     allowed_comparators: List[Literal["equals", "not_equals", "greater_than", "greater_than_or_equal", "less_than", "less_than_or_equal", "lex_greater_than", "lex_greater_than_or_equal", "lex_less_than", "lex_less_than_or_equal", "contains", "in_set", "deep_equals", "deep_not_equals", "exists", "not_exists"]]
-    #: Anchor types emitted by this predicate.
+    #: Anchor types emitted by this check.
     anchor_types: List[str]
-    #: Content types for predicate output.
+    #: Check identifier.
+    check_id: str
+    #: Content types for check output.
     content_types: List[str]
     contract_hash: Dict[str, JsonValue]
-    #: Determinism classification for provider predicates. Constraints: Allowed values:
+    #: Determinism classification for provider checks. Constraints: Allowed values:
     #: "deterministic", "time_dependent", "external".
     determinism: Literal["deterministic", "time_dependent", "external"]
     examples: List[Dict[str, JsonValue]]
-    #: Whether params are required for this predicate.
+    #: Whether params are required for this check.
     params_required: bool
-    #: JSON schema for predicate params.
+    #: JSON schema for check params.
     params_schema: Union[Dict[str, JsonValue], List[JsonValue], None, bool, float, str]
-    #: Predicate name.
-    predicate: str
     #: Provider identifier.
     provider_id: str
-    #: JSON schema for predicate result value.
+    #: JSON schema for check result value.
     result_schema: Union[Dict[str, JsonValue], List[JsonValue], None, bool, float, str]
 
-ProviderSchemaGet_INPUT_SCHEMA = _json.loads(r"""
+ProviderCheckSchemaGet_INPUT_SCHEMA = _json.loads(r"""
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "predicate": {
-      "description": "Provider predicate name.",
+    "check_id": {
+      "description": "Provider check identifier.",
       "type": "string"
     },
     "provider_id": {
@@ -6251,19 +6251,19 @@ ProviderSchemaGet_INPUT_SCHEMA = _json.loads(r"""
   },
   "required": [
     "provider_id",
-    "predicate"
+    "check_id"
   ],
   "type": "object"
 }
 """)
 
-ProviderSchemaGet_OUTPUT_SCHEMA = _json.loads(r"""
+ProviderCheckSchemaGet_OUTPUT_SCHEMA = _json.loads(r"""
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
     "allowed_comparators": {
-      "description": "Comparator allow-list for this predicate.",
+      "description": "Comparator allow-list for this check.",
       "items": {
         "description": "Comparator applied to evidence values.",
         "enum": [
@@ -6289,14 +6289,18 @@ ProviderSchemaGet_OUTPUT_SCHEMA = _json.loads(r"""
       "type": "array"
     },
     "anchor_types": {
-      "description": "Anchor types emitted by this predicate.",
+      "description": "Anchor types emitted by this check.",
       "items": {
         "type": "string"
       },
       "type": "array"
     },
+    "check_id": {
+      "description": "Check identifier.",
+      "type": "string"
+    },
     "content_types": {
-      "description": "Content types for predicate output.",
+      "description": "Content types for check output.",
       "items": {
         "type": "string"
       },
@@ -6323,7 +6327,7 @@ ProviderSchemaGet_OUTPUT_SCHEMA = _json.loads(r"""
       "type": "object"
     },
     "determinism": {
-      "description": "Determinism classification for provider predicates.",
+      "description": "Determinism classification for provider checks.",
       "enum": [
         "deterministic",
         "time_dependent",
@@ -6372,11 +6376,11 @@ ProviderSchemaGet_OUTPUT_SCHEMA = _json.loads(r"""
       "type": "array"
     },
     "params_required": {
-      "description": "Whether params are required for this predicate.",
+      "description": "Whether params are required for this check.",
       "type": "boolean"
     },
     "params_schema": {
-      "description": "JSON schema for predicate params.",
+      "description": "JSON schema for check params.",
       "type": [
         "null",
         "boolean",
@@ -6386,16 +6390,12 @@ ProviderSchemaGet_OUTPUT_SCHEMA = _json.loads(r"""
         "object"
       ]
     },
-    "predicate": {
-      "description": "Predicate name.",
-      "type": "string"
-    },
     "provider_id": {
       "description": "Provider identifier.",
       "type": "string"
     },
     "result_schema": {
-      "description": "JSON schema for predicate result value.",
+      "description": "JSON schema for check result value.",
       "type": [
         "null",
         "boolean",
@@ -6408,7 +6408,7 @@ ProviderSchemaGet_OUTPUT_SCHEMA = _json.loads(r"""
   },
   "required": [
     "provider_id",
-    "predicate",
+    "check_id",
     "params_required",
     "params_schema",
     "result_schema",
@@ -7481,8 +7481,8 @@ Precheck_OUTPUT_SCHEMA = _json.loads(r"""
             "items": {
               "additionalProperties": false,
               "properties": {
-                "predicate": {
-                  "description": "Predicate identifier.",
+                "condition_id": {
+                  "description": "Condition identifier.",
                   "type": "string"
                 },
                 "status": {
@@ -7496,7 +7496,7 @@ Precheck_OUTPUT_SCHEMA = _json.loads(r"""
                 }
               },
               "required": [
-                "predicate",
+                "condition_id",
                 "status"
               ],
               "type": "object"
@@ -7534,7 +7534,7 @@ class GeneratedDecisionGateClient:
 
         Notes:
         - Use before starting runs; scenario_id becomes the stable handle for later calls.
-        - Validates stage/gate/predicate IDs, RET trees, and predicate references.
+        - Validates stage/gate/condition IDs, RET trees, and condition references.
         - Spec hash is deterministic; store it for audit and runpack integrity.
         - Fails closed on invalid specs or duplicate scenario IDs.
 
@@ -7543,37 +7543,37 @@ class GeneratedDecisionGateClient:
           Input:
             {
               "spec": {
-                "default_tenant_id": null,
-                "namespace_id": 1,
-                "policies": [],
-                "predicates": [
+                "conditions": [
                   {
                     "comparator": "equals",
+                    "condition_id": "env_is_prod",
                     "expected": "production",
                     "policy_tags": [],
-                    "predicate": "env_is_prod",
                     "query": {
+                      "check_id": "get",
                       "params": {
                         "key": "DEPLOY_ENV"
                       },
-                      "predicate": "get",
                       "provider_id": "env"
                     }
                   },
                   {
                     "comparator": "equals",
+                    "condition_id": "after_freeze",
                     "expected": true,
                     "policy_tags": [],
-                    "predicate": "after_freeze",
                     "query": {
+                      "check_id": "after",
                       "params": {
                         "timestamp": 1710000000000
                       },
-                      "predicate": "after",
                       "provider_id": "time"
                     }
                   }
                 ],
+                "default_tenant_id": null,
+                "namespace_id": 1,
+                "policies": [],
                 "scenario_id": "example-scenario",
                 "schemas": [],
                 "spec_version": "v1",
@@ -7605,13 +7605,13 @@ class GeneratedDecisionGateClient:
                       {
                         "gate_id": "env_gate",
                         "requirement": {
-                          "Predicate": "env_is_prod"
+                          "Condition": "env_is_prod"
                         }
                       },
                       {
                         "gate_id": "time_gate",
                         "requirement": {
-                          "Predicate": "after_freeze"
+                          "Condition": "after_freeze"
                         }
                       }
                     ],
@@ -7907,7 +7907,7 @@ class GeneratedDecisionGateClient:
         Notes:
         - Disclosure policy may redact raw values; hashes/anchors still returned.
         - Use for diagnostics or preflight checks; runtime uses the same provider logic.
-        - Requires provider_id, predicate, and full EvidenceContext.
+        - Requires provider_id, check_id, and full EvidenceContext.
 
         Examples:
         - Query an evidence provider using the run context.
@@ -7927,10 +7927,10 @@ class GeneratedDecisionGateClient:
                 }
               },
               "query": {
+                "check_id": "get",
                 "params": {
                   "key": "DEPLOY_ENV"
                 },
-                "predicate": "get",
                 "provider_id": "env"
               }
             }
@@ -8081,7 +8081,7 @@ class GeneratedDecisionGateClient:
             {
               "providers": [
                 {
-                  "predicates": [
+                  "checks": [
                     "get"
                   ],
                   "provider_id": "env",
@@ -8110,6 +8110,7 @@ class GeneratedDecisionGateClient:
           Output:
             {
               "contract": {
+                "checks": [],
                 "config_schema": {
                   "additionalProperties": false,
                   "type": "object"
@@ -8117,7 +8118,6 @@ class GeneratedDecisionGateClient:
                 "description": "Reads JSON or YAML files and evaluates JSONPath.",
                 "name": "JSON Provider",
                 "notes": [],
-                "predicates": [],
                 "provider_id": "json",
                 "transport": "builtin"
               },
@@ -8132,20 +8132,20 @@ class GeneratedDecisionGateClient:
         """
         return cast(ProviderContractGetResponse, self._call_tool("provider_contract_get", request))
 
-    def provider_schema_get(self, request: ProviderSchemaGetRequest) -> ProviderSchemaGetResponse:
+    def provider_check_schema_get(self, request: ProviderCheckSchemaGetRequest) -> ProviderCheckSchemaGetResponse:
         """
-        Fetch predicate schema details (params/result/comparators) for a provider.
+        Fetch check schema details (params/result/comparators) for a provider.
 
         Notes:
-        - Returns compiled schema metadata for a single predicate.
-        - Includes comparator allow-lists and predicate examples.
+        - Returns compiled schema metadata for a single check.
+        - Includes comparator allow-lists and check examples.
         - Subject to provider disclosure policy and authz.
 
         Examples:
-        - Fetch predicate schema details for a provider.
+        - Fetch check schema details for a provider.
           Input:
             {
-              "predicate": "path",
+              "check_id": "path",
               "provider_id": "json"
             }
           Output:
@@ -8157,6 +8157,7 @@ class GeneratedDecisionGateClient:
                 "not_exists"
               ],
               "anchor_types": [],
+              "check_id": "path",
               "content_types": [
                 "application/json"
               ],
@@ -8181,7 +8182,6 @@ class GeneratedDecisionGateClient:
                 ],
                 "type": "object"
               },
-              "predicate": "path",
               "provider_id": "json",
               "result_schema": {
                 "type": [
@@ -8195,7 +8195,7 @@ class GeneratedDecisionGateClient:
               }
             }
         """
-        return cast(ProviderSchemaGetResponse, self._call_tool("provider_schema_get", request))
+        return cast(ProviderCheckSchemaGetResponse, self._call_tool("provider_check_schema_get", request))
 
     def schemas_register(self, request: SchemasRegisterRequest) -> SchemasRegisterResponse:
         """
@@ -8543,13 +8543,13 @@ def validate_provider_contract_get_response(response: ProviderContractGetRespons
     """Validate the response payload against the output schema."""
     validate_schema(response, ProviderContractGet_OUTPUT_SCHEMA)
 
-def validate_provider_schema_get_request(request: ProviderSchemaGetRequest) -> None:
+def validate_provider_check_schema_get_request(request: ProviderCheckSchemaGetRequest) -> None:
     """Validate the request payload against the input schema."""
-    validate_schema(request, ProviderSchemaGet_INPUT_SCHEMA)
+    validate_schema(request, ProviderCheckSchemaGet_INPUT_SCHEMA)
 
-def validate_provider_schema_get_response(response: ProviderSchemaGetResponse) -> None:
+def validate_provider_check_schema_get_response(response: ProviderCheckSchemaGetResponse) -> None:
     """Validate the response payload against the output schema."""
-    validate_schema(response, ProviderSchemaGet_OUTPUT_SCHEMA)
+    validate_schema(response, ProviderCheckSchemaGet_OUTPUT_SCHEMA)
 
 def validate_schemas_register_request(request: SchemasRegisterRequest) -> None:
     """Validate the request payload against the input schema."""
@@ -8666,12 +8666,12 @@ __all__ = [
     "ProviderContractGet_OUTPUT_SCHEMA",
     "validate_provider_contract_get_request",
     "validate_provider_contract_get_response",
-    "ProviderSchemaGetRequest",
-    "ProviderSchemaGetResponse",
-    "ProviderSchemaGet_INPUT_SCHEMA",
-    "ProviderSchemaGet_OUTPUT_SCHEMA",
-    "validate_provider_schema_get_request",
-    "validate_provider_schema_get_response",
+    "ProviderCheckSchemaGetRequest",
+    "ProviderCheckSchemaGetResponse",
+    "ProviderCheckSchemaGet_INPUT_SCHEMA",
+    "ProviderCheckSchemaGet_OUTPUT_SCHEMA",
+    "validate_provider_check_schema_get_request",
+    "validate_provider_check_schema_get_response",
     "SchemasRegisterRequest",
     "SchemasRegisterResponse",
     "SchemasRegister_INPUT_SCHEMA",

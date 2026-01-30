@@ -15,8 +15,8 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
 
+use decision_gate_core::ConditionId;
 use decision_gate_core::DecisionOutcome;
-use decision_gate_core::PredicateKey;
 use decision_gate_core::RunStatus;
 use decision_gate_core::Timestamp;
 use helpers::artifacts::TestReporter;
@@ -225,12 +225,12 @@ async fn authoring_invalid_ron_rejected() -> Result<(), Box<dyn std::error::Erro
     Ok(())
 }
 
-struct PredicateResolver {
-    map: HashMap<String, PredicateKey>,
+struct ConditionResolver {
+    map: HashMap<String, ConditionId>,
 }
 
-impl ret_logic::dsl::PredicateResolver<PredicateKey> for PredicateResolver {
-    fn resolve(&self, name: &str) -> Option<PredicateKey> {
+impl ret_logic::dsl::ConditionResolver<ConditionId> for ConditionResolver {
+    fn resolve(&self, name: &str) -> Option<ConditionId> {
         self.map.get(name).cloned()
     }
 }
@@ -241,9 +241,9 @@ async fn authoring_dsl_evaluates_and_rejects_deep_inputs() -> Result<(), Box<dyn
 {
     let mut reporter = TestReporter::new("authoring_dsl_evaluates_and_rejects_deep_inputs")?;
 
-    let predicate_key = PredicateKey::new("after");
-    let resolver = PredicateResolver {
-        map: HashMap::from([("after".to_string(), predicate_key.clone())]),
+    let condition_id = ConditionId::new("after");
+    let resolver = ConditionResolver {
+        map: HashMap::from([("after".to_string(), condition_id.clone())]),
     };
     let requirement = ret_logic::dsl::parse_requirement("all(after)", &resolver)
         .map_err(|err| err.to_string())?;
@@ -267,11 +267,11 @@ async fn authoring_dsl_evaluates_and_rejects_deep_inputs() -> Result<(), Box<dyn
             timeout: None,
             on_timeout: decision_gate_core::TimeoutPolicy::Fail,
         }],
-        predicates: vec![decision_gate_core::PredicateSpec {
-            predicate: predicate_key,
+        conditions: vec![decision_gate_core::ConditionSpec {
+            condition_id,
             query: decision_gate_core::EvidenceQuery {
                 provider_id: decision_gate_core::ProviderId::new("time"),
-                predicate: "after".to_string(),
+                check_id: "after".to_string(),
                 params: Some(serde_json::json!({ "timestamp": 0 })),
             },
             comparator: decision_gate_core::Comparator::Equals,
@@ -340,7 +340,7 @@ async fn authoring_dsl_evaluates_and_rejects_deep_inputs() -> Result<(), Box<dyn
     }
 
     let deep_input = format!("{}after{}", "all(".repeat(40), ")".repeat(40));
-    let deep_result = ret_logic::dsl::parse_requirement::<PredicateKey, _>(&deep_input, &resolver);
+    let deep_result = ret_logic::dsl::parse_requirement::<ConditionId, _>(&deep_input, &resolver);
     if deep_result.is_ok() {
         return Err("expected deep DSL input to be rejected".into());
     }

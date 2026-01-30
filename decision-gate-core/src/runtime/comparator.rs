@@ -1,8 +1,8 @@
 // decision-gate-core/src/runtime/comparator.rs
 // ============================================================================
 // Module: Decision Gate Comparator Logic
-// Description: Comparator evaluation for evidence predicates.
-// Purpose: Convert evidence values into tri-state predicate outcomes.
+// Description: Comparator evaluation for evidence conditions.
+// Purpose: Convert evidence values into tri-state condition outcomes.
 // Dependencies: crate::core, ret-logic
 // ============================================================================
 

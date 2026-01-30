@@ -4,7 +4,7 @@ This document summarizes built-in providers. Full schemas are in `providers.json
 
 ## time
 
-Deterministic predicates derived from the trigger timestamp supplied by the caller.
+Deterministic checks derived from the trigger timestamp supplied by the caller.
 
 **Provider contract**
 
@@ -36,7 +36,7 @@ Config fields:
 }
 ```
 
-### Predicates
+### Checks
 
 #### now
 
@@ -263,7 +263,7 @@ Config fields:
 }
 ```
 
-### Predicates
+### Checks
 
 #### get
 
@@ -370,7 +370,7 @@ Config fields:
 }
 ```
 
-### Predicates
+### Checks
 
 #### path
 
@@ -517,7 +517,7 @@ Config fields:
 }
 ```
 
-### Predicates
+### Checks
 
 #### status
 

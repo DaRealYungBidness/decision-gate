@@ -7,10 +7,10 @@
 // ============================================================================
 
 //! ## Overview
-//! Evidence queries describe the information needed to evaluate predicates.
+//! Evidence queries describe the information needed to evaluate conditions.
 //! Evidence results include hashes, anchors, and references suitable for
 //! offline verification. The Decision Gate runtime applies comparators to evidence
-//! values to derive predicate truth values.
+//! values to derive condition truth values.
 //!
 //! Security posture: evidence inputs are untrusted; see `Docs/security/threat_model.md`.
 
@@ -34,9 +34,9 @@ use crate::core::identifiers::ProviderId;
 pub struct EvidenceQuery {
     /// Evidence provider identifier.
     pub provider_id: ProviderId,
-    /// Provider predicate or method name.
-    pub predicate: String,
-    /// Structured parameters for the provider predicate.
+    /// Provider check identifier.
+    pub check_id: String,
+    /// Structured parameters for the provider check.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub params: Option<Value>,
 }
@@ -141,7 +141,7 @@ impl TrustRequirement {
 // SECTION: Evidence Values
 // ============================================================================
 
-/// Evidence payload value used for predicate comparison.
+/// Evidence payload value used for condition comparison.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum EvidenceValue {
@@ -271,7 +271,7 @@ impl EvidenceAnchorPolicy {
 pub struct ProviderMissingError {
     /// Provider identifiers required by the scenario but not registered.
     pub missing_providers: Vec<String>,
-    /// Capabilities required by the predicates when providers are present.
+    /// Capabilities required by the checks when providers are present.
     pub required_capabilities: Vec<String>,
     /// Indicates a policy block (true when a provider is present but disallowed).
     pub blocked_by_policy: bool,

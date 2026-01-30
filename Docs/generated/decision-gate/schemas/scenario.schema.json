@@ -120,6 +120,101 @@
       ],
       "type": "string"
     },
+    "ConditionSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "comparator": {
+          "description": "Comparator applied to evidence values.",
+          "enum": [
+            "equals",
+            "not_equals",
+            "greater_than",
+            "greater_than_or_equal",
+            "less_than",
+            "less_than_or_equal",
+            "lex_greater_than",
+            "lex_greater_than_or_equal",
+            "lex_less_than",
+            "lex_less_than_or_equal",
+            "contains",
+            "in_set",
+            "deep_equals",
+            "deep_not_equals",
+            "exists",
+            "not_exists"
+          ],
+          "type": "string"
+        },
+        "condition_id": {
+          "description": "Condition identifier.",
+          "type": "string"
+        },
+        "expected": {
+          "description": "Expected comparison value.",
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "array",
+            "object"
+          ]
+        },
+        "policy_tags": {
+          "description": "Policy tags applied to condition evaluation.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "query": {
+          "additionalProperties": false,
+          "properties": {
+            "check_id": {
+              "description": "Provider check identifier.",
+              "type": "string"
+            },
+            "params": {
+              "description": "Provider-specific parameter payload.",
+              "type": [
+                "null",
+                "boolean",
+                "number",
+                "string",
+                "array",
+                "object"
+              ]
+            },
+            "provider_id": {
+              "description": "Evidence provider identifier.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "provider_id",
+            "check_id"
+          ],
+          "type": "object"
+        },
+        "trust": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/TrustRequirement"
+            }
+          ]
+        }
+      },
+      "required": [
+        "condition_id",
+        "query",
+        "comparator",
+        "policy_tags"
+      ],
+      "type": "object"
+    },
     "ContentRef": {
       "additionalProperties": false,
       "properties": {
@@ -169,6 +264,10 @@
     "EvidenceQuery": {
       "additionalProperties": false,
       "properties": {
+        "check_id": {
+          "description": "Provider check identifier.",
+          "type": "string"
+        },
         "params": {
           "description": "Provider-specific parameter payload.",
           "type": [
@@ -180,10 +279,6 @@
             "object"
           ]
         },
-        "predicate": {
-          "description": "Provider predicate name.",
-          "type": "string"
-        },
         "provider_id": {
           "description": "Evidence provider identifier.",
           "type": "string"
@@ -191,7 +286,7 @@
       },
       "required": [
         "provider_id",
-        "predicate"
+        "check_id"
       ],
       "type": "object"
     },
@@ -288,13 +383,13 @@
             {
               "additionalProperties": false,
               "properties": {
-                "Predicate": {
-                  "description": "Predicate identifier reference.",
+                "Condition": {
+                  "description": "Condition identifier reference.",
                   "type": "string"
                 }
               },
               "required": [
-                "Predicate"
+                "Condition"
               ],
               "type": "object"
             }
@@ -661,101 +756,6 @@
       ],
       "type": "object"
     },
-    "PredicateSpec": {
-      "additionalProperties": false,
-      "properties": {
-        "comparator": {
-          "description": "Comparator applied to evidence values.",
-          "enum": [
-            "equals",
-            "not_equals",
-            "greater_than",
-            "greater_than_or_equal",
-            "less_than",
-            "less_than_or_equal",
-            "lex_greater_than",
-            "lex_greater_than_or_equal",
-            "lex_less_than",
-            "lex_less_than_or_equal",
-            "contains",
-            "in_set",
-            "deep_equals",
-            "deep_not_equals",
-            "exists",
-            "not_exists"
-          ],
-          "type": "string"
-        },
-        "expected": {
-          "description": "Expected comparison value.",
-          "type": [
-            "null",
-            "boolean",
-            "number",
-            "string",
-            "array",
-            "object"
-          ]
-        },
-        "policy_tags": {
-          "description": "Policy tags applied to predicate evaluation.",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "predicate": {
-          "description": "Predicate identifier.",
-          "type": "string"
-        },
-        "query": {
-          "additionalProperties": false,
-          "properties": {
-            "params": {
-              "description": "Provider-specific parameter payload.",
-              "type": [
-                "null",
-                "boolean",
-                "number",
-                "string",
-                "array",
-                "object"
-              ]
-            },
-            "predicate": {
-              "description": "Provider predicate name.",
-              "type": "string"
-            },
-            "provider_id": {
-              "description": "Evidence provider identifier.",
-              "type": "string"
-            }
-          },
-          "required": [
-            "provider_id",
-            "predicate"
-          ],
-          "type": "object"
-        },
-        "trust": {
-          "oneOf": [
-            {
-              "type": "null"
-            },
-            {
-              "$ref": "#/$defs/TrustRequirement"
-            }
-          ]
-        }
-      },
-      "required": [
-        "predicate",
-        "query",
-        "comparator",
-        "policy_tags"
-      ],
-      "type": "object"
-    },
     "Requirement": {
       "oneOf": [
         {
@@ -833,13 +833,13 @@
         {
           "additionalProperties": false,
           "properties": {
-            "Predicate": {
-              "description": "Predicate identifier reference.",
+            "Condition": {
+              "description": "Condition identifier reference.",
               "type": "string"
             }
           },
           "required": [
-            "Predicate"
+            "Condition"
           ],
           "type": "object"
         }
@@ -1096,6 +1096,12 @@
   "additionalProperties": false,
   "description": "Canonical scenario specification used by Decision Gate.",
   "properties": {
+    "conditions": {
+      "items": {
+        "$ref": "#/$defs/ConditionSpec"
+      },
+      "type": "array"
+    },
     "default_tenant_id": {
       "oneOf": [
         {
@@ -1116,12 +1122,6 @@
     "policies": {
       "items": {
         "$ref": "#/$defs/PolicyRef"
-      },
-      "type": "array"
-    },
-    "predicates": {
-      "items": {
-        "$ref": "#/$defs/PredicateSpec"
       },
       "type": "array"
     },
@@ -1152,7 +1152,7 @@
     "namespace_id",
     "spec_version",
     "stages",
-    "predicates",
+    "conditions",
     "policies",
     "schemas"
   ],

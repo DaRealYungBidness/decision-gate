@@ -2,7 +2,7 @@
 Decision Gate Agent Loop Example README
 ============================================================================
 Document: examples/agent-loop
-Description: Multi-step predicate satisfaction example.
+Description: Multi-step condition satisfaction example.
 Purpose: Demonstrate staged gate progression across multiple triggers.
 Dependencies:
   - ../../decision-gate-core/README.md
@@ -11,7 +11,7 @@ Dependencies:
 
 # Agent Loop Example
 
-Simulates an agent loop where predicates are satisfied over time.
+Simulates an agent loop where conditions are satisfied over time.
 
 ## Table of Contents
 
@@ -44,4 +44,3 @@ cargo run -p decision-gate-example-agent-loop
 - Intended as a control-plane walkthrough, not an integration test.
 
 ## References
-

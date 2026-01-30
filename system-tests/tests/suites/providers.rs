@@ -2,7 +2,7 @@
 // ============================================================================
 // Module: Provider Tests
 // Description: Built-in and federated provider coverage.
-// Purpose: Validate provider predicates and MCP federation.
+// Purpose: Validate provider conditions and MCP federation.
 // Dependencies: system-tests helpers
 // ============================================================================
 
@@ -27,20 +27,20 @@ use axum::http::header::LOCATION;
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::routing::post;
+use decision_gate_contract::types::CheckContract;
+use decision_gate_contract::types::CheckExample;
 use decision_gate_contract::types::DeterminismClass;
-use decision_gate_contract::types::PredicateContract;
-use decision_gate_contract::types::PredicateExample;
 use decision_gate_contract::types::ProviderContract;
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionId;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::DecisionOutcome;
 use decision_gate_core::EvidenceAnchor;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::GateId;
 use decision_gate_core::GateSpec;
 use decision_gate_core::NamespaceId;
-use decision_gate_core::PredicateKey;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::RunId;
@@ -463,7 +463,7 @@ async fn provider_time_after() -> Result<(), Box<dyn std::error::Error>> {
     reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
     reporter.finish(
         "pass",
-        vec!["time provider predicate evaluated".to_string()],
+        vec!["time provider check evaluated".to_string()],
         vec![
             "summary.json".to_string(),
             "summary.md".to_string(),
@@ -492,7 +492,7 @@ async fn json_provider_missing_jsonpath_returns_error_metadata()
     let request = decision_gate_mcp::tools::EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("json"),
-            predicate: "path".to_string(),
+            check_id: "path".to_string(),
             params: Some(json!({
                 "file": report_path.to_string_lossy(),
                 "jsonpath": "$.summary.failed"
@@ -559,7 +559,7 @@ async fn json_provider_rejects_path_outside_root() -> Result<(), Box<dyn std::er
     let request = decision_gate_mcp::tools::EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("json"),
-            predicate: "path".to_string(),
+            check_id: "path".to_string(),
             params: Some(json!({
                 "file": outside_path.to_string_lossy(),
             })),
@@ -615,7 +615,7 @@ async fn json_provider_enforces_size_limit() -> Result<(), Box<dyn std::error::E
     let request = decision_gate_mcp::tools::EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("json"),
-            predicate: "path".to_string(),
+            check_id: "path".to_string(),
             params: Some(json!({
                 "file": report_path.to_string_lossy(),
             })),
@@ -680,7 +680,7 @@ async fn json_provider_rejects_symlink_escape() -> Result<(), Box<dyn std::error
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("json"),
-            predicate: "path".to_string(),
+            check_id: "path".to_string(),
             params: Some(json!({
                 "file": link_path.to_string_lossy(),
             })),
@@ -729,7 +729,7 @@ async fn json_provider_invalid_jsonpath_rejected() -> Result<(), Box<dyn std::er
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("json"),
-            predicate: "path".to_string(),
+            check_id: "path".to_string(),
             params: Some(json!({
                 "file": report_path.to_string_lossy(),
                 "jsonpath": "$..["
@@ -775,7 +775,7 @@ async fn json_provider_contains_array_succeeds() -> Result<(), Box<dyn std::erro
 
     let scenario_id = ScenarioId::new("json-provider-contains");
     let stage_id = StageId::new("stage-1");
-    let predicate_key = PredicateKey::new("summary-tags");
+    let condition_id = ConditionId::new("summary-tags");
     let spec = ScenarioSpec {
         scenario_id: scenario_id.clone(),
         namespace_id: namespace_id_one(),
@@ -785,18 +785,18 @@ async fn json_provider_contains_array_succeeds() -> Result<(), Box<dyn std::erro
             entry_packets: Vec::new(),
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-contains"),
-                requirement: ret_logic::Requirement::predicate(predicate_key.clone()),
+                requirement: ret_logic::Requirement::condition(condition_id.clone()),
                 trust: None,
             }],
             advance_to: AdvanceTo::Terminal,
             timeout: None,
             on_timeout: TimeoutPolicy::Fail,
         }],
-        predicates: vec![PredicateSpec {
-            predicate: predicate_key,
+        conditions: vec![ConditionSpec {
+            condition_id,
             query: EvidenceQuery {
                 provider_id: ProviderId::new("json"),
-                predicate: "path".to_string(),
+                check_id: "path".to_string(),
                 params: Some(json!({
                     "file": report_path.to_string_lossy(),
                     "jsonpath": "$.summary.tags"
@@ -888,7 +888,7 @@ async fn http_provider_blocks_http_scheme_by_default() -> Result<(), Box<dyn std
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("http"),
-            predicate: "status".to_string(),
+            check_id: "status".to_string(),
             params: Some(json!({ "url": "http://127.0.0.1:1/ok" })),
         },
         context: fixture.evidence_context("http-trigger", Timestamp::Logical(1)),
@@ -932,7 +932,7 @@ async fn http_provider_enforces_allowlist() -> Result<(), Box<dyn std::error::Er
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("http"),
-            predicate: "status".to_string(),
+            check_id: "status".to_string(),
             params: Some(json!({ "url": "http://localhost:1/ok" })),
         },
         context: fixture.evidence_context("http-trigger", Timestamp::Logical(1)),
@@ -977,7 +977,7 @@ async fn http_provider_redirect_not_followed() -> Result<(), Box<dyn std::error:
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("http"),
-            predicate: "status".to_string(),
+            check_id: "status".to_string(),
             params: Some(json!({ "url": http_server.url("/redirect") })),
         },
         context: fixture.evidence_context("http-trigger", Timestamp::Logical(1)),
@@ -1028,7 +1028,7 @@ async fn http_provider_body_hash_matches() -> Result<(), Box<dyn std::error::Err
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("http"),
-            predicate: "body_hash".to_string(),
+            check_id: "body_hash".to_string(),
             params: Some(json!({ "url": http_server.url("/ok") })),
         },
         context: fixture.evidence_context("http-trigger", Timestamp::Logical(1)),
@@ -1082,7 +1082,7 @@ async fn http_provider_response_size_limit_enforced() -> Result<(), Box<dyn std:
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("http"),
-            predicate: "body_hash".to_string(),
+            check_id: "body_hash".to_string(),
             params: Some(json!({ "url": http_server.url("/large") })),
         },
         context: fixture.evidence_context("http-trigger", Timestamp::Logical(1)),
@@ -1127,7 +1127,7 @@ async fn http_provider_timeout_enforced() -> Result<(), Box<dyn std::error::Erro
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("http"),
-            predicate: "status".to_string(),
+            check_id: "status".to_string(),
             params: Some(json!({ "url": http_server.url("/slow") })),
         },
         context: fixture.evidence_context("http-trigger", Timestamp::Logical(1)),
@@ -1173,7 +1173,7 @@ async fn http_provider_tls_failure_fails_closed() -> Result<(), Box<dyn std::err
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("http"),
-            predicate: "status".to_string(),
+            check_id: "status".to_string(),
             params: Some(json!({ "url": tls_url })),
         },
         context: fixture.evidence_context("http-trigger", Timestamp::Logical(1)),
@@ -1223,7 +1223,7 @@ async fn env_provider_missing_key_returns_empty() -> Result<(), Box<dyn std::err
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("env"),
-            predicate: "get".to_string(),
+            check_id: "get".to_string(),
             params: Some(json!({ "key": "MISSING" })),
         },
         context: fixture.evidence_context("env-trigger", Timestamp::Logical(1)),
@@ -1275,7 +1275,7 @@ async fn env_provider_denylist_blocks() -> Result<(), Box<dyn std::error::Error>
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("env"),
-            predicate: "get".to_string(),
+            check_id: "get".to_string(),
             params: Some(json!({ "key": "BLOCKED" })),
         },
         context: fixture.evidence_context("env-trigger", Timestamp::Logical(1)),
@@ -1325,7 +1325,7 @@ async fn env_provider_allowlist_blocks_unlisted() -> Result<(), Box<dyn std::err
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("env"),
-            predicate: "get".to_string(),
+            check_id: "get".to_string(),
             params: Some(json!({ "key": "OTHER" })),
         },
         context: fixture.evidence_context("env-trigger", Timestamp::Logical(1)),
@@ -1375,7 +1375,7 @@ async fn env_provider_value_size_limit_enforced() -> Result<(), Box<dyn std::err
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("env"),
-            predicate: "get".to_string(),
+            check_id: "get".to_string(),
             params: Some(json!({ "key": "BIG" })),
         },
         context: fixture.evidence_context("env-trigger", Timestamp::Logical(1)),
@@ -1419,7 +1419,7 @@ async fn env_provider_key_size_limit_enforced() -> Result<(), Box<dyn std::error
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("env"),
-            predicate: "get".to_string(),
+            check_id: "get".to_string(),
             params: Some(json!({ "key": "TOO_LONG" })),
         },
         context: fixture.evidence_context("env-trigger", Timestamp::Logical(1)),
@@ -1463,7 +1463,7 @@ async fn time_provider_rejects_logical_when_disabled() -> Result<(), Box<dyn std
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("time"),
-            predicate: "now".to_string(),
+            check_id: "now".to_string(),
             params: None,
         },
         context: fixture.evidence_context("time-trigger", Timestamp::Logical(5)),
@@ -1504,7 +1504,7 @@ async fn time_provider_rfc3339_parsing() -> Result<(), Box<dyn std::error::Error
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("time"),
-            predicate: "after".to_string(),
+            check_id: "after".to_string(),
             params: Some(json!({ "timestamp": "2024-01-01T00:00:00+00:00" })),
         },
         context: fixture.evidence_context("time-trigger", Timestamp::UnixMillis(1_704_067_201_000)),
@@ -1515,11 +1515,11 @@ async fn time_provider_rfc3339_parsing() -> Result<(), Box<dyn std::error::Error
         return Err("unexpected error for rfc3339 parsing".into());
     }
     let Some(decision_gate_core::EvidenceValue::Json(value)) = response.result.value else {
-        return Err("missing time predicate value".into());
+        return Err("missing time check value".into());
     };
     let result = value.as_bool().ok_or("expected boolean result")?;
     if !result {
-        return Err("expected after predicate to be true".into());
+        return Err("expected after check to be true".into());
     }
 
     reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
@@ -1551,7 +1551,7 @@ async fn time_provider_invalid_rfc3339_rejected() -> Result<(), Box<dyn std::err
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("time"),
-            predicate: "after".to_string(),
+            check_id: "after".to_string(),
             params: Some(json!({ "timestamp": "not-a-time" })),
         },
         context: fixture.evidence_context("time-trigger", Timestamp::UnixMillis(1_704_067_200_000)),
@@ -1597,7 +1597,7 @@ async fn mcp_provider_malformed_jsonrpc_response() -> Result<(), Box<dyn std::er
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("mcp-malformed"),
-            predicate: "echo".to_string(),
+            check_id: "echo".to_string(),
             params: Some(json!({ "value": true })),
         },
         context: fixture.evidence_context("mcp-trigger", Timestamp::Logical(1)),
@@ -1655,7 +1655,7 @@ async fn mcp_provider_text_content_rejected() -> Result<(), Box<dyn std::error::
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("mcp-text"),
-            predicate: "echo".to_string(),
+            check_id: "echo".to_string(),
             params: Some(json!({ "value": true })),
         },
         context: fixture.evidence_context("mcp-trigger", Timestamp::Logical(1)),
@@ -1711,7 +1711,7 @@ async fn mcp_provider_empty_result_rejected() -> Result<(), Box<dyn std::error::
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("mcp-empty"),
-            predicate: "echo".to_string(),
+            check_id: "echo".to_string(),
             params: Some(json!({ "value": true })),
         },
         context: fixture.evidence_context("mcp-trigger", Timestamp::Logical(1)),
@@ -1773,7 +1773,7 @@ async fn mcp_provider_flaky_response() -> Result<(), Box<dyn std::error::Error>>
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("mcp-flaky"),
-            predicate: "echo".to_string(),
+            check_id: "echo".to_string(),
             params: Some(json!({ "value": true })),
         },
         context: fixture.evidence_context("mcp-trigger", Timestamp::Logical(1)),
@@ -1837,7 +1837,7 @@ async fn mcp_provider_wrong_namespace_rejected() -> Result<(), Box<dyn std::erro
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("mcp-namespace"),
-            predicate: "echo".to_string(),
+            check_id: "echo".to_string(),
             params: Some(json!({ "value": true })),
         },
         context: fixture.evidence_context("mcp-trigger", Timestamp::Logical(1)),
@@ -1904,7 +1904,7 @@ async fn mcp_provider_missing_signature_rejected() -> Result<(), Box<dyn std::er
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("mcp-signed"),
-            predicate: "echo".to_string(),
+            check_id: "echo".to_string(),
             params: Some(json!({ "value": true })),
         },
         context: fixture.evidence_context("mcp-trigger", Timestamp::Logical(1)),
@@ -1941,7 +1941,7 @@ async fn mcp_provider_contract_mismatch_rejected() -> Result<(), Box<dyn std::er
         description: "Contract mismatch for testing.".to_string(),
         transport: "mcp".to_string(),
         config_schema: json!({ "type": "object" }),
-        predicates: Vec::new(),
+        checks: Vec::new(),
         notes: Vec::new(),
     };
     let path = reporter.artifacts().write_json("bad_contract.json", &contract)?;
@@ -1973,7 +1973,7 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
 
     let scenario_id = ScenarioId::new("federated-provider");
     let stage_id = StageId::new("stage-1");
-    let predicate_key = PredicateKey::new("echo");
+    let condition_id = ConditionId::new("echo");
     let spec = ScenarioSpec {
         scenario_id: scenario_id.clone(),
         namespace_id: namespace_id_one(),
@@ -1983,18 +1983,18 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
             entry_packets: Vec::new(),
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-echo"),
-                requirement: ret_logic::Requirement::predicate(predicate_key.clone()),
+                requirement: ret_logic::Requirement::condition(condition_id.clone()),
                 trust: None,
             }],
             advance_to: AdvanceTo::Terminal,
             timeout: None,
             on_timeout: TimeoutPolicy::Fail,
         }],
-        predicates: vec![PredicateSpec {
-            predicate: predicate_key,
+        conditions: vec![ConditionSpec {
+            condition_id,
             query: EvidenceQuery {
                 provider_id: ProviderId::new("echo"),
-                predicate: "echo".to_string(),
+                check_id: "echo".to_string(),
                 params: Some(json!({"value": true})),
             },
             comparator: Comparator::Equals,
@@ -2096,7 +2096,7 @@ async fn federated_provider_timeout_enforced() -> Result<(), Box<dyn std::error:
     let request = decision_gate_mcp::tools::EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("echo-timeout"),
-            predicate: "echo".to_string(),
+            check_id: "echo".to_string(),
             params: Some(json!({"value": true})),
         },
         context: fixture.evidence_context("timeout-trigger", Timestamp::Logical(1)),
@@ -2150,7 +2150,7 @@ async fn assetcore_interop_fixtures() -> Result<(), Box<dyn std::error::Error>> 
                 "assetcore.world_seq": index as u64 + 1
             });
             ProviderFixture {
-                predicate: fixture.predicate.clone(),
+                check_id: fixture.check_id.clone(),
                 params: fixture.params.clone(),
                 result: fixture.expected.clone(),
                 anchor: Some(EvidenceAnchor {
@@ -2262,15 +2262,15 @@ fn write_echo_contract(
     let contract = ProviderContract {
         provider_id: provider_id.to_string(),
         name: "Echo Provider".to_string(),
-        description: "Echo predicate used by system-tests for MCP federation.".to_string(),
+        description: "Echo check used by system-tests for MCP federation.".to_string(),
         transport: "mcp".to_string(),
         config_schema: json!({
             "type": "object",
             "additionalProperties": false,
             "properties": {}
         }),
-        predicates: vec![PredicateContract {
-            name: "echo".to_string(),
+        checks: vec![CheckContract {
+            check_id: "echo".to_string(),
             description: "Return the configured echo value.".to_string(),
             determinism: DeterminismClass::External,
             params_required: true,
@@ -2291,7 +2291,7 @@ fn write_echo_contract(
             ],
             anchor_types: vec![String::from("stub")],
             content_types: vec![String::from("application/json")],
-            examples: vec![PredicateExample {
+            examples: vec![CheckExample {
                 description: "Return true for echo=true.".to_string(),
                 params: json!({ "value": true }),
                 result: json!(true),
@@ -2326,7 +2326,7 @@ struct FixtureMap {
 
 #[derive(Debug, Deserialize, serde::Serialize)]
 struct FixtureEntry {
-    predicate: String,
+    check_id: String,
     params: Value,
     expected: Value,
 }

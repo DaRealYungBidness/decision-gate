@@ -1,7 +1,7 @@
 // ret-logic/src/requirement.rs
 // ============================================================================
 // Module: Requirement Core Types
-// Description: Universal Boolean algebra over typed predicates.
+// Description: Universal Boolean algebra over typed conditions.
 // Purpose: Define `Requirement`, `RequirementId`, and `RequirementGroup` structures along with
 //          helpers.
 // Dependencies: serde::{Deserialize, Serialize}, smallvec::SmallVec, std::fmt, std::num::NonZeroU64
@@ -9,7 +9,7 @@
 
 //! ## Overview
 //! This module defines the core requirement structure, its identity, and the
-//! grouped logical operators that power the universal predicate algebra while
+//! grouped logical operators that power the universal condition algebra while
 //! preserving short-circuit evaluation guarantees.
 
 // ============================================================================
@@ -23,7 +23,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use smallvec::SmallVec;
 
-use crate::traits::TriStatePredicateEval;
+use crate::traits::TriStateConditionEval;
 use crate::tristate::GroupCounts;
 use crate::tristate::NoopTrace;
 use crate::tristate::RequirementTrace;
@@ -106,9 +106,9 @@ impl TryFrom<u64> for RequirementId {
 /// Universal requirement tree with domain-specific leaves
 ///
 /// This enum represents the core of the requirement system - a composable
-/// Boolean algebra that works over any domain-specific predicate type.
+/// Boolean algebra that works over any domain-specific condition type.
 /// The logical operators (And, Or, Not, `RequireGroup`) are universal and
-/// domain-agnostic, while the Predicate variant serves as the boundary
+/// domain-agnostic, while the Condition variant serves as the boundary
 /// where domain-specific semantics are injected.
 ///
 /// # Invariants
@@ -146,11 +146,11 @@ pub enum Requirement<P> {
         reqs: SmallVec<[Box<Self>; 8]>,
     },
 
-    /// Domain-specific atomic predicate
+    /// Domain-specific atomic condition
     ///
     /// This is the optimization boundary where universal logic hands off
     /// to domain-specific evaluation.
-    Predicate(P),
+    Condition(P),
 }
 
 // ============================================================================
@@ -161,18 +161,18 @@ impl<P> Requirement<P> {
     /// Evaluates this requirement with aggressive short-circuiting
     ///
     /// This method implements the universal Boolean logic with optimal
-    /// control flow. The actual predicate evaluation is delegated to
-    /// the domain through the `PredicateEval` trait.
+    /// control flow. The actual condition evaluation is delegated to
+    /// the domain through the `ConditionEval` trait.
     ///
     /// Note: This method is for the old evaluation approach. New code should use
     /// the row-based evaluation via `PlanExecutor` instead.
     pub fn eval(&self, reader: &P::Reader<'_>, row: super::traits::Row) -> bool
     where
-        P: super::traits::PredicateEval,
+        P: super::traits::ConditionEval,
     {
         match self {
-            // Delegate to domain-specific predicate evaluation
-            Self::Predicate(predicate) => predicate.eval_row(reader, row),
+            // Delegate to domain-specific condition evaluation
+            Self::Condition(condition) => condition.eval_row(reader, row),
 
             // Simple negation
             Self::Not(requirement) => !requirement.eval(reader, row),
@@ -229,7 +229,7 @@ impl<P> Requirement<P> {
     /// Evaluates this requirement for up to 64 consecutive rows, returning a bitmask.
     ///
     /// This provides a "mask-space" execution path for the universal requirement tree:
-    /// - Leaves call into the domain via [`super::traits::BatchPredicateEval::eval_block`].
+    /// - Leaves call into the domain via [`super::traits::BatchConditionEval::eval_block`].
     /// - Internal nodes combine masks with bitwise operations.
     ///
     /// Domains reach the performance ceiling by overriding leaf `eval_block` with
@@ -242,7 +242,7 @@ impl<P> Requirement<P> {
         count: usize,
     ) -> super::traits::Mask64
     where
-        P: super::traits::BatchPredicateEval,
+        P: super::traits::BatchConditionEval,
     {
         let n = count.min(64);
         if n == 0 {
@@ -253,7 +253,7 @@ impl<P> Requirement<P> {
             if n == 64 { super::traits::Mask64::MAX } else { (1u64 << n) - 1 };
 
         match self {
-            Self::Predicate(predicate) => predicate.eval_block(reader, start, n) & valid_mask,
+            Self::Condition(condition) => condition.eval_block(reader, start, n) & valid_mask,
             Self::Not(requirement) => (!requirement.eval_block(reader, start, n)) & valid_mask,
             Self::And(requirements) => {
                 // Empty AND is trivially satisfied.
@@ -346,7 +346,7 @@ impl<P> Requirement<P> {
         logic: &L,
     ) -> TriState
     where
-        P: TriStatePredicateEval,
+        P: TriStateConditionEval,
         L: TriLogic,
     {
         let mut trace = NoopTrace;
@@ -362,14 +362,14 @@ impl<P> Requirement<P> {
         trace: &mut T,
     ) -> TriState
     where
-        P: TriStatePredicateEval,
+        P: TriStateConditionEval,
         L: TriLogic,
         T: RequirementTrace<P>,
     {
         match self {
-            Self::Predicate(predicate) => {
-                let result = predicate.eval_row_tristate(reader, row);
-                trace.on_predicate_evaluated(predicate, result);
+            Self::Condition(condition) => {
+                let result = condition.eval_row_tristate(reader, row);
+                trace.on_condition_evaluated(condition, result);
                 result
             }
             Self::Not(requirement) => {
@@ -446,8 +446,8 @@ impl<P> Requirement<P> {
                 trivially_satisfied_count >= usize::from(*min)
             }
 
-            // Predicates require domain-specific analysis
-            Self::Predicate(_) => false,
+            // Conditions require domain-specific analysis
+            Self::Condition(_) => false,
         }
     }
 
@@ -483,15 +483,15 @@ impl<P> Requirement<P> {
                 max_satisfiable < usize::from(*min)
             }
 
-            // Predicates require domain-specific analysis
-            Self::Predicate(_) => false,
+            // Conditions require domain-specific analysis
+            Self::Condition(_) => false,
         }
     }
 
     /// Returns the complexity of this requirement tree
     pub fn complexity(&self) -> usize {
         match self {
-            Self::Predicate(_) => 1,
+            Self::Condition(_) => 1,
             Self::Not(req) => 1 + req.complexity(),
             Self::And(reqs) | Self::Or(reqs) => {
                 1 + reqs.iter().map(|r| r.complexity()).sum::<usize>()
@@ -531,9 +531,9 @@ impl<P> Requirement<P> {
         }
     }
 
-    /// Creates a requirement from a predicate
-    pub const fn predicate(predicate: P) -> Self {
-        Self::Predicate(predicate)
+    /// Creates a requirement from a condition
+    pub const fn condition(condition: P) -> Self {
+        Self::Condition(condition)
     }
 }
 

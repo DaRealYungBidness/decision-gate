@@ -15,6 +15,8 @@ use std::time::Duration;
 
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionId;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::DecisionOutcome;
 use decision_gate_core::EvidenceAnchor;
 use decision_gate_core::EvidenceQuery;
@@ -22,8 +24,6 @@ use decision_gate_core::GateEvalRecord;
 use decision_gate_core::GateId;
 use decision_gate_core::GateSpec;
 use decision_gate_core::NamespaceId;
-use decision_gate_core::PredicateKey;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::RunId;
@@ -187,7 +187,7 @@ async fn run_case(
 ) -> Result<CaseOutcome, Box<dyn std::error::Error>> {
     let fixture = assetcore_fixture(&format!("anchor-fuzz-{}", case.label), "run-1");
     let provider_fixture = ProviderFixture {
-        predicate: "slot_occupied".to_string(),
+        check_id: "slot_occupied".to_string(),
         params: json!({"container_id": "slots-gear", "slot_index": 1}),
         result: json!(true),
         anchor: Some(case.anchor.clone()),
@@ -334,7 +334,7 @@ fn assetcore_fixture(scenario: &str, run: &str) -> AssetcoreFixture {
     let scenario_id = ScenarioId::new(scenario);
     let namespace_id = namespace_id(11);
     let stage_id = StageId::new("stage-1");
-    let predicate_key = PredicateKey::new("slot_occupied");
+    let condition_id = ConditionId::new("slot_occupied");
     let spec = ScenarioSpec {
         scenario_id: scenario_id.clone(),
         namespace_id,
@@ -344,18 +344,18 @@ fn assetcore_fixture(scenario: &str, run: &str) -> AssetcoreFixture {
             entry_packets: Vec::new(),
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-1"),
-                requirement: ret_logic::Requirement::predicate(predicate_key.clone()),
+                requirement: ret_logic::Requirement::condition(condition_id.clone()),
                 trust: None,
             }],
             advance_to: AdvanceTo::Terminal,
             timeout: None,
             on_timeout: TimeoutPolicy::Fail,
         }],
-        predicates: vec![PredicateSpec {
-            predicate: predicate_key,
+        conditions: vec![ConditionSpec {
+            condition_id,
             query: EvidenceQuery {
                 provider_id: ProviderId::new(ASSETCORE_PROVIDER_ID),
-                predicate: "slot_occupied".to_string(),
+                check_id: "slot_occupied".to_string(),
                 params: Some(json!({"container_id": "slots-gear", "slot_index": 1})),
             },
             comparator: Comparator::Equals,

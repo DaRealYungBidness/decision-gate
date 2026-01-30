@@ -1,10 +1,10 @@
 // ret-logic/tests/support/mocks.rs
 // ============================================================================
-// Module: Mock Predicates
-// Description: Shared mock predicates and readers for requirement tests.
+// Module: Mock Conditions
+// Description: Shared mock conditions and readers for requirement tests.
 // ============================================================================
 //! ## Overview
-//! Mock predicate and reader types used by integration tests.
+//! Mock condition and reader types used by integration tests.
 
 #![allow(
     clippy::panic,
@@ -19,23 +19,23 @@
     reason = "Test-only output and panic-based assertions are permitted."
 )]
 
-use ret_logic::BatchPredicateEval;
-use ret_logic::PredicateEval;
+use ret_logic::BatchConditionEval;
+use ret_logic::ConditionEval;
 use ret_logic::ReaderLen;
 use ret_logic::Row;
 use serde::Deserialize;
 use serde::Serialize;
 
 // ========================================================================
-// Mock Predicate Types
+// Mock Condition Types
 // ========================================================================
 
-/// Simple mock predicate for testing the requirement system.
+/// Simple mock condition for testing the requirement system.
 ///
-/// This predicate type is domain-agnostic and allows testing the core
+/// This condition type is domain-agnostic and allows testing the core
 /// boolean algebra without any domain-specific logic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum MockPredicate {
+pub enum MockCondition {
     /// Always returns true.
     AlwaysTrue,
 
@@ -71,15 +71,15 @@ pub enum MockPredicate {
 // Mock Reader Type
 // ========================================================================
 
-/// Mock reader that provides test data for predicate evaluation.
+/// Mock reader that provides test data for condition evaluation.
 ///
 /// This reader simulates the `SoA` (Struct of Arrays) pattern used by
 /// real readers, providing slices of component data for row-based access.
 pub struct MockReader<'a> {
-    /// Integer values for numeric predicates.
+    /// Integer values for numeric conditions.
     values: &'a [i32],
 
-    /// Flags for bitwise predicates.
+    /// Flags for bitwise conditions.
     flags: &'a [u64],
 }
 
@@ -101,10 +101,10 @@ impl ReaderLen for MockReader<'_> {
 }
 
 // ========================================================================
-// PredicateEval Implementation
+// ConditionEval Implementation
 // ========================================================================
 
-impl PredicateEval for MockPredicate {
+impl ConditionEval for MockCondition {
     type Reader<'a> = MockReader<'a>;
 
     #[inline]
@@ -128,7 +128,7 @@ impl PredicateEval for MockPredicate {
     }
 }
 
-impl BatchPredicateEval for MockPredicate {
+impl BatchConditionEval for MockCondition {
     // Use default implementation that calls eval_row in a loop.
 }
 
@@ -136,19 +136,19 @@ impl BatchPredicateEval for MockPredicate {
 // Variant Coverage Helpers
 // ========================================================================
 
-/// Returns a list of all mock predicate variants for coverage checks.
+/// Returns a list of all mock condition variants for coverage checks.
 #[must_use]
-pub fn all_variants() -> Vec<MockPredicate> {
+pub fn all_variants() -> Vec<MockCondition> {
     vec![
-        MockPredicate::AlwaysTrue,
-        MockPredicate::AlwaysFalse,
-        MockPredicate::ValueGte(100),
-        MockPredicate::ValueLte(-50),
-        MockPredicate::ValueEq(0),
-        MockPredicate::HasAllFlags(0xDEAD_BEEF),
-        MockPredicate::HasAnyFlags(0b10101),
-        MockPredicate::HasNoneFlags(0xFF00),
-        MockPredicate::RowIndexEven,
-        MockPredicate::RowIndexLt(1000),
+        MockCondition::AlwaysTrue,
+        MockCondition::AlwaysFalse,
+        MockCondition::ValueGte(100),
+        MockCondition::ValueLte(-50),
+        MockCondition::ValueEq(0),
+        MockCondition::HasAllFlags(0xDEAD_BEEF),
+        MockCondition::HasAnyFlags(0b10101),
+        MockCondition::HasNoneFlags(0xFF00),
+        MockCondition::RowIndexEven,
+        MockCondition::RowIndexLt(1000),
     ]
 }

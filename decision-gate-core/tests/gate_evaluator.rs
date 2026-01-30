@@ -19,12 +19,12 @@
     reason = "Test-only output and panic-based assertions are permitted."
 )]
 
+use decision_gate_core::ConditionId;
 use decision_gate_core::EvidenceRecord;
 use decision_gate_core::EvidenceResult;
 use decision_gate_core::GateEvaluator;
 use decision_gate_core::GateId;
 use decision_gate_core::GateSpec;
-use decision_gate_core::PredicateKey;
 use decision_gate_core::TrustLane;
 use decision_gate_core::runtime::gate::EvidenceSnapshot;
 use ret_logic::LogicMode;
@@ -41,15 +41,15 @@ fn test_gate_evaluation_with_snapshot() {
     let gate = GateSpec {
         gate_id: GateId::new("gate-1"),
         requirement: Requirement::and(vec![
-            Requirement::predicate(PredicateKey::from("a")),
-            Requirement::predicate(PredicateKey::from("b")),
+            Requirement::condition(ConditionId::from("a")),
+            Requirement::condition(ConditionId::from("b")),
         ]),
         trust: None,
     };
 
     let snapshot = EvidenceSnapshot::new(vec![
         EvidenceRecord {
-            predicate: PredicateKey::from("a"),
+            condition_id: ConditionId::from("a"),
             status: TriState::True,
             result: EvidenceResult {
                 value: None,
@@ -63,7 +63,7 @@ fn test_gate_evaluation_with_snapshot() {
             },
         },
         EvidenceRecord {
-            predicate: PredicateKey::from("b"),
+            condition_id: ConditionId::from("b"),
             status: TriState::Unknown,
             result: EvidenceResult {
                 value: None,

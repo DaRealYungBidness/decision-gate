@@ -1,9 +1,9 @@
 <!--
-Docs/guides/predicate_authoring.md
+Docs/guides/condition_authoring.md
 ============================================================================
-Document: Predicate Authoring Cookbook
-Description: Practical guidance for writing ScenarioSpec predicates.
-Purpose: Help authors define predicates that are correct, deterministic, and auditable.
+Document: Condition Authoring Cookbook
+Description: Practical guidance for writing ScenarioSpec conditions.
+Purpose: Help authors define conditions that are correct, deterministic, and auditable.
 Dependencies:
   - Docs/generated/decision-gate/providers.json
   - Docs/generated/decision-gate/schemas/scenario.schema.json
@@ -11,27 +11,27 @@ Dependencies:
 ============================================================================
 -->
 
-# Predicate Authoring Cookbook
+# Condition Authoring Cookbook
 
 ## At a Glance
 
-**What:** Define predicates that evaluate deterministically and validate cleanly
-**Why:** Predicates connect gates to evidence; precision matters
+**What:** Define conditions that evaluate deterministically and validate cleanly
+**Why:** Conditions connect gates to evidence; precision matters
 **Who:** Developers and operators authoring Decision Gate scenarios
 **Prerequisites:** [evidence_flow_and_execution_model.md](evidence_flow_and_execution_model.md)
 
 ---
 
-## What is a Predicate?
+## What is a Condition?
 
-A predicate is an evidence check:
+A condition is an evidence check:
 
 ```json
 {
-  "predicate": "tests_ok",
+  "condition_id": "tests_ok",
   "query": {
     "provider_id": "json",
-    "predicate": "path",
+    "check_id": "path",
     "params": { "file": "report.json", "jsonpath": "$.summary.failed" }
   },
   "comparator": "equals",
@@ -116,9 +116,9 @@ Key rules (exact):
 
 ## Strict Validation (Default On)
 
-Decision Gate validates predicates at `scenario_define` time:
+Decision Gate validates conditions at `scenario_define` time:
 
-- For provider-based predicates, the **provider contract** defines allowed comparators and result types.
+- For provider-based conditions, the **provider contract** defines allowed comparators and result types.
 - For precheck, the **data shape schema** defines allowed comparators and types.
 
 Special comparators require **both**:
@@ -132,21 +132,21 @@ If validation fails, `scenario_define` or `precheck` is rejected.
 ## Provider Patterns
 
 ### time Provider
-- **Predicates:** `now`, `after`, `before`.
+- **Checks:** `now`, `after`, `before`.
 - `after`/`before` accept `timestamp` as **unix millis** or **RFC3339 string**.
 - `after` is **strictly greater-than**; `before` is **strictly less-than**.
 
 ### env Provider
-- **Predicate:** `get`.
+- **Check:** `get`.
 - Missing key returns `value = None` with **no error**.
 - Blocked or invalid keys return a **provider error** (`provider_error` at the tool boundary).
 
 ### json Provider
-- **Predicate:** `path`.
+- **Check:** `path`.
 - JSONPath no-match returns `error.code = "jsonpath_not_found"` and `value = None`.
 
 ### http Provider
-- **Predicates:** `status`, `body_hash`.
+- **Checks:** `status`, `body_hash`.
 - `status` returns an integer HTTP status.
 - `body_hash` returns a HashDigest object `{ algorithm, value }`.
 - `body_hash` allows only `exists` / `not_exists` (per contract).
@@ -187,8 +187,8 @@ allow_raw = true
 
 ## Checklist
 
-- [ ] Predicate IDs are unique within the scenario.
-- [ ] Provider predicate name matches provider contract.
+- [ ] Condition IDs are unique within the scenario.
+- [ ] Provider check name matches provider contract.
 - [ ] Comparator is allowed for the result schema.
 - [ ] Expected value type matches evidence type.
 - [ ] `policy_tags` present (required by schema, may be empty).

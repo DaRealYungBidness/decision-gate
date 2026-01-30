@@ -14,7 +14,7 @@
 ---
 
 ## 1) In scope
-- Provider predicate parsing and validation.
+- Provider check parsing and validation.
 - EvidenceResult formation (value, hash, metadata).
 - Unit tests for each provider's error paths.
 

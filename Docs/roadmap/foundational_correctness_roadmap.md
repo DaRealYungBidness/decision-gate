@@ -153,10 +153,10 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 
 **Must pass**
 
-- Verified-only predicates reject asserted evidence.
+- Verified-only conditions reject asserted evidence.
 - Precheck never mutates run state.
 - Lane mismatch yields structured `Unknown`.
-- Lane overrides (config → predicate → gate) compose deterministically.
+- Lane overrides (config → condition → gate) compose deterministically.
 
 **Existing**
 
@@ -193,7 +193,7 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 - JSON provider: unit tests for path traversal, size limits, invalid JSON/YAML, JSONPath errors
   (`decision-gate-providers/tests/json_provider.rs`) + system-test symlink escape coverage.
 - HTTP provider: HTTPS enforcement, allowlist/SSRF prevention, redirect handling, timeouts,
-  response size limits, TLS failure, and body hash predicate tests.
+  response size limits, TLS failure, and body hash check tests.
 - Env provider: missing keys, allow/deny list, key/value size limits.
 - Time provider: logical/Unix enforcement + RFC3339 parsing/invalid inputs.
 - MCP provider: malformed JSON-RPC, text/empty results, flaky responses, namespace mismatch,

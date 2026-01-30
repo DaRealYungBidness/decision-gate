@@ -1,13 +1,13 @@
 // decision-gate-mcp/src/capabilities.rs
 // ============================================================================
 // Module: Provider Capability Registry
-// Description: Capability metadata registry for providers and predicates.
+// Description: Capability metadata registry for providers and checks.
 // Purpose: Validate ScenarioSpec and EvidenceQuery inputs against contracts.
 // Dependencies: decision-gate-contract, decision-gate-core, jsonschema
 // ============================================================================
 
 //! ## Overview
-//! The capability registry validates predicates against the canonical provider
+//! The capability registry validates checks against the canonical provider
 //! contracts. It enforces comparator allow-lists and schema validation to keep
 //! authoring deterministic and secure.
 //! Security posture: inputs are untrusted; see `Docs/security/threat_model.md`.
@@ -20,7 +20,8 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use decision_gate_contract::providers::provider_contracts;
-use decision_gate_contract::types::PredicateContract;
+use decision_gate_contract::types::CheckContract;
+use decision_gate_contract::types::CheckExample;
 use decision_gate_contract::types::ProviderContract;
 use decision_gate_core::Comparator;
 use decision_gate_core::EvidenceQuery;
@@ -64,49 +65,49 @@ pub enum CapabilityError {
         /// Missing provider identifier.
         provider_id: String,
     },
-    /// Predicate not registered for the provider.
-    #[error("predicate not supported: {provider_id}.{predicate}")]
-    PredicateMissing {
+    /// Check not registered for the provider.
+    #[error("check not supported: {provider_id}.{check}")]
+    CheckMissing {
         /// Provider identifier.
         provider_id: String,
-        /// Predicate name.
-        predicate: String,
+        /// Check name.
+        check: String,
     },
-    /// Predicate parameters are required but missing.
-    #[error("predicate params required for {provider_id}.{predicate}")]
+    /// Check parameters are required but missing.
+    #[error("check params required for {provider_id}.{check}")]
     ParamsMissing {
         /// Provider identifier.
         provider_id: String,
-        /// Predicate name.
-        predicate: String,
+        /// Check name.
+        check: String,
     },
-    /// Predicate parameters failed schema validation.
-    #[error("predicate params invalid for {provider_id}.{predicate}: {error}")]
+    /// Check parameters failed schema validation.
+    #[error("check params invalid for {provider_id}.{check}: {error}")]
     ParamsInvalid {
         /// Provider identifier.
         provider_id: String,
-        /// Predicate name.
-        predicate: String,
+        /// Check name.
+        check: String,
         /// Validation error details.
         error: String,
     },
-    /// Predicate expected value failed schema validation.
-    #[error("predicate expected value invalid for {provider_id}.{predicate}: {error}")]
+    /// Check expected value failed schema validation.
+    #[error("check expected value invalid for {provider_id}.{check}: {error}")]
     ExpectedInvalid {
         /// Provider identifier.
         provider_id: String,
-        /// Predicate name.
-        predicate: String,
+        /// Check name.
+        check: String,
         /// Validation error details.
         error: String,
     },
-    /// Comparator is not allowed for the predicate.
-    #[error("comparator not allowed for {provider_id}.{predicate}: {comparator}")]
+    /// Comparator is not allowed for the check.
+    #[error("comparator not allowed for {provider_id}.{check}: {comparator}")]
     ComparatorNotAllowed {
         /// Provider identifier.
         provider_id: String,
-        /// Predicate name.
-        predicate: String,
+        /// Check name.
+        check: String,
         /// Comparator label.
         comparator: String,
     },
@@ -155,12 +156,12 @@ pub enum CapabilityError {
         provider_id: String,
     },
     /// Contract schema compilation failed.
-    #[error("schema compilation failed for {provider_id}.{predicate}: {error}")]
+    #[error("schema compilation failed for {provider_id}.{check}: {error}")]
     SchemaCompile {
         /// Provider identifier.
         provider_id: String,
-        /// Predicate name.
-        predicate: String,
+        /// Check name.
+        check: String,
         /// Error details.
         error: String,
     },
@@ -182,9 +183,9 @@ impl CapabilityError {
             Self::ProviderMissing {
                 ..
             } => "provider_missing",
-            Self::PredicateMissing {
+            Self::CheckMissing {
                 ..
-            } => "predicate_missing",
+            } => "check_missing",
             Self::ParamsMissing {
                 ..
             } => "params_missing",
@@ -235,7 +236,7 @@ pub struct CapabilityRegistry {
     providers: BTreeMap<String, ProviderCapabilities>,
 }
 
-/// Provider capability bundle with contract and compiled predicate schemas.
+/// Provider capability bundle with contract and compiled check schemas.
 struct ProviderCapabilities {
     /// Provider contract definition.
     contract: ProviderContract,
@@ -243,17 +244,17 @@ struct ProviderCapabilities {
     contract_hash: HashDigest,
     /// Contract source origin.
     contract_source: ProviderContractSource,
-    /// Predicate capability map keyed by predicate name.
-    predicates: BTreeMap<String, PredicateCapabilities>,
+    /// Check capability map keyed by check name.
+    checks: BTreeMap<String, CheckCapabilities>,
 }
 
-/// Predicate capability bundle with compiled schemas.
-struct PredicateCapabilities {
-    /// Predicate contract metadata.
-    contract: PredicateContract,
-    /// Compiled schema for predicate parameters.
+/// Check capability bundle with compiled schemas.
+struct CheckCapabilities {
+    /// Check contract metadata.
+    contract: CheckContract,
+    /// Compiled schema for check parameters.
     params_schema: Validator,
-    /// Compiled schema for predicate results.
+    /// Compiled schema for check results.
     result_schema: Validator,
 }
 
@@ -282,29 +283,29 @@ pub struct ProviderContractView {
     pub version: Option<String>,
 }
 
-/// Predicate schema view for discovery tools.
+/// Check schema view for discovery tools.
 #[derive(Debug, Clone, Serialize)]
-pub struct PredicateSchemaView {
+pub struct CheckSchemaView {
     /// Provider identifier.
     pub provider_id: String,
-    /// Predicate name.
-    pub predicate: String,
-    /// Whether params are required for the predicate.
+    /// Check identifier.
+    pub check_id: String,
+    /// Whether params are required for the check.
     pub params_required: bool,
-    /// JSON schema for predicate params.
+    /// JSON schema for check params.
     pub params_schema: Value,
-    /// JSON schema for predicate result values.
+    /// JSON schema for check result values.
     pub result_schema: Value,
-    /// Comparator allow-list for this predicate.
+    /// Comparator allow-list for this check.
     pub allowed_comparators: Vec<Comparator>,
-    /// Determinism classification for the predicate.
+    /// Determinism classification for the check.
     pub determinism: decision_gate_contract::types::DeterminismClass,
-    /// Anchor types emitted by this predicate.
+    /// Anchor types emitted by this check.
     pub anchor_types: Vec<String>,
-    /// Content types for predicate output.
+    /// Content types for check output.
     pub content_types: Vec<String>,
-    /// Predicate examples.
-    pub examples: Vec<decision_gate_contract::types::PredicateExample>,
+    /// Check examples.
+    pub examples: Vec<CheckExample>,
     /// Canonical contract hash.
     pub contract_hash: HashDigest,
 }
@@ -339,7 +340,7 @@ impl CapabilityRegistry {
                     provider_id,
                 });
             }
-            let predicates = compile_predicates(&contract)?;
+            let checks = compile_checks(&contract)?;
             let contract_hash = contract_hash(&contract, &provider_id)?;
             providers.insert(
                 provider_id,
@@ -347,7 +348,7 @@ impl CapabilityRegistry {
                     contract,
                     contract_hash,
                     contract_source: source,
-                    predicates,
+                    checks,
                 },
             );
         }
@@ -361,31 +362,31 @@ impl CapabilityRegistry {
     ///
     /// # Errors
     ///
-    /// Returns [`CapabilityError`] for missing providers, predicates, or schema violations.
+    /// Returns [`CapabilityError`] for missing providers, checks, or schema violations.
     pub fn validate_spec(&self, spec: &ScenarioSpec) -> Result<(), CapabilityError> {
-        for predicate in &spec.predicates {
-            let provider_id = predicate.query.provider_id.as_str();
-            let predicate_name = predicate.query.predicate.as_str();
-            let capability = self.lookup_predicate(provider_id, predicate_name)?;
+        for condition in &spec.conditions {
+            let provider_id = condition.query.provider_id.as_str();
+            let check_name = condition.query.check_id.as_str();
+            let capability = self.lookup_check(provider_id, check_name)?;
             validate_params(
                 provider_id,
-                predicate_name,
-                predicate.query.params.as_ref(),
+                check_name,
+                condition.query.params.as_ref(),
                 capability.contract.params_required,
                 &capability.params_schema,
             )?;
             validate_expected_value(
                 provider_id,
-                predicate_name,
-                predicate.comparator,
-                predicate.expected.as_ref(),
+                check_name,
+                condition.comparator,
+                condition.expected.as_ref(),
                 &capability.result_schema,
             )?;
-            if !capability.contract.allowed_comparators.contains(&predicate.comparator) {
+            if !capability.contract.allowed_comparators.contains(&condition.comparator) {
                 return Err(CapabilityError::ComparatorNotAllowed {
                     provider_id: provider_id.to_string(),
-                    predicate: predicate_name.to_string(),
-                    comparator: comparator_label(predicate.comparator),
+                    check: check_name.to_string(),
+                    comparator: comparator_label(condition.comparator),
                 });
             }
         }
@@ -396,42 +397,42 @@ impl CapabilityRegistry {
     ///
     /// # Errors
     ///
-    /// Returns [`CapabilityError`] for missing providers, predicates, or schema violations.
+    /// Returns [`CapabilityError`] for missing providers, checks, or schema violations.
     pub fn validate_query(&self, query: &EvidenceQuery) -> Result<(), CapabilityError> {
         let provider_id = query.provider_id.as_str();
-        let predicate_name = query.predicate.as_str();
-        let capability = self.lookup_predicate(provider_id, predicate_name)?;
+        let check_name = query.check_id.as_str();
+        let capability = self.lookup_check(provider_id, check_name)?;
         validate_params(
             provider_id,
-            predicate_name,
+            check_name,
             query.params.as_ref(),
             capability.contract.params_required,
             &capability.params_schema,
         )
     }
 
-    /// Lists providers and their predicate identifiers.
+    /// Lists providers and their check identifiers.
     #[must_use]
     pub fn list_providers(&self) -> Vec<(String, Vec<String>)> {
         let mut providers = Vec::with_capacity(self.providers.len());
         for (provider_id, capabilities) in &self.providers {
-            let predicates = capabilities.predicates.keys().cloned().collect();
-            providers.push((provider_id.clone(), predicates));
+            let checks = capabilities.checks.keys().cloned().collect();
+            providers.push((provider_id.clone(), checks));
         }
         providers
     }
 
-    /// Returns the predicate contract for the requested provider.
+    /// Returns the check contract for the requested provider.
     ///
     /// # Errors
     ///
-    /// Returns [`CapabilityError`] when the provider or predicate is missing.
-    pub fn predicate_contract(
+    /// Returns [`CapabilityError`] when the provider or check is missing.
+    pub fn check_contract(
         &self,
         provider_id: &str,
-        predicate: &str,
-    ) -> Result<&PredicateContract, CapabilityError> {
-        let capability = self.lookup_predicate(provider_id, predicate)?;
+        check: &str,
+    ) -> Result<&CheckContract, CapabilityError> {
+        let capability = self.lookup_check(provider_id, check)?;
         Ok(&capability.contract)
     }
 
@@ -457,30 +458,29 @@ impl CapabilityRegistry {
         })
     }
 
-    /// Returns a predicate schema view for discovery tooling.
+    /// Returns a check schema view for discovery tooling.
     ///
     /// # Errors
     ///
-    /// Returns [`CapabilityError`] when provider or predicate is missing.
-    pub fn predicate_schema_view(
+    /// Returns [`CapabilityError`] when provider or check is missing.
+    pub fn check_schema_view(
         &self,
         provider_id: &str,
-        predicate: &str,
-    ) -> Result<PredicateSchemaView, CapabilityError> {
+        check_id: &str,
+    ) -> Result<CheckSchemaView, CapabilityError> {
         let provider =
             self.providers.get(provider_id).ok_or_else(|| CapabilityError::ProviderMissing {
                 provider_id: provider_id.to_string(),
             })?;
-        let capability = provider.predicates.get(predicate).ok_or_else(|| {
-            CapabilityError::PredicateMissing {
+        let capability =
+            provider.checks.get(check_id).ok_or_else(|| CapabilityError::CheckMissing {
                 provider_id: provider_id.to_string(),
-                predicate: predicate.to_string(),
-            }
-        })?;
+                check: check_id.to_string(),
+            })?;
         let contract = &capability.contract;
-        Ok(PredicateSchemaView {
+        Ok(CheckSchemaView {
             provider_id: provider_id.to_string(),
-            predicate: predicate.to_string(),
+            check_id: check_id.to_string(),
             params_required: contract.params_required,
             params_schema: contract.params_schema.clone(),
             result_schema: contract.result_schema.clone(),
@@ -493,19 +493,19 @@ impl CapabilityRegistry {
         })
     }
 
-    /// Locates a predicate capability by provider and predicate name.
-    fn lookup_predicate(
+    /// Locates a check capability by provider and check name.
+    fn lookup_check(
         &self,
         provider_id: &str,
-        predicate: &str,
-    ) -> Result<&PredicateCapabilities, CapabilityError> {
+        check: &str,
+    ) -> Result<&CheckCapabilities, CapabilityError> {
         let provider =
             self.providers.get(provider_id).ok_or_else(|| CapabilityError::ProviderMissing {
                 provider_id: provider_id.to_string(),
             })?;
-        provider.predicates.get(predicate).ok_or_else(|| CapabilityError::PredicateMissing {
+        provider.checks.get(check).ok_or_else(|| CapabilityError::CheckMissing {
             provider_id: provider_id.to_string(),
-            predicate: predicate.to_string(),
+            check: check.to_string(),
         })
     }
 }
@@ -592,39 +592,39 @@ fn validate_capability_path(path: &Path) -> Result<(), CapabilityError> {
 }
 
 // ============================================================================
-// SECTION: Predicate Compilation
+// SECTION: Check Compilation
 // ============================================================================
 
-/// Compiles predicate schemas for a provider contract.
-fn compile_predicates(
+/// Compiles check schemas for a provider contract.
+fn compile_checks(
     contract: &ProviderContract,
-) -> Result<BTreeMap<String, PredicateCapabilities>, CapabilityError> {
-    let mut predicates = BTreeMap::new();
-    for predicate in &contract.predicates {
-        let params_schema = compile_schema(contract, predicate, &predicate.params_schema)?;
-        let result_schema = compile_schema(contract, predicate, &predicate.result_schema)?;
-        if predicate.allowed_comparators.is_empty() {
+) -> Result<BTreeMap<String, CheckCapabilities>, CapabilityError> {
+    let mut checks = BTreeMap::new();
+    for check in &contract.checks {
+        let params_schema = compile_schema(contract, check, &check.params_schema)?;
+        let result_schema = compile_schema(contract, check, &check.result_schema)?;
+        if check.allowed_comparators.is_empty() {
             return Err(CapabilityError::ContractInvalid {
                 provider_id: contract.provider_id.clone(),
-                error: format!("predicate {} missing allowed_comparators", predicate.name),
+                error: format!("check {} missing allowed_comparators", check.check_id),
             });
         }
-        if !is_canonical_comparator_order(&predicate.allowed_comparators) {
+        if !is_canonical_comparator_order(&check.allowed_comparators) {
             return Err(CapabilityError::ContractInvalid {
                 provider_id: contract.provider_id.clone(),
-                error: format!("predicate {} comparators not in canonical order", predicate.name),
+                error: format!("check {} comparators not in canonical order", check.check_id),
             });
         }
-        predicates.insert(
-            predicate.name.clone(),
-            PredicateCapabilities {
-                contract: predicate.clone(),
+        checks.insert(
+            check.check_id.clone(),
+            CheckCapabilities {
+                contract: check.clone(),
                 params_schema,
                 result_schema,
             },
         );
     }
-    Ok(predicates)
+    Ok(checks)
 }
 
 /// Computes the canonical contract hash with size limits.
@@ -651,13 +651,13 @@ fn contract_hash(
 /// Compiles a JSON schema with Decision Gate defaults.
 fn compile_schema(
     provider: &ProviderContract,
-    predicate: &PredicateContract,
+    check: &CheckContract,
     schema: &Value,
 ) -> Result<Validator, CapabilityError> {
     jsonschema::options().with_draft(Draft::Draft202012).build(schema).map_err(|err| {
         CapabilityError::SchemaCompile {
             provider_id: provider.provider_id.clone(),
-            predicate: predicate.name.clone(),
+            check: check.check_id.clone(),
             error: err.to_string(),
         }
     })
@@ -667,10 +667,10 @@ fn compile_schema(
 // SECTION: Validation Helpers
 // ============================================================================
 
-/// Validates predicate params against schema and required flag.
+/// Validates check params against schema and required flag.
 fn validate_params(
     provider_id: &str,
-    predicate: &str,
+    check: &str,
     params: Option<&Value>,
     params_required: bool,
     schema: &Validator,
@@ -678,16 +678,16 @@ fn validate_params(
     if params_required && params.is_none() {
         return Err(CapabilityError::ParamsMissing {
             provider_id: provider_id.to_string(),
-            predicate: predicate.to_string(),
+            check: check.to_string(),
         });
     }
     let Some(params) = params else {
         return Ok(());
     };
-    validate_schema_value(provider_id, predicate, params, schema).map_err(|error| {
+    validate_schema_value(provider_id, check, params, schema).map_err(|error| {
         CapabilityError::ParamsInvalid {
             provider_id: provider_id.to_string(),
-            predicate: predicate.to_string(),
+            check: check.to_string(),
             error,
         }
     })
@@ -696,7 +696,7 @@ fn validate_params(
 /// Validates a JSON value against a compiled schema.
 fn validate_schema_value(
     provider_id: &str,
-    predicate: &str,
+    check: &str,
     value: &Value,
     schema: &Validator,
 ) -> Result<(), String> {
@@ -705,14 +705,14 @@ fn validate_schema_value(
         Ok(())
     } else {
         let summary = messages.join("; ");
-        Err(format!("{provider_id}.{predicate}: {summary}"))
+        Err(format!("{provider_id}.{check}: {summary}"))
     }
 }
 
-/// Validates expected values against predicate comparators.
+/// Validates expected values against check comparators.
 fn validate_expected_value(
     provider_id: &str,
-    predicate: &str,
+    check: &str,
     comparator: Comparator,
     expected: Option<&Value>,
     schema: &Validator,
@@ -722,7 +722,7 @@ fn validate_expected_value(
             if expected.is_some() {
                 return Err(CapabilityError::ExpectedInvalid {
                     provider_id: provider_id.to_string(),
-                    predicate: predicate.to_string(),
+                    check: check.to_string(),
                     error: "expected value must be omitted for exists/not_exists".to_string(),
                 });
             }
@@ -731,21 +731,21 @@ fn validate_expected_value(
         Comparator::InSet => {
             let expected = expected.ok_or_else(|| CapabilityError::ExpectedInvalid {
                 provider_id: provider_id.to_string(),
-                predicate: predicate.to_string(),
+                check: check.to_string(),
                 error: "expected array required for in_set comparator".to_string(),
             })?;
             let Value::Array(values) = expected else {
                 return Err(CapabilityError::ExpectedInvalid {
                     provider_id: provider_id.to_string(),
-                    predicate: predicate.to_string(),
+                    check: check.to_string(),
                     error: "expected array required for in_set comparator".to_string(),
                 });
             };
             for value in values {
-                validate_schema_value(provider_id, predicate, value, schema).map_err(|error| {
+                validate_schema_value(provider_id, check, value, schema).map_err(|error| {
                     CapabilityError::ExpectedInvalid {
                         provider_id: provider_id.to_string(),
-                        predicate: predicate.to_string(),
+                        check: check.to_string(),
                         error,
                     }
                 })?;
@@ -755,13 +755,13 @@ fn validate_expected_value(
         _ => {
             let expected = expected.ok_or_else(|| CapabilityError::ExpectedInvalid {
                 provider_id: provider_id.to_string(),
-                predicate: predicate.to_string(),
+                check: check.to_string(),
                 error: "expected value required for comparator".to_string(),
             })?;
-            validate_schema_value(provider_id, predicate, expected, schema).map_err(|error| {
+            validate_schema_value(provider_id, check, expected, schema).map_err(|error| {
                 CapabilityError::ExpectedInvalid {
                     provider_id: provider_id.to_string(),
-                    predicate: predicate.to_string(),
+                    check: check.to_string(),
                     error,
                 }
             })

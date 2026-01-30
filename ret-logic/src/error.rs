@@ -19,7 +19,7 @@ use serde::Serialize;
 /// Errors that can occur during requirement evaluation
 ///
 /// This enum represents the various ways requirement evaluation can fail,
-/// from logical composition failures to domain-specific predicate failures.
+/// from logical composition failures to domain-specific condition failures.
 /// The error types are designed to provide clear diagnostic information
 /// while maintaining zero-allocation evaluation paths where possible.
 ///
@@ -57,19 +57,19 @@ pub enum RequirementError {
     WorldStateUnavailable,
 
     // ============================================================================
-    // SECTION: Domain Predicate Errors
+    // SECTION: Domain Condition Errors
     // ============================================================================
-    /// A domain-specific predicate failed evaluation
+    /// A domain-specific condition failed evaluation
     ///
-    /// This provides a user-friendly message explaining why the predicate failed,
+    /// This provides a user-friendly message explaining why the condition failed,
     /// suitable for displaying to users in UIs or error messages.
-    PredicateFailed(String),
+    ConditionFailed(String),
 
-    /// A domain predicate encountered an internal error during evaluation
+    /// A domain condition encountered an internal error during evaluation
     ///
     /// This is for technical errors like missing components, invalid state, etc.
     /// that are not user-facing requirement failures.
-    PredicateError(String),
+    ConditionError(String),
 
     // ============================================================================
     // SECTION: Structural Errors
@@ -120,11 +120,11 @@ impl fmt::Display for RequirementError {
             Self::WorldStateUnavailable => {
                 write!(f, "World state unavailable or inaccessible")
             }
-            Self::PredicateFailed(msg) => {
+            Self::ConditionFailed(msg) => {
                 write!(f, "Requirement not met: {msg}")
             }
-            Self::PredicateError(msg) => {
-                write!(f, "Predicate evaluation error: {msg}")
+            Self::ConditionError(msg) => {
+                write!(f, "Condition evaluation error: {msg}")
             }
             Self::InvalidStructure(msg) => {
                 write!(f, "Invalid requirement structure: {msg}")
@@ -182,8 +182,8 @@ impl RequirementError {
             Self::WorldStateUnavailable => {
                 "Cannot evaluate requirement: world state unavailable".to_string()
             }
-            Self::PredicateFailed(msg) => msg.clone(),
-            Self::PredicateError(_) => {
+            Self::ConditionFailed(msg) => msg.clone(),
+            Self::ConditionError(_) => {
                 "An internal error occurred while checking requirements".to_string()
             }
             Self::InvalidStructure(_) => "Invalid requirement configuration".to_string(),
@@ -196,14 +196,14 @@ impl RequirementError {
         }
     }
 
-    /// Creates a predicate failure error with a custom message
-    pub fn predicate_failed(message: impl Into<String>) -> Self {
-        Self::PredicateFailed(message.into())
+    /// Creates a condition failure error with a custom message
+    pub fn condition_failed(message: impl Into<String>) -> Self {
+        Self::ConditionFailed(message.into())
     }
 
-    /// Creates a predicate error (technical failure) with a custom message
-    pub fn predicate_error(message: impl Into<String>) -> Self {
-        Self::PredicateError(message.into())
+    /// Creates a condition error (technical failure) with a custom message
+    pub fn condition_error(message: impl Into<String>) -> Self {
+        Self::ConditionError(message.into())
     }
 
     /// Creates a generic error with a custom message

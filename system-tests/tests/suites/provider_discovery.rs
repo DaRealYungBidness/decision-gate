@@ -12,10 +12,10 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
+use decision_gate_mcp::tools::ProviderCheckSchemaGetRequest;
+use decision_gate_mcp::tools::ProviderCheckSchemaGetResponse;
 use decision_gate_mcp::tools::ProviderContractGetRequest;
 use decision_gate_mcp::tools::ProviderContractGetResponse;
-use decision_gate_mcp::tools::ProviderSchemaGetRequest;
-use decision_gate_mcp::tools::ProviderSchemaGetResponse;
 use helpers::artifacts::TestReporter;
 use helpers::harness::allocate_bind_addr;
 use helpers::harness::base_http_config;
@@ -54,18 +54,18 @@ async fn http_provider_discovery_tools() -> Result<(), Box<dyn std::error::Error
         .into());
     }
 
-    let schema_request = ProviderSchemaGetRequest {
+    let schema_request = ProviderCheckSchemaGetRequest {
         provider_id: "time".to_string(),
-        predicate: "after".to_string(),
+        check_id: "after".to_string(),
     };
-    let schema: ProviderSchemaGetResponse = client
-        .call_tool_typed("provider_schema_get", serde_json::to_value(&schema_request)?)
+    let schema: ProviderCheckSchemaGetResponse = client
+        .call_tool_typed("provider_check_schema_get", serde_json::to_value(&schema_request)?)
         .await?;
     if schema.provider_id != "time" {
         return Err(format!("expected schema provider_id time, got {}", schema.provider_id).into());
     }
-    if schema.predicate != "after" {
-        return Err(format!("expected predicate after, got {}", schema.predicate).into());
+    if schema.check_id != "after" {
+        return Err(format!("expected check_id after, got {}", schema.check_id).into());
     }
     if schema.allowed_comparators.is_empty() {
         return Err("expected allowed_comparators to be non-empty".into());
@@ -135,18 +135,19 @@ type = "builtin"
         return Err(format!("expected provider_id time, got {}", contract.provider_id).into());
     }
 
-    let schema_request = ProviderSchemaGetRequest {
+    let schema_request = ProviderCheckSchemaGetRequest {
         provider_id: "time".to_string(),
-        predicate: "after".to_string(),
+        check_id: "after".to_string(),
     };
-    let schema_output =
-        client.call_tool("provider_schema_get", serde_json::to_value(&schema_request)?).await?;
-    let schema: ProviderSchemaGetResponse = serde_json::from_value(schema_output)?;
+    let schema_output = client
+        .call_tool("provider_check_schema_get", serde_json::to_value(&schema_request)?)
+        .await?;
+    let schema: ProviderCheckSchemaGetResponse = serde_json::from_value(schema_output)?;
     if schema.provider_id != "time" {
         return Err(format!("expected schema provider_id time, got {}", schema.provider_id).into());
     }
-    if schema.predicate != "after" {
-        return Err(format!("expected predicate after, got {}", schema.predicate).into());
+    if schema.check_id != "after" {
+        return Err(format!("expected check_id after, got {}", schema.check_id).into());
     }
 
     reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;

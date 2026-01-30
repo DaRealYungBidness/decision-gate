@@ -5,35 +5,6 @@
   "default_tenant_id": 1,
   "policies": [],
   "schemas": [],
-  "predicates": [
-    {
-      "predicate": "disclosure_ready",
-      "query": {
-        "provider_id": "json",
-        "predicate": "path",
-        "params": {
-          "file": "disclosure.json",
-          "jsonpath": "$.approved"
-        }
-      },
-      "comparator": "equals",
-      "expected": true,
-      "policy_tags": []
-    },
-    {
-      "predicate": "after_release",
-      "query": {
-        "provider_id": "time",
-        "predicate": "after",
-        "params": {
-          "timestamp": 0
-        }
-      },
-      "comparator": "equals",
-      "expected": true,
-      "policy_tags": []
-    }
-  ],
   "stages": [
     {
       "stage_id": "check",
@@ -44,10 +15,10 @@
           "requirement": {
             "And": [
               {
-                "Predicate": "disclosure_ready"
+                "Condition": "disclosure_ready"
               },
               {
-                "Predicate": "after_release"
+                "Condition": "after_release"
               }
             ]
           }
@@ -87,6 +58,35 @@
       },
       "timeout": null,
       "on_timeout": "fail"
+    }
+  ],
+  "conditions": [
+    {
+      "query": {
+        "provider_id": "json",
+        "params": {
+          "file": "disclosure.json",
+          "jsonpath": "$.approved"
+        },
+        "check_id": "path"
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": [],
+      "condition_id": "disclosure_ready"
+    },
+    {
+      "query": {
+        "provider_id": "time",
+        "params": {
+          "timestamp": 0
+        },
+        "check_id": "after"
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": [],
+      "condition_id": "after_release"
     }
   ]
 }

@@ -197,10 +197,10 @@ enum ProviderCommand {
         command: ProviderContractCommand,
     },
     /// Provider schema operations.
-    Schema {
-        /// Selected schema subcommand.
+    CheckSchema {
+        /// Selected check schema subcommand.
         #[command(subcommand)]
-        command: ProviderSchemaCommand,
+        command: ProviderCheckSchemaCommand,
     },
 }
 
@@ -213,9 +213,9 @@ enum ProviderContractCommand {
 
 /// Provider schema subcommands.
 #[derive(Subcommand, Debug)]
-enum ProviderSchemaCommand {
-    /// Fetch provider predicate schema metadata.
-    Get(ProviderSchemaGetCommand),
+enum ProviderCheckSchemaCommand {
+    /// Fetch provider check schema metadata.
+    Get(ProviderCheckSchemaGetCommand),
 }
 
 /// Arguments for `provider contract get`.
@@ -229,15 +229,15 @@ struct ProviderContractGetCommand {
     config: Option<PathBuf>,
 }
 
-/// Arguments for `provider schema get`.
+/// Arguments for `provider check-schema get`.
 #[derive(Args, Debug)]
-struct ProviderSchemaGetCommand {
+struct ProviderCheckSchemaGetCommand {
     /// Provider identifier.
     #[arg(long, value_name = "PROVIDER")]
     provider: String,
-    /// Predicate name.
-    #[arg(long, value_name = "PREDICATE")]
-    predicate: String,
+    /// Check identifier.
+    #[arg(long = "check-id", value_name = "CHECK_ID")]
+    check_id: String,
     /// Optional config file path (defaults to decision-gate.toml or env override).
     #[arg(long, value_name = "PATH")]
     config: Option<PathBuf>,
@@ -638,10 +638,10 @@ fn command_provider(command: ProviderCommand) -> CliResult<ExitCode> {
         } => match command {
             ProviderContractCommand::Get(command) => command_provider_contract_get(&command),
         },
-        ProviderCommand::Schema {
+        ProviderCommand::CheckSchema {
             command,
         } => match command {
-            ProviderSchemaCommand::Get(command) => command_provider_schema_get(&command),
+            ProviderCheckSchemaCommand::Get(command) => command_provider_check_schema_get(&command),
         },
     }
 }
@@ -669,8 +669,10 @@ fn command_provider_contract_get(command: &ProviderContractGetCommand) -> CliRes
     Ok(ExitCode::SUCCESS)
 }
 
-/// Executes `provider schema get`.
-fn command_provider_schema_get(command: &ProviderSchemaGetCommand) -> CliResult<ExitCode> {
+/// Executes `provider check-schema get`.
+fn command_provider_check_schema_get(
+    command: &ProviderCheckSchemaGetCommand,
+) -> CliResult<ExitCode> {
     let config = DecisionGateConfig::load(command.config.as_deref())
         .map_err(|err| CliError::new(t!("config.load_failed", error = err)))?;
     if !config.provider_discovery.is_allowed(&command.provider) {
@@ -679,11 +681,11 @@ fn command_provider_schema_get(command: &ProviderSchemaGetCommand) -> CliResult<
     let registry = CapabilityRegistry::from_config(&config)
         .map_err(|err| CliError::new(t!("provider.discovery.failed", error = err)))?;
     let view = registry
-        .predicate_schema_view(&command.provider, &command.predicate)
+        .check_schema_view(&command.provider, &command.check_id)
         .map_err(|err| CliError::new(t!("provider.discovery.failed", error = err)))?;
-    let response = decision_gate_mcp::tools::ProviderSchemaGetResponse {
+    let response = decision_gate_mcp::tools::ProviderCheckSchemaGetResponse {
         provider_id: view.provider_id,
-        predicate: view.predicate,
+        check_id: view.check_id,
         params_required: view.params_required,
         params_schema: view.params_schema,
         result_schema: view.result_schema,

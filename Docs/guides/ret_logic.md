@@ -17,7 +17,7 @@ Dependencies:
 **What:** Boolean algebra for gates, with unknown handling (tri-state logic)
 **Why:** Make gate logic explicit, auditable, and deterministic - no hidden rules
 **Who:** Developers and operators authoring complex gate requirements
-**Prerequisites:** Basic understanding of predicates (see [predicate_authoring.md](predicate_authoring.md))
+**Prerequisites:** Basic understanding of conditions (see [condition_authoring.md](condition_authoring.md))
 
 ---
 
@@ -42,16 +42,16 @@ Dependencies:
 {
   "requirement": {
     "And": [
-      { "Predicate": "env_is_prod" },
-      { "Predicate": "tests_ok" },
-      { "Predicate": "coverage_ok" },
+      { "Condition": "env_is_prod" },
+      { "Condition": "tests_ok" },
+      { "Condition": "coverage_ok" },
       {
         "RequireGroup": {
           "min": 2,
           "reqs": [
-            { "Predicate": "alice_approved" },
-            { "Predicate": "bob_approved" },
-            { "Predicate": "carol_approved" }
+            { "Condition": "alice_approved" },
+            { "Condition": "bob_approved" },
+            { "Condition": "carol_approved" }
           ]
         }
       }
@@ -92,7 +92,7 @@ Strong Kleene Logic: And(true, unknown, true, true) -> unknown
 ```
 
 **Evaluation order:**
-1. Leaf predicates evaluate to tri-state (true/false/unknown)
+1. Leaf conditions evaluate to tri-state (true/false/unknown)
 2. Operator nodes combine child outcomes via tri-state logic
 3. Root node outcome determines gate result
 
@@ -112,7 +112,7 @@ Gates **fail closed**: a gate only passes when the requirement evaluates to `tru
 **Example:**
 ```
 Gate: And(tests_ok, coverage_ok)
-Predicates:
+Conditions:
 - tests_ok: true (tests passed)
 - coverage_ok: unknown (coverage report missing)
 
@@ -142,8 +142,8 @@ Outcome: unknown (gate holds until coverage is available)
 {
   "requirement": {
     "And": [
-      { "Predicate": "tests_ok" },
-      { "Predicate": "coverage_ok" }
+      { "Condition": "tests_ok" },
+      { "Condition": "coverage_ok" }
     ]
   }
 }
@@ -176,8 +176,8 @@ Outcome: unknown (gate holds until coverage is available)
 {
   "requirement": {
     "Or": [
-      { "Predicate": "manual_override" },
-      { "Predicate": "tests_ok" }
+      { "Condition": "manual_override" },
+      { "Condition": "tests_ok" }
     ]
   }
 }
@@ -208,8 +208,8 @@ Outcome: unknown (gate holds until coverage is available)
 {
   "requirement": {
     "And": [
-      { "Predicate": "tests_ok" },
-      { "Not": { "Predicate": "blocklist_hit" } }
+      { "Condition": "tests_ok" },
+      { "Not": { "Condition": "blocklist_hit" } }
     ]
   }
 }
@@ -239,9 +239,9 @@ Outcome: unknown (gate holds until coverage is available)
     "RequireGroup": {
       "min": 2,
       "reqs": [
-        { "Predicate": "alice_approved" },
-        { "Predicate": "bob_approved" },
-        { "Predicate": "carol_approved" }
+        { "Condition": "alice_approved" },
+        { "Condition": "bob_approved" },
+        { "Condition": "carol_approved" }
       ]
     }
   }
@@ -269,22 +269,22 @@ Outcome: unknown (gate holds until coverage is available)
 
 ---
 
-### Predicate (Leaf Node)
+### Condition (Leaf Node)
 
-**Semantics:** Reference a predicate by key
+**Semantics:** Reference a condition by key
 
 **Example:**
 ```json
 {
-  "requirement": { "Predicate": "tests_ok" }
+  "requirement": { "Condition": "tests_ok" }
 }
 ```
 
-**Use case:** Simple gate with single predicate
+**Use case:** Simple gate with single condition
 
 **Behavior:**
-- Evaluates to the predicate's tri-state outcome
-- Predicate must exist in `ScenarioSpec.predicates`
+- Evaluates to the condition's tri-state outcome
+- Condition must exist in `ScenarioSpec.conditions`
 
 ---
 
@@ -335,7 +335,7 @@ How `unknown` outcomes propagate through operators:
 - If `true_count + unknown_count < min` -> `false` (quorum impossible)
 - Otherwise -> `unknown` (quorum pending)
 
-> [LLM Agent]: When RequireGroup returns `unknown`, you need more evidence. Check which predicates are unknown and work to satisfy them.
+> [LLM Agent]: When RequireGroup returns `unknown`, you need more evidence. Check which conditions are unknown and work to satisfy them.
 
 ---
 
@@ -350,8 +350,8 @@ How `unknown` outcomes propagate through operators:
   "gate_id": "quality_gate",
   "requirement": {
     "And": [
-      { "Predicate": "tests_ok" },
-      { "Predicate": "coverage_ok" }
+      { "Condition": "tests_ok" },
+      { "Condition": "coverage_ok" }
     ]
   }
 }
@@ -370,9 +370,9 @@ How `unknown` outcomes propagate through operators:
     "RequireGroup": {
       "min": 2,
       "reqs": [
-        { "Predicate": "alice_approved" },
-        { "Predicate": "bob_approved" },
-        { "Predicate": "carol_approved" }
+        { "Condition": "alice_approved" },
+        { "Condition": "bob_approved" },
+        { "Condition": "carol_approved" }
       ]
     }
   }
@@ -389,7 +389,7 @@ How `unknown` outcomes propagate through operators:
 {
   "gate_id": "blocklist_gate",
   "requirement": {
-    "Not": { "Predicate": "blocklist_hit" }
+    "Not": { "Condition": "blocklist_hit" }
   }
 }
 ```
@@ -407,11 +407,11 @@ How `unknown` outcomes propagate through operators:
     "Or": [
       {
         "And": [
-          { "Predicate": "tests_ok" },
-          { "Predicate": "coverage_ok" }
+          { "Condition": "tests_ok" },
+          { "Condition": "coverage_ok" }
         ]
       },
-      { "Predicate": "manual_override" }
+      { "Condition": "manual_override" }
     ]
   }
 }
@@ -475,8 +475,8 @@ Decision Gate uses **Strong Kleene logic** (tri-state):
 ## Use Cases
 
 **Primary:** Complex gates requiring boolean combinations (And, Or, quorum)
-**Secondary:** Simple gates with single predicates (Predicate node only)
-**Anti-pattern:** Don't nest RETs too deeply - prefer focused predicates and flat trees
+**Secondary:** Simple gates with single conditions (Condition node only)
+**Anti-pattern:** Don't nest RETs too deeply - prefer focused conditions and flat trees
 
 ---
 
@@ -487,11 +487,11 @@ Decision Gate uses **Strong Kleene logic** (tri-state):
 **Symptoms:**
 Gate never passes, always returns `unknown`
 
-**Cause:** One or more predicates are evaluating to `unknown`
+**Cause:** One or more conditions are evaluating to `unknown`
 
 **Solution:**
-1. Check gate trace to see which predicates are `unknown`
-2. Fix the underlying predicate issues (see [predicate_authoring.md](predicate_authoring.md))
+1. Check gate trace to see which conditions are `unknown`
+2. Fix the underlying condition issues (see [condition_authoring.md](condition_authoring.md))
 3. Common causes:
    - Provider error (e.g., file missing for json provider)
    - JSONPath not found (tool output mismatch)
@@ -504,34 +504,34 @@ Gate never passes, always returns `unknown`
 **Symptoms:**
 RequireGroup always returns `false` or `unknown`
 
-**Cause:** `min` is too high, or too many predicates are failing
+**Cause:** `min` is too high, or too many conditions are failing
 
 **Solution:**
-1. Check `min` value vs number of predicates
-2. Verify predicate outcomes in gate trace
-3. Ensure at least `min` predicates can be `true` simultaneously
+1. Check `min` value vs number of conditions
+2. Verify condition outcomes in gate trace
+3. Ensure at least `min` conditions can be `true` simultaneously
 
 **Example:**
 ```json
-// BAD: min is 3, but only 2 predicates
+// BAD: min is 3, but only 2 conditions
 {
   "RequireGroup": {
     "min": 3,
     "reqs": [
-      { "Predicate": "a" },
-      { "Predicate": "b" }
+      { "Condition": "a" },
+      { "Condition": "b" }
     ]
   }
 }
 
-// GOOD: min <= number of predicates
+// GOOD: min <= number of conditions
 {
   "RequireGroup": {
     "min": 2,
     "reqs": [
-      { "Predicate": "a" },
-      { "Predicate": "b" },
-      { "Predicate": "c" }
+      { "Condition": "a" },
+      { "Condition": "b" },
+      { "Condition": "c" }
     ]
   }
 }
@@ -564,21 +564,21 @@ Gate evaluation error: "No matching branch"
 
 ## Authoring Tips
 
-**1. Keep predicate keys stable and descriptive**
+**1. Keep condition keys stable and descriptive**
 - Use `tests_ok` not `pred1`
 - Keys are referenced in runpacks for audit
 
 **2. Use RequireGroup for quorum-style checks**
 - Example: "2 of 3 reviewers", "3 of 5 datacenter checks"
-- Alternative: Multiple And predicates (but less flexible)
+- Alternative: Multiple And conditions (but less flexible)
 
-**3. Prefer smaller trees with focused predicates**
+**3. Prefer smaller trees with focused conditions**
 - Easier to audit and understand
 - Easier to debug when gates fail
 
 **4. Validate RET structure during scenario definition**
 - Decision Gate validates RETs at `scenario_define` time
-- Fails fast if structure is invalid (e.g., referencing non-existent predicates)
+- Fails fast if structure is invalid (e.g., referencing non-existent conditions)
 
 **5. Use branching for fail-safe fallbacks**
 - Route `unknown` to manual review
@@ -590,7 +590,7 @@ Gate evaluation error: "No matching branch"
 ## Cross-Reference Learning Paths
 
 **New User Path:**
-[getting_started.md](getting_started.md) -> [predicate_authoring.md](predicate_authoring.md) -> **THIS GUIDE** -> [integration_patterns.md](integration_patterns.md)
+[getting_started.md](getting_started.md) -> [condition_authoring.md](condition_authoring.md) -> **THIS GUIDE** -> [integration_patterns.md](integration_patterns.md)
 
 **Advanced Logic Path:**
 **THIS GUIDE** -> [evidence_flow_and_execution_model.md](evidence_flow_and_execution_model.md) -> Understand how RETs fit into the evaluation pipeline
@@ -610,7 +610,7 @@ Gate evaluation error: "No matching branch"
 
 **Not:** Operator inverting child outcome (`true` <-> `false`).
 
-**Predicate:** Evidence check definition: query + comparator + expected value.
+**Condition:** Evidence check definition: query + comparator + expected value.
 
 **RequireGroup:** Quorum operator requiring at least N of M children to be `true`.
 

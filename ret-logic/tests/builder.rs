@@ -27,7 +27,7 @@ use std::ops::Not;
 mod mocks;
 mod support;
 
-use mocks::MockPredicate;
+use mocks::MockCondition;
 use mocks::MockReader;
 use ret_logic::Requirement;
 use ret_logic::builder::AndBuilder;
@@ -42,9 +42,9 @@ use support::ensure;
 // SECTION: Mock Coverage
 // ========================================================================
 
-/// Tests mock predicate variants used.
+/// Tests mock condition variants used.
 #[test]
-fn test_mock_predicate_variants_used() {
+fn test_mock_condition_variants_used() {
     let _ = mocks::all_variants();
 }
 
@@ -55,27 +55,27 @@ fn test_mock_predicate_variants_used() {
 /// Tests requirement builder new.
 #[test]
 fn test_requirement_builder_new() -> TestResult {
-    let req = Requirement::predicate(MockPredicate::AlwaysTrue);
+    let req = Requirement::condition(MockCondition::AlwaysTrue);
     let builder = RequirementBuilder::new(req.clone());
     ensure(builder.build() == req, "Expected builder to return the original requirement")?;
     Ok(())
 }
 
-/// Tests requirement builder predicate.
+/// Tests requirement builder condition.
 #[test]
-fn test_requirement_builder_predicate() -> TestResult {
-    let builder = RequirementBuilder::predicate(MockPredicate::ValueGte(50));
+fn test_requirement_builder_condition() -> TestResult {
+    let builder = RequirementBuilder::condition(MockCondition::ValueGte(50));
     let req = builder.build();
     match req {
-        Requirement::Predicate(MockPredicate::ValueGte(50)) => Ok(()),
-        _ => Err("Expected ValueGte predicate".into()),
+        Requirement::Condition(MockCondition::ValueGte(50)) => Ok(()),
+        _ => Err("Expected ValueGte condition".into()),
     }
 }
 
 /// Tests requirement builder not.
 #[test]
 fn test_requirement_builder_not() -> TestResult {
-    let builder = RequirementBuilder::predicate(MockPredicate::AlwaysTrue);
+    let builder = RequirementBuilder::condition(MockCondition::AlwaysTrue);
     let req = builder.not().build();
     match req {
         Requirement::Not(_) => Ok(()),
@@ -86,7 +86,7 @@ fn test_requirement_builder_not() -> TestResult {
 /// Tests requirement builder double not.
 #[test]
 fn test_requirement_builder_double_not() -> TestResult {
-    let builder = RequirementBuilder::predicate(MockPredicate::AlwaysTrue);
+    let builder = RequirementBuilder::condition(MockCondition::AlwaysTrue);
     let req = builder.not().not().build();
 
     let (values, flags) = (vec![0], vec![0]);
@@ -98,8 +98,8 @@ fn test_requirement_builder_double_not() -> TestResult {
 /// Tests requirement builder and also.
 #[test]
 fn test_requirement_builder_and_also() -> TestResult {
-    let builder = RequirementBuilder::predicate(MockPredicate::AlwaysTrue);
-    let req = builder.and_also(Requirement::predicate(MockPredicate::AlwaysTrue)).build();
+    let builder = RequirementBuilder::condition(MockCondition::AlwaysTrue);
+    let req = builder.and_also(Requirement::condition(MockCondition::AlwaysTrue)).build();
 
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
@@ -110,8 +110,8 @@ fn test_requirement_builder_and_also() -> TestResult {
 /// Tests requirement builder or else.
 #[test]
 fn test_requirement_builder_or_else() -> TestResult {
-    let builder = RequirementBuilder::predicate(MockPredicate::AlwaysFalse);
-    let req = builder.or_else(Requirement::predicate(MockPredicate::AlwaysTrue)).build();
+    let builder = RequirementBuilder::condition(MockCondition::AlwaysFalse);
+    let req = builder.or_else(Requirement::condition(MockCondition::AlwaysTrue)).build();
 
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
@@ -122,9 +122,9 @@ fn test_requirement_builder_or_else() -> TestResult {
 /// Tests requirement builder chaining.
 #[test]
 fn test_requirement_builder_chaining() -> TestResult {
-    let req = RequirementBuilder::predicate(MockPredicate::AlwaysTrue)
-        .and_also(Requirement::predicate(MockPredicate::AlwaysTrue))
-        .or_else(Requirement::predicate(MockPredicate::AlwaysFalse))
+    let req = RequirementBuilder::condition(MockCondition::AlwaysTrue)
+        .and_also(Requirement::condition(MockCondition::AlwaysTrue))
+        .or_else(Requirement::condition(MockCondition::AlwaysFalse))
         .not()
         .build();
 
@@ -142,7 +142,7 @@ fn test_requirement_builder_chaining() -> TestResult {
 /// Tests and builder new.
 #[test]
 fn test_and_builder_new() -> TestResult {
-    let builder = AndBuilder::<MockPredicate>::new();
+    let builder = AndBuilder::<MockCondition>::new();
     let req = builder.build();
     match req {
         Requirement::And(reqs) => {
@@ -156,7 +156,7 @@ fn test_and_builder_new() -> TestResult {
 /// Tests and builder default.
 #[test]
 fn test_and_builder_default() -> TestResult {
-    let builder = AndBuilder::<MockPredicate>::default();
+    let builder = AndBuilder::<MockCondition>::default();
     let req = builder.build();
     match req {
         Requirement::And(reqs) => {
@@ -170,7 +170,7 @@ fn test_and_builder_default() -> TestResult {
 /// Tests and builder with.
 #[test]
 fn test_and_builder_with() -> TestResult {
-    let builder = AndBuilder::new().with(Requirement::predicate(MockPredicate::AlwaysTrue));
+    let builder = AndBuilder::new().with(Requirement::condition(MockCondition::AlwaysTrue));
     let req = builder.build();
     match req {
         Requirement::And(reqs) => {
@@ -181,12 +181,12 @@ fn test_and_builder_with() -> TestResult {
     }
 }
 
-/// Tests and builder with predicate.
+/// Tests and builder with condition.
 #[test]
-fn test_and_builder_with_predicate() -> TestResult {
+fn test_and_builder_with_condition() -> TestResult {
     let builder = AndBuilder::new()
-        .with_predicate(MockPredicate::AlwaysTrue)
-        .with_predicate(MockPredicate::AlwaysFalse);
+        .with_condition(MockCondition::AlwaysTrue)
+        .with_condition(MockCondition::AlwaysFalse);
     let req = builder.build();
     match req {
         Requirement::And(reqs) => {
@@ -201,9 +201,9 @@ fn test_and_builder_with_predicate() -> TestResult {
 #[test]
 fn test_and_builder_with_all() -> TestResult {
     let reqs = vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
-        Requirement::predicate(MockPredicate::ValueGte(10)),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysFalse),
+        Requirement::condition(MockCondition::ValueGte(10)),
     ];
     let builder = AndBuilder::new().with_all(reqs);
     let req = builder.build();
@@ -220,12 +220,12 @@ fn test_and_builder_with_all() -> TestResult {
 #[test]
 fn test_and_builder_chaining() -> TestResult {
     let req = AndBuilder::new()
-        .with_predicate(MockPredicate::ValueGte(10))
+        .with_condition(MockCondition::ValueGte(10))
         .with(Requirement::or(vec![
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysFalse),
         ]))
-        .with_predicate(MockPredicate::HasAllFlags(0b11))
+        .with_condition(MockCondition::HasAllFlags(0b11))
         .build();
 
     ensure(req.complexity() == 6, "Expected chained And builder complexity to match")?;
@@ -235,8 +235,8 @@ fn test_and_builder_chaining() -> TestResult {
 /// Tests and builder from static method.
 #[test]
 fn test_and_builder_from_static_method() -> TestResult {
-    let builder = RequirementBuilder::<MockPredicate>::and();
-    let req = builder.with_predicate(MockPredicate::AlwaysTrue).build();
+    let builder = RequirementBuilder::<MockCondition>::and();
+    let req = builder.with_condition(MockCondition::AlwaysTrue).build();
     match req {
         Requirement::And(reqs) => {
             ensure(reqs.len() == 1, "Expected And builder to contain one requirement")?;
@@ -253,7 +253,7 @@ fn test_and_builder_from_static_method() -> TestResult {
 /// Tests or builder new.
 #[test]
 fn test_or_builder_new() -> TestResult {
-    let builder = OrBuilder::<MockPredicate>::new();
+    let builder = OrBuilder::<MockCondition>::new();
     let req = builder.build();
     match req {
         Requirement::Or(reqs) => {
@@ -267,7 +267,7 @@ fn test_or_builder_new() -> TestResult {
 /// Tests or builder default.
 #[test]
 fn test_or_builder_default() -> TestResult {
-    let builder = OrBuilder::<MockPredicate>::default();
+    let builder = OrBuilder::<MockCondition>::default();
     let req = builder.build();
     match req {
         Requirement::Or(reqs) => {
@@ -281,7 +281,7 @@ fn test_or_builder_default() -> TestResult {
 /// Tests or builder with.
 #[test]
 fn test_or_builder_with() -> TestResult {
-    let builder = OrBuilder::new().with(Requirement::predicate(MockPredicate::AlwaysTrue));
+    let builder = OrBuilder::new().with(Requirement::condition(MockCondition::AlwaysTrue));
     let req = builder.build();
     match req {
         Requirement::Or(reqs) => {
@@ -292,13 +292,13 @@ fn test_or_builder_with() -> TestResult {
     }
 }
 
-/// Tests or builder with predicate.
+/// Tests or builder with condition.
 #[test]
-fn test_or_builder_with_predicate() -> TestResult {
+fn test_or_builder_with_condition() -> TestResult {
     let builder = OrBuilder::new()
-        .with_predicate(MockPredicate::AlwaysTrue)
-        .with_predicate(MockPredicate::AlwaysFalse)
-        .with_predicate(MockPredicate::ValueGte(10));
+        .with_condition(MockCondition::AlwaysTrue)
+        .with_condition(MockCondition::AlwaysFalse)
+        .with_condition(MockCondition::ValueGte(10));
     let req = builder.build();
     match req {
         Requirement::Or(reqs) => {
@@ -313,8 +313,8 @@ fn test_or_builder_with_predicate() -> TestResult {
 #[test]
 fn test_or_builder_with_all() -> TestResult {
     let reqs = vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysFalse),
     ];
     let builder = OrBuilder::new().with_all(reqs);
     let req = builder.build();
@@ -330,10 +330,10 @@ fn test_or_builder_with_all() -> TestResult {
 /// Tests or builder from static method.
 #[test]
 fn test_or_builder_from_static_method() -> TestResult {
-    let builder = RequirementBuilder::<MockPredicate>::or();
+    let builder = RequirementBuilder::<MockCondition>::or();
     let req = builder
-        .with_predicate(MockPredicate::AlwaysFalse)
-        .with_predicate(MockPredicate::AlwaysTrue)
+        .with_condition(MockCondition::AlwaysFalse)
+        .with_condition(MockCondition::AlwaysTrue)
         .build();
 
     let (values, flags) = (vec![0], vec![0]);
@@ -349,7 +349,7 @@ fn test_or_builder_from_static_method() -> TestResult {
 /// Tests group builder new.
 #[test]
 fn test_group_builder_new() -> TestResult {
-    let builder = GroupBuilder::<MockPredicate>::new(2);
+    let builder = GroupBuilder::<MockCondition>::new(2);
     let req = builder.build();
     match req {
         Requirement::RequireGroup {
@@ -368,8 +368,8 @@ fn test_group_builder_new() -> TestResult {
 #[test]
 fn test_group_builder_with() -> TestResult {
     let builder = GroupBuilder::new(1)
-        .with(Requirement::predicate(MockPredicate::AlwaysTrue))
-        .with(Requirement::predicate(MockPredicate::AlwaysFalse));
+        .with(Requirement::condition(MockCondition::AlwaysTrue))
+        .with(Requirement::condition(MockCondition::AlwaysFalse));
     let req = builder.build();
     match req {
         Requirement::RequireGroup {
@@ -384,18 +384,18 @@ fn test_group_builder_with() -> TestResult {
     }
 }
 
-/// Tests group builder with predicate.
+/// Tests group builder with condition.
 #[test]
-fn test_group_builder_with_predicate() -> TestResult {
+fn test_group_builder_with_condition() -> TestResult {
     let builder = GroupBuilder::new(2)
-        .with_predicate(MockPredicate::AlwaysTrue)
-        .with_predicate(MockPredicate::AlwaysTrue)
-        .with_predicate(MockPredicate::AlwaysFalse);
+        .with_condition(MockCondition::AlwaysTrue)
+        .with_condition(MockCondition::AlwaysTrue)
+        .with_condition(MockCondition::AlwaysFalse);
     let req = builder.build();
 
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
-    ensure(req.eval(&reader, 0), "Expected group builder predicate to pass (2 of 3)")?;
+    ensure(req.eval(&reader, 0), "Expected group builder condition to pass (2 of 3)")?;
     Ok(())
 }
 
@@ -403,9 +403,9 @@ fn test_group_builder_with_predicate() -> TestResult {
 #[test]
 fn test_group_builder_with_all() -> TestResult {
     let reqs = vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysFalse),
-        Requirement::predicate(MockPredicate::ValueGte(10)),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysFalse),
+        Requirement::condition(MockCondition::ValueGte(10)),
     ];
     let builder = GroupBuilder::new(1).with_all(reqs);
     let req = builder.build();
@@ -426,8 +426,8 @@ fn test_group_builder_with_all() -> TestResult {
 #[test]
 fn test_group_builder_min_update() -> TestResult {
     let builder = GroupBuilder::new(1)
-        .with_predicate(MockPredicate::AlwaysTrue)
-        .with_predicate(MockPredicate::AlwaysTrue)
+        .with_condition(MockCondition::AlwaysTrue)
+        .with_condition(MockCondition::AlwaysTrue)
         .min(2);
     let req = builder.build();
     match req {
@@ -444,11 +444,11 @@ fn test_group_builder_min_update() -> TestResult {
 /// Tests group builder from static method.
 #[test]
 fn test_group_builder_from_static_method() -> TestResult {
-    let builder = RequirementBuilder::<MockPredicate>::require_group(2);
+    let builder = RequirementBuilder::<MockCondition>::require_group(2);
     let req = builder
-        .with_predicate(MockPredicate::AlwaysTrue)
-        .with_predicate(MockPredicate::AlwaysTrue)
-        .with_predicate(MockPredicate::AlwaysFalse)
+        .with_condition(MockCondition::AlwaysTrue)
+        .with_condition(MockCondition::AlwaysTrue)
+        .with_condition(MockCondition::AlwaysFalse)
         .build();
 
     let (values, flags) = (vec![0], vec![0]);
@@ -465,8 +465,8 @@ fn test_group_builder_from_static_method() -> TestResult {
 #[test]
 fn test_convenience_all() -> TestResult {
     let req = convenience::all(vec![
-        Requirement::predicate(MockPredicate::AlwaysTrue),
-        Requirement::predicate(MockPredicate::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysTrue),
     ]);
 
     let (values, flags) = (vec![0], vec![0]);
@@ -479,8 +479,8 @@ fn test_convenience_all() -> TestResult {
 #[test]
 fn test_convenience_any() -> TestResult {
     let req = convenience::any(vec![
-        Requirement::predicate(MockPredicate::AlwaysFalse),
-        Requirement::predicate(MockPredicate::AlwaysTrue),
+        Requirement::condition(MockCondition::AlwaysFalse),
+        Requirement::condition(MockCondition::AlwaysTrue),
     ]);
 
     let (values, flags) = (vec![0], vec![0]);
@@ -492,11 +492,11 @@ fn test_convenience_any() -> TestResult {
 /// Tests convenience not.
 #[test]
 fn test_convenience_not() -> TestResult {
-    let req = convenience::not(Requirement::predicate(MockPredicate::AlwaysFalse));
+    let req = convenience::not(Requirement::condition(MockCondition::AlwaysFalse));
 
     let (values, flags) = (vec![0], vec![0]);
     let reader = MockReader::new(&values, &flags);
-    ensure(req.eval(&reader, 0), "Expected convenience::not to invert predicate")?;
+    ensure(req.eval(&reader, 0), "Expected convenience::not to invert condition")?;
     Ok(())
 }
 
@@ -506,9 +506,9 @@ fn test_convenience_at_least() -> TestResult {
     let req = convenience::at_least(
         2,
         vec![
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysTrue),
-            Requirement::predicate(MockPredicate::AlwaysFalse),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysTrue),
+            Requirement::condition(MockCondition::AlwaysFalse),
         ],
     );
 
@@ -518,14 +518,14 @@ fn test_convenience_at_least() -> TestResult {
     Ok(())
 }
 
-/// Tests convenience predicate.
+/// Tests convenience condition.
 #[test]
-fn test_convenience_predicate() -> TestResult {
-    let req = convenience::predicate(MockPredicate::ValueEq(42));
+fn test_convenience_condition() -> TestResult {
+    let req = convenience::condition(MockCondition::ValueEq(42));
     let values = vec![42];
     let flags = vec![0];
     let reader = MockReader::new(&values, &flags);
-    ensure(req.eval(&reader, 0), "Expected convenience::predicate to evaluate to true")?;
+    ensure(req.eval(&reader, 0), "Expected convenience::condition to evaluate to true")?;
     Ok(())
 }
 
@@ -540,14 +540,14 @@ fn test_complex_nested_builders() -> TestResult {
     let req = OrBuilder::new()
         .with(
             AndBuilder::new()
-                .with_predicate(MockPredicate::ValueGte(10))
-                .with_predicate(MockPredicate::ValueLte(20))
+                .with_condition(MockCondition::ValueGte(10))
+                .with_condition(MockCondition::ValueLte(20))
                 .build(),
         )
         .with(
             AndBuilder::new()
-                .with_predicate(MockPredicate::ValueGte(80))
-                .with_predicate(MockPredicate::ValueLte(90))
+                .with_condition(MockCondition::ValueGte(80))
+                .with_condition(MockCondition::ValueLte(90))
                 .build(),
         )
         .build();
@@ -571,12 +571,12 @@ fn test_builder_with_groups() -> TestResult {
     let req = GroupBuilder::new(2)
         .with(
             OrBuilder::new()
-                .with_predicate(MockPredicate::AlwaysFalse)
-                .with_predicate(MockPredicate::AlwaysTrue)
+                .with_condition(MockCondition::AlwaysFalse)
+                .with_condition(MockCondition::AlwaysTrue)
                 .build(),
         )
-        .with_predicate(MockPredicate::AlwaysFalse)
-        .with_predicate(MockPredicate::AlwaysTrue)
+        .with_condition(MockCondition::AlwaysFalse)
+        .with_condition(MockCondition::AlwaysTrue)
         .build();
 
     let (values, flags) = (vec![0], vec![0]);

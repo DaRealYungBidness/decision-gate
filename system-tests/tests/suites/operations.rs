@@ -15,6 +15,8 @@ use std::time::Duration;
 
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionId;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::DataShapeId;
 use decision_gate_core::DataShapeRecord;
 use decision_gate_core::DataShapeRef;
@@ -22,8 +24,6 @@ use decision_gate_core::DataShapeVersion;
 use decision_gate_core::GateId;
 use decision_gate_core::GateSpec;
 use decision_gate_core::NamespaceId;
-use decision_gate_core::PredicateKey;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::ScenarioId;
 use decision_gate_core::ScenarioSpec;
@@ -104,7 +104,7 @@ fn precheck_spec() -> ScenarioSpec {
     let scenario_id = ScenarioId::new("precheck-audit");
     let namespace_id = namespace_id_one();
     let stage_id = StageId::new("stage-1");
-    let predicate_key = PredicateKey::new("value");
+    let condition_id = ConditionId::new("value");
     ScenarioSpec {
         scenario_id,
         namespace_id,
@@ -114,18 +114,18 @@ fn precheck_spec() -> ScenarioSpec {
             entry_packets: Vec::new(),
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-1"),
-                requirement: Requirement::predicate(predicate_key.clone()),
+                requirement: Requirement::condition(condition_id.clone()),
                 trust: None,
             }],
             advance_to: AdvanceTo::Terminal,
             timeout: None,
             on_timeout: TimeoutPolicy::Fail,
         }],
-        predicates: vec![PredicateSpec {
-            predicate: predicate_key,
+        conditions: vec![ConditionSpec {
+            condition_id,
             query: decision_gate_core::EvidenceQuery {
                 provider_id: ProviderId::new("time"),
-                predicate: "now".to_string(),
+                check_id: "now".to_string(),
                 params: None,
             },
             comparator: Comparator::GreaterThan,

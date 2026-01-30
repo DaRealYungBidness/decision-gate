@@ -11,7 +11,7 @@
 //! - Happy path: value retrieval, missing values
 //! - Boundary enforcement: key/value size limits
 //! - Policy enforcement: allowlist/denylist rules
-//! - Error handling: invalid parameters, unsupported predicates
+//! - Error handling: invalid parameters, unsupported checks
 //! - Adversarial: sensitive key blocking
 //!
 //! Security posture: Environment variables are a trust boundary. Tests verify
@@ -63,7 +63,7 @@ fn env_provider_returns_value() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"key": "DG_TEST_ENV_PROVIDER"})),
     };
     let result = provider.query(&query, &sample_context()).unwrap();
@@ -82,7 +82,7 @@ fn env_provider_returns_none_when_missing() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"key": "DG_TEST_ENV_PROVIDER_MISSING"})),
     };
     let result = provider.query(&query, &sample_context()).unwrap();
@@ -100,7 +100,7 @@ fn env_provider_sets_evidence_anchor() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"key": "DG_ANCHOR_TEST"})),
     };
     let result = provider.query(&query, &sample_context()).unwrap();
@@ -126,7 +126,7 @@ fn env_key_exceeds_max_length_rejected() {
     let oversized_key = oversized_string(11);
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"key": oversized_key})),
     };
     let result = provider.query(&query, &sample_context());
@@ -150,7 +150,7 @@ fn env_value_exceeds_max_length_rejected() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"key": "DG_OVERSIZED_VALUE"})),
     };
     let result = provider.query(&query, &sample_context());
@@ -172,7 +172,7 @@ fn env_key_at_max_length_accepted() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"key": exact_key})),
     };
     let result = provider.query(&query, &sample_context());
@@ -192,7 +192,7 @@ fn env_value_at_max_length_accepted() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"key": "DG_EXACT_VALUE"})),
     };
     let result = provider.query(&query, &sample_context()).unwrap();
@@ -222,7 +222,7 @@ fn env_key_in_denylist_blocked() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"key": "BLOCKED_KEY"})),
     };
     let result = provider.query(&query, &sample_context());
@@ -247,7 +247,7 @@ fn env_key_not_in_allowlist_blocked() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"key": "UNAPPROVED_KEY"})),
     };
     let result = provider.query(&query, &sample_context());
@@ -270,7 +270,7 @@ fn env_key_in_allowlist_permitted() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"key": "APPROVED_KEY"})),
     };
     let result = provider.query(&query, &sample_context()).unwrap();
@@ -299,7 +299,7 @@ fn env_denylist_takes_precedence_over_allowlist() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"key": "CONFLICTING_KEY"})),
     };
     let result = provider.query(&query, &sample_context());
@@ -322,7 +322,7 @@ fn env_empty_allowlist_blocks_all() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"key": "ANY_KEY"})),
     };
     let result = provider.query(&query, &sample_context());
@@ -333,13 +333,13 @@ fn env_empty_allowlist_blocks_all() {
 // SECTION: Error Path Tests - Invalid Parameters
 // ============================================================================
 
-/// Tests that unsupported predicates are rejected.
+/// Tests that unsupported checks are rejected.
 #[test]
-fn env_unsupported_predicate_rejected() {
+fn env_unsupported_check_rejected() {
     let provider = EnvProvider::new(EnvProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "set".to_string(), // Invalid predicate
+        check_id: "set".to_string(), // Invalid check
         params: Some(json!({"key": "TEST"})),
     };
     let result = provider.query(&query, &sample_context());
@@ -354,7 +354,7 @@ fn env_missing_params_rejected() {
     let provider = EnvProvider::new(EnvProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: None,
     };
     let result = provider.query(&query, &sample_context());
@@ -369,7 +369,7 @@ fn env_params_not_object_rejected() {
     let provider = EnvProvider::new(EnvProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!("not_an_object")),
     };
     let result = provider.query(&query, &sample_context());
@@ -384,7 +384,7 @@ fn env_missing_key_param_rejected() {
     let provider = EnvProvider::new(EnvProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"other": "value"})),
     };
     let result = provider.query(&query, &sample_context());
@@ -399,7 +399,7 @@ fn env_key_param_not_string_rejected() {
     let provider = EnvProvider::new(EnvProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"key": 12345})),
     };
     let result = provider.query(&query, &sample_context());
@@ -421,7 +421,7 @@ fn env_empty_key_handling() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"key": ""})),
     };
     // Empty key should either be rejected or return no value
@@ -442,7 +442,7 @@ fn env_special_characters_in_key() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"key": "KEY_WITH_SPECIAL_!@#$"})),
     };
     let result = provider.query(&query, &sample_context()).unwrap();
@@ -463,7 +463,7 @@ fn env_unicode_key_handling() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"key": "KEY_UNICODE"})),
     };
     let result = provider.query(&query, &sample_context()).unwrap();
@@ -481,7 +481,7 @@ fn env_unicode_value_preserved() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"key": "UNICODE_VALUE"})),
     };
     let result = provider.query(&query, &sample_context()).unwrap();
@@ -502,7 +502,7 @@ fn env_content_type_set_for_value() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"key": "CONTENT_TYPE_TEST"})),
     };
     let result = provider.query(&query, &sample_context()).unwrap();
@@ -518,7 +518,7 @@ fn env_content_type_none_for_missing() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("env"),
-        predicate: "get".to_string(),
+        check_id: "get".to_string(),
         params: Some(json!({"key": "MISSING_KEY"})),
     };
     let result = provider.query(&query, &sample_context()).unwrap();

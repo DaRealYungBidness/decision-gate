@@ -29,28 +29,28 @@ use ret_logic::LogicMode;
 use ret_logic::Requirement;
 use ret_logic::RequirementTrace;
 use ret_logic::TriState;
-use ret_logic::TriStatePredicateEval;
+use ret_logic::TriStateConditionEval;
 use support::TestResult;
 use support::ensure;
 
 // ============================================================================
-// SECTION: Test Predicate + Reader
+// SECTION: Test Condition + Reader
 // ============================================================================
 
-/// Test predicates for tri-state evaluation
+/// Test conditions for tri-state evaluation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum TestPredicate {
-    /// Predicate A
+enum TestCondition {
+    /// Condition A
     A,
-    /// Predicate B
+    /// Condition B
     B,
-    /// Predicate C
+    /// Condition C
     C,
 }
 
 /// Reader that provides tri-state values per row
 struct TestReader {
-    /// Per-row predicate values in order A, B, C
+    /// Per-row condition values in order A, B, C
     rows: Vec<[TriState; 3]>,
 }
 
@@ -62,18 +62,18 @@ impl TestReader {
         }
     }
 
-    /// Returns the tri-state value for a predicate at the given row
-    fn value(&self, row: usize, predicate: TestPredicate) -> TriState {
-        let index = match predicate {
-            TestPredicate::A => 0,
-            TestPredicate::B => 1,
-            TestPredicate::C => 2,
+    /// Returns the tri-state value for a condition at the given row
+    fn value(&self, row: usize, condition: TestCondition) -> TriState {
+        let index = match condition {
+            TestCondition::A => 0,
+            TestCondition::B => 1,
+            TestCondition::C => 2,
         };
         self.rows[row][index]
     }
 }
 
-impl TriStatePredicateEval for TestPredicate {
+impl TriStateConditionEval for TestCondition {
     type Reader<'a> = TestReader;
 
     fn eval_row_tristate(&self, reader: &Self::Reader<'_>, row: usize) -> TriState {
@@ -85,16 +85,16 @@ impl TriStatePredicateEval for TestPredicate {
 // SECTION: Trace Hook
 // ============================================================================
 
-/// Captures predicate evaluations for trace verification
+/// Captures condition evaluations for trace verification
 #[derive(Default)]
 struct Trace {
-    /// Ordered predicate evaluation records
-    entries: Vec<(TestPredicate, TriState)>,
+    /// Ordered condition evaluation records
+    entries: Vec<(TestCondition, TriState)>,
 }
 
-impl RequirementTrace<TestPredicate> for Trace {
-    fn on_predicate_evaluated(&mut self, predicate: &TestPredicate, result: TriState) {
-        self.entries.push((*predicate, result));
+impl RequirementTrace<TestCondition> for Trace {
+    fn on_condition_evaluated(&mut self, condition: &TestCondition, result: TriState) {
+        self.entries.push((*condition, result));
     }
 }
 
@@ -108,14 +108,14 @@ fn test_kleene_and_or_not() -> TestResult {
     let reader = TestReader::new(vec![[TriState::True, TriState::Unknown, TriState::False]]);
 
     let and_req = Requirement::and(vec![
-        Requirement::predicate(TestPredicate::A),
-        Requirement::predicate(TestPredicate::B),
+        Requirement::condition(TestCondition::A),
+        Requirement::condition(TestCondition::B),
     ]);
     let or_req = Requirement::or(vec![
-        Requirement::predicate(TestPredicate::B),
-        Requirement::predicate(TestPredicate::C),
+        Requirement::condition(TestCondition::B),
+        Requirement::condition(TestCondition::C),
     ]);
-    let not_req = Requirement::negate(Requirement::predicate(TestPredicate::B));
+    let not_req = Requirement::negate(Requirement::condition(TestCondition::B));
 
     ensure(
         and_req.eval_tristate(&reader, 0, &KleeneLogic) == TriState::Unknown,
@@ -142,12 +142,12 @@ fn test_bochvar_infectious_unknown() -> TestResult {
     let reader = TestReader::new(vec![[TriState::True, TriState::Unknown, TriState::True]]);
 
     let and_req = Requirement::and(vec![
-        Requirement::predicate(TestPredicate::A),
-        Requirement::predicate(TestPredicate::B),
+        Requirement::condition(TestCondition::A),
+        Requirement::condition(TestCondition::B),
     ]);
     let or_req = Requirement::or(vec![
-        Requirement::predicate(TestPredicate::A),
-        Requirement::predicate(TestPredicate::B),
+        Requirement::condition(TestCondition::A),
+        Requirement::condition(TestCondition::B),
     ]);
 
     ensure(
@@ -173,9 +173,9 @@ fn test_require_group_insufficient_evidence() -> TestResult {
     let group_req = Requirement::require_group(
         2,
         vec![
-            Requirement::predicate(TestPredicate::A),
-            Requirement::predicate(TestPredicate::B),
-            Requirement::predicate(TestPredicate::C),
+            Requirement::condition(TestCondition::A),
+            Requirement::condition(TestCondition::B),
+            Requirement::condition(TestCondition::C),
         ],
     );
 
@@ -194,9 +194,9 @@ fn test_require_group_failure() -> TestResult {
     let group_req = Requirement::require_group(
         2,
         vec![
-            Requirement::predicate(TestPredicate::A),
-            Requirement::predicate(TestPredicate::B),
-            Requirement::predicate(TestPredicate::C),
+            Requirement::condition(TestCondition::A),
+            Requirement::condition(TestCondition::B),
+            Requirement::condition(TestCondition::C),
         ],
     );
 
@@ -211,15 +211,15 @@ fn test_require_group_failure() -> TestResult {
 // SECTION: Trace Hook Tests
 // ============================================================================
 
-/// Tests trace hook records predicates.
+/// Tests trace hook records conditions.
 #[test]
-fn test_trace_hook_records_predicates() -> TestResult {
+fn test_trace_hook_records_conditions() -> TestResult {
     let reader = TestReader::new(vec![[TriState::True, TriState::False, TriState::Unknown]]);
 
     let req = Requirement::and(vec![
-        Requirement::predicate(TestPredicate::A),
-        Requirement::predicate(TestPredicate::B),
-        Requirement::predicate(TestPredicate::C),
+        Requirement::condition(TestCondition::A),
+        Requirement::condition(TestCondition::B),
+        Requirement::condition(TestCondition::C),
     ]);
 
     let mut trace = Trace::default();
@@ -228,16 +228,16 @@ fn test_trace_hook_records_predicates() -> TestResult {
     ensure(result == TriState::False, "Expected traced result to be False")?;
     ensure(trace.entries.len() == 3, "Expected three trace entries")?;
     ensure(
-        trace.entries[0] == (TestPredicate::A, TriState::True),
-        "Expected trace entry for predicate A",
+        trace.entries[0] == (TestCondition::A, TriState::True),
+        "Expected trace entry for condition A",
     )?;
     ensure(
-        trace.entries[1] == (TestPredicate::B, TriState::False),
-        "Expected trace entry for predicate B",
+        trace.entries[1] == (TestCondition::B, TriState::False),
+        "Expected trace entry for condition B",
     )?;
     ensure(
-        trace.entries[2] == (TestPredicate::C, TriState::Unknown),
-        "Expected trace entry for predicate C",
+        trace.entries[2] == (TestCondition::C, TriState::Unknown),
+        "Expected trace entry for condition C",
     )?;
     Ok(())
 }
@@ -252,8 +252,8 @@ fn test_logic_mode_dispatch() -> TestResult {
     let reader = TestReader::new(vec![[TriState::True, TriState::Unknown, TriState::False]]);
 
     let req = Requirement::and(vec![
-        Requirement::predicate(TestPredicate::A),
-        Requirement::predicate(TestPredicate::B),
+        Requirement::condition(TestCondition::A),
+        Requirement::condition(TestCondition::B),
     ]);
 
     ensure(

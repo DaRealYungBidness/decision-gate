@@ -4,7 +4,7 @@
       "content_type": "text/markdown",
       "digest": {
         "algorithm": "sha256",
-        "value": "29b29de801f74d460838a3db5751fdfde33d8950c7bc0e7c59c1c3354df9bd36"
+        "value": "56dba57c08215d1159a1cc8c65fc0c2120eceb4fbb9bc9e0f8d0d6074802357b"
       },
       "path": "authoring.md"
     },
@@ -28,7 +28,7 @@
       "content_type": "application/json",
       "digest": {
         "algorithm": "sha256",
-        "value": "4b4dd13ff1bef4448e6487aa86bf77785cba424f093dd8e22910f5f12c3842ac"
+        "value": "690dffcfda024b26024e118d00b8ab2e513fedee60865f7577a6348aca1712ec"
       },
       "path": "examples/scenario.json"
     },
@@ -36,7 +36,7 @@
       "content_type": "text/plain",
       "digest": {
         "algorithm": "sha256",
-        "value": "22ce8e0f249b42c683ce84d60644c9a9a3f701bca77026ab868832f5b533d47d"
+        "value": "506d3587f186bf7e8e3d220dea9b4ec9c078fb7f128bc80095415edb6f0277f1"
       },
       "path": "examples/scenario.ron"
     },
@@ -44,7 +44,7 @@
       "content_type": "text/markdown",
       "digest": {
         "algorithm": "sha256",
-        "value": "c52e64543b5e496cd8dd2fbfca376ebf2825b36366cd903954eebbd0fa07a08f"
+        "value": "797c6db66376a6ce65b5ec7bc55d0e2871218f2d94ce0859c55b4cc308bacd22"
       },
       "path": "glossary.md"
     },
@@ -52,7 +52,7 @@
       "content_type": "application/json",
       "digest": {
         "algorithm": "sha256",
-        "value": "74c7f2b21cea542d4c58238c37320a3b3fdc1b506c7a6f1b97d5fe2f57b2d722"
+        "value": "507033d3230fe158be4a418b78d8d2a0b0ec91e318f42cb588ce53ba31578f50"
       },
       "path": "providers.json"
     },
@@ -60,7 +60,7 @@
       "content_type": "text/markdown",
       "digest": {
         "algorithm": "sha256",
-        "value": "18299b1803b8e92f20d6f97fe545fccfe7e56aa0a6ffc157624eb6c16209947a"
+        "value": "3486d2826ecfffcf6bb7ea27e1f4387d497cb5e3a301abdc500530d6747315ab"
       },
       "path": "providers.md"
     },
@@ -68,7 +68,7 @@
       "content_type": "application/json",
       "digest": {
         "algorithm": "sha256",
-        "value": "8681590181244270f6f9e67d3bee827818ad1f055cacc04dc4ec5c731548d963"
+        "value": "f08f76656d32a38a2e88d16949dace4cad401c91502f98d67de90cda7a12bdf7"
       },
       "path": "schemas/config.schema.json"
     },
@@ -76,7 +76,7 @@
       "content_type": "application/json",
       "digest": {
         "algorithm": "sha256",
-        "value": "08a7bbb11867fa64c53eaec92f6c2cff2ce68ba411c9c62749e026bc9a973c46"
+        "value": "714feb5c6f22770325719dd7bc460a483465cbd02efb116ea4d27a55b7fddeac"
       },
       "path": "schemas/scenario.schema.json"
     },
@@ -84,7 +84,7 @@
       "content_type": "application/json",
       "digest": {
         "algorithm": "sha256",
-        "value": "c9570e8b02a4799c7c55b86553382b0f456693503db1ce76ae5c8d0361f186f6"
+        "value": "9a61054d8ecd8e1cf81cc7ea50f6e54743cd21a934f833c08d9aa065a43ab568"
       },
       "path": "tooling.json"
     },
@@ -92,7 +92,7 @@
       "content_type": "text/markdown",
       "digest": {
         "algorithm": "sha256",
-        "value": "1e234ed8191ddd1c90d63b718ce294c9e6fd7f7097b42f5fd1c4e5c4b4dca3e1"
+        "value": "87796c0453b05e7f1453990a591a17abb21c22dec6d020a84d63abaf09042a3e"
       },
       "path": "tooling.md"
     },
@@ -100,7 +100,7 @@
       "content_type": "application/json",
       "digest": {
         "algorithm": "sha256",
-        "value": "90cd6982fded148d3650b32f31eff536ccaca711aa7880c6259d137fc697ed6f"
+        "value": "040987be2b06d0542adfd3d910f3b7e34807272649b8acb136e1ffa99e6c2809"
       },
       "path": "tooltips.json"
     }

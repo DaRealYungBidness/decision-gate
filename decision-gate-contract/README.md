@@ -32,7 +32,7 @@ from Rust source to keep runtime behavior and documentation aligned.
 `decision-gate-contract` is the source of truth for:
 
 - MCP tool schemas (`tools/list` and `tools/call`).
-- Provider capability contracts (predicates + params + result schemas).
+- Provider capability contracts (checks + params + result schemas).
 - JSON schemas for Decision Gate types.
 - Canonical examples validated against the schemas.
 

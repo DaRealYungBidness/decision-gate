@@ -18,6 +18,7 @@ use std::sync::atomic::Ordering;
 
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::DecisionOutcome;
 use decision_gate_core::DispatchReceipt;
 use decision_gate_core::DispatchTarget;
@@ -34,7 +35,6 @@ use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketPayload;
 use decision_gate_core::PolicyDecider;
 use decision_gate_core::PolicyDecision;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::ScenarioId;
@@ -105,7 +105,7 @@ impl EvidenceProvider for CiEvidenceProvider {
         query: &EvidenceQuery,
         _ctx: &EvidenceContext,
     ) -> Result<EvidenceResult, EvidenceError> {
-        match query.predicate.as_str() {
+        match query.check_id.as_str() {
             "ci_status" => {
                 let status = if self.signals.ci_passed.load(Ordering::Relaxed) {
                     "passed"
@@ -137,7 +137,7 @@ impl EvidenceProvider for CiEvidenceProvider {
                     content_type: Some("application/json".to_string()),
                 })
             }
-            _ => Err(EvidenceError::Provider(format!("unknown predicate: {}", query.predicate))),
+            _ => Err(EvidenceError::Provider(format!("unknown check: {}", query.check_id))),
         }
     }
 
@@ -195,8 +195,8 @@ fn build_spec(namespace_id: NamespaceId) -> ScenarioSpec {
             gates: vec![GateSpec {
                 gate_id: GateId::new("ci-approved"),
                 requirement: ret_logic::Requirement::and(vec![
-                    ret_logic::Requirement::predicate("ci_status".into()),
-                    ret_logic::Requirement::predicate("approvals".into()),
+                    ret_logic::Requirement::condition("ci_status".into()),
+                    ret_logic::Requirement::condition("approvals".into()),
                 ]),
                 trust: None,
             }],
@@ -204,12 +204,12 @@ fn build_spec(namespace_id: NamespaceId) -> ScenarioSpec {
             timeout: None,
             on_timeout: decision_gate_core::TimeoutPolicy::Fail,
         }],
-        predicates: vec![
-            PredicateSpec {
-                predicate: "ci_status".into(),
+        conditions: vec![
+            ConditionSpec {
+                condition_id: "ci_status".into(),
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("ci"),
-                    predicate: "ci_status".to_string(),
+                    check_id: "ci_status".to_string(),
                     params: Some(json!({})),
                 },
                 comparator: Comparator::Equals,
@@ -217,11 +217,11 @@ fn build_spec(namespace_id: NamespaceId) -> ScenarioSpec {
                 policy_tags: Vec::new(),
                 trust: None,
             },
-            PredicateSpec {
-                predicate: "approvals".into(),
+            ConditionSpec {
+                condition_id: "approvals".into(),
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("ci"),
-                    predicate: "approvals".to_string(),
+                    check_id: "approvals".to_string(),
                     params: Some(json!({})),
                 },
                 comparator: Comparator::GreaterThanOrEqual,

@@ -28,6 +28,7 @@ use std::sync::Arc;
 use common::ToolRouterSyncExt;
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::DispatchReceipt;
 use decision_gate_core::DispatchTarget;
 use decision_gate_core::Dispatcher;
@@ -38,7 +39,6 @@ use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketPayload;
 use decision_gate_core::PolicyDecider;
 use decision_gate_core::PolicyDecision;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::ScenarioId;
@@ -121,18 +121,18 @@ fn sample_spec() -> ScenarioSpec {
             entry_packets: Vec::new(),
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-time"),
-                requirement: ret_logic::Requirement::predicate("after".into()),
+                requirement: ret_logic::Requirement::condition("after".into()),
                 trust: None,
             }],
             advance_to: AdvanceTo::Terminal,
             timeout: None,
             on_timeout: decision_gate_core::TimeoutPolicy::Fail,
         }],
-        predicates: vec![PredicateSpec {
-            predicate: "after".into(),
+        conditions: vec![ConditionSpec {
+            condition_id: "after".into(),
             query: EvidenceQuery {
                 provider_id: ProviderId::new("time"),
-                predicate: "after".to_string(),
+                check_id: "after".to_string(),
                 params: Some(json!({"timestamp": 0})),
             },
             comparator: Comparator::Equals,
@@ -524,30 +524,30 @@ fn parity_provider_contract_get() {
     assert_eq!(response.contract.provider_id, "time");
 }
 
-/// Tests `provider_schema_get` returns predicate schema metadata.
+/// Tests `provider_check_schema_get` returns check schema metadata.
 #[test]
-fn parity_provider_schema_get() {
-    use decision_gate_mcp::tools::ProviderSchemaGetRequest;
-    use decision_gate_mcp::tools::ProviderSchemaGetResponse;
+fn parity_provider_check_schema_get() {
+    use decision_gate_mcp::tools::ProviderCheckSchemaGetRequest;
+    use decision_gate_mcp::tools::ProviderCheckSchemaGetResponse;
 
     let config = default_config();
     let router = build_router(&config);
     let context = RequestContext::stdio();
 
-    let request = ProviderSchemaGetRequest {
+    let request = ProviderCheckSchemaGetRequest {
         provider_id: "time".to_string(),
-        predicate: "after".to_string(),
+        check_id: "after".to_string(),
     };
     let mcp_result = router
         .handle_tool_call_sync(
             &context,
-            "provider_schema_get",
+            "provider_check_schema_get",
             serde_json::to_value(&request).unwrap(),
         )
         .unwrap();
-    let response: ProviderSchemaGetResponse = serde_json::from_value(mcp_result).unwrap();
+    let response: ProviderCheckSchemaGetResponse = serde_json::from_value(mcp_result).unwrap();
     assert_eq!(response.provider_id, "time");
-    assert_eq!(response.predicate, "after");
+    assert_eq!(response.check_id, "after");
     assert!(!response.allowed_comparators.is_empty());
 }
 
@@ -722,7 +722,7 @@ fn parity_evidence_query() {
     // Query time provider
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "after".to_string(),
+        check_id: "after".to_string(),
         params: Some(json!({"timestamp": 0})),
     };
     let evidence_context = EvidenceContext {
@@ -752,7 +752,7 @@ fn parity_evidence_query() {
     );
 }
 
-/// Tests precheck tool evaluates predicates and returns a decision.
+/// Tests precheck tool evaluates conditions and returns a decision.
 #[test]
 fn parity_precheck() {
     use decision_gate_core::DataShapeId;
@@ -881,7 +881,7 @@ fn parity_evidence_query_unknown_provider() {
     // Query non-existent provider
     let query = EvidenceQuery {
         provider_id: ProviderId::new("unknown-provider"),
-        predicate: "test".to_string(),
+        check_id: "test".to_string(),
         params: None,
     };
     let evidence_context = EvidenceContext {

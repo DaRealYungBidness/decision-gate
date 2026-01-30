@@ -58,7 +58,7 @@ fn fail<T>(message: impl Into<String>) -> TestResult<T> {
     }))
 }
 
-/// Builds a simple predicate resolver for DSL tests.
+/// Builds a simple condition resolver for DSL tests.
 fn resolver() -> HashMap<String, u8> {
     let mut map = HashMap::new();
     map.insert("is_alive".to_string(), 1);
@@ -76,10 +76,10 @@ fn parses_nested_boolean_expression() -> TestResult {
     };
 
     let expected = Requirement::and(vec![
-        Requirement::predicate(1),
+        Requirement::condition(1),
         Requirement::or(vec![
-            Requirement::predicate(2),
-            Requirement::negate(Requirement::predicate(3)),
+            Requirement::condition(2),
+            Requirement::negate(Requirement::condition(3)),
         ]),
     ]);
 
@@ -95,8 +95,8 @@ fn respects_operator_precedence() -> TestResult {
     };
 
     let expected = Requirement::or(vec![
-        Requirement::and(vec![Requirement::predicate(1), Requirement::predicate(2)]),
-        Requirement::negate(Requirement::predicate(3)),
+        Requirement::and(vec![Requirement::condition(1), Requirement::condition(2)]),
+        Requirement::negate(Requirement::condition(3)),
     ]);
 
     ensure(req == expected, "Expected operator precedence to match infix rules")?;
@@ -112,22 +112,22 @@ fn parses_group_with_count() -> TestResult {
 
     let expected = Requirement::require_group(
         2,
-        vec![Requirement::predicate(1), Requirement::predicate(2), Requirement::predicate(4)],
+        vec![Requirement::condition(1), Requirement::condition(2), Requirement::condition(4)],
     );
 
     ensure(req == expected, "Expected group count parsing to match DSL")?;
     Ok(())
 }
 
-/// Tests errors on unknown predicate.
+/// Tests errors on unknown condition.
 #[test]
-fn errors_on_unknown_predicate() -> TestResult {
+fn errors_on_unknown_condition() -> TestResult {
     let Err(err) = parse_requirement::<u8, _>("unknown_pred", &resolver()) else {
-        return fail("Expected unknown predicate error");
+        return fail("Expected unknown condition error");
     };
     ensure(
-        matches!(err, DslError::UnknownPredicate { name, .. } if name == "unknown_pred"),
-        "Expected unknown predicate diagnostic with predicate name",
+        matches!(err, DslError::UnknownCondition { name, .. } if name == "unknown_pred"),
+        "Expected unknown condition diagnostic with condition name",
     )?;
     Ok(())
 }

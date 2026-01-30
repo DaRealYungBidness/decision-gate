@@ -158,7 +158,7 @@ fn query_time_now(router: &ToolRouter) -> EvidenceQueryResponse {
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("time"),
-            predicate: "now".to_string(),
+            check_id: "now".to_string(),
             params: None,
         },
         context: sample_context(),
@@ -177,7 +177,7 @@ fn query_env_path(router: &ToolRouter) -> EvidenceQueryResponse {
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("env"),
-            predicate: "get".to_string(),
+            check_id: "get".to_string(),
             params: Some(json!({"key": "PATH"})),
         },
         context: sample_context(),

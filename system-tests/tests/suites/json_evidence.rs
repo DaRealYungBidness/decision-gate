@@ -14,6 +14,8 @@ use std::time::Duration;
 
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionId;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::DataShapeId;
 use decision_gate_core::DataShapeRecord;
 use decision_gate_core::DataShapeRef;
@@ -22,8 +24,6 @@ use decision_gate_core::DecisionOutcome;
 use decision_gate_core::GateId;
 use decision_gate_core::GateSpec;
 use decision_gate_core::NamespaceId;
-use decision_gate_core::PredicateKey;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::RunId;
@@ -111,47 +111,47 @@ async fn json_evidence_playbook_templates_pass() -> Result<(), Box<dyn std::erro
     let stage_id = StageId::new("main");
     let tenant_id = tenant_id_one();
 
-    let tests_ok = PredicateKey::new("tests_ok");
-    let coverage_ok = PredicateKey::new("coverage_ok");
-    let scan_ok = PredicateKey::new("scan_ok");
-    let approvals_ok = PredicateKey::new("approvals_ok");
-    let lint_ok = PredicateKey::new("lint_ok");
+    let tests_ok = ConditionId::new("tests_ok");
+    let coverage_ok = ConditionId::new("coverage_ok");
+    let scan_ok = ConditionId::new("scan_ok");
+    let approvals_ok = ConditionId::new("approvals_ok");
+    let lint_ok = ConditionId::new("lint_ok");
 
-    let predicates = vec![
-        PredicateSpec {
-            predicate: tests_ok.clone(),
+    let conditions = vec![
+        ConditionSpec {
+            condition_id: tests_ok.clone(),
             query: json_path_query(&report_path, "$.summary.failed"),
             comparator: Comparator::Equals,
             expected: Some(json!(0)),
             policy_tags: Vec::new(),
             trust: None,
         },
-        PredicateSpec {
-            predicate: coverage_ok.clone(),
+        ConditionSpec {
+            condition_id: coverage_ok.clone(),
             query: json_path_query(&coverage_path, "$.coverage.percent"),
             comparator: Comparator::GreaterThanOrEqual,
             expected: Some(json!(85)),
             policy_tags: Vec::new(),
             trust: None,
         },
-        PredicateSpec {
-            predicate: scan_ok.clone(),
+        ConditionSpec {
+            condition_id: scan_ok.clone(),
             query: json_path_query(&scan_path, "$.summary.critical"),
             comparator: Comparator::Equals,
             expected: Some(json!(0)),
             policy_tags: Vec::new(),
             trust: None,
         },
-        PredicateSpec {
-            predicate: approvals_ok.clone(),
+        ConditionSpec {
+            condition_id: approvals_ok.clone(),
             query: json_path_query(&reviews_path, "$.reviews.approvals"),
             comparator: Comparator::GreaterThanOrEqual,
             expected: Some(json!(2)),
             policy_tags: Vec::new(),
             trust: None,
         },
-        PredicateSpec {
-            predicate: lint_ok.clone(),
+        ConditionSpec {
+            condition_id: lint_ok.clone(),
             query: json_path_query(&quality_path, "$.checks.lint_ok"),
             comparator: Comparator::Equals,
             expected: Some(json!(true)),
@@ -180,7 +180,7 @@ async fn json_evidence_playbook_templates_pass() -> Result<(), Box<dyn std::erro
             timeout: None,
             on_timeout: TimeoutPolicy::Fail,
         }],
-        predicates,
+        conditions,
         policies: Vec::new(),
         schemas: Vec::new(),
         default_tenant_id: Some(tenant_id),
@@ -265,7 +265,7 @@ async fn llm_native_precheck_payload_flow() -> Result<(), Box<dyn std::error::Er
     let stage_id = StageId::new("main");
     let tenant_id = tenant_id_one();
 
-    let predicate_key = PredicateKey::new("report_ok");
+    let condition_id = ConditionId::new("report_ok");
     let spec = ScenarioSpec {
         scenario_id: scenario_id.clone(),
         namespace_id,
@@ -273,13 +273,13 @@ async fn llm_native_precheck_payload_flow() -> Result<(), Box<dyn std::error::Er
         stages: vec![StageSpec {
             stage_id: stage_id.clone(),
             entry_packets: Vec::new(),
-            gates: vec![gate("gate-quality", predicate_key.clone())],
+            gates: vec![gate("gate-quality", condition_id.clone())],
             advance_to: AdvanceTo::Terminal,
             timeout: None,
             on_timeout: TimeoutPolicy::Fail,
         }],
-        predicates: vec![PredicateSpec {
-            predicate: predicate_key.clone(),
+        conditions: vec![ConditionSpec {
+            condition_id: condition_id.clone(),
             query: json_path_query_pathless("$.summary.failed"),
             comparator: Comparator::Equals,
             expected: Some(json!(0)),
@@ -361,10 +361,10 @@ async fn llm_native_precheck_payload_flow() -> Result<(), Box<dyn std::error::Er
     Ok(())
 }
 
-fn gate(gate_id: &str, predicate: PredicateKey) -> GateSpec {
+fn gate(gate_id: &str, condition_id: ConditionId) -> GateSpec {
     GateSpec {
         gate_id: GateId::new(gate_id),
-        requirement: Requirement::predicate(predicate),
+        requirement: Requirement::condition(condition_id),
         trust: None,
     }
 }
@@ -372,7 +372,7 @@ fn gate(gate_id: &str, predicate: PredicateKey) -> GateSpec {
 fn json_path_query(path: &std::path::Path, jsonpath: &str) -> decision_gate_core::EvidenceQuery {
     decision_gate_core::EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({
             "file": path.display().to_string(),
             "jsonpath": jsonpath
@@ -383,7 +383,7 @@ fn json_path_query(path: &std::path::Path, jsonpath: &str) -> decision_gate_core
 fn json_path_query_pathless(jsonpath: &str) -> decision_gate_core::EvidenceQuery {
     decision_gate_core::EvidenceQuery {
         provider_id: ProviderId::new("json"),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
         params: Some(json!({
             "file": "report.json",
             "jsonpath": jsonpath

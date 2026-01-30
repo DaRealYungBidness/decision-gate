@@ -147,7 +147,7 @@ pub struct TooltipEntry {
 // SECTION: Provider Contracts
 // ============================================================================
 
-/// Provider contract describing capabilities and predicate schemas.
+/// Provider contract describing capabilities and check schemas.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProviderContract {
     /// Provider identifier used in `EvidenceQuery`.
@@ -160,13 +160,13 @@ pub struct ProviderContract {
     pub transport: String,
     /// Provider-level configuration schema.
     pub config_schema: Value,
-    /// Supported predicates exposed by the provider.
-    pub predicates: Vec<PredicateContract>,
+    /// Supported checks exposed by the provider.
+    pub checks: Vec<CheckContract>,
     /// Notes describing provider behavior and determinism.
     pub notes: Vec<String>,
 }
 
-/// Determinism classification for provider predicates.
+/// Determinism classification for provider checks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DeterminismClass {
@@ -190,34 +190,34 @@ impl DeterminismClass {
     }
 }
 
-/// Predicate contract describing parameters and output value.
+/// Check contract describing parameters and output value.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PredicateContract {
-    /// Predicate name used in `EvidenceQuery`.
-    pub name: String,
-    /// Predicate description.
+pub struct CheckContract {
+    /// Check identifier used in `EvidenceQuery`.
+    pub check_id: String,
+    /// Check description.
     pub description: String,
-    /// Determinism classification for predicate outputs.
+    /// Determinism classification for check outputs.
     pub determinism: DeterminismClass,
-    /// Whether `EvidenceQuery.params` is required for this predicate.
+    /// Whether `EvidenceQuery.params` is required for this check.
     pub params_required: bool,
-    /// JSON schema for predicate parameters.
+    /// JSON schema for check parameters.
     pub params_schema: Value,
-    /// JSON schema for predicate output value.
+    /// JSON schema for check output value.
     pub result_schema: Value,
-    /// Allow-list of supported comparators for this predicate.
+    /// Allow-list of supported comparators for this check.
     pub allowed_comparators: Vec<Comparator>,
-    /// Evidence anchor types emitted by this predicate.
+    /// Evidence anchor types emitted by this check.
     pub anchor_types: Vec<String>,
     /// Content types returned for populated evidence values.
     pub content_types: Vec<String>,
-    /// Example predicate invocations.
-    pub examples: Vec<PredicateExample>,
+    /// Example check invocations.
+    pub examples: Vec<CheckExample>,
 }
 
-/// Predicate example with parameters and expected output shape.
+/// Check example with parameters and expected output shape.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PredicateExample {
+pub struct CheckExample {
     /// Short example description.
     pub description: String,
     /// Example params payload.

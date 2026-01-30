@@ -29,6 +29,8 @@ use thiserror::Error;
 
 use crate::core::AdvanceTo;
 use crate::core::AnchorRequirement;
+use crate::core::ConditionId;
+use crate::core::ConditionSpec;
 use crate::core::DecisionId;
 use crate::core::DecisionOutcome;
 use crate::core::DecisionRecord;
@@ -46,8 +48,6 @@ use crate::core::PacketEnvelope;
 use crate::core::PacketPayload;
 use crate::core::PacketRecord;
 use crate::core::PacketSpec;
-use crate::core::PredicateKey;
-use crate::core::PredicateSpec;
 use crate::core::ProviderMissingError;
 use crate::core::RunConfig;
 use crate::core::RunId;
@@ -93,7 +93,7 @@ use crate::interfaces::StoreError;
 use crate::runtime::GateEvaluator;
 use crate::runtime::comparator::evaluate_comparator;
 use crate::runtime::gate::EvidenceSnapshot;
-use crate::runtime::gate::collect_predicates;
+use crate::runtime::gate::collect_conditions;
 
 // ============================================================================
 // SECTION: Constants
@@ -501,15 +501,15 @@ where
             self.spec.stages.first().ok_or(ControlPlaneError::MissingStages)?.stage_id.clone()
         };
         let stage_def = stage_spec(&self.spec, &stage_id)?;
-        let predicate_specs = predicate_specs(&self.spec, stage_def)?;
+        let condition_specs = condition_specs(&self.spec, stage_def)?;
         let default_requirement = self.config.trust_requirement;
-        let predicate_requirements = self.build_predicate_requirements(&predicate_specs);
+        let condition_requirements = self.build_condition_requirements(&condition_specs);
         let evidence_records =
-            self.build_precheck_evidence_records(&predicate_specs, &request.evidence)?;
+            self.build_precheck_evidence_records(&condition_specs, &request.evidence)?;
         let (gate_evaluations, gate_outcomes) = self.evaluate_precheck_gates(
             stage_def,
             default_requirement,
-            &predicate_requirements,
+            &condition_requirements,
             &evidence_records,
         );
         let decision =
@@ -521,32 +521,32 @@ where
         })
     }
 
-    /// Resolves trust requirements for predicates in precheck mode.
-    fn build_predicate_requirements(
+    /// Resolves trust requirements for conditions in precheck mode.
+    fn build_condition_requirements(
         &self,
-        predicate_specs: &[PredicateSpec],
-    ) -> BTreeMap<PredicateKey, TrustRequirement> {
-        let mut predicate_requirements = BTreeMap::new();
-        for spec in predicate_specs {
+        condition_specs: &[ConditionSpec],
+    ) -> BTreeMap<ConditionId, TrustRequirement> {
+        let mut condition_requirements = BTreeMap::new();
+        for spec in condition_specs {
             let base_requirement =
                 self.config.trust_requirement_for_provider(spec.query.provider_id.as_str());
             let requirement = spec.trust.unwrap_or(base_requirement);
             let requirement = base_requirement.stricter(requirement);
-            predicate_requirements.insert(spec.predicate.clone(), requirement);
+            condition_requirements.insert(spec.condition_id.clone(), requirement);
         }
-        predicate_requirements
+        condition_requirements
     }
 
     /// Normalizes asserted evidence into records suitable for precheck evaluation.
     fn build_precheck_evidence_records(
         &self,
-        predicate_specs: &[PredicateSpec],
-        evidence: &BTreeMap<PredicateKey, EvidenceResult>,
+        condition_specs: &[ConditionSpec],
+        evidence: &BTreeMap<ConditionId, EvidenceResult>,
     ) -> Result<Vec<EvidenceRecord>, ControlPlaneError> {
-        let mut evidence_records = Vec::with_capacity(predicate_specs.len());
-        for spec in predicate_specs {
+        let mut evidence_records = Vec::with_capacity(condition_specs.len());
+        for spec in condition_specs {
             let mut result =
-                evidence.get(&spec.predicate).cloned().unwrap_or_else(|| EvidenceResult {
+                evidence.get(&spec.condition_id).cloned().unwrap_or_else(|| EvidenceResult {
                     value: None,
                     lane: TrustLane::Asserted,
                     error: None,
@@ -568,7 +568,7 @@ where
                 evaluate_comparator(spec.comparator, spec.expected.as_ref(), &normalized)
             };
             evidence_records.push(EvidenceRecord {
-                predicate: spec.predicate.clone(),
+                condition_id: spec.condition_id.clone(),
                 status,
                 result: normalized,
             });
@@ -581,7 +581,7 @@ where
         &self,
         stage_def: &StageSpec,
         default_requirement: TrustRequirement,
-        predicate_requirements: &BTreeMap<PredicateKey, TrustRequirement>,
+        condition_requirements: &BTreeMap<ConditionId, TrustRequirement>,
         evidence_records: &[EvidenceRecord],
     ) -> (Vec<GateEvaluation>, Vec<(GateId, TriState)>) {
         let evaluator = GateEvaluator::new(self.config.logic_mode);
@@ -594,16 +594,16 @@ where
             let mut adjusted_evidence: Vec<EvidenceRecord> = gate_evidence
                 .into_iter()
                 .map(|record| {
-                    let predicate_requirement = predicate_requirements
-                        .get(&record.predicate)
+                    let condition_requirement = condition_requirements
+                        .get(&record.condition_id)
                         .copied()
                         .unwrap_or(default_requirement);
-                    let effective_requirement = predicate_requirement.stricter(gate_requirement);
+                    let effective_requirement = condition_requirement.stricter(gate_requirement);
                     apply_trust_requirement(record, effective_requirement)
                 })
                 .collect();
             adjusted_evidence
-                .sort_by(|left, right| left.predicate.as_str().cmp(right.predicate.as_str()));
+                .sort_by(|left, right| left.condition_id.as_str().cmp(right.condition_id.as_str()));
             let snapshot = EvidenceSnapshot::new(adjusted_evidence);
             let evaluation = evaluator.evaluate_gate(gate, &snapshot);
             gate_outcomes.push((gate.gate_id.clone(), evaluation.status));
@@ -706,16 +706,16 @@ where
         stage_def: &StageSpec,
         evidence_context: &EvidenceContext,
     ) -> Result<GateEvaluationOutcome, ControlPlaneError> {
-        let predicate_specs = predicate_specs(&self.spec, stage_def)?;
-        let evidence_records = self.evaluate_predicates(&predicate_specs, evidence_context)?;
+        let condition_specs = condition_specs(&self.spec, stage_def)?;
+        let evidence_records = self.evaluate_conditions(&condition_specs, evidence_context)?;
         let default_requirement = self.config.trust_requirement;
-        let mut predicate_requirements = BTreeMap::new();
-        for spec in &predicate_specs {
+        let mut condition_requirements = BTreeMap::new();
+        for spec in &condition_specs {
             let base_requirement =
                 self.config.trust_requirement_for_provider(spec.query.provider_id.as_str());
             let requirement = spec.trust.unwrap_or(base_requirement);
             let requirement = base_requirement.stricter(requirement);
-            predicate_requirements.insert(spec.predicate.clone(), requirement);
+            condition_requirements.insert(spec.condition_id.clone(), requirement);
         }
         let evaluator = GateEvaluator::new(self.config.logic_mode);
         let mut gate_eval_records = Vec::new();
@@ -728,16 +728,16 @@ where
             let mut adjusted_evidence: Vec<EvidenceRecord> = gate_evidence
                 .into_iter()
                 .map(|record| {
-                    let predicate_requirement = predicate_requirements
-                        .get(&record.predicate)
+                    let condition_requirement = condition_requirements
+                        .get(&record.condition_id)
                         .copied()
                         .unwrap_or(default_requirement);
-                    let effective_requirement = predicate_requirement.stricter(gate_requirement);
+                    let effective_requirement = condition_requirement.stricter(gate_requirement);
                     apply_trust_requirement(record, effective_requirement)
                 })
                 .collect();
             adjusted_evidence
-                .sort_by(|left, right| left.predicate.as_str().cmp(right.predicate.as_str()));
+                .sort_by(|left, right| left.condition_id.as_str().cmp(right.condition_id.as_str()));
             let snapshot = EvidenceSnapshot::new(adjusted_evidence.clone());
             let evaluation = evaluator.evaluate_gate(gate, &snapshot);
             gate_outcomes.push((gate.gate_id.clone(), evaluation.status));
@@ -974,14 +974,14 @@ where
         }
     }
 
-    /// Evaluates predicate specs against evidence providers.
-    fn evaluate_predicates(
+    /// Evaluates condition specs against evidence providers.
+    fn evaluate_conditions(
         &self,
-        predicate_specs: &[PredicateSpec],
+        condition_specs: &[ConditionSpec],
         context: &EvidenceContext,
     ) -> Result<Vec<EvidenceRecord>, ControlPlaneError> {
-        let mut records = Vec::with_capacity(predicate_specs.len());
-        for spec in predicate_specs {
+        let mut records = Vec::with_capacity(condition_specs.len());
+        for spec in condition_specs {
             let (mut result, mut error) = match self.evidence.query(&spec.query, context) {
                 Ok(result) => {
                     let error = result.error.clone();
@@ -1017,7 +1017,7 @@ where
                 evaluate_comparator(spec.comparator, spec.expected.as_ref(), &normalized)
             };
             records.push(EvidenceRecord {
-                predicate: spec.predicate.clone(),
+                condition_id: spec.condition_id.clone(),
                 status,
                 result: normalized,
             });
@@ -1212,8 +1212,8 @@ pub struct SubmitRequest {
 pub struct PrecheckRequest {
     /// Optional stage identifier override.
     pub stage_id: Option<StageId>,
-    /// Asserted evidence keyed by predicate identifier.
-    pub evidence: BTreeMap<PredicateKey, EvidenceResult>,
+    /// Asserted evidence keyed by condition identifier.
+    pub evidence: BTreeMap<ConditionId, EvidenceResult>,
 }
 
 /// Result returned by `scenario.next`.
@@ -1444,14 +1444,14 @@ fn stage_spec<'a>(
         .ok_or_else(|| ControlPlaneError::StageNotFound(stage_id.to_string()))
 }
 
-/// Collects predicate specs referenced by stage gates.
-fn predicate_specs(
+/// Collects condition specs referenced by stage gates.
+fn condition_specs(
     spec: &ScenarioSpec,
     stage: &crate::core::StageSpec,
-) -> Result<Vec<PredicateSpec>, ControlPlaneError> {
+) -> Result<Vec<ConditionSpec>, ControlPlaneError> {
     let mut keys = Vec::new();
     for gate in &stage.gates {
-        for key in collect_predicates(&gate.requirement) {
+        for key in collect_conditions(&gate.requirement) {
             if !keys.contains(&key) {
                 keys.push(key);
             }
@@ -1460,12 +1460,12 @@ fn predicate_specs(
 
     let mut specs = Vec::new();
     for key in keys {
-        let predicate = spec
-            .predicates
+        let condition = spec
+            .conditions
             .iter()
-            .find(|spec| spec.predicate == key)
+            .find(|spec| spec.condition_id == key)
             .ok_or_else(|| ControlPlaneError::GateResolutionFailed(key.to_string()))?;
-        specs.push(predicate.clone());
+        specs.push(condition.clone());
     }
     Ok(specs)
 }
@@ -1473,8 +1473,8 @@ fn predicate_specs(
 /// Filters evidence records relevant to a gate.
 /// Filters evidence records relevant to a gate.
 fn evidence_for_gate(records: &[EvidenceRecord], gate: &GateSpec) -> Vec<EvidenceRecord> {
-    let predicates = collect_predicates(&gate.requirement);
-    records.iter().filter(|record| predicates.contains(&record.predicate)).cloned().collect()
+    let conditions = collect_conditions(&gate.requirement);
+    records.iter().filter(|record| conditions.contains(&record.condition_id)).cloned().collect()
 }
 
 /// Container for gate evaluation records and summarized outcomes.

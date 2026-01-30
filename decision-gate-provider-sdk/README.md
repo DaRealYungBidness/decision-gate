@@ -84,8 +84,7 @@ options and built-in provider configs.
 1. Choose a language template.
 2. Replace the `handleEvidenceQuery`/`handle_evidence_query` implementation with
    real provider logic.
-3. Generate a provider contract JSON describing predicates and params.
+3. Generate a provider contract JSON describing checks and params.
 4. Register the provider with `decision-gate.toml`.
 
 ## References
-

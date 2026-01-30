@@ -54,7 +54,7 @@ outcomes, decisions, packets, submissions, and tool calls.
 
 - Identifiers (scenario, namespace, spec version)
 - Stage definitions and gate logic
-- Predicate definitions and evidence queries
+- Condition definitions and evidence queries
 - Optional schema references and default tenant id
 
 Specs are validated on load to ensure uniqueness and internal consistency.
@@ -158,4 +158,3 @@ The MCP layer selects store type via `run_state_store` configuration.
 | In-memory store | `decision-gate-core/src/runtime/store.rs` | Test/deterministic store implementation. |
 | SQLite store | `decision-gate-store-sqlite/src/store.rs` | Durable store with hash verification + retention. |
 | Store config | `decision-gate-config/src/config.rs` | run_state_store selection + validation. |
-

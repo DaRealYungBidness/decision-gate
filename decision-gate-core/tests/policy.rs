@@ -49,7 +49,7 @@ fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Error>> {
     let scenario_id = decision_gate_core::ScenarioId::new("policy-scenario");
     let stage1_id = decision_gate_core::StageId::new("stage-1");
     let stage2_id = decision_gate_core::StageId::new("stage-2");
-    let predicate_key = decision_gate_core::PredicateKey::new("allow");
+    let condition_id = decision_gate_core::ConditionId::new("allow");
     let tenant_id = decision_gate_core::TenantId::from_raw(1)
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "nonzero tenantid"))?;
     let namespace_id = NamespaceId::from_raw(1).ok_or_else(|| {
@@ -65,7 +65,7 @@ fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Error>> {
                 entry_packets: Vec::new(),
                 gates: vec![decision_gate_core::GateSpec {
                     gate_id: decision_gate_core::GateId::new("gate-allow"),
-                    requirement: Requirement::predicate(predicate_key.clone()),
+                    requirement: Requirement::condition(condition_id.clone()),
                     trust: None,
                 }],
                 advance_to: decision_gate_core::AdvanceTo::Fixed {
@@ -93,11 +93,11 @@ fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Error>> {
                 on_timeout: decision_gate_core::TimeoutPolicy::Fail,
             },
         ],
-        predicates: vec![decision_gate_core::PredicateSpec {
-            predicate: predicate_key,
+        conditions: vec![decision_gate_core::ConditionSpec {
+            condition_id,
             query: decision_gate_core::EvidenceQuery {
                 provider_id: decision_gate_core::ProviderId::new("stub"),
-                predicate: "allow".to_string(),
+                check_id: "allow".to_string(),
                 params: None,
             },
             comparator: decision_gate_core::Comparator::Equals,

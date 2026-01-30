@@ -224,7 +224,7 @@ fn build_fixtures(fixture_map: &FixtureMap) -> Vec<ProviderFixture> {
                 "assetcore.world_seq": index as u64 + 1
             });
             ProviderFixture {
-                predicate: fixture.predicate.clone(),
+                check_id: fixture.check_id.clone(),
                 params: fixture.params.clone(),
                 result: fixture.expected.clone(),
                 anchor: Some(decision_gate_core::EvidenceAnchor {
@@ -272,7 +272,7 @@ struct FixtureMap {
 
 #[derive(Debug, Deserialize)]
 struct FixtureEntry {
-    predicate: String,
+    check_id: String,
     params: Value,
     expected: Value,
 }

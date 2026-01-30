@@ -61,7 +61,7 @@ curl -s http://127.0.0.1:4000/rpc \
               "gates": [
                 {
                   "gate_id": "quality",
-                  "requirement": { "Predicate": "report_ok" }
+                  "requirement": { "Condition": "report_ok" }
                 }
               ],
               "advance_to": { "kind": "terminal" },
@@ -69,12 +69,12 @@ curl -s http://127.0.0.1:4000/rpc \
               "on_timeout": "fail"
             }
           ],
-          "predicates": [
+          "conditions": [
             {
-              "predicate": "report_ok",
+              "condition_id": "report_ok",
               "query": {
                 "provider_id": "json",
-                "predicate": "path",
+                "check_id": "path",
                 "params": { "file": "report.json", "jsonpath": "$.summary.failed" }
               },
               "comparator": "equals",
@@ -164,7 +164,7 @@ curl -s http://127.0.0.1:4000/rpc \
         "gate_id": "quality",
         "status": "true",
         "trace": [
-          { "predicate": "report_ok", "status": "true" }
+          { "condition_id": "report_ok", "status": "true" }
         ]
       }
     ]
@@ -239,7 +239,7 @@ To inspect evidence and errors, call `runpack_export` or `evidence_query` (if di
 
 Precheck failures are either:
 - **Tool errors** (schema not found, payload invalid), or
-- **Gate holds** (decision `hold`), with trace showing which predicates are unknown/false.
+- **Gate holds** (decision `hold`), with trace showing which conditions are unknown/false.
 
 Since precheck does not return evidence errors:
 1. Use `evidence_query` for provider debugging (subject to disclosure policy).
@@ -249,9 +249,9 @@ Since precheck does not return evidence errors:
 
 ## Schema Design Tips
 
-- Use an **object** payload keyed by predicate IDs.
+- Use an **object** payload keyed by condition IDs.
 - Set `additionalProperties: false` to catch typos.
-- If your scenario has exactly one predicate, you may pass a non-object payload.
+- If your scenario has exactly one condition, you may pass a non-object payload.
 
 ---
 

@@ -45,10 +45,10 @@ enum ProviderResponse {
     Fixtures(Vec<ProviderFixture>),
 }
 
-/// Fixture describing a predicate response for a specific parameter set.
+/// Fixture describing a check response for a specific parameter set.
 #[derive(Clone, Debug)]
 pub struct ProviderFixture {
-    pub predicate: String,
+    pub check_id: String,
     pub params: Value,
     pub result: Value,
     pub anchor: Option<EvidenceAnchor>,
@@ -275,10 +275,10 @@ fn handle_request(state: &ProviderState, request: JsonRpcRequest) -> JsonRpcResp
                     let (response_value, anchor) = match &state.response {
                         ProviderResponse::Fixed(value) => (value.clone(), None),
                         ProviderResponse::Fixtures(fixtures) => {
-                            let predicate = &parsed.query.predicate;
+                            let check_id = &parsed.query.check_id;
                             let params = normalize_params(parsed.query.params.clone());
                             let fixture = fixtures.iter().find(|fixture| {
-                                fixture.predicate == *predicate && fixture.params == params
+                                fixture.check_id == *check_id && fixture.params == params
                             });
                             match fixture {
                                 Some(fixture) => (fixture.result.clone(), fixture.anchor.clone()),

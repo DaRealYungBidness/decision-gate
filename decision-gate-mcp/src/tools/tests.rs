@@ -38,6 +38,7 @@ use std::sync::Mutex;
 
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::DispatchTarget;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::GateId;
@@ -45,7 +46,6 @@ use decision_gate_core::GateSpec;
 use decision_gate_core::InMemoryDataShapeRegistry;
 use decision_gate_core::InMemoryRunStateStore;
 use decision_gate_core::NamespaceId;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::RunId;
@@ -282,18 +282,18 @@ fn sample_spec() -> ScenarioSpec {
             entry_packets: Vec::new(),
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-time"),
-                requirement: Requirement::predicate("after".into()),
+                requirement: Requirement::condition("after".into()),
                 trust: None,
             }],
             advance_to: AdvanceTo::Terminal,
             timeout: None,
             on_timeout: TimeoutPolicy::Fail,
         }],
-        predicates: vec![PredicateSpec {
-            predicate: "after".into(),
+        conditions: vec![ConditionSpec {
+            condition_id: "after".into(),
             query: EvidenceQuery {
                 provider_id: ProviderId::new("time"),
-                predicate: "after".to_string(),
+                check_id: "after".to_string(),
                 params: Some(json!({"timestamp": 0})),
             },
             comparator: Comparator::Equals,

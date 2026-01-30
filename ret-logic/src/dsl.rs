@@ -11,13 +11,13 @@
 //!
 //! The DSL provides a compact, author-friendly syntax for building requirement
 //! trees without writing nested RON/JSON. It supports boolean composition
-//! (`and`, `or`, `not`), the `require_group`/`at_least` operator, and predicate
-//! symbols that are resolved through a user-supplied [`PredicateResolver`].
+//! (`and`, `or`, `not`), the `require_group`/`at_least` operator, and condition
+//! symbols that are resolved through a user-supplied [`ConditionResolver`].
 //! Security posture: DSL input is untrusted; enforce validation and limits per
 //! `Docs/security/threat_model.md`.
 //!
 //! ### Grammar (informal)
-//! - **Predicates**: `is_alive`, `has_ap`, `stunned` (any identifier resolved by the resolver)
+//! - **Conditions**: `is_alive`, `has_ap`, `stunned` (any identifier resolved by the resolver)
 //! - **Boolean operators**:
 //!   - Infix: `a && b`, `a || b`, `!a`
 //!   - Functions: `all(a, b, c)`, `any(a, b)`, `not(a)`
@@ -30,7 +30,7 @@
 //! use std::collections::HashMap;
 //!
 //! use ret_logic::Requirement;
-//! use ret_logic::dsl::PredicateResolver;
+//! use ret_logic::dsl::ConditionResolver;
 //! use ret_logic::dsl::parse_requirement;
 //!
 //! let mut symbols = HashMap::new();
@@ -99,8 +99,8 @@ pub enum DslError {
         /// Byte offset in the original input.
         position: usize,
     },
-    /// Predicate symbol was not found in the resolver.
-    UnknownPredicate {
+    /// Condition symbol was not found in the resolver.
+    UnknownCondition {
         /// The unresolved symbol.
         name: String,
         /// Byte offset in the original input.
@@ -152,11 +152,11 @@ impl fmt::Display for DslError {
             } => {
                 write!(f, "unexpected token `{found}` at {position}, expected {expected}")
             }
-            Self::UnknownPredicate {
+            Self::UnknownCondition {
                 name,
                 position,
             } => {
-                write!(f, "unknown predicate `{name}` at {position}")
+                write!(f, "unknown condition `{name}` at {position}")
             }
             Self::UnknownFunction {
                 name,
@@ -180,28 +180,28 @@ impl fmt::Display for DslError {
     }
 }
 
-/// Resolves predicate symbols to the domain-specific predicate type `P`.
+/// Resolves condition symbols to the domain-specific condition type `P`.
 ///
 /// Implement this for your symbol table so the DSL can turn identifiers into
-/// the predicate values used by your domain.
-pub trait PredicateResolver<P> {
-    /// Returns a predicate value for the given symbol, or `None` if unknown.
+/// the condition values used by your domain.
+pub trait ConditionResolver<P> {
+    /// Returns a condition value for the given symbol, or `None` if unknown.
     fn resolve(&self, name: &str) -> Option<P>;
 }
 
-impl<P: Clone, S: BuildHasher> PredicateResolver<P> for HashMap<String, P, S> {
+impl<P: Clone, S: BuildHasher> ConditionResolver<P> for HashMap<String, P, S> {
     fn resolve(&self, name: &str) -> Option<P> {
         self.get(name).cloned()
     }
 }
 
-impl<P: Clone> PredicateResolver<P> for BTreeMap<String, P> {
+impl<P: Clone> ConditionResolver<P> for BTreeMap<String, P> {
     fn resolve(&self, name: &str) -> Option<P> {
         self.get(name).cloned()
     }
 }
 
-impl<P, F> PredicateResolver<P> for F
+impl<P, F> ConditionResolver<P> for F
 where
     F: Fn(&str) -> Option<P>,
 {
@@ -214,15 +214,15 @@ where
 ///
 /// # Arguments
 /// * `input` - DSL string (e.g., `"all(is_alive, any(has_ap, in_range))"`).
-/// * `resolver` - Symbol resolver that maps identifiers to predicate values.
+/// * `resolver` - Symbol resolver that maps identifiers to condition values.
 ///
 /// # Errors
-/// Returns [`DslError`] for syntax issues, unknown predicates, invalid numbers,
+/// Returns [`DslError`] for syntax issues, unknown conditions, invalid numbers,
 /// trailing input, or post-parse validation failures.
 pub fn parse_requirement<P, R>(input: &str, resolver: &R) -> Result<Requirement<P>, DslError>
 where
     P: Clone,
-    R: PredicateResolver<P>,
+    R: ConditionResolver<P>,
 {
     if input.len() > MAX_DSL_INPUT_BYTES {
         return Err(DslError::InputTooLarge {
@@ -400,13 +400,13 @@ impl<'a> Lexer<'a> {
         bytes.get(self.offset + 1).copied()
     }
 
-    /// Advances while the predicate matches the current byte.
-    fn consume_while<F>(&mut self, bytes: &[u8], predicate: F)
+    /// Advances while the condition matches the current byte.
+    fn consume_while<F>(&mut self, bytes: &[u8], condition: F)
     where
         F: Fn(u8) -> bool,
     {
         while let Some(&b) = bytes.get(self.offset) {
-            if predicate(b) {
+            if condition(b) {
                 self.offset += 1;
             } else {
                 break;
@@ -437,18 +437,18 @@ struct Parser<'input, 'resolver, P, R> {
     tokens: Vec<SpannedToken<'input>>,
     /// Current token index.
     index: usize,
-    /// Predicate resolver for identifiers.
+    /// Condition resolver for identifiers.
     resolver: &'resolver R,
     /// Current nesting depth for bracketed or function expressions.
     nesting: usize,
-    /// Marker for the predicate type.
+    /// Marker for the condition type.
     _marker: std::marker::PhantomData<P>,
 }
 
 impl<'input, 'resolver, P, R> Parser<'input, 'resolver, P, R>
 where
     P: Clone,
-    R: PredicateResolver<P>,
+    R: ConditionResolver<P>,
 {
     /// Creates a parser over the token stream.
     const fn new(
@@ -514,7 +514,7 @@ where
                 if self.matches(Token::LParen) {
                     self.parse_function(name, pos)
                 } else {
-                    self.resolve_predicate(name, pos)
+                    self.resolve_condition(name, pos)
                 }
             }
             Token::LParen => {
@@ -533,7 +533,7 @@ where
             }),
             Token::RParen | Token::Comma | Token::And | Token::Or | Token::Not | Token::Eof => {
                 Err(DslError::UnexpectedToken {
-                    expected: "predicate or expression",
+                    expected: "condition or expression",
                     found: self.describe_current(),
                     position: self.current().position,
                 })
@@ -577,8 +577,8 @@ where
             _ => {
                 let args = parser.parse_argument_list()?;
                 if args.is_empty() {
-                    // Allow zero-arg predicate calls like `is_alive()`.
-                    return parser.resolve_predicate(name, name_pos);
+                    // Allow zero-arg condition calls like `is_alive()`.
+                    return parser.resolve_condition(name, name_pos);
                 }
 
                 Err(DslError::UnknownFunction {
@@ -594,13 +594,13 @@ where
         // First argument must be a numeric literal.
         let (min, min_pos) = self.parse_number_literal()?;
         if self.matches(Token::Comma) {
-            // consume comma between count and first predicate
+            // consume comma between count and first condition
         }
 
         let mut members = Vec::new();
         if self.matches(Token::RParen) {
             return Err(DslError::UnexpectedToken {
-                expected: "at least one predicate after the count",
+                expected: "at least one condition after the count",
                 found: ")".to_string(),
                 position: min_pos,
             });
@@ -681,14 +681,14 @@ where
         result
     }
 
-    /// Resolves a predicate identifier using the resolver.
-    fn resolve_predicate(
+    /// Resolves a condition identifier using the resolver.
+    fn resolve_condition(
         &self,
         name: &'input str,
         position: usize,
     ) -> Result<Requirement<P>, DslError> {
-        self.resolver.resolve(name).map(Requirement::predicate).ok_or_else(|| {
-            DslError::UnknownPredicate {
+        self.resolver.resolve(name).map(Requirement::condition).ok_or_else(|| {
+            DslError::UnknownCondition {
                 name: name.to_string(),
                 position,
             }

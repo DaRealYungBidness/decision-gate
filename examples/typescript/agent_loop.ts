@@ -29,12 +29,12 @@ function defaultTimeAfterSpec(scenarioId: string, threshold: number): Record<str
     default_tenant_id: null,
     policies: [],
     schemas: [],
-    predicates: [
+    conditions: [
       {
-        predicate: "after",
+        condition_id: "after",
         query: {
           provider_id: "time",
-          predicate: "after",
+          check_id: "after",
           params: { timestamp: threshold },
         },
         comparator: "equals",
@@ -50,7 +50,7 @@ function defaultTimeAfterSpec(scenarioId: string, threshold: number): Record<str
         gates: [
           {
             gate_id: "gate-time",
-            requirement: { predicate: "after" },
+            requirement: { Condition: "after" },
             trust: null,
           },
         ],

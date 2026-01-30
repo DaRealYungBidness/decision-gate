@@ -72,10 +72,10 @@ use decision_gate_mcp::tools::EvidenceQueryRequest;
 use decision_gate_mcp::tools::EvidenceQueryResponse;
 use decision_gate_mcp::tools::PrecheckToolRequest;
 use decision_gate_mcp::tools::PrecheckToolResponse;
+use decision_gate_mcp::tools::ProviderCheckSchemaGetRequest;
+use decision_gate_mcp::tools::ProviderCheckSchemaGetResponse;
 use decision_gate_mcp::tools::ProviderContractGetRequest;
 use decision_gate_mcp::tools::ProviderContractGetResponse;
-use decision_gate_mcp::tools::ProviderSchemaGetRequest;
-use decision_gate_mcp::tools::ProviderSchemaGetResponse;
 use decision_gate_mcp::tools::ProvidersListRequest;
 use decision_gate_mcp::tools::ProvidersListResponse;
 use decision_gate_mcp::tools::RunpackExportRequest;
@@ -109,7 +109,7 @@ use crate::common::sample_router;
 use crate::common::sample_run_config_with_ids;
 use crate::common::sample_spec;
 use crate::common::sample_spec_with_id;
-use crate::common::sample_spec_with_two_predicates;
+use crate::common::sample_spec_with_two_conditions;
 use crate::common::setup_scenario_with_run;
 use crate::common::start_run;
 
@@ -168,7 +168,7 @@ fn list_tools_returns_all_seventeen_tools() {
     assert!(names.contains(&"runpack_verify"));
     assert!(names.contains(&"providers_list"));
     assert!(names.contains(&"provider_contract_get"));
-    assert!(names.contains(&"provider_schema_get"));
+    assert!(names.contains(&"provider_check_schema_get"));
     assert!(names.contains(&"schemas_register"));
     assert!(names.contains(&"schemas_list"));
     assert!(names.contains(&"schemas_get"));
@@ -717,7 +717,7 @@ fn evidence_query_returns_time_now() {
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("time"),
-            predicate: "now".to_string(),
+            check_id: "now".to_string(),
             params: None,
         },
         context: sample_context(),
@@ -743,7 +743,7 @@ fn evidence_query_unknown_provider_fails() {
     let request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("nonexistent"),
-            predicate: "test".to_string(),
+            check_id: "test".to_string(),
             params: None,
         },
         context: sample_context(),
@@ -1369,22 +1369,22 @@ fn provider_contract_get_returns_contract() {
 }
 
 #[test]
-fn provider_schema_get_returns_predicate_schema() {
+fn provider_check_schema_get_returns_check_schema() {
     let router = sample_router();
-    let request = ProviderSchemaGetRequest {
+    let request = ProviderCheckSchemaGetRequest {
         provider_id: "json".to_string(),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
     };
     let response = router
         .handle_tool_call_sync(
             &local_request_context(),
-            "provider_schema_get",
+            "provider_check_schema_get",
             serde_json::to_value(&request).unwrap(),
         )
         .unwrap();
-    let response: ProviderSchemaGetResponse = serde_json::from_value(response).unwrap();
+    let response: ProviderCheckSchemaGetResponse = serde_json::from_value(response).unwrap();
     assert_eq!(response.provider_id, "json");
-    assert_eq!(response.predicate, "path");
+    assert_eq!(response.check_id, "path");
     assert!(!response.allowed_comparators.is_empty());
 }
 
@@ -1537,10 +1537,10 @@ fn precheck_rejects_comparator_schema_mismatch() {
     config.trust.min_lane = TrustLane::Asserted;
     let router = router_with_config(&config);
     let mut spec = sample_spec_with_id("precheck-comparator-mismatch");
-    spec.predicates[0].query.predicate = "now".to_string();
-    spec.predicates[0].query.params = None;
-    spec.predicates[0].comparator = Comparator::GreaterThan;
-    spec.predicates[0].expected = Some(json!(10));
+    spec.conditions[0].query.check_id = "now".to_string();
+    spec.conditions[0].query.params = None;
+    spec.conditions[0].comparator = Comparator::GreaterThan;
+    spec.conditions[0].expected = Some(json!(10));
     let _ = define_scenario(&router, spec.clone()).unwrap();
 
     let mut record = sample_shape_record("asserted", "v1");
@@ -1785,11 +1785,11 @@ fn precheck_rejects_unknown_schema() {
 }
 
 #[test]
-fn precheck_rejects_non_object_payload_with_multiple_predicates() {
+fn precheck_rejects_non_object_payload_with_multiple_conditions() {
     let mut config = sample_config();
     config.trust.min_lane = TrustLane::Asserted;
     let router = router_with_config(&config);
-    let spec = sample_spec_with_two_predicates("precheck-multi");
+    let spec = sample_spec_with_two_conditions("precheck-multi");
     let record = DataShapeRecord {
         schema: json!({"type": "boolean"}),
         ..sample_shape_record("asserted", "v1")
@@ -1828,5 +1828,5 @@ fn precheck_rejects_non_object_payload_with_multiple_predicates() {
             serde_json::to_value(&request).unwrap(),
         )
         .unwrap_err();
-    assert!(error.to_string().contains("non-object data shape requires exactly one predicate"));
+    assert!(error.to_string().contains("non-object data shape requires exactly one condition"));
 }

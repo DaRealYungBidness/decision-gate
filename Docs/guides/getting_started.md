@@ -21,7 +21,7 @@ Dependencies:
 
 ## Mental Model: Scenario Lifecycle
 
-Decision Gate evaluates **gates** using **predicates** (evidence checks). The lifecycle is:
+Decision Gate evaluates **gates** using **conditions** (evidence checks). The lifecycle is:
 
 ```
 1. scenario_define  -> registers a ScenarioSpec
@@ -40,7 +40,7 @@ A **scenario** is a workflow definition composed of:
 
 - **Stages**: Ordered steps in the workflow.
 - **Gates**: Decision points inside a stage.
-- **Predicates**: Evidence checks used by gates.
+- **Conditions**: Evidence checks used by gates.
 - **Providers**: Evidence sources (builtin or MCP).
 
 Providers can be:
@@ -129,7 +129,7 @@ curl -s http://127.0.0.1:4000/rpc \
               "gates": [
                 {
                   "gate_id": "after-time",
-                  "requirement": { "Predicate": "after" }
+                  "requirement": { "Condition": "after" }
                 }
               ],
               "advance_to": { "kind": "terminal" },
@@ -137,12 +137,12 @@ curl -s http://127.0.0.1:4000/rpc \
               "on_timeout": "fail"
             }
           ],
-          "predicates": [
+          "conditions": [
             {
-              "predicate": "after",
+              "condition_id": "after",
               "query": {
                 "provider_id": "time",
-                "predicate": "after",
+                "check_id": "after",
                 "params": { "timestamp": 1700000000000 }
               },
               "comparator": "equals",
@@ -159,7 +159,7 @@ curl -s http://127.0.0.1:4000/rpc \
   }'
 ```
 
-**Time semantics (exact):** `time.after` returns `true` **only if** `trigger_time > timestamp` (strictly greater). Equality returns `false`.
+**Time semantics:** `time.after` returns `true` **only if** `trigger_time > timestamp` (strictly greater). Equality returns `false`.
 
 **Response:**
 
@@ -255,7 +255,7 @@ curl -s http://127.0.0.1:4000/rpc \
   }'
 ```
 
-With `time.after` and `timestamp = 1700000000000`, the predicate returns `true` because `1710000000000 > 1700000000000`.
+With `time.after` and `timestamp = 1700000000000`, the check returns `true` because `1710000000000 > 1700000000000`.
 
 **Response (`NextResult`):**
 
@@ -322,7 +322,7 @@ curl -s http://127.0.0.1:4000/rpc \
 
 ## Next Steps
 
-- [predicate_authoring.md](predicate_authoring.md): write precise predicates and comparators
+- [condition_authoring.md](condition_authoring.md): write precise conditions and comparators
 - [json_evidence_playbook.md](json_evidence_playbook.md): JSON evidence recipes
 - [llm_native_playbook.md](llm_native_playbook.md): precheck workflows for LLM agents
 - [security_guide.md](security_guide.md): production hardening (auth, TLS, signatures, anchors)

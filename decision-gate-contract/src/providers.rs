@@ -2,12 +2,12 @@
 // ============================================================================
 // Module: Provider Contracts
 // Description: Canonical provider capability definitions for Decision Gate.
-// Purpose: Describe predicate schemas and provider configuration contracts.
+// Purpose: Describe check schemas and provider configuration contracts.
 // Dependencies: serde_json, decision-gate-contract::schemas
 // ============================================================================
 
 //! ## Overview
-//! Provider contracts describe the available predicates, parameter schemas, and
+//! Provider contracts describe the available checks, parameter schemas, and
 //! output shapes for built-in providers. These contracts are intended to be
 //! exported into docs and SDKs without hand-maintained duplication.
 //! Security posture: provider inputs are untrusted; see `Docs/security/threat_model.md`.
@@ -23,9 +23,9 @@ use serde_json::Value;
 use serde_json::json;
 
 use crate::schemas;
+use crate::types::CheckContract;
+use crate::types::CheckExample;
 use crate::types::DeterminismClass;
-use crate::types::PredicateContract;
-use crate::types::PredicateExample;
 use crate::types::ProviderContract;
 
 // ============================================================================
@@ -84,48 +84,48 @@ pub fn providers_markdown(contracts: &[ProviderContract]) -> String {
         out.push('\n');
         render_json_block(&mut out, &provider.config_schema);
         out.push('\n');
-        out.push_str("### Predicates\n\n");
-        for predicate in &provider.predicates {
+        out.push_str("### Checks\n\n");
+        for check in &provider.checks {
             out.push_str("#### ");
-            out.push_str(&predicate.name);
+            out.push_str(&check.check_id);
             out.push('\n');
             out.push('\n');
-            out.push_str(&predicate.description);
+            out.push_str(&check.description);
             out.push('\n');
             out.push('\n');
             out.push_str("- Determinism: ");
-            out.push_str(predicate.determinism.as_str());
+            out.push_str(check.determinism.as_str());
             out.push('\n');
             out.push_str("- Params required: ");
-            out.push_str(if predicate.params_required { "yes" } else { "no" });
+            out.push_str(if check.params_required { "yes" } else { "no" });
             out.push('\n');
             out.push_str("- Allowed comparators: ");
-            out.push_str(&render_comparator_list(&predicate.allowed_comparators));
+            out.push_str(&render_comparator_list(&check.allowed_comparators));
             out.push('\n');
-            if !predicate.anchor_types.is_empty() {
+            if !check.anchor_types.is_empty() {
                 out.push_str("- Anchor types: ");
-                out.push_str(&predicate.anchor_types.join(", "));
+                out.push_str(&check.anchor_types.join(", "));
                 out.push('\n');
             }
-            if !predicate.content_types.is_empty() {
+            if !check.content_types.is_empty() {
                 out.push_str("- Content types: ");
-                out.push_str(&predicate.content_types.join(", "));
+                out.push_str(&check.content_types.join(", "));
                 out.push('\n');
             }
             out.push('\n');
             out.push_str("Params fields:\n\n");
-            for line in render_schema_fields(&predicate.params_schema) {
+            for line in render_schema_fields(&check.params_schema) {
                 out.push_str(&line);
                 out.push('\n');
             }
             out.push('\n');
             out.push_str("Params schema:\n");
-            render_json_block(&mut out, &predicate.params_schema);
+            render_json_block(&mut out, &check.params_schema);
             out.push_str("Result schema:\n");
-            render_json_block(&mut out, &predicate.result_schema);
-            if !predicate.examples.is_empty() {
+            render_json_block(&mut out, &check.result_schema);
+            if !check.examples.is_empty() {
                 out.push_str("Examples:\n\n");
-                render_predicate_examples(&mut out, &predicate.examples);
+                render_check_examples(&mut out, &check.examples);
             }
             out.push('\n');
         }
@@ -149,13 +149,13 @@ fn time_provider_contract() -> ProviderContract {
         provider_id: String::from("time"),
         name: String::from("Time Provider"),
         description: String::from(
-            "Deterministic predicates derived from the trigger timestamp supplied by the caller.",
+            "Deterministic checks derived from the trigger timestamp supplied by the caller.",
         ),
         transport: String::from("builtin"),
         config_schema: time_config_schema(),
-        predicates: vec![
-            PredicateContract {
-                name: String::from("now"),
+        checks: vec![
+            CheckContract {
+                check_id: String::from("now"),
                 description: String::from("Return the trigger timestamp as a JSON number."),
                 determinism: DeterminismClass::TimeDependent,
                 params_required: false,
@@ -167,14 +167,14 @@ fn time_provider_contract() -> ProviderContract {
                     String::from("trigger_time_logical"),
                 ],
                 content_types: vec![String::from("application/json")],
-                examples: vec![PredicateExample {
+                examples: vec![CheckExample {
                     description: String::from("Return trigger time."),
                     params: json!({}),
                     result: json!(1_710_000_000_000_i64),
                 }],
             },
-            PredicateContract {
-                name: String::from("after"),
+            CheckContract {
+                check_id: String::from("after"),
                 description: String::from("Return true if trigger time is after the threshold."),
                 determinism: DeterminismClass::TimeDependent,
                 params_required: true,
@@ -186,14 +186,14 @@ fn time_provider_contract() -> ProviderContract {
                     String::from("trigger_time_logical"),
                 ],
                 content_types: vec![String::from("application/json")],
-                examples: vec![PredicateExample {
+                examples: vec![CheckExample {
                     description: String::from("Trigger time after threshold."),
                     params: json!({ "timestamp": 1_710_000_000_000_i64 }),
                     result: json!(true),
                 }],
             },
-            PredicateContract {
-                name: String::from("before"),
+            CheckContract {
+                check_id: String::from("before"),
                 description: String::from("Return true if trigger time is before the threshold."),
                 determinism: DeterminismClass::TimeDependent,
                 params_required: true,
@@ -205,7 +205,7 @@ fn time_provider_contract() -> ProviderContract {
                     String::from("trigger_time_logical"),
                 ],
                 content_types: vec![String::from("application/json")],
-                examples: vec![PredicateExample {
+                examples: vec![CheckExample {
                     description: String::from("Trigger time before threshold."),
                     params: json!({ "timestamp": "2024-01-01T00:00:00Z" }),
                     result: json!(false),
@@ -237,8 +237,8 @@ fn env_provider_contract() -> ProviderContract {
         ),
         transport: String::from("builtin"),
         config_schema: env_config_schema(),
-        predicates: vec![PredicateContract {
-            name: String::from("get"),
+        checks: vec![CheckContract {
+            check_id: String::from("get"),
             description: String::from("Fetch an environment variable by key."),
             determinism: DeterminismClass::External,
             params_required: true,
@@ -254,7 +254,7 @@ fn env_provider_contract() -> ProviderContract {
             allowed_comparators,
             anchor_types: vec![String::from("env")],
             content_types: vec![String::from("text/plain")],
-            examples: vec![PredicateExample {
+            examples: vec![CheckExample {
                 description: String::from("Read DEPLOY_ENV."),
                 params: json!({ "key": "DEPLOY_ENV" }),
                 result: json!("production"),
@@ -302,8 +302,8 @@ fn json_provider_contract() -> ProviderContract {
         ),
         transport: String::from("builtin"),
         config_schema: json_config_schema(),
-        predicates: vec![PredicateContract {
-            name: String::from("path"),
+        checks: vec![CheckContract {
+            check_id: String::from("path"),
             description: String::from("Select values via JSONPath from a JSON/YAML file."),
             determinism: DeterminismClass::External,
             params_required: true,
@@ -321,12 +321,12 @@ fn json_provider_contract() -> ProviderContract {
             anchor_types: vec![String::from("file_path")],
             content_types: vec![String::from("application/json"), String::from("application/yaml")],
             examples: vec![
-                PredicateExample {
+                CheckExample {
                     description: String::from("Read version from config.json."),
                     params: json!({ "file": "/etc/config.json", "jsonpath": "$.version" }),
                     result: json!("1.2.3"),
                 },
-                PredicateExample {
+                CheckExample {
                     description: String::from("Return full document when jsonpath is omitted."),
                     params: json!({ "file": "/etc/config.json" }),
                     result: json!({ "version": "1.2.3" }),
@@ -358,9 +358,9 @@ fn http_provider_contract() -> ProviderContract {
         ),
         transport: String::from("builtin"),
         config_schema: http_config_schema(),
-        predicates: vec![
-            PredicateContract {
-                name: String::from("status"),
+        checks: vec![
+            CheckContract {
+                check_id: String::from("status"),
                 description: String::from("Return HTTP status code for a URL."),
                 determinism: DeterminismClass::External,
                 params_required: true,
@@ -369,14 +369,14 @@ fn http_provider_contract() -> ProviderContract {
                 allowed_comparators: status_allowed,
                 anchor_types: vec![String::from("url")],
                 content_types: vec![String::from("application/json")],
-                examples: vec![PredicateExample {
+                examples: vec![CheckExample {
                     description: String::from("Fetch status for a health endpoint."),
                     params: json!({ "url": "https://api.example.com/health" }),
                     result: json!(200),
                 }],
             },
-            PredicateContract {
-                name: String::from("body_hash"),
+            CheckContract {
+                check_id: String::from("body_hash"),
                 description: String::from("Return a hash of the response body."),
                 determinism: DeterminismClass::External,
                 params_required: true,
@@ -385,7 +385,7 @@ fn http_provider_contract() -> ProviderContract {
                 allowed_comparators: hash_allowed,
                 anchor_types: vec![String::from("url")],
                 content_types: vec![String::from("application/json")],
-                examples: vec![PredicateExample {
+                examples: vec![CheckExample {
                     description: String::from("Hash the body of a health endpoint."),
                     params: json!({ "url": "https://api.example.com/health" }),
                     result: json!({
@@ -406,7 +406,7 @@ fn http_provider_contract() -> ProviderContract {
 // SECTION: Comparator Defaults
 // ============================================================================
 
-/// Returns the comparator allow-list for a predicate result schema.
+/// Returns the comparator allow-list for a check result schema.
 #[must_use]
 fn allowed_comparators_for_schema(schema: &Value) -> Vec<Comparator> {
     if let Some(options) = schema.get("oneOf").and_then(Value::as_array) {
@@ -635,8 +635,8 @@ fn render_json_block(out: &mut String, value: &Value) {
     out.push_str("\n```\n");
 }
 
-/// Render predicate examples with params and result payloads.
-fn render_predicate_examples(out: &mut String, examples: &[PredicateExample]) {
+/// Render check examples with params and result payloads.
+fn render_check_examples(out: &mut String, examples: &[CheckExample]) {
     for (idx, example) in examples.iter().enumerate() {
         if examples.len() > 1 {
             out.push_str("Example ");
@@ -894,7 +894,7 @@ fn http_url_schema() -> Value {
     })
 }
 
-/// Returns a schema for predicates with no params.
+/// Returns a schema for checks with no params.
 #[must_use]
 fn empty_params_schema(description: &str) -> Value {
     json!({
@@ -905,7 +905,7 @@ fn empty_params_schema(description: &str) -> Value {
     })
 }
 
-/// Returns a schema for time predicate results.
+/// Returns a schema for time check results.
 #[must_use]
 fn timestamp_value_schema() -> Value {
     json!({

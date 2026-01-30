@@ -44,8 +44,8 @@ use decision_gate_core::runtime::NextRequest;
 use decision_gate_core::runtime::StatusRequest;
 use decision_gate_core::runtime::SubmitRequest;
 use decision_gate_mcp::tools::EvidenceQueryRequest;
+use decision_gate_mcp::tools::ProviderCheckSchemaGetRequest;
 use decision_gate_mcp::tools::ProviderContractGetRequest;
-use decision_gate_mcp::tools::ProviderSchemaGetRequest;
 use decision_gate_mcp::tools::RunpackExportRequest;
 use decision_gate_mcp::tools::RunpackVerifyRequest;
 use decision_gate_mcp::tools::ScenarioDefineRequest;
@@ -255,7 +255,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
     let evidence_request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("time"),
-            predicate: "now".to_string(),
+            check_id: "now".to_string(),
             params: None,
         },
         context,
@@ -280,19 +280,19 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
     )?;
     assert_valid(&contract_schema.output, &contract_output, "provider_contract_get output")?;
 
-    let schema_request = ProviderSchemaGetRequest {
+    let schema_request = ProviderCheckSchemaGetRequest {
         provider_id: "json".to_string(),
-        predicate: "path".to_string(),
+        check_id: "path".to_string(),
     };
     let schema_input = serde_json::to_value(&schema_request)?;
-    let schema_schema = tool_schema(&tool_schemas, ToolName::ProviderSchemaGet)?;
-    assert_valid(&schema_schema.input, &schema_input, "provider_schema_get input")?;
+    let schema_schema = tool_schema(&tool_schemas, ToolName::ProviderCheckSchemaGet)?;
+    assert_valid(&schema_schema.input, &schema_input, "provider_check_schema_get input")?;
     let schema_output = router.handle_tool_call_sync(
         &local_request_context(),
-        "provider_schema_get",
+        "provider_check_schema_get",
         schema_input,
     )?;
-    assert_valid(&schema_schema.output, &schema_output, "provider_schema_get output")?;
+    assert_valid(&schema_schema.output, &schema_output, "provider_check_schema_get output")?;
 
     let temp_dir = TempDir::new()?;
     let output_dir = temp_dir.path().to_string_lossy().to_string();

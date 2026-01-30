@@ -6,37 +6,37 @@
         "description": "Register the example scenario spec.",
         "input": {
           "spec": {
-            "default_tenant_id": null,
-            "namespace_id": 1,
-            "policies": [],
-            "predicates": [
+            "conditions": [
               {
                 "comparator": "equals",
+                "condition_id": "env_is_prod",
                 "expected": "production",
                 "policy_tags": [],
-                "predicate": "env_is_prod",
                 "query": {
+                  "check_id": "get",
                   "params": {
                     "key": "DEPLOY_ENV"
                   },
-                  "predicate": "get",
                   "provider_id": "env"
                 }
               },
               {
                 "comparator": "equals",
+                "condition_id": "after_freeze",
                 "expected": true,
                 "policy_tags": [],
-                "predicate": "after_freeze",
                 "query": {
+                  "check_id": "after",
                   "params": {
                     "timestamp": 1710000000000
                   },
-                  "predicate": "after",
                   "provider_id": "time"
                 }
               }
             ],
+            "default_tenant_id": null,
+            "namespace_id": 1,
+            "policies": [],
             "scenario_id": "example-scenario",
             "schemas": [],
             "spec_version": "v1",
@@ -68,13 +68,13 @@
                   {
                     "gate_id": "env_gate",
                     "requirement": {
-                      "Predicate": "env_is_prod"
+                      "Condition": "env_is_prod"
                     }
                   },
                   {
                     "gate_id": "time_gate",
                     "requirement": {
-                      "Predicate": "after_freeze"
+                      "Condition": "after_freeze"
                     }
                   }
                 ],
@@ -111,7 +111,7 @@
     "name": "scenario_define",
     "notes": [
       "Use before starting runs; scenario_id becomes the stable handle for later calls.",
-      "Validates stage/gate/predicate IDs, RET trees, and predicate references.",
+      "Validates stage/gate/condition IDs, RET trees, and condition references.",
       "Spec hash is deterministic; store it for audit and runpack integrity.",
       "Fails closed on invalid specs or duplicate scenario IDs."
     ],
@@ -720,8 +720,8 @@
                     "items": {
                       "additionalProperties": false,
                       "properties": {
-                        "predicate": {
-                          "description": "Predicate identifier.",
+                        "condition_id": {
+                          "description": "Condition identifier.",
                           "type": "string"
                         },
                         "status": {
@@ -735,7 +735,7 @@
                         }
                       },
                       "required": [
-                        "predicate",
+                        "condition_id",
                         "status"
                       ],
                       "type": "object"
@@ -754,8 +754,8 @@
                 "items": {
                   "additionalProperties": false,
                   "properties": {
-                    "predicate": {
-                      "description": "Predicate identifier.",
+                    "condition_id": {
+                      "description": "Condition identifier.",
                       "type": "string"
                     },
                     "result": {
@@ -1010,7 +1010,7 @@
                     }
                   },
                   "required": [
-                    "predicate",
+                    "condition_id",
                     "status",
                     "result"
                   ],
@@ -4996,10 +4996,10 @@
             }
           },
           "query": {
+            "check_id": "get",
             "params": {
               "key": "DEPLOY_ENV"
             },
-            "predicate": "get",
             "provider_id": "env"
           }
         },
@@ -5123,6 +5123,10 @@
           "additionalProperties": false,
           "description": "Evidence query payload.",
           "properties": {
+            "check_id": {
+              "description": "Provider check identifier.",
+              "type": "string"
+            },
             "params": {
               "description": "Provider-specific parameter payload.",
               "type": [
@@ -5134,10 +5138,6 @@
                 "object"
               ]
             },
-            "predicate": {
-              "description": "Provider predicate name.",
-              "type": "string"
-            },
             "provider_id": {
               "description": "Evidence provider identifier.",
               "type": "string"
@@ -5145,7 +5145,7 @@
           },
           "required": [
             "provider_id",
-            "predicate"
+            "check_id"
           ],
           "type": "object"
         }
@@ -5160,7 +5160,7 @@
     "notes": [
       "Disclosure policy may redact raw values; hashes/anchors still returned.",
       "Use for diagnostics or preflight checks; runtime uses the same provider logic.",
-      "Requires provider_id, predicate, and full EvidenceContext."
+      "Requires provider_id, check_id, and full EvidenceContext."
     ],
     "output_schema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -6021,7 +6021,7 @@
         "output": {
           "providers": [
             {
-              "predicates": [
+              "checks": [
                 "get"
               ],
               "provider_id": "env",
@@ -6051,9 +6051,9 @@
           "items": {
             "additionalProperties": false,
             "properties": {
-              "predicates": {
+              "checks": {
                 "items": {
-                  "description": "Predicate identifier.",
+                  "description": "Check identifier.",
                   "type": "string"
                 },
                 "type": "array"
@@ -6074,7 +6074,7 @@
             "required": [
               "provider_id",
               "transport",
-              "predicates"
+              "checks"
             ],
             "type": "object"
           },
@@ -6097,6 +6097,7 @@
         },
         "output": {
           "contract": {
+            "checks": [],
             "config_schema": {
               "additionalProperties": false,
               "type": "object"
@@ -6104,7 +6105,6 @@
             "description": "Reads JSON or YAML files and evaluates JSONPath.",
             "name": "JSON Provider",
             "notes": [],
-            "predicates": [],
             "provider_id": "json",
             "transport": "builtin"
           },
@@ -6145,38 +6145,12 @@
         "contract": {
           "additionalProperties": false,
           "properties": {
-            "config_schema": {
-              "description": "Provider configuration schema.",
-              "type": [
-                "null",
-                "boolean",
-                "number",
-                "string",
-                "array",
-                "object"
-              ]
-            },
-            "description": {
-              "description": "Provider description.",
-              "type": "string"
-            },
-            "name": {
-              "description": "Provider display name.",
-              "type": "string"
-            },
-            "notes": {
-              "description": "Provider notes and guidance.",
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "predicates": {
+            "checks": {
               "items": {
                 "additionalProperties": false,
                 "properties": {
                   "allowed_comparators": {
-                    "description": "Comparator allow-list for this predicate.",
+                    "description": "Comparator allow-list for this check.",
                     "items": {
                       "description": "Comparator applied to evidence values.",
                       "enum": [
@@ -6202,25 +6176,29 @@
                     "type": "array"
                   },
                   "anchor_types": {
-                    "description": "Anchor types emitted by this predicate.",
+                    "description": "Anchor types emitted by this check.",
                     "items": {
                       "type": "string"
                     },
                     "type": "array"
                   },
+                  "check_id": {
+                    "description": "Check identifier.",
+                    "type": "string"
+                  },
                   "content_types": {
-                    "description": "Content types for predicate output.",
+                    "description": "Content types for check output.",
                     "items": {
                       "type": "string"
                     },
                     "type": "array"
                   },
                   "description": {
-                    "description": "Predicate description.",
+                    "description": "Check description.",
                     "type": "string"
                   },
                   "determinism": {
-                    "description": "Determinism classification for provider predicates.",
+                    "description": "Determinism classification for provider checks.",
                     "enum": [
                       "deterministic",
                       "time_dependent",
@@ -6268,16 +6246,12 @@
                     },
                     "type": "array"
                   },
-                  "name": {
-                    "description": "Predicate name.",
-                    "type": "string"
-                  },
                   "params_required": {
-                    "description": "Whether params are required for this predicate.",
+                    "description": "Whether params are required for this check.",
                     "type": "boolean"
                   },
                   "params_schema": {
-                    "description": "JSON schema for predicate params.",
+                    "description": "JSON schema for check params.",
                     "type": [
                       "null",
                       "boolean",
@@ -6288,7 +6262,7 @@
                     ]
                   },
                   "result_schema": {
-                    "description": "JSON schema for predicate result values.",
+                    "description": "JSON schema for check result values.",
                     "type": [
                       "null",
                       "boolean",
@@ -6300,7 +6274,7 @@
                   }
                 },
                 "required": [
-                  "name",
+                  "check_id",
                   "description",
                   "determinism",
                   "params_required",
@@ -6312,6 +6286,32 @@
                   "examples"
                 ],
                 "type": "object"
+              },
+              "type": "array"
+            },
+            "config_schema": {
+              "description": "Provider configuration schema.",
+              "type": [
+                "null",
+                "boolean",
+                "number",
+                "string",
+                "array",
+                "object"
+              ]
+            },
+            "description": {
+              "description": "Provider description.",
+              "type": "string"
+            },
+            "name": {
+              "description": "Provider display name.",
+              "type": "string"
+            },
+            "notes": {
+              "description": "Provider notes and guidance.",
+              "items": {
+                "type": "string"
               },
               "type": "array"
             },
@@ -6334,7 +6334,7 @@
             "description",
             "transport",
             "config_schema",
-            "predicates",
+            "checks",
             "notes"
           ],
           "type": "object"
@@ -6394,12 +6394,12 @@
     }
   },
   {
-    "description": "Fetch predicate schema details (params/result/comparators) for a provider.",
+    "description": "Fetch check schema details (params/result/comparators) for a provider.",
     "examples": [
       {
-        "description": "Fetch predicate schema details for a provider.",
+        "description": "Fetch check schema details for a provider.",
         "input": {
-          "predicate": "path",
+          "check_id": "path",
           "provider_id": "json"
         },
         "output": {
@@ -6410,6 +6410,7 @@
             "not_exists"
           ],
           "anchor_types": [],
+          "check_id": "path",
           "content_types": [
             "application/json"
           ],
@@ -6434,7 +6435,6 @@
             ],
             "type": "object"
           },
-          "predicate": "path",
           "provider_id": "json",
           "result_schema": {
             "type": [
@@ -6453,8 +6453,8 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "additionalProperties": false,
       "properties": {
-        "predicate": {
-          "description": "Provider predicate name.",
+        "check_id": {
+          "description": "Provider check identifier.",
           "type": "string"
         },
         "provider_id": {
@@ -6464,14 +6464,14 @@
       },
       "required": [
         "provider_id",
-        "predicate"
+        "check_id"
       ],
       "type": "object"
     },
-    "name": "provider_schema_get",
+    "name": "provider_check_schema_get",
     "notes": [
-      "Returns compiled schema metadata for a single predicate.",
-      "Includes comparator allow-lists and predicate examples.",
+      "Returns compiled schema metadata for a single check.",
+      "Includes comparator allow-lists and check examples.",
       "Subject to provider disclosure policy and authz."
     ],
     "output_schema": {
@@ -6479,7 +6479,7 @@
       "additionalProperties": false,
       "properties": {
         "allowed_comparators": {
-          "description": "Comparator allow-list for this predicate.",
+          "description": "Comparator allow-list for this check.",
           "items": {
             "description": "Comparator applied to evidence values.",
             "enum": [
@@ -6505,14 +6505,18 @@
           "type": "array"
         },
         "anchor_types": {
-          "description": "Anchor types emitted by this predicate.",
+          "description": "Anchor types emitted by this check.",
           "items": {
             "type": "string"
           },
           "type": "array"
         },
+        "check_id": {
+          "description": "Check identifier.",
+          "type": "string"
+        },
         "content_types": {
-          "description": "Content types for predicate output.",
+          "description": "Content types for check output.",
           "items": {
             "type": "string"
           },
@@ -6539,7 +6543,7 @@
           "type": "object"
         },
         "determinism": {
-          "description": "Determinism classification for provider predicates.",
+          "description": "Determinism classification for provider checks.",
           "enum": [
             "deterministic",
             "time_dependent",
@@ -6588,11 +6592,11 @@
           "type": "array"
         },
         "params_required": {
-          "description": "Whether params are required for this predicate.",
+          "description": "Whether params are required for this check.",
           "type": "boolean"
         },
         "params_schema": {
-          "description": "JSON schema for predicate params.",
+          "description": "JSON schema for check params.",
           "type": [
             "null",
             "boolean",
@@ -6602,16 +6606,12 @@
             "object"
           ]
         },
-        "predicate": {
-          "description": "Predicate name.",
-          "type": "string"
-        },
         "provider_id": {
           "description": "Provider identifier.",
           "type": "string"
         },
         "result_schema": {
-          "description": "JSON schema for predicate result value.",
+          "description": "JSON schema for check result value.",
           "type": [
             "null",
             "boolean",
@@ -6624,7 +6624,7 @@
       },
       "required": [
         "provider_id",
-        "predicate",
+        "check_id",
         "params_required",
         "params_schema",
         "result_schema",
@@ -7823,8 +7823,8 @@
                 "items": {
                   "additionalProperties": false,
                   "properties": {
-                    "predicate": {
-                      "description": "Predicate identifier.",
+                    "condition_id": {
+                      "description": "Condition identifier.",
                       "type": "string"
                     },
                     "status": {
@@ -7838,7 +7838,7 @@
                     }
                   },
                   "required": [
-                    "predicate",
+                    "condition_id",
                     "status"
                   ],
                   "type": "object"

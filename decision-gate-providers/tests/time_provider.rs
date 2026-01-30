@@ -2,18 +2,18 @@
 // ============================================================================
 // Module: Time Provider Tests
 // Description: Comprehensive tests for trigger-time evidence provider.
-// Purpose: Validate deterministic time predicates and fail-closed behavior.
+// Purpose: Validate deterministic time checks and fail-closed behavior.
 // Dependencies: decision-gate-providers, decision-gate-core, serde_json
 // ============================================================================
 
 //! ## Overview
 //! Tests the time provider for:
-//! - Happy path: now, after, before predicates
+//! - Happy path: now, after, before checks
 //! - Boundary enforcement: logical timestamp policy
-//! - Error handling: invalid parameters, unsupported predicates
+//! - Error handling: invalid parameters, unsupported checks
 //! - Edge cases: timestamp overflow, RFC3339 parsing, mixed types
 //!
-//! Security posture: Time predicates must derive from trigger context only,
+//! Security posture: Time checks must derive from trigger context only,
 //! never wall-clock time, to preserve deterministic replay.
 //! See: `Docs/security/threat_model.md`
 
@@ -46,7 +46,7 @@ use crate::common::sample_context_unix_millis;
 use crate::common::sample_context_with_time;
 
 // ============================================================================
-// SECTION: Happy Path Tests - Now Predicate
+// SECTION: Happy Path Tests - Now Check
 // ============================================================================
 
 /// Tests that the time provider returns trigger time for "now" with Unix millis.
@@ -55,7 +55,7 @@ fn time_provider_returns_trigger_time_for_now() {
     let provider = TimeProvider::new(TimeProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "now".to_string(),
+        check_id: "now".to_string(),
         params: None,
     };
     let context = sample_context_unix_millis(1234);
@@ -74,7 +74,7 @@ fn time_provider_now_returns_logical_timestamp() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "now".to_string(),
+        check_id: "now".to_string(),
         params: None,
     };
     let context = sample_context_with_time(Timestamp::Logical(42));
@@ -91,7 +91,7 @@ fn time_provider_sets_evidence_anchor_unix() {
     let provider = TimeProvider::new(TimeProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "now".to_string(),
+        check_id: "now".to_string(),
         params: None,
     };
     let context = sample_context_unix_millis(9999);
@@ -109,7 +109,7 @@ fn time_provider_sets_evidence_anchor_logical() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "now".to_string(),
+        check_id: "now".to_string(),
         params: None,
     };
     let context = sample_context_with_time(Timestamp::Logical(100));
@@ -120,7 +120,7 @@ fn time_provider_sets_evidence_anchor_logical() {
 }
 
 // ============================================================================
-// SECTION: Happy Path Tests - After Predicate
+// SECTION: Happy Path Tests - After Check
 // ============================================================================
 
 /// Tests that "after" returns true when trigger time is after threshold.
@@ -129,7 +129,7 @@ fn time_provider_after_comparison_true() {
     let provider = TimeProvider::new(TimeProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "after".to_string(),
+        check_id: "after".to_string(),
         params: Some(json!({"timestamp": 1000})),
     };
     let context = sample_context_unix_millis(1500);
@@ -146,7 +146,7 @@ fn time_provider_after_comparison_false() {
     let provider = TimeProvider::new(TimeProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "after".to_string(),
+        check_id: "after".to_string(),
         params: Some(json!({"timestamp": 2000})),
     };
     let context = sample_context_unix_millis(1500);
@@ -163,7 +163,7 @@ fn time_provider_after_comparison_equal() {
     let provider = TimeProvider::new(TimeProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "after".to_string(),
+        check_id: "after".to_string(),
         params: Some(json!({"timestamp": 1000})),
     };
     let context = sample_context_unix_millis(1000);
@@ -175,7 +175,7 @@ fn time_provider_after_comparison_equal() {
 }
 
 // ============================================================================
-// SECTION: Happy Path Tests - Before Predicate
+// SECTION: Happy Path Tests - Before Check
 // ============================================================================
 
 /// Tests that "before" returns true when trigger time is before threshold.
@@ -184,7 +184,7 @@ fn time_provider_before_comparison_true() {
     let provider = TimeProvider::new(TimeProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "before".to_string(),
+        check_id: "before".to_string(),
         params: Some(json!({"timestamp": 2000})),
     };
     let context = sample_context_unix_millis(1500);
@@ -201,7 +201,7 @@ fn time_provider_before_comparison_false() {
     let provider = TimeProvider::new(TimeProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "before".to_string(),
+        check_id: "before".to_string(),
         params: Some(json!({"timestamp": 1000})),
     };
     let context = sample_context_unix_millis(1500);
@@ -218,7 +218,7 @@ fn time_provider_before_comparison_equal() {
     let provider = TimeProvider::new(TimeProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "before".to_string(),
+        check_id: "before".to_string(),
         params: Some(json!({"timestamp": 1000})),
     };
     let context = sample_context_unix_millis(1000);
@@ -241,7 +241,7 @@ fn time_provider_after_logical_timestamps() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "after".to_string(),
+        check_id: "after".to_string(),
         params: Some(json!({"timestamp": 10})),
     };
     let context = sample_context_with_time(Timestamp::Logical(15));
@@ -260,7 +260,7 @@ fn time_provider_before_logical_timestamps() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "before".to_string(),
+        check_id: "before".to_string(),
         params: Some(json!({"timestamp": 20})),
     };
     let context = sample_context_with_time(Timestamp::Logical(15));
@@ -285,7 +285,7 @@ fn time_logical_disabled_rejects_now_with_logical() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "now".to_string(),
+        check_id: "now".to_string(),
         params: None,
     };
     let context = sample_context_with_time(Timestamp::Logical(42));
@@ -303,7 +303,7 @@ fn time_logical_disabled_rejects_after_with_logical() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "after".to_string(),
+        check_id: "after".to_string(),
         params: Some(json!({"timestamp": 10})),
     };
     let context = sample_context_with_time(Timestamp::Logical(15));
@@ -324,7 +324,7 @@ fn time_rfc3339_parsing_after() {
     // 2024-01-01T00:00:00Z = 1704067200000 ms
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "after".to_string(),
+        check_id: "after".to_string(),
         params: Some(json!({"timestamp": "2024-01-01T00:00:00Z"})),
     };
     // Use a time after 2024-01-01
@@ -342,7 +342,7 @@ fn time_rfc3339_parsing_before() {
     let provider = TimeProvider::new(TimeProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "before".to_string(),
+        check_id: "before".to_string(),
         params: Some(json!({"timestamp": "2024-01-01T00:00:00Z"})),
     };
     // Use a time before 2024-01-01
@@ -360,7 +360,7 @@ fn time_rfc3339_invalid_format_rejected() {
     let provider = TimeProvider::new(TimeProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "after".to_string(),
+        check_id: "after".to_string(),
         params: Some(json!({"timestamp": "not-a-timestamp"})),
     };
     let context = sample_context_unix_millis(1000);
@@ -374,13 +374,13 @@ fn time_rfc3339_invalid_format_rejected() {
 // SECTION: Error Path Tests - Invalid Parameters
 // ============================================================================
 
-/// Tests that unsupported predicates are rejected.
+/// Tests that unsupported checks are rejected.
 #[test]
-fn time_unsupported_predicate_rejected() {
+fn time_unsupported_check_rejected() {
     let provider = TimeProvider::new(TimeProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "unknown".to_string(),
+        check_id: "unknown".to_string(),
         params: None,
     };
     let context = sample_context_unix_millis(1000);
@@ -396,7 +396,7 @@ fn time_after_missing_params_rejected() {
     let provider = TimeProvider::new(TimeProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "after".to_string(),
+        check_id: "after".to_string(),
         params: None,
     };
     let context = sample_context_unix_millis(1000);
@@ -412,7 +412,7 @@ fn time_params_not_object_rejected() {
     let provider = TimeProvider::new(TimeProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "after".to_string(),
+        check_id: "after".to_string(),
         params: Some(json!("not_an_object")),
     };
     let context = sample_context_unix_millis(1000);
@@ -428,7 +428,7 @@ fn time_missing_timestamp_param_rejected() {
     let provider = TimeProvider::new(TimeProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "after".to_string(),
+        check_id: "after".to_string(),
         params: Some(json!({"other": "value"})),
     };
     let context = sample_context_unix_millis(1000);
@@ -444,7 +444,7 @@ fn time_timestamp_invalid_type_rejected() {
     let provider = TimeProvider::new(TimeProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "after".to_string(),
+        check_id: "after".to_string(),
         params: Some(json!({"timestamp": true})),
     };
     let context = sample_context_unix_millis(1000);
@@ -462,7 +462,7 @@ fn time_logical_timestamp_negative_rejected() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "after".to_string(),
+        check_id: "after".to_string(),
         params: Some(json!({"timestamp": -5})),
     };
     let context = sample_context_with_time(Timestamp::Logical(10));
@@ -482,7 +482,7 @@ fn time_negative_unix_timestamp_handling() {
     let provider = TimeProvider::new(TimeProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "after".to_string(),
+        check_id: "after".to_string(),
         params: Some(json!({"timestamp": -1000})),
     };
     let context = sample_context_unix_millis(0);
@@ -499,7 +499,7 @@ fn time_content_type_set() {
     let provider = TimeProvider::new(TimeProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "now".to_string(),
+        check_id: "now".to_string(),
         params: None,
     };
     let context = sample_context_unix_millis(1000);
@@ -513,7 +513,7 @@ fn time_large_unix_timestamp_handling() {
     let provider = TimeProvider::new(TimeProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "now".to_string(),
+        check_id: "now".to_string(),
         params: None,
     };
     // Year 3000 approximately
@@ -531,7 +531,7 @@ fn time_zero_timestamp_handling() {
     let provider = TimeProvider::new(TimeProviderConfig::default());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "now".to_string(),
+        check_id: "now".to_string(),
         params: None,
     };
     let context = sample_context_unix_millis(0);
@@ -550,7 +550,7 @@ fn time_zero_logical_timestamp_handling() {
     });
     let query = EvidenceQuery {
         provider_id: ProviderId::new("time"),
-        predicate: "now".to_string(),
+        check_id: "now".to_string(),
         params: None,
     };
     let context = sample_context_with_time(Timestamp::Logical(0));

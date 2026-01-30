@@ -2,7 +2,7 @@
 // ============================================================================
 // Module: Strict Comparator Validation
 // Description: Enforces strict comparator compatibility with schema types.
-// Purpose: Reject invalid predicate definitions before runtime evaluation.
+// Purpose: Reject invalid condition definitions before runtime evaluation.
 // Dependencies: decision-gate-core, jsonschema
 // ============================================================================
 
@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
 use decision_gate_core::Comparator;
-use decision_gate_core::PredicateSpec;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::ScenarioSpec;
 use jsonschema::Draft;
 use jsonschema::Validator;
@@ -28,7 +28,7 @@ use crate::config::ValidationConfig;
 /// Strict validation error.
 #[derive(Debug, Error)]
 pub enum ValidationError {
-    /// Invalid predicate definition or schema constraints.
+    /// Invalid condition definition or schema constraints.
     #[error("{0}")]
     Invalid(String),
 }
@@ -59,7 +59,7 @@ impl StrictValidator {
     ///
     /// # Errors
     ///
-    /// Returns [`ValidationError`] when predicate comparators are invalid or schemas are invalid.
+    /// Returns [`ValidationError`] when condition comparators are invalid or schemas are invalid.
     pub fn validate_spec(
         &self,
         spec: &ScenarioSpec,
@@ -68,14 +68,14 @@ impl StrictValidator {
         if !self.config.strict {
             return Ok(());
         }
-        for predicate in &spec.predicates {
+        for condition in &spec.conditions {
             let contract = capabilities
-                .predicate_contract(
-                    predicate.query.provider_id.as_str(),
-                    predicate.query.predicate.as_str(),
+                .check_contract(
+                    condition.query.provider_id.as_str(),
+                    condition.query.check_id.as_str(),
                 )
                 .map_err(|err| ValidationError::Invalid(err.to_string()))?;
-            self.validate_predicate_schema(predicate, &contract.result_schema)?;
+            self.validate_condition_schema(condition, &contract.result_schema)?;
         }
         Ok(())
     }
@@ -84,7 +84,7 @@ impl StrictValidator {
     ///
     /// # Errors
     ///
-    /// Returns [`ValidationError`] when predicate comparators are invalid or schemas are invalid.
+    /// Returns [`ValidationError`] when condition comparators are invalid or schemas are invalid.
     pub fn validate_precheck(
         &self,
         spec: &ScenarioSpec,
@@ -95,20 +95,20 @@ impl StrictValidator {
         }
 
         let variants = schema_variants(data_shape)?;
-        for predicate in &spec.predicates {
-            let predicate_schema_variants =
-                predicate_schema_variants(predicate, spec.predicates.len(), &variants)?;
-            for variant in predicate_schema_variants {
-                self.validate_predicate_schema(predicate, variant)?;
+        for condition in &spec.conditions {
+            let condition_schema_variants =
+                condition_schema_variants(condition, spec.conditions.len(), &variants)?;
+            for variant in condition_schema_variants {
+                self.validate_condition_schema(condition, variant)?;
             }
         }
         Ok(())
     }
 
-    /// Validates a predicate against a single schema fragment.
-    fn validate_predicate_schema(
+    /// Validates a condition against a single schema fragment.
+    fn validate_condition_schema(
         &self,
-        predicate: &PredicateSpec,
+        condition: &ConditionSpec,
         schema: &Value,
     ) -> Result<(), ValidationError> {
         let allowed_override = allowed_comparators_override(schema)?;
@@ -116,55 +116,55 @@ impl StrictValidator {
 
         let allowances = comparator_allowances(schema)?;
         let allowance = allowances
-            .get(&predicate.comparator)
+            .get(&condition.comparator)
             .copied()
             .unwrap_or(ComparatorAllowance::Forbidden);
 
-        if !comparator_enabled(&self.config, predicate.comparator) {
+        if !comparator_enabled(&self.config, condition.comparator) {
             return Err(ValidationError::Invalid(format!(
-                "predicate {} comparator {} is disabled by config",
-                predicate.predicate.as_str(),
-                comparator_label(predicate.comparator)
+                "condition {} comparator {} is disabled by config",
+                condition.condition_id.as_str(),
+                comparator_label(condition.comparator)
             )));
         }
 
         if allowance == ComparatorAllowance::Forbidden {
             return Err(ValidationError::Invalid(format!(
-                "predicate {} comparator {} not allowed for schema type",
-                predicate.predicate.as_str(),
-                comparator_label(predicate.comparator)
+                "condition {} comparator {} not allowed for schema type",
+                condition.condition_id.as_str(),
+                comparator_label(condition.comparator)
             )));
         }
 
         if allowance == ComparatorAllowance::OptIn {
             let Some(override_list) = allowed_override.as_ref() else {
                 return Err(ValidationError::Invalid(format!(
-                    "predicate {} comparator {} requires explicit opt-in",
-                    predicate.predicate.as_str(),
-                    comparator_label(predicate.comparator)
+                    "condition {} comparator {} requires explicit opt-in",
+                    condition.condition_id.as_str(),
+                    comparator_label(condition.comparator)
                 )));
             };
-            if !override_list.contains(&predicate.comparator) {
+            if !override_list.contains(&condition.comparator) {
                 return Err(ValidationError::Invalid(format!(
-                    "predicate {} comparator {} not in allowed_comparators",
-                    predicate.predicate.as_str(),
-                    comparator_label(predicate.comparator)
+                    "condition {} comparator {} not in allowed_comparators",
+                    condition.condition_id.as_str(),
+                    comparator_label(condition.comparator)
                 )));
             }
         }
 
         if let Some(override_list) = allowed_override.as_ref()
-            && !override_list.contains(&predicate.comparator)
+            && !override_list.contains(&condition.comparator)
         {
             return Err(ValidationError::Invalid(format!(
-                "predicate {} comparator {} not in allowed_comparators",
-                predicate.predicate.as_str(),
-                comparator_label(predicate.comparator)
+                "condition {} comparator {} not in allowed_comparators",
+                condition.condition_id.as_str(),
+                comparator_label(condition.comparator)
             )));
         }
 
         let compiled = compile_schema(schema)?;
-        validate_expected_value(predicate, &compiled)?;
+        validate_expected_value(condition, &compiled)?;
         Ok(())
     }
 }
@@ -584,35 +584,35 @@ fn validate_allowed_override(
     Ok(())
 }
 
-/// Validates predicate expected values against the compiled schema.
+/// Validates condition expected values against the compiled schema.
 fn validate_expected_value(
-    predicate: &PredicateSpec,
+    condition: &ConditionSpec,
     schema: &Validator,
 ) -> Result<(), ValidationError> {
-    match predicate.comparator {
+    match condition.comparator {
         Comparator::Exists | Comparator::NotExists => {
-            if predicate.expected.is_some() {
+            if condition.expected.is_some() {
                 return Err(ValidationError::Invalid(format!(
-                    "predicate {} comparator {} does not accept expected values",
-                    predicate.predicate.as_str(),
-                    comparator_label(predicate.comparator)
+                    "condition {} comparator {} does not accept expected values",
+                    condition.condition_id.as_str(),
+                    comparator_label(condition.comparator)
                 )));
             }
             Ok(())
         }
         Comparator::InSet => {
-            let expected = predicate.expected.as_ref().ok_or_else(|| {
+            let expected = condition.expected.as_ref().ok_or_else(|| {
                 ValidationError::Invalid(format!(
-                    "predicate {} comparator {} requires expected array",
-                    predicate.predicate.as_str(),
-                    comparator_label(predicate.comparator)
+                    "condition {} comparator {} requires expected array",
+                    condition.condition_id.as_str(),
+                    comparator_label(condition.comparator)
                 ))
             })?;
             let Value::Array(values) = expected else {
                 return Err(ValidationError::Invalid(format!(
-                    "predicate {} comparator {} requires expected array",
-                    predicate.predicate.as_str(),
-                    comparator_label(predicate.comparator)
+                    "condition {} comparator {} requires expected array",
+                    condition.condition_id.as_str(),
+                    comparator_label(condition.comparator)
                 )));
             };
             for value in values {
@@ -620,8 +620,8 @@ fn validate_expected_value(
                     schema.iter_errors(value).map(|err| err.to_string()).collect();
                 if !messages.is_empty() {
                     return Err(ValidationError::Invalid(format!(
-                        "predicate {} expected value invalid: {}",
-                        predicate.predicate.as_str(),
+                        "condition {} expected value invalid: {}",
+                        condition.condition_id.as_str(),
                         messages.join("; ")
                     )));
                 }
@@ -629,16 +629,16 @@ fn validate_expected_value(
             Ok(())
         }
         _ => {
-            let expected = predicate.expected.as_ref().ok_or_else(|| {
+            let expected = condition.expected.as_ref().ok_or_else(|| {
                 ValidationError::Invalid(format!(
-                    "predicate {} comparator {} requires expected value",
-                    predicate.predicate.as_str(),
-                    comparator_label(predicate.comparator)
+                    "condition {} comparator {} requires expected value",
+                    condition.condition_id.as_str(),
+                    comparator_label(condition.comparator)
                 ))
             })?;
             if expected.is_null()
                 && matches!(
-                    predicate.comparator,
+                    condition.comparator,
                     Comparator::GreaterThan
                         | Comparator::GreaterThanOrEqual
                         | Comparator::LessThan
@@ -653,17 +653,17 @@ fn validate_expected_value(
                 )
             {
                 return Err(ValidationError::Invalid(format!(
-                    "predicate {} comparator {} does not accept null expected values",
-                    predicate.predicate.as_str(),
-                    comparator_label(predicate.comparator)
+                    "condition {} comparator {} does not accept null expected values",
+                    condition.condition_id.as_str(),
+                    comparator_label(condition.comparator)
                 )));
             }
             let messages: Vec<String> =
                 schema.iter_errors(expected).map(|err| err.to_string()).collect();
             if !messages.is_empty() {
                 return Err(ValidationError::Invalid(format!(
-                    "predicate {} expected value invalid: {}",
-                    predicate.predicate.as_str(),
+                    "condition {} expected value invalid: {}",
+                    condition.condition_id.as_str(),
                     messages.join("; ")
                 )));
             }
@@ -754,29 +754,29 @@ fn is_null_schema(schema: &Value) -> Result<bool, ValidationError> {
     Ok(false)
 }
 
-/// Resolves predicate-specific schema variants from a union.
-fn predicate_schema_variants<'a>(
-    predicate: &PredicateSpec,
-    predicate_count: usize,
+/// Resolves condition-specific schema variants from a union.
+fn condition_schema_variants<'a>(
+    condition: &ConditionSpec,
+    condition_count: usize,
     variants: &'a [&'a Value],
 ) -> Result<Vec<&'a Value>, ValidationError> {
     let mut schemas = Vec::with_capacity(variants.len());
     for variant in variants {
-        let schema = schema_for_predicate(predicate, predicate_count, variant)?;
+        let schema = schema_for_condition(condition, condition_count, variant)?;
         schemas.push(schema);
     }
     Ok(schemas)
 }
 
-/// Selects the schema fragment for a specific predicate.
-fn schema_for_predicate<'a>(
-    predicate: &PredicateSpec,
-    predicate_count: usize,
+/// Selects the schema fragment for a specific condition.
+fn schema_for_condition<'a>(
+    condition: &ConditionSpec,
+    condition_count: usize,
     schema: &'a Value,
 ) -> Result<&'a Value, ValidationError> {
     if schema_is_object(schema) {
         if let Some(properties) = schema.get("properties").and_then(Value::as_object)
-            && let Some(property_schema) = properties.get(predicate.predicate.as_str())
+            && let Some(property_schema) = properties.get(condition.condition_id.as_str())
         {
             return Ok(property_schema);
         }
@@ -787,23 +787,23 @@ fn schema_for_predicate<'a>(
             }
             if additional == &Value::Bool(true) {
                 return Err(ValidationError::Invalid(format!(
-                    "schema allows untyped additionalProperties for predicate {}",
-                    predicate.predicate.as_str()
+                    "schema allows untyped additionalProperties for condition {}",
+                    condition.condition_id.as_str()
                 )));
             }
         }
         return Err(ValidationError::Invalid(format!(
-            "predicate {} missing from data shape schema",
-            predicate.predicate.as_str()
+            "condition {} missing from data shape schema",
+            condition.condition_id.as_str()
         )));
     }
 
-    if predicate_count == 1 {
+    if condition_count == 1 {
         return Ok(schema);
     }
 
     Err(ValidationError::Invalid(
-        "non-object data shape requires exactly one predicate".to_string(),
+        "non-object data shape requires exactly one condition".to_string(),
     ))
 }
 

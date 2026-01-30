@@ -5,35 +5,6 @@
   "default_tenant_id": 1,
   "policies": [],
   "schemas": [],
-  "predicates": [
-    {
-      "predicate": "attack_mode",
-      "query": {
-        "provider_id": "env",
-        "predicate": "get",
-        "params": {
-          "key": "ATTACK_MODE"
-        }
-      },
-      "comparator": "equals",
-      "expected": "enabled",
-      "policy_tags": []
-    },
-    {
-      "predicate": "payload_allowed",
-      "query": {
-        "provider_id": "json",
-        "predicate": "path",
-        "params": {
-          "file": "attack_payload.json",
-          "jsonpath": "$.allowed"
-        }
-      },
-      "comparator": "equals",
-      "expected": true,
-      "policy_tags": []
-    }
-  ],
   "stages": [
     {
       "stage_id": "main",
@@ -44,10 +15,10 @@
           "requirement": {
             "And": [
               {
-                "Predicate": "attack_mode"
+                "Condition": "attack_mode"
               },
               {
-                "Predicate": "payload_allowed"
+                "Condition": "payload_allowed"
               }
             ]
           }
@@ -58,6 +29,35 @@
       },
       "timeout": null,
       "on_timeout": "fail"
+    }
+  ],
+  "conditions": [
+    {
+      "query": {
+        "provider_id": "env",
+        "params": {
+          "key": "ATTACK_MODE"
+        },
+        "check_id": "get"
+      },
+      "comparator": "equals",
+      "expected": "enabled",
+      "policy_tags": [],
+      "condition_id": "attack_mode"
+    },
+    {
+      "query": {
+        "provider_id": "json",
+        "params": {
+          "file": "attack_payload.json",
+          "jsonpath": "$.allowed"
+        },
+        "check_id": "path"
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": [],
+      "condition_id": "payload_allowed"
     }
   ]
 }

@@ -49,7 +49,7 @@ interface ToolCallParams {
 
 interface EvidenceQuery {
   provider_id: string;
-  predicate: string;
+  check_id: string;
   params?: Record<string, unknown>;
 }
 

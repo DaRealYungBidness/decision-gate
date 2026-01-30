@@ -15,6 +15,7 @@ use rcgen::CertificateParams;
 use rcgen::DistinguishedName;
 use rcgen::DnType;
 use rcgen::IsCa;
+use rcgen::Issuer;
 use rcgen::KeyPair;
 use tempfile::TempDir;
 
@@ -28,9 +29,9 @@ pub struct GeneratedTls {
 
 pub fn generate_tls_fixtures() -> Result<GeneratedTls, Box<dyn std::error::Error>> {
     let tempdir = tempfile::Builder::new().prefix("dg-tls").tempdir()?;
-    let (ca, ca_key) = generate_ca()?;
-    let (server, server_key_pair) = generate_server_cert(&ca, &ca_key)?;
-    let (client, client_key_pair) = generate_client_cert(&ca, &ca_key)?;
+    let (ca, issuer) = generate_ca()?;
+    let (server, server_key_pair) = generate_server_cert(&issuer)?;
+    let (client, client_key_pair) = generate_client_cert(&issuer)?;
 
     let ca_pem = tempdir.path().join("ca.pem");
     let server_cert = tempdir.path().join("server.pem");
@@ -57,37 +58,36 @@ pub fn generate_tls_fixtures() -> Result<GeneratedTls, Box<dyn std::error::Error
     })
 }
 
-fn generate_ca() -> Result<(Certificate, KeyPair), Box<dyn std::error::Error>> {
+fn generate_ca() -> Result<(Certificate, Issuer<'static, KeyPair>), Box<dyn std::error::Error>> {
     let key = KeyPair::generate()?;
     let mut params = CertificateParams::default();
     params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
     params.distinguished_name = distinguished_name("Decision Gate Test CA");
     let cert = params.self_signed(&key)?;
-    Ok((cert, key))
+    let issuer = Issuer::new(params, key);
+    Ok((cert, issuer))
 }
 
 fn generate_server_cert(
-    ca: &Certificate,
-    ca_key: &KeyPair,
+    issuer: &Issuer<'_, KeyPair>,
 ) -> Result<(Certificate, KeyPair), Box<dyn std::error::Error>> {
     let key = KeyPair::generate()?;
     let mut params =
         CertificateParams::new(vec!["localhost".to_string(), "127.0.0.1".to_string()])?;
     params.distinguished_name = distinguished_name("Decision Gate Test Server");
     params.is_ca = IsCa::NoCa;
-    let cert = params.signed_by(&key, ca, ca_key)?;
+    let cert = params.signed_by(&key, issuer)?;
     Ok((cert, key))
 }
 
 fn generate_client_cert(
-    ca: &Certificate,
-    ca_key: &KeyPair,
+    issuer: &Issuer<'_, KeyPair>,
 ) -> Result<(Certificate, KeyPair), Box<dyn std::error::Error>> {
     let key = KeyPair::generate()?;
     let mut params = CertificateParams::default();
     params.distinguished_name = distinguished_name("Decision Gate Test Client");
     params.is_ca = IsCa::NoCa;
-    let cert = params.signed_by(&key, ca, ca_key)?;
+    let cert = params.signed_by(&key, issuer)?;
     Ok((cert, key))
 }
 

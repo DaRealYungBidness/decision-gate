@@ -38,10 +38,10 @@ use support::ensure;
 /// Tests error creation.
 #[test]
 fn test_error_creation() -> TestResult {
-    let err1 = RequirementError::predicate_failed("Health too low");
+    let err1 = RequirementError::condition_failed("Health too low");
     ensure(
-        matches!(err1, RequirementError::PredicateFailed(_)),
-        "Expected PredicateFailed for predicate_failed helper",
+        matches!(err1, RequirementError::ConditionFailed(_)),
+        "Expected ConditionFailed for condition_failed helper",
     )?;
 
     let err2 = RequirementError::other("Custom error");
@@ -68,11 +68,11 @@ fn test_user_messages() -> TestResult {
     let msg = err.user_message();
     ensure(msg.contains("3 more"), "Expected count delta in user message")?;
 
-    let err = RequirementError::PredicateFailed("You need more strength".to_string());
+    let err = RequirementError::ConditionFailed("You need more strength".to_string());
     let msg = err.user_message();
     ensure(
         msg == "You need more strength",
-        "Expected predicate message to pass through unchanged",
+        "Expected condition message to pass through unchanged",
     )?;
     Ok(())
 }
@@ -107,7 +107,7 @@ fn test_conversions() -> TestResult {
 /// Tests serialization.
 #[test]
 fn test_serialization() -> TestResult {
-    let err = RequirementError::PredicateFailed("Test".to_string());
+    let err = RequirementError::ConditionFailed("Test".to_string());
     let serialized = serde_json::to_string(&err)?;
     let deserialized: RequirementError = serde_json::from_str(&serialized)?;
     ensure(err == deserialized, "Expected serde roundtrip to preserve error")?;

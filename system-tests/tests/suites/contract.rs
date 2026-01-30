@@ -240,7 +240,7 @@ async fn schema_conformance_all_tools() -> Result<(), Box<dyn Error>> {
     let evidence_request = EvidenceQueryRequest {
         query: EvidenceQuery {
             provider_id: ProviderId::new("time"),
-            predicate: "now".to_string(),
+            check_id: "now".to_string(),
             params: None,
         },
         context,

@@ -7,9 +7,11 @@
     "type": "object",
     "additionalProperties": false
   },
-  "predicates": [
+  "notes": [
+    "Contract for provider template system-tests."
+  ],
+  "checks": [
     {
-      "name": "value",
       "description": "Return the params.value field as JSON.",
       "determinism": "deterministic",
       "params_required": true,
@@ -54,10 +56,8 @@
           },
           "result": "example"
         }
-      ]
+      ],
+      "check_id": "value"
     }
-  ],
-  "notes": [
-    "Contract for provider template system-tests."
   ]
 }

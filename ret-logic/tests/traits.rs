@@ -1,12 +1,12 @@
 // ret-logic/tests/traits.rs
 // ============================================================================
 // Module: Traits Tests
-// Description: Tests for PredicateEval, BatchPredicateEval, and ReaderLen.
-// Purpose: Validate predicate evaluation trait helpers and reader utilities.
+// Description: Tests for ConditionEval, BatchConditionEval, and ReaderLen.
+// Purpose: Validate condition evaluation trait helpers and reader utilities.
 // Dependencies: ret_logic::traits
 // ============================================================================
 //! ## Overview
-//! Integration tests for predicate and reader traits.
+//! Integration tests for condition and reader traits.
 
 #![allow(
     clippy::panic,
@@ -25,9 +25,9 @@
 mod mocks;
 mod support;
 
-use mocks::MockPredicate;
+use mocks::MockCondition;
 use mocks::MockReader;
-use ret_logic::BatchPredicateEval;
+use ret_logic::BatchConditionEval;
 use ret_logic::Mask64;
 use ret_logic::ReaderLen;
 use ret_logic::Row;
@@ -39,9 +39,9 @@ use support::ensure;
 // SECTION: Mock Coverage
 // ========================================================================
 
-/// Tests mock predicate variants used.
+/// Tests mock condition variants used.
 #[test]
-fn test_mock_predicate_variants_used() {
+fn test_mock_condition_variants_used() {
     let _ = mocks::all_variants();
 }
 
@@ -81,13 +81,13 @@ fn test_reader_len_single() -> TestResult {
 }
 
 // ============================================================================
-// SECTION: BatchPredicateEval Default Implementation Tests
+// SECTION: BatchConditionEval Default Implementation Tests
 // ============================================================================
 
 /// Tests eval block empty.
 #[test]
 fn test_eval_block_empty() -> TestResult {
-    let pred = MockPredicate::AlwaysTrue;
+    let pred = MockCondition::AlwaysTrue;
     let values = vec![];
     let flags = vec![];
     let reader = MockReader::new(&values, &flags);
@@ -100,33 +100,33 @@ fn test_eval_block_empty() -> TestResult {
 /// Tests eval block single true.
 #[test]
 fn test_eval_block_single_true() -> TestResult {
-    let pred = MockPredicate::AlwaysTrue;
+    let pred = MockCondition::AlwaysTrue;
     let values = vec![0];
     let flags = vec![0];
     let reader = MockReader::new(&values, &flags);
 
     let mask = pred.eval_block(&reader, 0, 1);
-    ensure(mask == 0b1, "Expected single true predicate to set bit 0")?;
+    ensure(mask == 0b1, "Expected single true condition to set bit 0")?;
     Ok(())
 }
 
 /// Tests eval block single false.
 #[test]
 fn test_eval_block_single_false() -> TestResult {
-    let pred = MockPredicate::AlwaysFalse;
+    let pred = MockCondition::AlwaysFalse;
     let values = vec![0];
     let flags = vec![0];
     let reader = MockReader::new(&values, &flags);
 
     let mask = pred.eval_block(&reader, 0, 1);
-    ensure(mask == 0, "Expected single false predicate to return zero mask")?;
+    ensure(mask == 0, "Expected single false condition to return zero mask")?;
     Ok(())
 }
 
 /// Tests eval block multiple all true.
 #[test]
 fn test_eval_block_multiple_all_true() -> TestResult {
-    let pred = MockPredicate::AlwaysTrue;
+    let pred = MockCondition::AlwaysTrue;
     let values = vec![0; 8];
     let flags = vec![0; 8];
     let reader = MockReader::new(&values, &flags);
@@ -139,7 +139,7 @@ fn test_eval_block_multiple_all_true() -> TestResult {
 /// Tests eval block multiple all false.
 #[test]
 fn test_eval_block_multiple_all_false() -> TestResult {
-    let pred = MockPredicate::AlwaysFalse;
+    let pred = MockCondition::AlwaysFalse;
     let values = vec![0; 8];
     let flags = vec![0; 8];
     let reader = MockReader::new(&values, &flags);
@@ -152,7 +152,7 @@ fn test_eval_block_multiple_all_false() -> TestResult {
 /// Tests eval block alternating.
 #[test]
 fn test_eval_block_alternating() -> TestResult {
-    let pred = MockPredicate::RowIndexEven;
+    let pred = MockCondition::RowIndexEven;
     let values = vec![0; 8];
     let flags = vec![0; 8];
     let reader = MockReader::new(&values, &flags);
@@ -166,7 +166,7 @@ fn test_eval_block_alternating() -> TestResult {
 /// Tests eval block with offset.
 #[test]
 fn test_eval_block_with_offset() -> TestResult {
-    let pred = MockPredicate::RowIndexLt(5);
+    let pred = MockCondition::RowIndexLt(5);
     let values = vec![0; 10];
     let flags = vec![0; 10];
     let reader = MockReader::new(&values, &flags);
@@ -181,7 +181,7 @@ fn test_eval_block_with_offset() -> TestResult {
 /// Tests eval block value threshold.
 #[test]
 fn test_eval_block_value_threshold() -> TestResult {
-    let pred = MockPredicate::ValueGte(50);
+    let pred = MockCondition::ValueGte(50);
     let values = vec![0, 25, 50, 75, 100, 25, 50, 75];
     let flags = vec![0; 8];
     let reader = MockReader::new(&values, &flags);
@@ -195,7 +195,7 @@ fn test_eval_block_value_threshold() -> TestResult {
 /// Tests eval block full 64.
 #[test]
 fn test_eval_block_full_64() -> TestResult {
-    let pred = MockPredicate::RowIndexEven;
+    let pred = MockCondition::RowIndexEven;
     let values = vec![0; 64];
     let flags = vec![0; 64];
     let reader = MockReader::new(&values, &flags);
@@ -210,7 +210,7 @@ fn test_eval_block_full_64() -> TestResult {
 /// Tests eval block count clamped to 64.
 #[test]
 fn test_eval_block_count_clamped_to_64() -> TestResult {
-    let pred = MockPredicate::AlwaysTrue;
+    let pred = MockCondition::AlwaysTrue;
     let values = vec![0; 100];
     let flags = vec![0; 100];
     let reader = MockReader::new(&values, &flags);
@@ -224,7 +224,7 @@ fn test_eval_block_count_clamped_to_64() -> TestResult {
 /// Tests eval block partial window.
 #[test]
 fn test_eval_block_partial_window() -> TestResult {
-    let pred = MockPredicate::AlwaysTrue;
+    let pred = MockCondition::AlwaysTrue;
     let values = vec![0; 10];
     let flags = vec![0; 10];
     let reader = MockReader::new(&values, &flags);
@@ -243,7 +243,7 @@ fn test_eval_block_partial_window() -> TestResult {
 /// Tests eval reader rows empty.
 #[test]
 fn test_eval_reader_rows_empty() -> TestResult {
-    let pred = MockPredicate::AlwaysTrue;
+    let pred = MockCondition::AlwaysTrue;
     let reader = MockReader::new(&[], &[]);
 
     let rows = eval_reader_rows(&pred, &reader);
@@ -254,7 +254,7 @@ fn test_eval_reader_rows_empty() -> TestResult {
 /// Tests eval reader rows all pass.
 #[test]
 fn test_eval_reader_rows_all_pass() -> TestResult {
-    let pred = MockPredicate::AlwaysTrue;
+    let pred = MockCondition::AlwaysTrue;
     let values = vec![0; 10];
     let flags = vec![0; 10];
     let reader = MockReader::new(&values, &flags);
@@ -267,7 +267,7 @@ fn test_eval_reader_rows_all_pass() -> TestResult {
 /// Tests eval reader rows none pass.
 #[test]
 fn test_eval_reader_rows_none_pass() -> TestResult {
-    let pred = MockPredicate::AlwaysFalse;
+    let pred = MockCondition::AlwaysFalse;
     let values = vec![0; 10];
     let flags = vec![0; 10];
     let reader = MockReader::new(&values, &flags);
@@ -280,7 +280,7 @@ fn test_eval_reader_rows_none_pass() -> TestResult {
 /// Tests eval reader rows some pass.
 #[test]
 fn test_eval_reader_rows_some_pass() -> TestResult {
-    let pred = MockPredicate::ValueGte(50);
+    let pred = MockCondition::ValueGte(50);
     let values = vec![0, 25, 50, 75, 100];
     let flags = vec![0; 5];
     let reader = MockReader::new(&values, &flags);
@@ -293,7 +293,7 @@ fn test_eval_reader_rows_some_pass() -> TestResult {
 /// Tests eval reader rows alternating.
 #[test]
 fn test_eval_reader_rows_alternating() -> TestResult {
-    let pred = MockPredicate::RowIndexEven;
+    let pred = MockCondition::RowIndexEven;
     let values = vec![0; 10];
     let flags = vec![0; 10];
     let reader = MockReader::new(&values, &flags);
@@ -306,7 +306,7 @@ fn test_eval_reader_rows_alternating() -> TestResult {
 /// Tests eval reader rows large reader.
 #[test]
 fn test_eval_reader_rows_large_reader() -> TestResult {
-    let pred = MockPredicate::RowIndexLt(100);
+    let pred = MockCondition::RowIndexLt(100);
     let values = vec![0; 200];
     let flags = vec![0; 200];
     let reader = MockReader::new(&values, &flags);
@@ -321,7 +321,7 @@ fn test_eval_reader_rows_large_reader() -> TestResult {
 /// Tests eval reader rows exactly 64.
 #[test]
 fn test_eval_reader_rows_exactly_64() -> TestResult {
-    let pred = MockPredicate::AlwaysTrue;
+    let pred = MockCondition::AlwaysTrue;
     let values = vec![0; 64];
     let flags = vec![0; 64];
     let reader = MockReader::new(&values, &flags);
@@ -334,7 +334,7 @@ fn test_eval_reader_rows_exactly_64() -> TestResult {
 /// Tests eval reader rows just over 64.
 #[test]
 fn test_eval_reader_rows_just_over_64() -> TestResult {
-    let pred = MockPredicate::AlwaysTrue;
+    let pred = MockCondition::AlwaysTrue;
     let values = vec![0; 65];
     let flags = vec![0; 65];
     let reader = MockReader::new(&values, &flags);
@@ -348,7 +348,7 @@ fn test_eval_reader_rows_just_over_64() -> TestResult {
 /// Tests eval reader rows multiple windows.
 #[test]
 fn test_eval_reader_rows_multiple_windows() -> TestResult {
-    let pred = MockPredicate::AlwaysTrue;
+    let pred = MockCondition::AlwaysTrue;
     let values = vec![0; 150];
     let flags = vec![0; 150];
     let reader = MockReader::new(&values, &flags);

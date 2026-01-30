@@ -22,6 +22,8 @@
 
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionId;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::DispatchReceipt;
 use decision_gate_core::DispatchTarget;
 use decision_gate_core::Dispatcher;
@@ -36,8 +38,6 @@ use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketPayload;
 use decision_gate_core::PolicyDecider;
 use decision_gate_core::PolicyDecision;
-use decision_gate_core::PredicateKey;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::RunStateStore;
@@ -67,7 +67,7 @@ impl EvidenceProvider for TestEvidenceProvider {
         query: &EvidenceQuery,
         _ctx: &EvidenceContext,
     ) -> Result<EvidenceResult, decision_gate_core::EvidenceError> {
-        let value = match query.predicate.as_str() {
+        let value = match query.check_id.as_str() {
             "first" | "second" => json!(true),
             _ => json!(false),
         };
@@ -129,8 +129,8 @@ impl PolicyDecider for PermitAllPolicy {
 fn gate_eval_evidence_order_is_canonical() -> Result<(), Box<dyn std::error::Error>> {
     let scenario_id = ScenarioId::new("metamorphic-order");
     let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
-    let predicate_a = PredicateKey::new("first");
-    let predicate_b = PredicateKey::new("second");
+    let condition_a = ConditionId::new("first");
+    let condition_b = ConditionId::new("second");
 
     let spec = ScenarioSpec {
         scenario_id: scenario_id.clone(),
@@ -142,8 +142,8 @@ fn gate_eval_evidence_order_is_canonical() -> Result<(), Box<dyn std::error::Err
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-1"),
                 requirement: ret_logic::Requirement::and(vec![
-                    ret_logic::Requirement::predicate(predicate_b.clone()),
-                    ret_logic::Requirement::predicate(predicate_a.clone()),
+                    ret_logic::Requirement::condition(condition_b.clone()),
+                    ret_logic::Requirement::condition(condition_a.clone()),
                 ]),
                 trust: None,
             }],
@@ -151,12 +151,12 @@ fn gate_eval_evidence_order_is_canonical() -> Result<(), Box<dyn std::error::Err
             timeout: None,
             on_timeout: decision_gate_core::TimeoutPolicy::Fail,
         }],
-        predicates: vec![
-            PredicateSpec {
-                predicate: predicate_b,
+        conditions: vec![
+            ConditionSpec {
+                condition_id: condition_b,
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("test"),
-                    predicate: "second".to_string(),
+                    check_id: "second".to_string(),
                     params: None,
                 },
                 comparator: Comparator::Equals,
@@ -164,11 +164,11 @@ fn gate_eval_evidence_order_is_canonical() -> Result<(), Box<dyn std::error::Err
                 policy_tags: Vec::new(),
                 trust: None,
             },
-            PredicateSpec {
-                predicate: predicate_a,
+            ConditionSpec {
+                condition_id: condition_a,
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("test"),
-                    predicate: "first".to_string(),
+                    check_id: "first".to_string(),
                     params: None,
                 },
                 comparator: Comparator::Equals,
@@ -227,7 +227,7 @@ fn gate_eval_evidence_order_is_canonical() -> Result<(), Box<dyn std::error::Err
         .ok_or("missing gate eval")?
         .evidence
         .iter()
-        .map(|record| record.predicate.as_str().to_string())
+        .map(|record| record.condition_id.as_str().to_string())
         .collect::<Vec<_>>();
 
     if evidence != vec!["first".to_string(), "second".to_string()] {

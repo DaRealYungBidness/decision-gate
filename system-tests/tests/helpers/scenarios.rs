@@ -11,6 +11,8 @@ use std::num::NonZeroU64;
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::BranchRule;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionId;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::EvidenceContext;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::GateId;
@@ -20,8 +22,6 @@ use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketId;
 use decision_gate_core::PacketPayload;
 use decision_gate_core::PacketSpec;
-use decision_gate_core::PredicateKey;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::RunId;
@@ -65,7 +65,7 @@ impl ScenarioFixture {
         let scenario_id = ScenarioId::new(scenario_id);
         let namespace_id = default_namespace_id();
         let stage_id = StageId::new("stage-1");
-        let predicate_key = PredicateKey::new("after");
+        let condition_id = ConditionId::new("after");
         let spec = ScenarioSpec {
             scenario_id: scenario_id.clone(),
             namespace_id,
@@ -75,18 +75,18 @@ impl ScenarioFixture {
                 entry_packets: Vec::new(),
                 gates: vec![GateSpec {
                     gate_id: GateId::new("gate-time"),
-                    requirement: ret_logic::Requirement::predicate(predicate_key.clone()),
+                    requirement: ret_logic::Requirement::condition(condition_id.clone()),
                     trust: None,
                 }],
                 advance_to: AdvanceTo::Terminal,
                 timeout: None,
                 on_timeout: TimeoutPolicy::Fail,
             }],
-            predicates: vec![PredicateSpec {
-                predicate: predicate_key,
+            conditions: vec![ConditionSpec {
+                condition_id,
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("time"),
-                    predicate: "after".to_string(),
+                    check_id: "after".to_string(),
                     params: Some(json!({"timestamp": threshold})),
                 },
                 comparator: Comparator::Equals,
@@ -118,7 +118,7 @@ impl ScenarioFixture {
         let scenario_id = ScenarioId::new(scenario_id);
         let namespace_id = default_namespace_id();
         let stage_id = StageId::new("stage-1");
-        let predicate_key = PredicateKey::new("after");
+        let condition_id = ConditionId::new("after");
         let packet = PacketSpec {
             packet_id: PacketId::new("packet-1"),
             schema_id: SchemaId::new("schema-1"),
@@ -139,18 +139,18 @@ impl ScenarioFixture {
                 entry_packets: vec![packet],
                 gates: vec![GateSpec {
                     gate_id: GateId::new("gate-time"),
-                    requirement: ret_logic::Requirement::predicate(predicate_key.clone()),
+                    requirement: ret_logic::Requirement::condition(condition_id.clone()),
                     trust: None,
                 }],
                 advance_to: AdvanceTo::Terminal,
                 timeout: None,
                 on_timeout: TimeoutPolicy::Fail,
             }],
-            predicates: vec![PredicateSpec {
-                predicate: predicate_key,
+            conditions: vec![ConditionSpec {
+                condition_id,
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("time"),
-                    predicate: "after".to_string(),
+                    check_id: "after".to_string(),
                     params: Some(json!({"timestamp": 0})),
                 },
                 comparator: Comparator::Equals,
@@ -177,7 +177,7 @@ impl ScenarioFixture {
         let scenario_id = ScenarioId::new(scenario_id);
         let namespace_id = default_namespace_id();
         let stage_id = StageId::new("stage-1");
-        let predicate_key = PredicateKey::new("after");
+        let condition_id = ConditionId::new("after");
         let spec = ScenarioSpec {
             scenario_id: scenario_id.clone(),
             namespace_id,
@@ -187,7 +187,7 @@ impl ScenarioFixture {
                 entry_packets: Vec::new(),
                 gates: vec![GateSpec {
                     gate_id: GateId::new("gate-time"),
-                    requirement: ret_logic::Requirement::predicate(predicate_key.clone()),
+                    requirement: ret_logic::Requirement::condition(condition_id.clone()),
                     trust: None,
                 }],
                 advance_to: AdvanceTo::Terminal,
@@ -197,11 +197,11 @@ impl ScenarioFixture {
                 }),
                 on_timeout: TimeoutPolicy::Fail,
             }],
-            predicates: vec![PredicateSpec {
-                predicate: predicate_key,
+            conditions: vec![ConditionSpec {
+                condition_id,
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("time"),
-                    predicate: "after".to_string(),
+                    check_id: "after".to_string(),
                     params: Some(json!({"timestamp": 0})),
                 },
                 comparator: Comparator::Equals,
@@ -229,7 +229,7 @@ impl ScenarioFixture {
         let namespace_id = default_namespace_id();
         let stage1_id = StageId::new("stage-1");
         let stage2_id = StageId::new("stage-2");
-        let predicate_key = PredicateKey::new("after");
+        let condition_id = ConditionId::new("after");
         let spec = ScenarioSpec {
             scenario_id: scenario_id.clone(),
             namespace_id,
@@ -240,7 +240,7 @@ impl ScenarioFixture {
                     entry_packets: Vec::new(),
                     gates: vec![GateSpec {
                         gate_id: GateId::new("gate-time"),
-                        requirement: ret_logic::Requirement::predicate(predicate_key.clone()),
+                        requirement: ret_logic::Requirement::condition(condition_id.clone()),
                         trust: None,
                     }],
                     advance_to: AdvanceTo::Linear,
@@ -259,11 +259,11 @@ impl ScenarioFixture {
                     on_timeout: TimeoutPolicy::Fail,
                 },
             ],
-            predicates: vec![PredicateSpec {
-                predicate: predicate_key,
+            conditions: vec![ConditionSpec {
+                condition_id,
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("time"),
-                    predicate: "after".to_string(),
+                    check_id: "after".to_string(),
                     params: Some(json!({"timestamp": 0})),
                 },
                 comparator: Comparator::Equals,
@@ -291,7 +291,7 @@ impl ScenarioFixture {
         let namespace_id = default_namespace_id();
         let stage1_id = StageId::new("stage-1");
         let stage2_id = StageId::new("stage-alt");
-        let predicate_key = PredicateKey::new("after");
+        let condition_id = ConditionId::new("after");
         let spec = ScenarioSpec {
             scenario_id: scenario_id.clone(),
             namespace_id,
@@ -302,7 +302,7 @@ impl ScenarioFixture {
                     entry_packets: Vec::new(),
                     gates: vec![GateSpec {
                         gate_id: GateId::new("gate-time"),
-                        requirement: ret_logic::Requirement::predicate(predicate_key.clone()),
+                        requirement: ret_logic::Requirement::condition(condition_id.clone()),
                         trust: None,
                     }],
                     advance_to: AdvanceTo::Branch {
@@ -328,11 +328,11 @@ impl ScenarioFixture {
                     on_timeout: TimeoutPolicy::Fail,
                 },
             ],
-            predicates: vec![PredicateSpec {
-                predicate: predicate_key,
+            conditions: vec![ConditionSpec {
+                condition_id,
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("time"),
-                    predicate: "after".to_string(),
+                    check_id: "after".to_string(),
                     params: Some(json!({"timestamp": 0})),
                 },
                 comparator: Comparator::Equals,

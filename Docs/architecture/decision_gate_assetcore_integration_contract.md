@@ -121,7 +121,7 @@ These anchors must be captured in runpacks and used by offline verification.
 ### Required Inputs
 - `namespace_id` (DG)
 - ASC namespace identifier (mapped or numeric)
-- Predicate parameters (container_id, class_id, etc.)
+- Check parameters (container_id, class_id, etc.)
 
 ### Required Outputs
 - Evidence value or hash

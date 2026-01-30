@@ -18,12 +18,12 @@ use ret_logic::LogicMode;
 use ret_logic::Requirement;
 use ret_logic::RequirementTrace;
 use ret_logic::TriState;
-use ret_logic::TriStatePredicateEval;
+use ret_logic::TriStateConditionEval;
 
+use crate::core::ConditionId;
 use crate::core::GateEvaluation;
 use crate::core::GateSpec;
 use crate::core::GateTraceEntry;
-use crate::core::PredicateKey;
 use crate::core::state::EvidenceRecord;
 
 // ============================================================================
@@ -72,10 +72,10 @@ impl GateEvaluator {
 // SECTION: Evidence Snapshot
 // ============================================================================
 
-/// Evidence snapshot keyed by predicate identifier.
+/// Evidence snapshot keyed by condition identifier.
 #[derive(Debug, Clone, Default)]
 pub struct EvidenceSnapshot {
-    /// Evidence records keyed by predicate.
+    /// Evidence records keyed by condition.
     records: Vec<EvidenceRecord>,
 }
 
@@ -88,12 +88,12 @@ impl EvidenceSnapshot {
         }
     }
 
-    /// Returns the status for a predicate, or `Unknown` if missing.
+    /// Returns the status for a condition, or `Unknown` if missing.
     #[must_use]
-    pub fn status_for(&self, predicate: &PredicateKey) -> TriState {
+    pub fn status_for(&self, condition_id: &ConditionId) -> TriState {
         self.records
             .iter()
-            .find(|record| &record.predicate == predicate)
+            .find(|record| &record.condition_id == condition_id)
             .map_or(TriState::Unknown, |record| record.status)
     }
 
@@ -109,7 +109,7 @@ pub struct EvidenceReader<'a> {
     snapshot: &'a EvidenceSnapshot,
 }
 
-impl TriStatePredicateEval for PredicateKey {
+impl TriStateConditionEval for ConditionId {
     type Reader<'a> = EvidenceReader<'a>;
 
     fn eval_row_tristate(&self, reader: &Self::Reader<'_>, _row: usize) -> TriState {
@@ -128,46 +128,46 @@ struct GateTrace {
     entries: Vec<GateTraceEntry>,
 }
 
-impl RequirementTrace<PredicateKey> for GateTrace {
-    fn on_predicate_evaluated(&mut self, predicate: &PredicateKey, result: TriState) {
+impl RequirementTrace<ConditionId> for GateTrace {
+    fn on_condition_evaluated(&mut self, condition_id: &ConditionId, result: TriState) {
         self.entries.push(GateTraceEntry {
-            predicate: predicate.clone(),
+            condition_id: condition_id.clone(),
             status: result,
         });
     }
 }
 
 // ============================================================================
-// SECTION: Predicate Collection
+// SECTION: Condition Collection
 // ============================================================================
 
-/// Collects unique predicate keys in a requirement tree.
+/// Collects unique condition ids in a requirement tree.
 #[must_use]
-pub fn collect_predicates(requirement: &Requirement<PredicateKey>) -> Vec<PredicateKey> {
+pub fn collect_conditions(requirement: &Requirement<ConditionId>) -> Vec<ConditionId> {
     let mut out = Vec::new();
-    collect_predicates_inner(requirement, &mut out);
+    collect_conditions_inner(requirement, &mut out);
     out
 }
 
-/// Walks a requirement tree and appends predicate keys.
-fn collect_predicates_inner(requirement: &Requirement<PredicateKey>, out: &mut Vec<PredicateKey>) {
+/// Walks a requirement tree and appends condition ids.
+fn collect_conditions_inner(requirement: &Requirement<ConditionId>, out: &mut Vec<ConditionId>) {
     match requirement {
-        Requirement::Predicate(predicate) => {
-            if !out.contains(predicate) {
-                out.push(predicate.clone());
+        Requirement::Condition(condition_id) => {
+            if !out.contains(condition_id) {
+                out.push(condition_id.clone());
             }
         }
-        Requirement::Not(inner) => collect_predicates_inner(inner, out),
+        Requirement::Not(inner) => collect_conditions_inner(inner, out),
         Requirement::And(reqs) | Requirement::Or(reqs) => {
             for req in reqs {
-                collect_predicates_inner(req, out);
+                collect_conditions_inner(req, out);
             }
         }
         Requirement::RequireGroup {
             reqs, ..
         } => {
             for req in reqs {
-                collect_predicates_inner(req, out);
+                collect_conditions_inner(req, out);
             }
         }
     }

@@ -14,6 +14,7 @@ use std::io::Write;
 
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::DecisionOutcome;
 use decision_gate_core::DispatchReceipt;
 use decision_gate_core::DispatchTarget;
@@ -30,7 +31,6 @@ use decision_gate_core::PacketPayload;
 use decision_gate_core::PacketSpec;
 use decision_gate_core::PolicyDecider;
 use decision_gate_core::PolicyDecision;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::RunStatus;
@@ -140,7 +140,7 @@ fn build_spec(namespace_id: NamespaceId) -> ScenarioSpec {
                 entry_packets: Vec::new(),
                 gates: vec![GateSpec {
                     gate_id: GateId::new("gate-ready"),
-                    requirement: ret_logic::Requirement::predicate("ready".into()),
+                    requirement: ret_logic::Requirement::condition("ready".into()),
                     trust: None,
                 }],
                 advance_to: AdvanceTo::Linear,
@@ -166,11 +166,11 @@ fn build_spec(namespace_id: NamespaceId) -> ScenarioSpec {
                 on_timeout: decision_gate_core::TimeoutPolicy::Fail,
             },
         ],
-        predicates: vec![PredicateSpec {
-            predicate: "ready".into(),
+        conditions: vec![ConditionSpec {
+            condition_id: "ready".into(),
             query: EvidenceQuery {
                 provider_id: ProviderId::new("example"),
-                predicate: "ready".to_string(),
+                check_id: "ready".to_string(),
                 params: Some(json!({})),
             },
             comparator: Comparator::Equals,

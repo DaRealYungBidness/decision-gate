@@ -70,7 +70,7 @@ granularity. There are three practical levels:
 1) **Per-provider (contract-level)**  
    Return the full provider contract JSON. This is canonical and complete.
 
-2) **Per-predicate (schema-level)**  
+2) **Per-check (schema-level)**  
    Return a focused view: params schema, result schema, comparators, examples.
    This is what authoring tools actually need.
 
@@ -79,12 +79,12 @@ granularity. There are three practical levels:
    but raises size, performance, and disclosure risks.
 
 **World-class default**:
-- Support **per-provider** and **per-predicate** as first-class operations.
+- Support **per-provider** and **per-check** as first-class operations.
 - Provide **bulk export** only if it is explicitly enabled and size-limited.
 
 Implications:
 - Per-provider is best for audit and offline tooling.
-- Per-predicate is best for LLM authoring and UI forms.
+- Per-check is best for LLM authoring and UI forms.
 - Bulk export must be guarded by size limits and authz to avoid data sprawl.
 
 ---
@@ -110,19 +110,19 @@ Returns the exact provider contract JSON as loaded by MCP.
 }
 ```
 
-### 2) `provider_schema_get`
-Returns compiled, predicate-level schemas.
+### 2) `provider_check_schema_get`
+Returns compiled, check-level schemas.
 
 **Request**
 ```json
-{ "provider_id": "json", "predicate": "path" }
+{ "provider_id": "json", "check_id": "path" }
 ```
 
 **Response (shape)**
 ```json
 {
   "provider_id": "json",
-  "predicate": "path",
+  "check_id": "path",
   "params_schema": { ... },
   "result_schema": { ... },
   "allowed_comparators": [ "equals", "in_set", ... ],
@@ -142,7 +142,7 @@ enabled and size-limited.
 The CLI must call the same shared registry functions as MCP.
 
 - `decision-gate-cli provider contract get --provider json`
-- `decision-gate-cli provider schema get --provider json --predicate path`
+- `decision-gate-cli provider check-schema get --provider json --check-id path`
 - `decision-gate-cli provider contracts export` (optional + gated)
 
 CLI output must be identical (canonical JSON) to MCP output for the same input.
@@ -180,7 +180,7 @@ CLI output must be identical (canonical JSON) to MCP output for the same input.
 ### Phase 1: Core API (done)
 - Registry accessors return:
   - raw contract by provider_id
-  - compiled schema by provider_id + predicate
+  - compiled schema by provider_id + check_id
 - Canonical hashing added for responses.
 
 ### Phase 2: MCP Tools (done)
@@ -214,7 +214,7 @@ CLI output must be identical (canonical JSON) to MCP output for the same input.
 
 - **Config surface:** `provider_discovery` supports `allowlist`, `denylist`,
   and `max_response_bytes` (default-on with denylist).
-- **Tooling:** `provider_contract_get` and `provider_schema_get` are exposed via
+- **Tooling:** `provider_contract_get` and `provider_check_schema_get` are exposed via
   MCP + CLI with canonical JSON output and contract hash.
 - **Disclosure:** Discovery respects tool allowlists + provider discovery
   allowlist/denylist and fails closed when denied.

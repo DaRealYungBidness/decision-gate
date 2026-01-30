@@ -455,7 +455,7 @@ fn render_typescript(tools: &[ToolContract]) -> Result<String, SdkGenError> {
 
     out.push_str("export abstract class GeneratedDecisionGateClient {\n");
     out.push_str(
-        "  protected abstract callTool<T>(name: string, arguments_: JsonValue): Promise<T>;\n\n",
+        "  protected abstract callTool<T>(name: string, arguments_: object): Promise<T>;\n\n",
     );
     for tool in tools {
         let pascal = pascal_case(tool.name.as_str());

@@ -12,7 +12,11 @@
       "Bash(powershell -Command \"$content = Get-Content ''decision-gate-providers\\\\README.md'' -Raw; $content\")",
       "Bash(cargo run:*)",
       "Bash(cargo +nightly fmt:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(cargo build:*)",
+      "Bash(.\\\\target\\\\release\\\\decision-gate-cli.exe:*)",
+      "Bash(./target/release/decision-gate-cli.exe:*)",
+      "Bash(./target/release/decision-gate.exe:*)"
     ]
   }
 }

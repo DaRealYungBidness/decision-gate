@@ -40,6 +40,7 @@ use decision_gate_contract::examples;
 use decision_gate_contract::schemas;
 use decision_gate_contract::types::ProviderContract;
 use decision_gate_contract::types::ToolContract;
+use decision_gate_core::ConditionId;
 use decision_gate_core::DecisionId;
 use decision_gate_core::DecisionOutcome;
 use decision_gate_core::DecisionRecord;
@@ -61,7 +62,6 @@ use decision_gate_core::PacketEnvelope;
 use decision_gate_core::PacketId;
 use decision_gate_core::PacketPayload;
 use decision_gate_core::PacketRecord;
-use decision_gate_core::PredicateKey;
 use decision_gate_core::RunId;
 use decision_gate_core::RunState;
 use decision_gate_core::RunStatus;
@@ -195,7 +195,7 @@ fn contract_schemas_validate_examples_and_reject_invalid() -> Result<(), Box<dyn
         "scenario_id": "scenario-invalid",
         "spec_version": "v1",
         "stages": [],
-        "predicates": [],
+        "conditions": [],
         "policies": [],
         "schemas": []
     });
@@ -236,10 +236,10 @@ fn tooling_and_provider_schemas_compile_and_examples_validate() -> Result<(), Bo
     let provider_contracts: Vec<ProviderContract> = artifact_contracts(&bundle, "providers.json")?;
     for provider in provider_contracts {
         let _ = compile_schema(&provider.config_schema, &resolver)?;
-        for predicate in provider.predicates {
-            let params_schema = compile_schema(&predicate.params_schema, &resolver)?;
-            let result_schema = compile_schema(&predicate.result_schema, &resolver)?;
-            for example in predicate.examples {
+        for check in provider.checks {
+            let params_schema = compile_schema(&check.params_schema, &resolver)?;
+            let result_schema = compile_schema(&check.result_schema, &resolver)?;
+            for example in check.examples {
                 assert_valid(&params_schema, &example.params, "provider example params")?;
                 assert_valid(&result_schema, &example.result, "provider example result")?;
             }
@@ -281,7 +281,7 @@ fn sample_run_state() -> RunState {
     let decision_id = DecisionId::new("decision-1");
     let packet_id = PacketId::new("packet-1");
     let schema_id = SchemaId::new("schema-1");
-    let predicate = PredicateKey::from("predicate-1");
+    let condition_id = ConditionId::from("condition-1");
     let timestamp = sample_timestamp();
     let hash = sample_hash_digest();
 
@@ -316,7 +316,7 @@ fn sample_run_state() -> RunState {
     };
 
     let evidence_record = EvidenceRecord {
-        predicate: predicate.clone(),
+        condition_id: condition_id.clone(),
         status: ret_logic::TriState::True,
         result: evidence_result,
     };
@@ -325,7 +325,7 @@ fn sample_run_state() -> RunState {
         gate_id,
         status: ret_logic::TriState::True,
         trace: vec![GateTraceEntry {
-            predicate,
+            condition_id,
             status: ret_logic::TriState::True,
         }],
     };
@@ -451,7 +451,7 @@ fn scenario_schema_rejects_empty_stages() -> Result<(), Box<dyn Error>> {
         "namespace_id": 1,
         "spec_version": "1",
         "stages": [],
-        "predicates": [],
+        "conditions": [],
         "policies": [],
         "schemas": []
     });
@@ -475,7 +475,7 @@ fn scenario_schema_rejects_missing_scenario_id() -> Result<(), Box<dyn Error>> {
             "gates": [],
             "advance_to": "terminal"
         }],
-        "predicates": [],
+        "conditions": [],
         "policies": [],
         "schemas": []
     });
@@ -500,7 +500,7 @@ fn scenario_schema_rejects_empty_stage_id() -> Result<(), Box<dyn Error>> {
             "gates": [],
             "advance_to": "terminal"
         }],
-        "predicates": [],
+        "conditions": [],
         "policies": [],
         "schemas": []
     });

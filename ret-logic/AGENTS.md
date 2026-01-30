@@ -1,7 +1,7 @@
 # AGENTS.md (ret-logic)
 
 > **Audience:** Code-generation agents and automation working in `ret-logic/`.  
-> **Goal:** Preserve the universal predicate algebra (RET: Requirement Evaluation Tree),
+> **Goal:** Preserve the universal condition algebra (RET: Requirement Evaluation Tree),
 > high-performance evaluation paths, and strict correctness guarantees of the engine.
 
 ---
@@ -23,7 +23,7 @@
 
 ### ✅ In scope
 
-- Add or refine predicate evaluation traits and adapters.
+- Add or refine condition evaluation traits and adapters.
 - Extend tri-state evaluation logic and trace hooks.
 - Add or tighten DSL parsing and structural validation.
 - Add unit tests (dedicated files under `tests/` only).
@@ -39,7 +39,7 @@
 ## 2) Non-negotiables
 
 - **Zero-allocation hot paths** for runtime evaluation.
-- **Domain boundary at predicates** only; keep algebra universal.
+- **Domain boundary at conditions** only; keep algebra universal.
 - **Strict lint/clippy** as defined in this crate's `Cargo.toml`.
 - **Determinism:** evaluation results must be deterministic for identical inputs.
 

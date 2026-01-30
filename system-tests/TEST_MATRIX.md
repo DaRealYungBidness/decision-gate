@@ -25,7 +25,7 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `http_mtls_client_cert_required` | security | mTLS client certs required when configured. |
 | `http_audit_log_written` | operations | Audit log emits structured JSON lines. |
 | `idempotent_trigger` | reliability | Duplicate trigger IDs do not create new decisions. |
-| `provider_time_after` | providers | Time provider predicate executes as expected. |
+| `provider_time_after` | providers | Time provider check executes as expected. |
 
 ## P1 (High Value)
 | Test | Category | Purpose |

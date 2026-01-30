@@ -64,7 +64,7 @@ The tool list includes:
 - Scenario lifecycle: `scenario_define`, `scenario_start`, `scenario_status`,
   `scenario_next`, `scenario_submit`, `scenario_trigger`, `scenarios_list`
 - Evidence and providers: `evidence_query`, `providers_list`,
-  `provider_contract_get`, `provider_schema_get`
+  `provider_contract_get`, `provider_check_schema_get`
 - Schema registry: `schemas_register`, `schemas_list`, `schemas_get`
 - Runpacks: `runpack_export`, `runpack_verify`
 - Precheck: `precheck`

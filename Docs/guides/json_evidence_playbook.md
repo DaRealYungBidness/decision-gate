@@ -2,10 +2,10 @@
 Docs/guides/json_evidence_playbook.md
 ============================================================================
 Document: JSON Evidence Playbook
-Description: Template JSON schemas and predicate recipes for common workflows.
+Description: Template JSON schemas and condition recipes for common workflows.
 Purpose: Provide example defaults without prescribing a single canonical format.
 Dependencies:
-  - Docs/guides/predicate_authoring.md
+  - Docs/guides/condition_authoring.md
   - Docs/generated/decision-gate/providers.md
 ============================================================================
 -->
@@ -17,7 +17,7 @@ Dependencies:
 **What:** Bridge tool outputs to Decision Gate using JSON/YAML files and JSONPath queries
 **Why:** Avoid arbitrary code execution while enabling gates for any tool that can emit JSON
 **Who:** Developers integrating tools (tests, linters, scanners) with Decision Gate
-**Prerequisites:** Predicate basics (see [predicate_authoring.md](predicate_authoring.md))
+**Prerequisites:** Condition basics (see [condition_authoring.md](condition_authoring.md))
 
 ---
 
@@ -92,17 +92,17 @@ All file/JSONPath errors are returned via `EvidenceResult.error` (not JSON-RPC e
 
 ```
 1. Run tool (outside DG) -> emit JSON file
-2. Define predicate (json.path + comparator + expected)
-3. scenario_next -> DG reads file, extracts value, evaluates predicate
+2. Define condition (json.path + comparator + expected)
+3. scenario_next -> DG reads file, extracts value, evaluates condition
 ```
 
-Example predicate:
+Example condition:
 ```json
 {
-  "predicate": "tests_ok",
+  "condition_id": "tests_ok",
   "query": {
     "provider_id": "json",
-    "predicate": "path",
+    "check_id": "path",
     "params": { "file": "test-results.json", "jsonpath": "$.summary.failed" }
   },
   "comparator": "equals",
@@ -128,13 +128,13 @@ These are **examples**, not standards. Use them as starting points.
 }
 ```
 
-**Predicate:**
+**Condition:**
 ```json
 {
-  "predicate": "tests_ok",
+  "condition_id": "tests_ok",
   "query": {
     "provider_id": "json",
-    "predicate": "path",
+    "check_id": "path",
     "params": { "file": "report.json", "jsonpath": "$.summary.failed" }
   },
   "comparator": "equals",
@@ -157,13 +157,13 @@ These are **examples**, not standards. Use them as starting points.
 { "coverage": { "percent": 92 } }
 ```
 
-**Predicate:**
+**Condition:**
 ```json
 {
-  "predicate": "coverage_ok",
+  "condition_id": "coverage_ok",
   "query": {
     "provider_id": "json",
-    "predicate": "path",
+    "check_id": "path",
     "params": { "file": "coverage.json", "jsonpath": "$.coverage.percent" }
   },
   "comparator": "greater_than_or_equal",
@@ -186,13 +186,13 @@ These are **examples**, not standards. Use them as starting points.
 { "summary": { "critical": 0, "high": 0, "medium": 2 } }
 ```
 
-**Predicate:**
+**Condition:**
 ```json
 {
-  "predicate": "no_critical",
+  "condition_id": "no_critical",
   "query": {
     "provider_id": "json",
-    "predicate": "path",
+    "check_id": "path",
     "params": { "file": "scan.json", "jsonpath": "$.summary.critical" }
   },
   "comparator": "equals",
@@ -208,13 +208,13 @@ These are **examples**, not standards. Use them as starting points.
 { "reviews": { "approvals": 2 } }
 ```
 
-**Predicate:**
+**Condition:**
 ```json
 {
-  "predicate": "approvals_ok",
+  "condition_id": "approvals_ok",
   "query": {
     "provider_id": "json",
-    "predicate": "path",
+    "check_id": "path",
     "params": { "file": "reviews.json", "jsonpath": "$.reviews.approvals" }
   },
   "comparator": "greater_than_or_equal",
@@ -230,13 +230,13 @@ These are **examples**, not standards. Use them as starting points.
 { "checks": { "lint_ok": true, "format_ok": true } }
 ```
 
-**Predicate:**
+**Condition:**
 ```json
 {
-  "predicate": "lint_ok",
+  "condition_id": "lint_ok",
   "query": {
     "provider_id": "json",
-    "predicate": "path",
+    "check_id": "path",
     "params": { "file": "quality.json", "jsonpath": "$.checks.lint_ok" }
   },
   "comparator": "equals",
@@ -281,7 +281,7 @@ Other providers may return `provider_error` (a wrapper around internal failures)
 
 ## Cross-Reference Learning Paths
 
-- [getting_started.md](getting_started.md) -> [predicate_authoring.md](predicate_authoring.md) -> **THIS GUIDE**
+- [getting_started.md](getting_started.md) -> [condition_authoring.md](condition_authoring.md) -> **THIS GUIDE**
 - **THIS GUIDE** -> [provider_development.md](provider_development.md) (when JSON isn't enough)
 - **THIS GUIDE** -> [llm_native_playbook.md](llm_native_playbook.md) (precheck workflows)
 
@@ -292,4 +292,4 @@ Other providers may return `provider_error` (a wrapper around internal failures)
 **JSONPath:** Query language for extracting values from JSON documents.
 **Comparator:** Operator comparing evidence to expected values.
 **Evidence:** Provider output plus metadata (hashes, anchors, errors).
-**Predicate:** Evidence check definition in a scenario.
+**Condition:** Evidence check definition in a scenario.

@@ -356,22 +356,22 @@ async fn cli_workflows_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
         &cli,
         &[
             "provider",
-            "schema",
+            "check-schema",
             "get",
             "--provider",
             "time",
-            "--predicate",
+            "--check-id",
             "after",
             "--config",
             config_path.to_str().unwrap_or_default(),
         ],
     )?;
     if !provider_schema.status.success() {
-        return Err("provider schema get CLI failed".into());
+        return Err("provider check-schema get CLI failed".into());
     }
     let schema_json: Value = serde_json::from_slice(&provider_schema.stdout)?;
-    if schema_json.get("predicate").is_none() {
-        return Err("provider schema response missing predicate".into());
+    if schema_json.get("check_id").is_none() {
+        return Err("provider check schema response missing check_id".into());
     }
 
     let interop_fixture = ScenarioFixture::time_after("cli-interop", "run-interop", 0);

@@ -1,4 +1,4 @@
-import { GeneratedDecisionGateClient, JsonValue } from "./_generated.js";
+import { GeneratedDecisionGateClient } from "./_generated.js";
 export type FetchLike = (input: RequestInfo, init?: RequestInit) => Promise<Response>;
 export interface DecisionGateClientOptions {
     endpoint?: string;
@@ -17,7 +17,7 @@ export declare class DecisionGateClient extends GeneratedDecisionGateClient {
     private readonly userAgent?;
     private requestId;
     constructor(options?: DecisionGateClientOptions);
-    protected callTool<T>(name: string, arguments_: JsonValue): Promise<T>;
+    protected callTool<T>(name: string, arguments_: object): Promise<T>;
     private nextRequestId;
     private rpcErrorFromPayload;
 }

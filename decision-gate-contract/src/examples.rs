@@ -22,20 +22,20 @@ use std::num::NonZeroU64;
 
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::GateSpec;
 use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketPayload;
 use decision_gate_core::PacketSpec;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::RunConfig;
 use decision_gate_core::ScenarioSpec;
 use decision_gate_core::StageSpec;
 use decision_gate_core::TimeoutPolicy;
 use decision_gate_core::disclosure::DispatchTarget;
+use decision_gate_core::identifiers::ConditionId;
 use decision_gate_core::identifiers::GateId;
 use decision_gate_core::identifiers::PacketId;
-use decision_gate_core::identifiers::PredicateKey;
 use decision_gate_core::identifiers::ProviderId;
 use decision_gate_core::identifiers::RunId;
 use decision_gate_core::identifiers::ScenarioId;
@@ -60,7 +60,7 @@ pub fn scenario_example() -> ScenarioSpec {
         namespace_id: NamespaceId::new(NonZeroU64::MIN),
         spec_version: SpecVersion::from("v1"),
         stages: vec![example_stage()],
-        predicates: vec![env_predicate_example(), time_predicate_example()],
+        conditions: vec![env_condition_example(), time_condition_example()],
         policies: Vec::new(),
         schemas: Vec::new(),
         default_tenant_id: None,
@@ -112,22 +112,22 @@ fn example_stage() -> StageSpec {
     }
 }
 
-/// Builds a gate that references the env predicate.
+/// Builds a gate that references the env condition.
 #[must_use]
 fn env_gate_example() -> GateSpec {
     GateSpec {
         gate_id: GateId::from("env_gate"),
-        requirement: Requirement::Predicate(PredicateKey::from("env_is_prod")),
+        requirement: Requirement::condition(ConditionId::from("env_is_prod")),
         trust: None,
     }
 }
 
-/// Builds a gate that references the time predicate.
+/// Builds a gate that references the time condition.
 #[must_use]
 fn time_gate_example() -> GateSpec {
     GateSpec {
         gate_id: GateId::from("time_gate"),
-        requirement: Requirement::Predicate(PredicateKey::from("after_freeze")),
+        requirement: Requirement::condition(ConditionId::from("after_freeze")),
         trust: None,
     }
 }
@@ -151,14 +151,14 @@ fn example_packet() -> PacketSpec {
     }
 }
 
-/// Builds the environment predicate example.
+/// Builds the environment condition example.
 #[must_use]
-fn env_predicate_example() -> PredicateSpec {
-    PredicateSpec {
-        predicate: PredicateKey::from("env_is_prod"),
+fn env_condition_example() -> ConditionSpec {
+    ConditionSpec {
+        condition_id: ConditionId::from("env_is_prod"),
         query: EvidenceQuery {
             provider_id: ProviderId::from("env"),
-            predicate: String::from("get"),
+            check_id: String::from("get"),
             params: Some(json!({ "key": "DEPLOY_ENV" })),
         },
         comparator: Comparator::Equals,
@@ -168,14 +168,14 @@ fn env_predicate_example() -> PredicateSpec {
     }
 }
 
-/// Builds the time predicate example.
+/// Builds the time condition example.
 #[must_use]
-fn time_predicate_example() -> PredicateSpec {
-    PredicateSpec {
-        predicate: PredicateKey::from("after_freeze"),
+fn time_condition_example() -> ConditionSpec {
+    ConditionSpec {
+        condition_id: ConditionId::from("after_freeze"),
         query: EvidenceQuery {
             provider_id: ProviderId::from("time"),
-            predicate: String::from("after"),
+            check_id: String::from("after"),
             params: Some(json!({ "timestamp": 1_710_000_000_000_i64 })),
         },
         comparator: Comparator::Equals,

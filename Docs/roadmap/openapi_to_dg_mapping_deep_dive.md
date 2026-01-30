@@ -76,7 +76,7 @@ policy layer for opt-ins (lexicographic, deep equality, date ordering).
   existence-only, which will look like a bug to users without explanation.
 
 6) Nested object paths
-- DG predicates are top-level identifiers. OpenAPI often describes nested
+- DG conditions are top-level identifiers. OpenAPI often describes nested
   fields. We must decide: flatten paths, require explicit projection, or only
   support top-level objects with object-level comparators.
 
@@ -129,7 +129,7 @@ Phase 3: Builder UX + validation
 Phase 4: Contract emission
 - Emit provider contract or data-shape registry entries derived from the
   normalized schema.
-- Preserve provenance (which OpenAPI operation/schema produced each predicate).
+- Preserve provenance (which OpenAPI operation/schema produced each condition).
 
 ## Criteria for Re-Opening This Work
 We should re-open this once at least one of these is true:

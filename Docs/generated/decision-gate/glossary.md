@@ -2,17 +2,25 @@
 
 Short, canonical definitions for Decision Gate terms.
 
+## `Condition`
+
+A leaf node in a Requirement tree that references a condition_id defined in the ScenarioSpec. When evaluated, looks up the ConditionSpec, queries the evidence provider check, applies the comparator, and returns a tri-state outcome. Condition IDs should be stable and descriptive (e.g., 'env_is_prod', 'after_freeze').
+
+## `ConditionSpec`
+
+Binds a condition_id to an evidence query, comparator, and expected value. The condition_id is referenced by Requirement leaves. When evaluated, the runtime queries the provider using EvidenceQuery (provider_id + check_id + params), applies the comparator to the evidence, and returns true/false/unknown. Missing expected (except for exists/not_exists) yields unknown.
+
 ## `EvidenceAnchor`
 
 Metadata linking evidence to its source for offline verification. Contains anchor_type and anchor_value set by the provider (e.g., 'receipt_id', 'log_offset'). Anchors enable audit trails: given an anchor, you can re-query the provider (if still available) or verify against archived snapshots. Anchors are included in runpacks.
 
 ## `EvidenceContext`
 
-Runtime context passed to evidence providers during queries. Includes tenant_id, run_id, scenario_id, stage_id, trigger_id, trigger_time, and optional correlation_id for audit correlation. Context is metadata only and does not change predicate logic.
+Runtime context passed to evidence providers during queries. Includes tenant_id, run_id, scenario_id, stage_id, trigger_id, trigger_time, and optional correlation_id for audit correlation. Context is metadata only and does not change condition logic.
 
 ## `EvidenceQuery`
 
-The request sent to an evidence provider. Contains provider_id (which provider to ask), predicate (which provider check to run), and params (provider-specific arguments). The query is deterministic: same query always returns the same result given the same external state. Queries are logged for audit.
+The request sent to an evidence provider. Contains provider_id (which provider to ask), check_id (which provider check to run), and params (provider-specific arguments). The query is deterministic: same query always returns the same result given the same external state. Queries are logged for audit.
 
 ## `EvidenceRef`
 
@@ -34,13 +42,13 @@ The tri-state result of evaluating a gate: true, false, or unknown. True means t
 
 Defines a single gate within a stage. Each gate has a gate_id and a requirement tree (RET expression). A gate passes only when its requirement evaluates to true under Kleene tri-state logic. Gates fail-closed: false or unknown blocks advancement. Multiple gates in a stage are evaluated together.
 
-## `Predicate`
+## `Provider`
 
-A leaf node in a Requirement tree that references a predicate key defined in the ScenarioSpec. When evaluated, looks up the PredicateSpec, queries the evidence provider, applies the comparator, and returns a tri-state outcome. Predicate keys should be stable and descriptive (e.g., 'env_is_prod', 'after_freeze').
+An evidence source (built-in or external MCP server) that answers EvidenceQuery checks. Providers are configured in decision-gate.toml and discovered via MCP contracts.
 
-## `PredicateSpec`
+## `RET`
 
-Binds a predicate key to an evidence query, comparator, and expected value. The predicate key is referenced by Requirement leaves. When evaluated, the runtime queries the provider, applies the comparator to the evidence, and returns true/false/unknown. Missing expected (except for exists/not_exists) yields unknown.
+Requirement Evaluation Tree. A boolean algebra over tri-state outcomes that composes And, Or, Not, RequireGroup, and Condition nodes. RETs make gate logic explicit and auditable.
 
 ## `RequireGroup`
 
@@ -48,15 +56,19 @@ An N-of-M quorum operator in a Requirement tree. Specifies a minimum count (min)
 
 ## `Requirement`
 
-A Requirement Evaluation Tree (RET) is a boolean algebra over tri-state outcomes. It composes And, Or, Not, RequireGroup, and Predicate nodes into a tree. Evaluation uses strong Kleene logic: false dominates And, true dominates Or, and unknown propagates. Gates pass only when the root evaluates to true. RETs make gate logic explicit, auditable, and replayable.
+A Requirement Evaluation Tree (RET) is a boolean algebra over tri-state outcomes. It composes And, Or, Not, RequireGroup, and Condition nodes into a tree. Evaluation uses strong Kleene logic: false dominates And, true dominates Or, and unknown propagates. Gates pass only when the root evaluates to true. RETs make gate logic explicit, auditable, and replayable.
 
 ## `ScenarioSpec`
 
-The complete specification for a deterministic decision workflow. Contains an ordered list of stages, predicate definitions, and optional policies/schemas. A ScenarioSpec is immutable once registered: its canonical JSON form is hashed to produce the spec_hash. Same spec + same evidence = same decisions, always.
+The complete specification for a deterministic decision workflow. Contains an ordered list of stages, condition definitions, and optional policies/schemas. A ScenarioSpec is immutable once registered: its canonical JSON form is hashed to produce the spec_hash. Same spec + same evidence = same decisions, always.
 
 ## `TimeoutPolicy`
 
 Policy controlling what happens when a stage times out. Options: 'fail' marks the run failed with a timeout reason; 'advance_with_flag' advances and sets the decision timeout flag; 'alternate_branch' routes using unknown outcomes in branch rules. Choose based on workflow criticality and routing needs.
+
+## `TriState`
+
+Tri-state evaluation outcome: true, false, or unknown. Used by comparators and RET evaluation to represent missing evidence or type mismatch without false positives.
 
 ## `advance_to`
 
@@ -76,7 +88,7 @@ Permits http:// (non-TLS) URLs for MCP providers globally. Disable in production
 
 ## `allow_logical`
 
-Permits logical timestamps in time predicates instead of requiring real unix_millis. Enable for testing and simulation where deterministic time control is needed. Disable in production for real-time constraints.
+Permits logical timestamps in time checks instead of requiring real unix_millis. Enable for testing and simulation where deterministic time control is needed. Disable in production for real-time constraints.
 
 ## `allow_raw`
 
@@ -100,7 +112,7 @@ Hostname allowlist for HTTP provider outbound requests. Only URLs matching these
 
 ## `allowlist`
 
-List of environment variable keys the env provider may read. Queries for keys not in the allowlist fail with a policy error. Use allowlists to limit exposure: only permit the specific variables your predicates need.
+List of environment variable keys the env provider may read. Queries for keys not in the allowlist fail with a policy error. Use allowlists to limit exposure: only permit the specific variables your checks need.
 
 ## `anchor_types`
 
@@ -122,9 +134,25 @@ Address the MCP server binds to for HTTP or SSE transports. Format: 'host:port' 
 
 Filesystem path to a provider contract JSON (capability contract). The contract declares supported checks, param schemas, and comparator compatibility. The runtime validates queries against the contract before dispatch. Distribute contracts alongside provider binaries.
 
+## `check_id`
+
+The provider check identifier to evaluate within a provider. Each provider exposes named checks (e.g., 'get' for env, 'after' for time, 'status' for http). The check_id determines what the provider returns and what params it accepts. See providers.json for the complete check catalog per provider.
+
+## `checks`
+
+List of provider checks exposed by the provider contract.
+
 ## `comparator`
 
 The comparison operator applied to evidence. Supported comparators: equals, not_equals, greater_than, greater_than_or_equal, less_than, less_than_or_equal, contains, in_set, exists, not_exists. All comparators except exists/not_exists require an expected value and return unknown on type mismatch. Numeric comparators return unknown for non-numbers. exists/not_exists ignore expected.
+
+## `condition_id`
+
+Stable identifier for a condition within a ScenarioSpec. Condition IDs are referenced by Requirement leaves and should be descriptive and stable (e.g., 'env_is_prod').
+
+## `conditions`
+
+List of ConditionSpec entries in a ScenarioSpec. Each condition binds a provider check to comparator rules and expected values for gate evaluation.
 
 ## `config_schema`
 
@@ -138,6 +166,10 @@ True when evidence (array or string) contains the expected value.
 
 Hash metadata for any payload content. Includes the hash algorithm and hash value. Enables integrity verification of packets, submissions, and evidence without requiring access to the raw content. Used throughout runpacks.
 
+## `content_type`
+
+MIME content type associated with an evidence value or packet payload (for example, application/json). Used for disclosure and compatibility checks.
+
 ## `content_types`
 
 Allowed MIME content types for evidence values or policy rule checks. Used in provider contracts and policy rules to constrain payload formats.
@@ -145,10 +177,6 @@ Allowed MIME content types for evidence values or policy rule checks. Used in pr
 ## `correlation_id`
 
 Identifier linking related requests and decisions across systems. Pass a correlation_id with triggers to trace decision flows through logs, metrics, and external services. Propagated in EvidenceContext for provider logging.
-
-## `decision`
-
-The recorded outcome of a trigger evaluation. Contains decision_id, seq, trigger_id, stage_id, decided_at, and a DecisionOutcome (start/advance/hold/fail/complete). Advance outcomes include a timeout flag when triggered by timeouts. Decisions form the audit trail for run progression.
 
 ## `decision_id`
 
@@ -210,13 +238,21 @@ True when evidence equals expected (numbers, strings, booleans, or JSON values).
 
 Error message to report when effect is 'error'. Required for error rules.
 
+## `evidence_anchor`
+
+EvidenceResult field containing anchor metadata (anchor_type + anchor_value) used to link evidence to its source for offline verification.
+
 ## `evidence_hash`
 
 SHA-256 hash of an evidence value for integrity verification. Computed over the canonical form of EvidenceValue. Evidence hashes enable verification without exposing raw values: auditors can confirm evidence matched expectations even when raw disclosure is blocked.
 
 ## `evidence_query`
 
-Queries an evidence provider with the configured disclosure policy applied. Returns the EvidenceResult containing the value (or hash), anchor metadata, and optional signature. Use this for debugging predicates or building custom gates outside the standard scenario flow.
+Queries an evidence provider with the configured disclosure policy applied. Returns the EvidenceResult containing the value (or hash), anchor metadata, and optional signature. Use this for debugging conditions or building custom gates outside the standard scenario flow.
+
+## `evidence_ref`
+
+EvidenceResult field containing an external URI reference to evidence content stored outside the runtime.
 
 ## `examples`
 
@@ -237,6 +273,10 @@ Visibility labels that must not be present for the rule to match.
 ## `forbid_policy_tags`
 
 Policy tags that must not be present for the rule to match.
+
+## `gate outcome`
+
+The tri-state result of evaluating a gate: true, false, or unknown. True means the requirement is satisfied. False means evidence contradicts the requirement. Unknown means evidence is missing, the comparator cannot evaluate (type mismatch), or the provider failed. Branching can route on any outcome; only true advances linear/fixed stages.
 
 ## `gate_id`
 
@@ -420,31 +460,23 @@ Emit warnings and security audit events when dev-permissive is enabled or expire
 
 ## `policy_tags`
 
-Labels applied to runs, predicates, or disclosures for policy routing. Tags enable conditional behavior: different disclosure rules per environment, tenant-specific rate limits, or audit categories. Define tags in the ScenarioSpec and apply them to runs, predicates, packets, or timeouts as needed.
+Labels applied to runs, conditions, or disclosures for policy routing. Tags enable conditional behavior: different disclosure rules per environment, tenant-specific rate limits, or audit categories. Define tags in the ScenarioSpec and apply them to runs, conditions, packets, or timeouts as needed.
 
 ## `precheck`
 
 Evaluates a scenario against asserted data without mutating run state. Validates asserted data against a registered shape and returns the decision result for simulation.
 
-## `predicate`
+## `provider_check_schema_get`
 
-The provider check name to evaluate within a provider. Each provider exposes named checks (e.g., 'get' for env, 'after' for time, 'status' for http). The check determines what the provider returns and what params it accepts. See providers.json for the complete check catalog per provider.
-
-## `predicates`
-
-List of provider checks exposed by the provider contract.
+Fetches check-level schema details for a provider (params schema, result schema, comparator allow-lists, and examples). Use this for authoring forms or LLM guidance without loading the full provider contract.
 
 ## `provider_contract_get`
 
-Fetches the canonical provider contract JSON and its hash for a provider. Use this to discover predicate schemas, comparator allow-lists, and examples. Disclosure is controlled by authz and provider contract visibility policy.
+Fetches the canonical provider contract JSON and its hash for a provider. Use this to discover check schemas, comparator allow-lists, and examples. Disclosure is controlled by authz and provider contract visibility policy.
 
 ## `provider_id`
 
-Identifier for an evidence provider registered in decision-gate.toml. Providers supply predicates: 'time' for timestamps, 'env' for environment variables, 'http' for health checks, 'json' for file queries. Custom providers can be registered via MCP configuration.
-
-## `provider_schema_get`
-
-Fetches predicate-level schema details for a provider (params schema, result schema, comparator allow-lists, and examples). Use this for authoring forms or LLM guidance without loading the full provider contract.
+Identifier for an evidence provider registered in decision-gate.toml. Providers supply checks: 'time' for timestamps, 'env' for environment variables, 'http' for health checks, 'json' for file queries. Custom providers can be registered via MCP configuration.
 
 ## `providers_list`
 
@@ -472,7 +504,7 @@ Requires providers to explicitly opt into raw disclosure via allow_raw in their 
 
 ## `requirement`
 
-The RET expression that a gate must satisfy. This field contains the root of a Requirement tree (And/Or/Not/RequireGroup/Predicate). The gate passes only when the entire tree evaluates to true. Design requirements to handle unknown outcomes explicitly via branching or RequireGroup thresholds.
+The RET expression that a gate must satisfy. This field contains the root of a Requirement tree (And/Or/Not/RequireGroup/Condition). The gate passes only when the entire tree evaluates to true. Design requirements to handle unknown outcomes explicitly via branching or RequireGroup thresholds.
 
 ## `result`
 
@@ -516,7 +548,7 @@ Verifies a runpack's manifest and artifacts offline. Checks that all hashes matc
 
 ## `scenario_define`
 
-Registers a ScenarioSpec with the runtime and returns its canonical spec_hash. The runtime validates the spec structure, checks that all referenced predicates and providers exist, and computes a SHA-256 hash of the canonical JSON form. Store the spec_hash for audit: it proves which exact spec governed a run.
+Registers a ScenarioSpec with the runtime and returns its canonical spec_hash. The runtime validates the spec structure, checks that all referenced conditions and providers exist, and computes a SHA-256 hash of the canonical JSON form. Store the spec_hash for audit: it proves which exact spec governed a run.
 
 ## `scenario_id`
 
@@ -544,7 +576,7 @@ Submits external artifacts to a run's audit trail for later review. Use this to 
 
 ## `scenario_trigger`
 
-Submits a trigger event with an explicit timestamp and evaluates the run. Unlike scenario_next, triggers carry kind, source_id, and optional payload metadata for time-based predicates and auditing. The trigger_id ensures idempotent processing: repeated calls with the same trigger_id return the cached decision.
+Submits a trigger event with an explicit timestamp and evaluates the run. Unlike scenario_next, triggers carry kind, source_id, and optional payload metadata for time-based checks and auditing. The trigger_id ensures idempotent processing: repeated calls with the same trigger_id return the cached decision.
 
 ## `scenarios_list`
 
@@ -664,11 +696,11 @@ Identifier ensuring idempotent trigger processing. Repeated calls with the same 
 
 ## `trigger_time`
 
-Caller-supplied timestamp from the trigger event used by time predicates and EvidenceContext. Uses the Timestamp type (unix_millis or logical when allowed) to avoid wall-clock reads. Auditors can replay runs with the recorded trigger_time.
+Caller-supplied timestamp from the trigger event used by time checks and EvidenceContext. Uses the Timestamp type (unix_millis or logical when allowed) to avoid wall-clock reads. Auditors can replay runs with the recorded trigger_time.
 
 ## `unix_millis`
 
-Unix timestamp expressed in milliseconds since epoch (1970-01-01 UTC). Standard format for trigger_time and time predicates. Millisecond precision enables sub-second scheduling. Convert from ISO 8601: parse to Date, call getTime().
+Unix timestamp expressed in milliseconds since epoch (1970-01-01 UTC). Standard format for trigger_time and time checks. Millisecond precision enables sub-second scheduling. Convert from ISO 8601: parse to Date, call getTime().
 
 ## `user_agent`
 

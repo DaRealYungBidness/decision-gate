@@ -26,12 +26,12 @@ use serde_json::Value;
 use thiserror::Error;
 
 use crate::core::AnchorRequirement;
+use crate::core::ConditionId;
 use crate::core::DecisionOutcome;
 use crate::core::DecisionRecord;
 use crate::core::EvidenceAnchorPolicy;
 use crate::core::EvidenceResult;
 use crate::core::GateEvalRecord;
-use crate::core::PredicateKey;
 use crate::core::ProviderId;
 use crate::core::RunState;
 use crate::core::ScenarioSpec;
@@ -517,7 +517,7 @@ fn verify_anchor_policy<R: ArtifactReader>(
     let spec: ScenarioSpec = serde_json::from_slice(&spec_bytes)
         .map_err(|err| format!("invalid scenario spec: {err}"))?;
 
-    let predicate_map = predicate_provider_map(&spec);
+    let condition_map = condition_provider_map(&spec);
     let eval_bytes = reader
         .read_with_limit(GATE_EVAL_LOG_PATH, MAX_RUNPACK_ARTIFACT_BYTES)
         .map_err(|err| format!("gate eval log read failed: {err}"))?;
@@ -530,10 +530,10 @@ fn verify_anchor_policy<R: ArtifactReader>(
             if evidence.result.error.is_some() {
                 continue;
             }
-            let Some(provider_id) = predicate_map.get(&evidence.predicate) else {
+            let Some(provider_id) = condition_map.get(&evidence.condition_id) else {
                 errors.push(format!(
-                    "predicate {} missing from scenario spec (trigger {}, stage {})",
-                    evidence.predicate, record.trigger_id, record.stage_id
+                    "condition {} missing from scenario spec (trigger {}, stage {})",
+                    evidence.condition_id, record.trigger_id, record.stage_id
                 ));
                 continue;
             };
@@ -542,8 +542,8 @@ fn verify_anchor_policy<R: ArtifactReader>(
             };
             if let Err(message) = validate_anchor_requirement(requirement, &evidence.result) {
                 errors.push(format!(
-                    "anchor invalid for predicate {} (trigger {}, stage {}): {}",
-                    evidence.predicate, record.trigger_id, record.stage_id, message
+                    "anchor invalid for condition {} (trigger {}, stage {}): {}",
+                    evidence.condition_id, record.trigger_id, record.stage_id, message
                 ));
             }
         }
@@ -552,11 +552,11 @@ fn verify_anchor_policy<R: ArtifactReader>(
     Ok(errors)
 }
 
-/// Builds a predicate-to-provider lookup from a scenario spec.
-fn predicate_provider_map(spec: &ScenarioSpec) -> BTreeMap<PredicateKey, ProviderId> {
+/// Builds a condition-to-provider lookup from a scenario spec.
+fn condition_provider_map(spec: &ScenarioSpec) -> BTreeMap<ConditionId, ProviderId> {
     let mut map = BTreeMap::new();
-    for predicate in &spec.predicates {
-        map.insert(predicate.predicate.clone(), predicate.query.provider_id.clone());
+    for condition in &spec.conditions {
+        map.insert(condition.condition_id.clone(), condition.query.provider_id.clone());
     }
     map
 }

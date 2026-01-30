@@ -72,7 +72,7 @@ sequenceDiagram
 ## Core Capabilities
 
 - **Gate evaluation**: RET trees with tri-state logic and comparator rules.
-- **Trust lanes**: gate/predicate enforcement of verified vs asserted evidence.
+- **Trust lanes**: gate/condition enforcement of verified vs asserted evidence.
 - **Run state**: deterministic state transitions and audit logs.
 - **Runpacks**: deterministic manifest + artifact bundles.
 - **Schema registry interfaces**: trait definitions used by MCP tooling.
@@ -259,7 +259,7 @@ cargo test -p decision-gate-core
 
 ## Relationship to RET Logic
 
-Decision Gate uses `ret-logic` as its predicate algebra engine. RET evaluates
+Decision Gate uses `ret-logic` as its requirement algebra engine. RET evaluates
 boolean and tri-state requirement trees; Decision Gate supplies domain semantics
 (evidence, trust, disclosure, runpacks).
 

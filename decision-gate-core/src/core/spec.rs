@@ -1,7 +1,7 @@
 // decision-gate-core/src/core/spec.rs
 // ============================================================================
 // Module: Decision Gate Scenario Specification
-// Description: Scenario, stage, gate, and predicate specifications.
+// Description: Scenario, stage, gate, and condition specifications.
 // Purpose: Define canonical Decision Gate specs with validation helpers.
 // Dependencies: crate::core::{disclosure, evidence, identifiers, hashing, time}, ret-logic, serde
 // ============================================================================
@@ -10,7 +10,7 @@
 //! Scenario specifications define the staged disclosure workflow, including
 //! gate logic, packet disclosures, and branching rules. Specs are validated at
 //! load time to enforce invariants such as unique identifiers and resolvable
-//! predicate definitions.
+//! condition definitions.
 //!
 //! Security posture: scenario specs are untrusted inputs; see `Docs/security/threat_model.md`.
 
@@ -32,11 +32,11 @@ use crate::core::hashing::DEFAULT_HASH_ALGORITHM;
 use crate::core::hashing::HashAlgorithm;
 use crate::core::hashing::HashDigest;
 use crate::core::hashing::HashError;
+use crate::core::identifiers::ConditionId;
 use crate::core::identifiers::GateId;
 use crate::core::identifiers::NamespaceId;
 use crate::core::identifiers::PacketId;
 use crate::core::identifiers::PolicyId;
-use crate::core::identifiers::PredicateKey;
 use crate::core::identifiers::ScenarioId;
 use crate::core::identifiers::SchemaId;
 use crate::core::identifiers::SpecVersion;
@@ -59,8 +59,8 @@ pub struct ScenarioSpec {
     pub spec_version: SpecVersion,
     /// Scenario stages in deterministic order.
     pub stages: Vec<StageSpec>,
-    /// Predicate definitions referenced by gates.
-    pub predicates: Vec<PredicateSpec>,
+    /// Condition definitions referenced by gates.
+    pub conditions: Vec<ConditionSpec>,
     /// Optional policy references for disclosure.
     pub policies: Vec<PolicyRef>,
     /// Optional schema registry references.
@@ -101,9 +101,9 @@ impl ScenarioSpec {
         ensure_unique_stage_ids(&self.stages)?;
         ensure_unique_gate_ids(&self.stages)?;
         ensure_unique_packet_ids(&self.stages)?;
-        ensure_unique_predicates(&self.predicates)?;
-        ensure_predicate_queries_well_formed(&self.predicates)?;
-        ensure_gate_predicates_resolve(&self.stages, &self.predicates)?;
+        ensure_unique_conditions(&self.conditions)?;
+        ensure_condition_queries_well_formed(&self.conditions)?;
+        ensure_gate_conditions_resolve(&self.stages, &self.conditions)?;
         ensure_branch_targets_exist(&self.stages)?;
 
         Ok(())
@@ -207,17 +207,17 @@ pub struct GateSpec {
     /// Stable identifier for the gate.
     pub gate_id: GateId,
     /// Requirement tree defining the gate logic.
-    pub requirement: Requirement<PredicateKey>,
+    pub requirement: Requirement<ConditionId>,
     /// Optional trust requirement override for this gate.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trust: Option<TrustRequirement>,
 }
 
-/// Predicate specification mapping a predicate key to evidence query rules.
+/// Condition specification mapping a condition identifier to evidence query rules.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PredicateSpec {
-    /// Predicate identifier referenced by requirements.
-    pub predicate: PredicateKey,
+pub struct ConditionSpec {
+    /// Condition identifier referenced by requirements.
+    pub condition_id: ConditionId,
     /// Evidence query definition.
     pub query: EvidenceQuery,
     /// Comparator applied to evidence values.
@@ -226,7 +226,7 @@ pub struct PredicateSpec {
     pub expected: Option<Value>,
     /// Optional policy tags for safe summaries.
     pub policy_tags: Vec<String>,
-    /// Optional trust requirement override for this predicate.
+    /// Optional trust requirement override for this condition.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trust: Option<TrustRequirement>,
 }
@@ -297,14 +297,14 @@ pub enum SpecError {
     /// Duplicate packet identifiers detected.
     #[error("duplicate packet identifier: {0}")]
     DuplicatePacketId(String),
-    /// Duplicate predicate identifiers detected.
-    #[error("duplicate predicate key: {0}")]
-    DuplicatePredicate(String),
-    /// Gate references a predicate that is not defined.
-    #[error("gate references undefined predicate: {0}")]
-    MissingPredicate(String),
+    /// Duplicate condition identifiers detected.
+    #[error("duplicate condition id: {0}")]
+    DuplicateCondition(String),
+    /// Gate references a condition that is not defined.
+    #[error("gate references undefined condition: {0}")]
+    MissingCondition(String),
     /// Evidence query is missing required fields.
-    #[error("invalid evidence query for predicate {0}: {1}")]
+    #[error("invalid evidence query for condition {0}: {1}")]
     InvalidEvidenceQuery(String, String),
     /// Branch target refers to a missing stage.
     #[error("branch target refers to unknown stage: {0}")]
@@ -353,47 +353,51 @@ fn ensure_unique_packet_ids(stages: &[StageSpec]) -> Result<(), SpecError> {
     Ok(())
 }
 
-/// Ensures predicate keys are unique.
-fn ensure_unique_predicates(predicates: &[PredicateSpec]) -> Result<(), SpecError> {
-    for (index, predicate) in predicates.iter().enumerate() {
-        if predicates.iter().skip(index + 1).any(|other| other.predicate == predicate.predicate) {
-            return Err(SpecError::DuplicatePredicate(predicate.predicate.to_string()));
+/// Ensures condition ids are unique.
+fn ensure_unique_conditions(conditions: &[ConditionSpec]) -> Result<(), SpecError> {
+    for (index, condition) in conditions.iter().enumerate() {
+        if conditions
+            .iter()
+            .skip(index + 1)
+            .any(|other| other.condition_id == condition.condition_id)
+        {
+            return Err(SpecError::DuplicateCondition(condition.condition_id.to_string()));
         }
     }
     Ok(())
 }
 
 /// Ensures evidence queries have required fields populated.
-fn ensure_predicate_queries_well_formed(predicates: &[PredicateSpec]) -> Result<(), SpecError> {
-    for predicate in predicates {
-        let provider_id = predicate.query.provider_id.as_str();
+fn ensure_condition_queries_well_formed(conditions: &[ConditionSpec]) -> Result<(), SpecError> {
+    for condition in conditions {
+        let provider_id = condition.query.provider_id.as_str();
         if provider_id.trim().is_empty() {
             return Err(SpecError::InvalidEvidenceQuery(
-                predicate.predicate.to_string(),
+                condition.condition_id.to_string(),
                 "provider_id is empty".to_string(),
             ));
         }
-        if predicate.query.predicate.trim().is_empty() {
+        if condition.query.check_id.trim().is_empty() {
             return Err(SpecError::InvalidEvidenceQuery(
-                predicate.predicate.to_string(),
-                "predicate name is empty".to_string(),
+                condition.condition_id.to_string(),
+                "check_id is empty".to_string(),
             ));
         }
     }
     Ok(())
 }
 
-/// Ensures gate requirements reference defined predicates.
-fn ensure_gate_predicates_resolve(
+/// Ensures gate requirements reference defined conditions.
+fn ensure_gate_conditions_resolve(
     stages: &[StageSpec],
-    predicates: &[PredicateSpec],
+    conditions: &[ConditionSpec],
 ) -> Result<(), SpecError> {
     for stage in stages {
         for gate in &stage.gates {
-            let required = collect_predicates(&gate.requirement);
-            for predicate in required {
-                if !predicates.iter().any(|spec| spec.predicate == predicate) {
-                    return Err(SpecError::MissingPredicate(predicate.to_string()));
+            let required = collect_conditions(&gate.requirement);
+            for condition_id in required {
+                if !conditions.iter().any(|spec| spec.condition_id == condition_id) {
+                    return Err(SpecError::MissingCondition(condition_id.to_string()));
                 }
             }
         }
@@ -435,32 +439,32 @@ fn ensure_branch_targets_exist(stages: &[StageSpec]) -> Result<(), SpecError> {
     Ok(())
 }
 
-/// Collects predicate keys referenced by a requirement tree.
-fn collect_predicates(requirement: &Requirement<PredicateKey>) -> Vec<PredicateKey> {
+/// Collects condition ids referenced by a requirement tree.
+fn collect_conditions(requirement: &Requirement<ConditionId>) -> Vec<ConditionId> {
     let mut out = Vec::new();
-    collect_predicates_inner(requirement, &mut out);
+    collect_conditions_inner(requirement, &mut out);
     out
 }
 
-/// Walks a requirement tree and appends predicate keys.
-fn collect_predicates_inner(requirement: &Requirement<PredicateKey>, out: &mut Vec<PredicateKey>) {
+/// Walks a requirement tree and appends condition ids.
+fn collect_conditions_inner(requirement: &Requirement<ConditionId>, out: &mut Vec<ConditionId>) {
     match requirement {
-        Requirement::Predicate(predicate) => {
-            if !out.contains(predicate) {
-                out.push(predicate.clone());
+        Requirement::Condition(condition_id) => {
+            if !out.contains(condition_id) {
+                out.push(condition_id.clone());
             }
         }
-        Requirement::Not(inner) => collect_predicates_inner(inner, out),
+        Requirement::Not(inner) => collect_conditions_inner(inner, out),
         Requirement::And(reqs) | Requirement::Or(reqs) => {
             for req in reqs {
-                collect_predicates_inner(req, out);
+                collect_conditions_inner(req, out);
             }
         }
         Requirement::RequireGroup {
             reqs, ..
         } => {
             for req in reqs {
-                collect_predicates_inner(req, out);
+                collect_conditions_inner(req, out);
             }
         }
     }

@@ -22,6 +22,7 @@
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::BranchRule;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::DecisionOutcome;
 use decision_gate_core::DispatchReceipt;
 use decision_gate_core::DispatchTarget;
@@ -39,7 +40,6 @@ use decision_gate_core::PacketPayload;
 use decision_gate_core::PacketSpec;
 use decision_gate_core::PolicyDecider;
 use decision_gate_core::PolicyDecision;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::RunStateStore;
@@ -125,12 +125,12 @@ impl PolicyDecider for PermitAllPolicy {
     }
 }
 
-fn base_predicate() -> PredicateSpec {
-    PredicateSpec {
-        predicate: "ready".into(),
+fn base_condition() -> ConditionSpec {
+    ConditionSpec {
+        condition_id: "ready".into(),
         query: EvidenceQuery {
             provider_id: ProviderId::new("test"),
-            predicate: "ready".to_string(),
+            check_id: "ready".to_string(),
             params: Some(json!({})),
         },
         comparator: Comparator::Equals,
@@ -143,7 +143,7 @@ fn base_predicate() -> PredicateSpec {
 fn base_gate() -> GateSpec {
     GateSpec {
         gate_id: GateId::new("gate-1"),
-        requirement: ret_logic::Requirement::predicate("ready".into()),
+        requirement: ret_logic::Requirement::condition("ready".into()),
         trust: None,
     }
 }
@@ -187,7 +187,7 @@ fn timeout_fail_triggers_fail_decision() {
             }),
             on_timeout: TimeoutPolicy::Fail,
         }],
-        predicates: vec![base_predicate()],
+        conditions: vec![base_condition()],
         policies: Vec::new(),
         schemas: Vec::new(),
         default_tenant_id: None,
@@ -265,7 +265,7 @@ fn timeout_advance_with_flag_advances_stage() {
                 on_timeout: TimeoutPolicy::Fail,
             },
         ],
-        predicates: Vec::new(),
+        conditions: Vec::new(),
         policies: Vec::new(),
         schemas: Vec::new(),
         default_tenant_id: None,
@@ -364,7 +364,7 @@ fn timeout_alternate_branch_routes_unknown() {
                 on_timeout: TimeoutPolicy::Fail,
             },
         ],
-        predicates: vec![base_predicate()],
+        conditions: vec![base_condition()],
         policies: Vec::new(),
         schemas: Vec::new(),
         default_tenant_id: None,
@@ -446,7 +446,7 @@ fn tick_before_timeout_evaluates_normally() {
                 on_timeout: TimeoutPolicy::Fail,
             },
         ],
-        predicates: Vec::new(),
+        conditions: Vec::new(),
         policies: Vec::new(),
         schemas: Vec::new(),
         default_tenant_id: None,

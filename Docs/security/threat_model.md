@@ -13,7 +13,7 @@ Dependencies:
 
 ## Overview
 Decision Gate is a deterministic, replayable control plane for gated disclosure
-and stage advancement. It evaluates evidence-backed predicates, emits auditable
+and stage advancement. It evaluates evidence-backed conditions, emits auditable
 decisions, and supports offline verification via runpacks. It does not run
 agent conversations.
 
@@ -40,7 +40,7 @@ agent conversations.
 - Hardware attestation, secure enclave guarantees, or key custody services.
 
 ## Assets
-- Scenario specifications, predicates, and policy tags (security logic).
+- Scenario specifications, conditions, and policy tags (security logic).
 - Run state logs: triggers, gate evaluations, decisions, packets, submissions,
   tool calls.
 - Evidence values, hashes, anchors, and signatures.
@@ -85,7 +85,7 @@ agent conversations.
 - MCP tools: `scenario_define`, `scenario_start`, `scenario_status`,
   `scenario_next`, `scenario_submit`, `scenario_trigger`, `evidence_query`,
   `runpack_export`, `runpack_verify`, `providers_list`,
-  `provider_contract_get`, `provider_schema_get`, `schemas_list`,
+  `provider_contract_get`, `provider_check_schema_get`, `schemas_list`,
   `schemas_register`, `schemas_get`, `scenarios_list`, `precheck`.
 - CLI commands: `serve`, `runpack export`, `runpack verify`, authoring
   validate/normalize.
@@ -103,7 +103,7 @@ agent conversations.
 - Evidence hash normalization; optional signature verification (ed25519) when
   configured.
 - Provider contract registry validates provider check params and allowed comparators.
-- Strict comparator/type validation rejects invalid predicates before scenario
+- Strict comparator/type validation rejects invalid conditions before scenario
   registration and precheck evaluation.
 - Namespace authority checks enforce tenant/namespace scoping and fail closed
   on unknown or unavailable catalogs.
@@ -129,7 +129,7 @@ agent conversations.
 ### Input Validation and Parsing
 - JSON-RPC, config files, and JSONPath are untrusted; schema validation and size
   limits apply.
-- Predicate comparators are validated against schema-derived type classes with
+- Check comparators are validated against schema-derived type classes with
   explicit allowlists; ambiguous or invalid combinations are rejected.
 - Stdio transports have no inherent body limit; deployment must bound or
   sandbox inputs.

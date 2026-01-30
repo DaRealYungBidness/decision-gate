@@ -27,6 +27,7 @@ use decision_gate_core::Artifact;
 use decision_gate_core::ArtifactError;
 use decision_gate_core::ArtifactReader;
 use decision_gate_core::ArtifactSink;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::EvidenceAnchor;
 use decision_gate_core::EvidenceAnchorPolicy;
 use decision_gate_core::EvidenceRecord;
@@ -37,7 +38,6 @@ use decision_gate_core::GateEvaluation;
 use decision_gate_core::GateId;
 use decision_gate_core::GateTraceEntry;
 use decision_gate_core::NamespaceId;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderAnchorPolicy;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunId;
@@ -147,7 +147,7 @@ fn minimal_spec() -> ScenarioSpec {
             timeout: None,
             on_timeout: decision_gate_core::TimeoutPolicy::Fail,
         }],
-        predicates: Vec::new(),
+        conditions: Vec::new(),
         policies: Vec::new(),
         schemas: Vec::new(),
         default_tenant_id: None,
@@ -164,18 +164,18 @@ fn anchor_spec() -> ScenarioSpec {
             entry_packets: Vec::new(),
             gates: vec![decision_gate_core::GateSpec {
                 gate_id: GateId::new("gate-anchor"),
-                requirement: ret_logic::Requirement::predicate("anchor_pred".into()),
+                requirement: ret_logic::Requirement::condition("anchor_pred".into()),
                 trust: None,
             }],
             advance_to: decision_gate_core::AdvanceTo::Terminal,
             timeout: None,
             on_timeout: decision_gate_core::TimeoutPolicy::Fail,
         }],
-        predicates: vec![PredicateSpec {
-            predicate: "anchor_pred".into(),
+        conditions: vec![ConditionSpec {
+            condition_id: "anchor_pred".into(),
             query: decision_gate_core::EvidenceQuery {
                 provider_id: ProviderId::new("assetcore_read"),
-                predicate: "balance_amount_scaled".to_string(),
+                check_id: "balance_amount_scaled".to_string(),
                 params: Some(serde_json::json!({"container_id": "vault-001"})),
             },
             comparator: decision_gate_core::Comparator::Equals,
@@ -225,12 +225,12 @@ fn anchor_state(spec: &ScenarioSpec, anchor: Option<EvidenceAnchor>) -> RunState
                 gate_id: GateId::new("gate-anchor"),
                 status: TriState::True,
                 trace: vec![GateTraceEntry {
-                    predicate: "anchor_pred".into(),
+                    condition_id: "anchor_pred".into(),
                     status: TriState::True,
                 }],
             },
             evidence: vec![EvidenceRecord {
-                predicate: "anchor_pred".into(),
+                condition_id: "anchor_pred".into(),
                 status: TriState::True,
                 result: EvidenceResult {
                     value: Some(EvidenceValue::Json(serde_json::json!(1))),

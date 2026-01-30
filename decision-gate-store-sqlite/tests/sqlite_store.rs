@@ -72,7 +72,7 @@ fn sample_state(run_id: &str) -> RunState {
             timeout: None,
             on_timeout: TimeoutPolicy::Fail,
         }],
-        predicates: Vec::new(),
+        conditions: Vec::new(),
         policies: Vec::new(),
         schemas: Vec::new(),
         default_tenant_id: None,

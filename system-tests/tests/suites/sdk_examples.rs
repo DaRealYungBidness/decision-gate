@@ -19,13 +19,13 @@ use std::time::Duration;
 
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionId;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::DispatchTarget;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::GateId;
 use decision_gate_core::GateSpec;
 use decision_gate_core::NamespaceId;
-use decision_gate_core::PredicateKey;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::ScenarioId;
@@ -409,18 +409,18 @@ fn precheck_spec(scenario_id: &str) -> ScenarioSpec {
             entry_packets: Vec::new(),
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-env"),
-                requirement: ret_logic::Requirement::predicate(PredicateKey::new("deploy_env")),
+                requirement: ret_logic::Requirement::condition(ConditionId::new("deploy_env")),
                 trust: None,
             }],
             advance_to: AdvanceTo::Terminal,
             timeout: None,
             on_timeout: TimeoutPolicy::Fail,
         }],
-        predicates: vec![PredicateSpec {
-            predicate: PredicateKey::new("deploy_env"),
+        conditions: vec![ConditionSpec {
+            condition_id: ConditionId::new("deploy_env"),
             query: EvidenceQuery {
                 provider_id: ProviderId::new("env"),
-                predicate: "get".to_string(),
+                check_id: "get".to_string(),
                 params: Some(serde_json::json!({"key": "DEPLOY_ENV"})),
             },
             comparator: Comparator::Equals,

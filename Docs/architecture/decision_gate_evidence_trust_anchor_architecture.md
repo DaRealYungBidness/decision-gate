@@ -77,7 +77,7 @@ Trust lanes are a two-level lattice:
 - `Asserted` for client-supplied evidence.
 
 `TrustRequirement` specifies the minimum acceptable lane and is applied per
-predicate and gate. If evidence does not meet the requirement, it is converted
+condition and gate. If evidence does not meet the requirement, it is converted
 into an `Unknown` result with a `trust_lane` error.
 
 [F:decision-gate-core/src/core/evidence.rs L88-L136][F:decision-gate-core/src/runtime/engine.rs L505-L552][F:decision-gate-core/src/runtime/engine.rs L1463-L1482]
@@ -138,7 +138,7 @@ When an anchor requirement is configured for a provider:
 - Evidence results must include `evidence_anchor`.
 - `anchor_type` must match the requirement.
 - `anchor_value` must be canonical JSON object with required scalar fields.
-- Gate evaluation evidence records are stored in canonical predicate order to
+- Gate evaluation evidence records are stored in canonical condition order to
   keep runpack artifacts deterministic across executions.
 
 Invalid anchors result in an `anchor_invalid` provider error and the evidence
@@ -152,7 +152,7 @@ result is converted to an empty verified result for evaluation.
 Runpack verification replays anchor policy checks offline:
 
 - Scenario spec and gate eval logs are loaded from runpack artifacts.
-- Predicate-to-provider mapping is derived from the spec.
+- Condition-to-provider mapping is derived from the spec.
 - Evidence anchors in gate evaluation logs are validated against the policy.
 
 Errors are collected and reported in the verification report.
@@ -165,7 +165,7 @@ Errors are collected and reported in the verification report.
 Precheck uses **asserted** evidence without contacting providers:
 
 - Payload values are wrapped as `EvidenceResult` with lane `Asserted`.
-- Control plane applies trust requirements per predicate/gate, which can force
+- Control plane applies trust requirements per condition/gate, which can force
   asserted evidence to `Unknown` depending on configuration.
 
 [F:decision-gate-mcp/src/tools.rs L1625-L1667][F:decision-gate-core/src/runtime/engine.rs L505-L552]

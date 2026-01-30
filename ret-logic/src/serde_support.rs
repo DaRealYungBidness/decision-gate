@@ -179,7 +179,7 @@ impl RequirementValidator {
 
     /// Validates a requirement tree
     ///
-    /// This performs structural validation only - domain-specific predicate
+    /// This performs structural validation only - domain-specific condition
     /// validation is handled by the domain during compilation or execution.
     ///
     /// # Arguments
@@ -225,8 +225,8 @@ impl RequirementValidator {
             Requirement::Not(req) => {
                 self.validate_depth(req, current_depth + 1)?;
             }
-            Requirement::Predicate(_) => {
-                // Predicates are leaf nodes - no further depth
+            Requirement::Condition(_) => {
+                // Conditions are leaf nodes - no further depth
             }
         }
 
@@ -283,8 +283,8 @@ impl RequirementValidator {
                 self.validate_structure(req)?;
             }
 
-            Requirement::Predicate(_) => {
-                // Predicates are validated by the domain during compilation
+            Requirement::Condition(_) => {
+                // Conditions are validated by the domain during compilation
             }
         }
 
@@ -498,7 +498,7 @@ pub mod convenience {
 
     /// Validate a requirement with default configuration
     ///
-    /// Performs structural validation only. Domain-specific predicate validation
+    /// Performs structural validation only. Domain-specific condition validation
     /// happens during compilation or execution.
     ///
     /// # Errors

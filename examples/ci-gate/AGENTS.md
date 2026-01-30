@@ -4,7 +4,7 @@
 > **Goal:** Demonstrate CI-style gating without external integrations.
 
 ## In scope
-- Updating predicates and thresholds for current APIs.
+- Updating conditions and thresholds for current APIs.
 - Clarifying RequireGroup usage.
 
 ## Out of scope

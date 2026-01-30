@@ -7,9 +7,11 @@
     "type": "object",
     "additionalProperties": false
   },
-  "predicates": [
+  "notes": [
+    "Test-only contract for strict comparator validation."
+  ],
+  "checks": [
     {
-      "name": "lex_value",
       "description": "Return a string for lexicographic comparison tests.",
       "determinism": "deterministic",
       "params_required": false,
@@ -47,10 +49,10 @@
           "params": {},
           "result": "beta"
         }
-      ]
+      ],
+      "check_id": "lex_value"
     },
     {
-      "name": "deep_value",
       "description": "Return an object for deep equality tests.",
       "determinism": "deterministic",
       "params_required": false,
@@ -87,10 +89,8 @@
             "a": 1
           }
         }
-      ]
+      ],
+      "check_id": "deep_value"
     }
-  ],
-  "notes": [
-    "Test-only contract for strict comparator validation."
   ]
 }

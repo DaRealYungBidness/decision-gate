@@ -46,7 +46,7 @@ pub fn scenario_schema() -> Value {
             "namespace_id",
             "spec_version",
             "stages",
-            "predicates",
+            "conditions",
             "policies",
             "schemas"
         ],
@@ -59,9 +59,9 @@ pub fn scenario_schema() -> Value {
                 "items": { "$ref": "#/$defs/StageSpec" },
                 "minItems": 1
             },
-            "predicates": {
+            "conditions": {
                 "type": "array",
-                "items": { "$ref": "#/$defs/PredicateSpec" }
+                "items": { "$ref": "#/$defs/ConditionSpec" }
             },
             "policies": {
                 "type": "array",
@@ -93,7 +93,7 @@ fn scenario_defs(
 ) -> Map<String, Value> {
     let mut defs = Map::new();
     insert_stage_defs(&mut defs, advance_to, requirement);
-    insert_predicate_defs(&mut defs);
+    insert_condition_defs(&mut defs);
     insert_packet_defs(&mut defs, packet_payload, hash_digest, timestamp);
     insert_reference_defs(&mut defs);
     defs
@@ -200,19 +200,19 @@ fn insert_stage_defs(defs: &mut Map<String, Value>, advance_to: &Value, requirem
     defs.insert(String::from("Requirement"), requirement.clone());
 }
 
-/// Inserts predicate-related schema definitions into the shared defs map.
-fn insert_predicate_defs(defs: &mut Map<String, Value>) {
+/// Inserts condition-related schema definitions into the shared defs map.
+fn insert_condition_defs(defs: &mut Map<String, Value>) {
     defs.insert(
-        String::from("PredicateSpec"),
+        String::from("ConditionSpec"),
         json!({
             "type": "object",
-            "required": ["predicate", "query", "comparator", "policy_tags"],
+            "required": ["condition_id", "query", "comparator", "policy_tags"],
             "properties": {
-                "predicate": schema_for_identifier("Predicate identifier."),
+                "condition_id": schema_for_identifier("Condition identifier."),
                 "query": evidence_query_schema(),
                 "comparator": comparator_schema(),
                 "expected": schema_for_json_value("Expected comparison value."),
-                "policy_tags": schema_for_string_array("Policy tags applied to predicate evaluation."),
+                "policy_tags": schema_for_string_array("Policy tags applied to condition evaluation."),
                 "trust": {
                     "oneOf": [
                         { "type": "null" },
@@ -343,10 +343,10 @@ pub fn config_schema() -> Value {
 pub fn evidence_query_schema() -> Value {
     json!({
         "type": "object",
-        "required": ["provider_id", "predicate"],
+        "required": ["provider_id", "check_id"],
         "properties": {
             "provider_id": schema_for_identifier("Evidence provider identifier."),
-            "predicate": schema_for_string("Provider predicate name."),
+            "check_id": schema_for_string("Provider check identifier."),
             "params": schema_for_json_value("Provider-specific parameter payload.")
         },
         "additionalProperties": false
@@ -1111,13 +1111,13 @@ pub fn determinism_class_schema() -> Value {
     json!({
         "type": "string",
         "enum": ["deterministic", "time_dependent", "external"],
-        "description": "Determinism classification for provider predicates."
+        "description": "Determinism classification for provider checks."
     })
 }
 
-/// Returns the JSON schema for `PredicateExample`.
+/// Returns the JSON schema for `CheckExample`.
 #[must_use]
-pub fn predicate_example_schema() -> Value {
+pub fn check_example_schema() -> Value {
     json!({
         "type": "object",
         "required": ["description", "params", "result"],
@@ -1130,13 +1130,13 @@ pub fn predicate_example_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `PredicateContract`.
+/// Returns the JSON schema for `CheckContract`.
 #[must_use]
-pub fn predicate_contract_schema() -> Value {
+pub fn check_contract_schema() -> Value {
     json!({
         "type": "object",
         "required": [
-            "name",
+            "check_id",
             "description",
             "determinism",
             "params_required",
@@ -1148,25 +1148,25 @@ pub fn predicate_contract_schema() -> Value {
             "examples"
         ],
         "properties": {
-            "name": schema_for_string("Predicate name."),
-            "description": schema_for_string("Predicate description."),
+            "check_id": schema_for_string("Check identifier."),
+            "description": schema_for_string("Check description."),
             "determinism": determinism_class_schema(),
             "params_required": {
                 "type": "boolean",
-                "description": "Whether params are required for this predicate."
+                "description": "Whether params are required for this check."
             },
-            "params_schema": schema_for_json_value("JSON schema for predicate params."),
-            "result_schema": schema_for_json_value("JSON schema for predicate result values."),
+            "params_schema": schema_for_json_value("JSON schema for check params."),
+            "result_schema": schema_for_json_value("JSON schema for check result values."),
             "allowed_comparators": {
                 "type": "array",
                 "items": comparator_schema(),
-                "description": "Comparator allow-list for this predicate."
+                "description": "Comparator allow-list for this check."
             },
-            "anchor_types": schema_for_string_array("Anchor types emitted by this predicate."),
-            "content_types": schema_for_string_array("Content types for predicate output."),
+            "anchor_types": schema_for_string_array("Anchor types emitted by this check."),
+            "content_types": schema_for_string_array("Content types for check output."),
             "examples": {
                 "type": "array",
-                "items": predicate_example_schema()
+                "items": check_example_schema()
             }
         },
         "additionalProperties": false
@@ -1184,7 +1184,7 @@ pub fn provider_contract_schema() -> Value {
             "description",
             "transport",
             "config_schema",
-            "predicates",
+            "checks",
             "notes"
         ],
         "properties": {
@@ -1197,9 +1197,9 @@ pub fn provider_contract_schema() -> Value {
                 "description": "Provider transport kind."
             },
             "config_schema": schema_for_json_value("Provider configuration schema."),
-            "predicates": {
+            "checks": {
                 "type": "array",
-                "items": predicate_contract_schema()
+                "items": check_contract_schema()
             },
             "notes": schema_for_string_array("Provider notes and guidance.")
         },
@@ -1230,7 +1230,7 @@ fn trust_requirement_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `Requirement<PredicateKey>`.
+/// Returns the JSON schema for `Requirement<ConditionId>`.
 #[must_use]
 fn requirement_schema() -> Value {
     json!({
@@ -1286,9 +1286,9 @@ fn requirement_schema() -> Value {
             },
             {
                 "type": "object",
-                "required": ["Predicate"],
+                "required": ["Condition"],
                 "properties": {
-                    "Predicate": schema_for_identifier("Predicate identifier reference.")
+                    "Condition": schema_for_identifier("Condition identifier reference.")
                 },
                 "additionalProperties": false
             }
@@ -1683,9 +1683,9 @@ fn evidence_signature_schema() -> Value {
 fn gate_trace_entry_schema() -> Value {
     json!({
         "type": "object",
-        "required": ["predicate", "status"],
+        "required": ["condition_id", "status"],
         "properties": {
-            "predicate": schema_for_identifier("Predicate identifier."),
+            "condition_id": schema_for_identifier("Condition identifier."),
             "status": tri_state_schema()
         },
         "additionalProperties": false
@@ -1715,9 +1715,9 @@ pub fn gate_evaluation_schema() -> Value {
 fn evidence_record_schema() -> Value {
     json!({
         "type": "object",
-        "required": ["predicate", "status", "result"],
+        "required": ["condition_id", "status", "result"],
         "properties": {
-            "predicate": schema_for_identifier("Predicate identifier."),
+            "condition_id": schema_for_identifier("Condition identifier."),
             "status": tri_state_schema(),
             "result": evidence_result_schema()
         },

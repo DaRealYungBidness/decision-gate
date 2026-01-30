@@ -32,7 +32,7 @@ This aligns with a control-plane reading:
 - Gate outcomes decide if the boundary may be crossed.
 - If Gi(s, e) != T, the engine holds and returns a safe summary.
 
-In short: "We release data only if the predicates are satisfied."
+In short: "We release data only if the conditions are satisfied."
 
 ## View 2: Gate as target (postcondition)
 
@@ -42,32 +42,32 @@ Definition (target set): Ti = { (s, e) | Gi(s, e) = T }.
 
 An agent can plan actions that move the system toward Ti. In this view:
 - The gate set is a declarative goal specification.
-- The agent derives tasks from predicates (or from their descriptions).
+- The agent derives tasks from conditions (or from their descriptions).
 - The agent checks progress by re-evaluating Gi.
 
-In short: "We must make these predicates true to be done."
+In short: "We must make these conditions true to be done."
 
 ## Same math, different direction
 
-Barrier view is about control: "Do not advance unless the predicate holds."
-Target view is about intention: "Make the predicate hold."
+Barrier view is about control: "Do not advance unless the condition holds."
+Target view is about intention: "Make the condition hold."
 
 This is a duality of interpretation, not of structure:
-- Barrier: predicate as a guard (precondition).
-- Target: predicate as a goal (postcondition).
+- Barrier: condition as a guard (precondition).
+- Target: condition as a goal (postcondition).
 
 Both are expressions of the same logical requirement tree.
 
-## Predicate algebra grounding
+## Condition algebra grounding
 
-Each predicate pk is defined by:
+Each condition pk is defined by:
 - A query qk into some system (DB, log, time, receipt, etc.).
 - A comparator ck (equals, exists, greater-than, etc.).
 - An expected value vk (optional).
 
 This yields a truth value pk(s, e) in {T, F, U}.
 
-The requirement tree (RET) composes these predicates into gate outcomes.
+The requirement tree (RET) composes these conditions into gate outcomes.
 This is the formal "plan language" you can evaluate against arbitrary systems.
 
 ## Different mental models
@@ -79,7 +79,7 @@ Barrier (control plane):
 
 Target (agent goal):
 - Success condition and completion proof.
-- Task list derivation from predicates.
+- Task list derivation from conditions.
 - Test-oracle for "did we do the work?"
 
 Contractual reading (shared):
@@ -88,9 +88,9 @@ Contractual reading (shared):
 
 ## Design implications
 
-- Evidence providers define what the predicates mean in the real world.
+- Evidence providers define what checks mean in the real world; conditions bind those checks to expectations.
 - Safe summaries report unmet gate identifiers without leaking evidence.
-- The core engine remains agnostic; the semantics live in predicates and their
+- The core engine remains agnostic; the semantics live in conditions and their
   evidence queries.
 - If you want "task text," attach descriptions to gate ids or provide sidecar
   mappings; the math remains the same.
@@ -167,7 +167,7 @@ Decision Gate:    LLM acts → External system evaluates evidence → Gate resul
 
 Key properties:
 
-1. **Evidence-backed evaluation.** Predicates query external systems (databases,
+1. **Evidence-backed evaluation.** Conditions query external systems (databases,
    APIs, filesystems, CI pipelines). The truth source is the system, not the
    model's claim.
 
@@ -221,7 +221,7 @@ Decision Gate occupies a specific niche:
 Compared to alternatives:
 
 - **vs Scratchpad**: More structured, externally verified, auditable. Less
-  flexible, requires predicate definitions.
+  flexible, requires condition definitions.
 
 - **vs LangGraph**: Declarative logic vs imperative code. Evidence-backed vs
   code-defined conditions. Tri-state vs binary.
@@ -284,10 +284,10 @@ Evidence connectors are pluggable. Common targets:
 
 ## Open Questions
 
-1. What is the right developer experience for defining predicates? Pure code,
+1. What is the right developer experience for defining conditions? Pure code,
    DSL, or visual builder?
 
-2. How granular should evidence snapshots be? Per-predicate, per-gate, or
+2. How granular should evidence snapshots be? Per-condition, per-gate, or
    per-stage?
 
 3. Can gate definitions be learned or suggested from task descriptions?

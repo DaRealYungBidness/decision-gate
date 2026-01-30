@@ -49,7 +49,7 @@ sequenceDiagram
   participant Runpack as {{diagram.assetcore.arch.evidence.runpack}}
 
   DG->>Core: {{diagram.assetcore.arch.evidence.evidence_query}}
-  Core->>ASC: {{diagram.assetcore.arch.evidence.predicate_query}}
+  Core->>ASC: {{diagram.assetcore.arch.evidence.check_query}}
   ASC-->>Core: {{diagram.assetcore.arch.evidence.evidence_result}}
   Core->>Runpack: {{diagram.assetcore.arch.evidence.record_evidence}}
   Runpack-->>DG: {{diagram.assetcore.arch.evidence.manifest}}
@@ -95,7 +95,7 @@ Reference: `Docs/architecture/decision_gate_assetcore_integration_contract.md`
 - `diagram.assetcore.arch.evidence.asc`: AssetCore Read Daemon
 - `diagram.assetcore.arch.evidence.runpack`: Runpack Builder
 - `diagram.assetcore.arch.evidence.evidence_query`: `evidence_query (provider_id=assetcore_read)`
-- `diagram.assetcore.arch.evidence.predicate_query`: predicate query + params
+- `diagram.assetcore.arch.evidence.check_query`: check query + params
 - `diagram.assetcore.arch.evidence.evidence_result`: EvidenceResult + anchors
 - `diagram.assetcore.arch.evidence.record_evidence`: record evidence + anchors
 - `diagram.assetcore.arch.evidence.manifest`: manifest + integrity root hash

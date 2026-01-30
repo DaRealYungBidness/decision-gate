@@ -24,12 +24,12 @@
 mod support;
 
 use ret_logic::ColumnKey;
+use ret_logic::ConditionEval;
 use ret_logic::Constant;
 use ret_logic::OpCode;
 use ret_logic::Operation;
 use ret_logic::Plan;
 use ret_logic::PlanBuilder;
-use ret_logic::PredicateEval;
 use ret_logic::RequirementError;
 use ret_logic::RequirementResult;
 use ret_logic::Row;
@@ -73,7 +73,7 @@ impl TestReader {
 fn require_constant(op: Operation, constants: &[Constant]) -> RequirementResult<()> {
     constants
         .get(usize::from(op.operand_b))
-        .ok_or_else(|| RequirementError::predicate_error("Missing constant"))?;
+        .ok_or_else(|| RequirementError::condition_error("Missing constant"))?;
     Ok(())
 }
 
@@ -97,11 +97,11 @@ fn handle_float_lte(
     constants: &[Constant],
 ) -> RequirementResult<bool> {
     let value =
-        reader.get_value(row).ok_or_else(|| RequirementError::predicate_error("Missing value"))?;
+        reader.get_value(row).ok_or_else(|| RequirementError::condition_error("Missing value"))?;
     let threshold = constants
         .get(usize::from(op.operand_b))
         .and_then(ret_logic::Constant::as_float)
-        .ok_or_else(|| RequirementError::predicate_error("Invalid threshold"))?;
+        .ok_or_else(|| RequirementError::condition_error("Invalid threshold"))?;
     Ok(value <= threshold)
 }
 
@@ -121,11 +121,11 @@ fn handle_has_any_flags(
     constants: &[Constant],
 ) -> RequirementResult<bool> {
     let flags =
-        reader.get_flags(row).ok_or_else(|| RequirementError::predicate_error("Missing flags"))?;
+        reader.get_flags(row).ok_or_else(|| RequirementError::condition_error("Missing flags"))?;
     let test = constants
         .get(usize::from(op.operand_b))
         .and_then(ret_logic::Constant::as_flags)
-        .ok_or_else(|| RequirementError::predicate_error("Invalid flags"))?;
+        .ok_or_else(|| RequirementError::condition_error("Invalid flags"))?;
     Ok((flags & test) != 0)
 }
 

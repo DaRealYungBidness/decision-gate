@@ -21,7 +21,7 @@ backend-agnostic and integrates via explicit interfaces rather than embedding
 into agent frameworks.
 
 RET stands for **Requirement Evaluation Tree** and refers to the universal
-predicate algebra used by the engine.
+requirement algebra used by the engine.
 
 ## Table of Contents
 
@@ -35,9 +35,9 @@ predicate algebra used by the engine.
 - [Why Built-ins + JSON Go Far](#why-built-ins--json-go-far)
 - [Repository Layout](#repository-layout)
 - [Core Concepts](#core-concepts)
-- [How Predicates Are Defined](#how-predicates-are-defined)
+- [How Conditions Are Defined](#how-conditions-are-defined)
 - [Scenario Authoring Walkthrough](#scenario-authoring-walkthrough)
-- [Built-in Providers (Predicate Reference)](#built-in-providers-predicate-reference)
+- [Built-in Providers (Check Reference)](#built-in-providers-check-reference)
 - [Provider Example: Database](#provider-example-database)
 - [MCP Tool Surface](#mcp-tool-surface)
 - [Contract Artifacts](#contract-artifacts)
@@ -55,7 +55,7 @@ predicate algebra used by the engine.
 
 Decision Gate is a control plane for deterministic checkpoints. It does not run
 conversations or agents. It ingests triggers, evaluates evidence-backed
-predicates, and emits auditable decisions and disclosures. Evidence can be
+conditions, and emits auditable decisions and disclosures. Evidence can be
 provider-pulled (verified) or asserted for precheck; asserted data never mutates
 run state. Decision Gate does not execute arbitrary tasks; evidence is produced
 by providers or by a caller in precheck, and the core only evaluates it.
@@ -121,7 +121,7 @@ Decision Gate is in active development; APIs and config may change.
 
 Implemented in OSS:
 
-- Trust lanes (verified vs asserted) with gate/predicate enforcement.
+- Trust lanes (verified vs asserted) with gate/condition enforcement.
 - Schema registry with ACLs, audit events, and discovery tools.
 - Namespace authority checks (including optional AssetCore HTTP authority).
 - Dev-permissive mode for asserted evidence (scoped, warning-emitting).
@@ -184,7 +184,7 @@ sequenceDiagram
 
   Client->>MCP: evidence_query
   MCP->>CP: validate + route
-  CP->>Provider: EvidenceQuery\n(provider_id, predicate, params)
+  CP->>Provider: EvidenceQuery\n(provider_id, check_id, params)
   Provider-->>CP: EvidenceResult\n(value, hash, anchor, signature?)
   CP-->>MCP: normalized result
   MCP-->>Client: tool response
@@ -263,30 +263,30 @@ provider; the core evaluation model stays the same.
 - `decision-gate-mcp`: MCP server and evidence federation
 - `decision-gate-cli`: CLI for MCP server and runpack utilities
 - `decision-gate-provider-sdk`: provider templates (TypeScript, Python, Go)
-- `ret-logic`: universal predicate evaluation engine (RET)
+- `ret-logic`: universal requirement evaluation engine (RET)
 - `examples/`: runnable examples (`minimal`, `file-disclosure`, `llm-scenario`, `agent-loop`, `ci-gate`, `data-disclosure`)
 
 ## Core Concepts
 
 **ScenarioSpec**: The full scenario definition. It contains stages, gates, and
-predicates. A scenario is the unit of execution.
+conditions. A scenario is the unit of execution.
 
 **StageSpec**: A scenario stage. Each stage has zero or more gates and an
 advance policy (`linear`, `fixed`, `branch`, or `terminal`).
 
 **GateSpec**: A gate with a requirement tree. This is where `ret-logic` applies.
 
-**PredicateSpec**: A named predicate that binds a requirement leaf to an
+**ConditionSpec**: A named condition that binds a requirement leaf to an
 evidence query and comparator.
 
 **EvidenceQuery**: The canonical shape of a provider query:
-`provider_id`, `predicate`, and `params`.
+`provider_id`, `check_id`, and `params`.
 
 **EvidenceResult**: The provider response containing a value, hash, anchor,
 and optional signature metadata.
 
 **TrustLane**: Evidence trust classification (`verified` or `asserted`), enforced
-at gate/predicate level. Unmet trust yields Unknown and holds the run.
+at gate/condition level. Unmet trust yields Unknown and holds the run.
 
 **Namespace**: Logical partition within a tenant for isolation of scenarios,
 schemas, and run state.
@@ -296,22 +296,22 @@ schemas, and run state.
 **Runpack**: A deterministic bundle of run artifacts and a manifest for
 offline verification.
 
-## How Predicates Are Defined
+## How Conditions Are Defined
 
 This is the critical distinction:
 
-- `ret-logic` defines **how predicates are composed** (AND, OR, NOT,
-  require-group). It does not define predicate parameters.
-- Providers define **what a predicate means** and which parameters are
+- `ret-logic` defines **how conditions are composed** (AND, OR, NOT,
+  require-group). It does not define check parameters.
+- Providers define **what a check means** and which parameters are
   accepted. This is implemented inside each provider.
 
-In practical terms, the predicate format is defined by:
+In practical terms, the check format is defined by:
 
-1. The `EvidenceQuery` shape in `decision-gate-core` (provider_id, predicate, params).
-2. The provider implementation that interprets `predicate` and `params`.
+1. The `EvidenceQuery` shape in `decision-gate-core` (provider_id, check_id, params).
+2. The provider implementation that interprets `check_id` and `params`.
 
 The canonical contract crate (`decision-gate-contract`) defines provider
-capabilities as Rust data structures so predicate schemas, docs, and tooltips
+capabilities as Rust data structures so check schemas, docs, and tooltips
 are generated (not hand-maintained). Generated artifacts live under
 `Docs/generated/decision-gate`. After any behavior or schema change, update the
 contract tooltips and regenerate the generated artifacts to keep them aligned.
@@ -332,16 +332,16 @@ Examples:
 - `http` provider for endpoint checks
 - `database` provider for external database checks (external MCP provider)
 
-### 2) Define Predicates
+### 2) Define Conditions
 
-Predicates bind a provider query to a comparator. This is the proof surface.
+Conditions bind a provider query (check) to a comparator. This is the proof surface.
 
 ```json
 {
-  "predicate": "deploy_env",
+  "condition_id": "deploy_env",
   "query": {
     "provider_id": "env",
-    "predicate": "get",
+    "check_id": "get",
     "params": { "key": "DEPLOY_ENV" }
   },
   "comparator": "equals",
@@ -352,13 +352,13 @@ Predicates bind a provider query to a comparator. This is the proof surface.
 
 ### 3) Compose Gates with ret-logic
 
-Gates are requirement trees built from predicate keys.
+Gates are requirement trees built from condition identifiers.
 
 ```json
 {
   "gate_id": "ready",
   "requirement": {
-    "And": [{ "Predicate": "deploy_env" }, { "Predicate": "build_passed" }]
+    "And": [{ "Condition": "deploy_env" }, { "Condition": "build_passed" }]
   }
 }
 ```
@@ -371,7 +371,7 @@ Stages hold gates and define where the run goes next.
 {
   "stage_id": "main",
   "gates": [
-    { "gate_id": "ready", "requirement": { "Predicate": "deploy_env" } }
+    { "gate_id": "ready", "requirement": { "Condition": "deploy_env" } }
   ],
   "advance_to": { "kind": "terminal" },
   "entry_packets": [],
@@ -393,7 +393,7 @@ Use MCP tools or the CLI to define, start, and advance the run:
 
 Runpacks can be exported and verified offline after execution.
 
-## Built-in Providers (Predicate Reference)
+## Built-in Providers (Check Reference)
 
 These are the default providers shipped in `decision-gate-providers/src`.
 
@@ -452,14 +452,14 @@ Params:
 
 Databases are not built-in. They are implemented as external MCP providers.
 
-### Predicate Example
+### Condition Example
 
 ```json
 {
-  "predicate": "user_status",
+  "condition_id": "user_status",
   "query": {
     "provider_id": "database",
-    "predicate": "field_value",
+    "check_id": "field_value",
     "params": {
       "source": "app_db",
       "table": "users",
@@ -475,7 +475,7 @@ Databases are not built-in. They are implemented as external MCP providers.
 
 ### What This Means
 
-- The predicate format (`field_value` and its params) is defined by the
+- The check format (`field_value` and its params) is defined by the
   database provider, not by `ret-logic`.
 - Decision Gate treats it as a query to the `database` provider and evaluates
   the returned evidence with the comparator.
@@ -493,7 +493,7 @@ Decision Gate exposes MCP tools that map directly to the control plane:
 - `evidence_query`
 - `providers_list`
 - `provider_contract_get`
-- `provider_schema_get`
+- `provider_check_schema_get`
 - `schemas_register`
 - `schemas_list`
 - `schemas_get`
@@ -510,7 +510,7 @@ code-generated into docs and SDKs.
 The contract generator emits deterministic artifacts for docs and SDKs:
 
 - `Docs/generated/decision-gate/tooling.json`: MCP tool schemas
-- `Docs/generated/decision-gate/providers.json`: provider predicate schemas
+- `Docs/generated/decision-gate/providers.json`: provider check schemas
 - `Docs/generated/decision-gate/schemas/`: scenario + config JSON schemas
 - `Docs/generated/decision-gate/examples/`: canonical examples
 
@@ -545,17 +545,19 @@ enables offline verification of integrity and tamper detection.
 
 ## Glossary
 
-**Provider**: An evidence source (built-in or external MCP server) that supplies predicates.
+**Provider**: An evidence source (built-in or external MCP server) that supplies checks.
 
 **Provider entry**: The `[[providers]]` configuration entry that registers a provider.
 
 **Adapter**: A generic term for a provider; use "provider" in Decision Gate.
 
-**Predicate**: A named evidence check, defined by a provider query.
+**Check**: A provider capability identified by `check_id` in an `EvidenceQuery`.
 
-**Requirement**: A logical composition of predicates (AND, OR, NOT, group).
+**Condition**: A named scenario leaf that binds a provider check to a comparator and expected value.
 
-**Scenario**: The full definition of stages, gates, and predicates.
+**Requirement**: A logical composition of conditions (AND, OR, NOT, group).
+
+**Scenario**: The full definition of stages, gates, and conditions.
 
 **Gate**: A requirement tree that must pass to advance a stage.
 

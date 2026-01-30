@@ -2,7 +2,7 @@
 // ============================================================================
 // Module: Trust Lane and Requirement Tests
 // Description: Comprehensive tests for trust lane ranking, satisfaction, and
-//              the stricter() lattice composition across config, predicate,
+//              the stricter() lattice composition across config, condition,
 //              and gate levels.
 // Purpose: Ensure trust policies fail closed and compose correctly.
 // Dependencies: decision-gate-core
@@ -194,60 +194,60 @@ fn trust_requirement_stricter_asserted_verified_returns_verified() {
 }
 
 // ============================================================================
-// SECTION: Three-Level Composition (Config -> Predicate -> Gate)
+// SECTION: Three-Level Composition (Config -> Condition -> Gate)
 // ============================================================================
 
-/// Helper to compose three trust requirements in order: config -> predicate -> gate
+/// Helper to compose three trust requirements in order: config -> condition -> gate
 fn compose_three_levels(
     config: TrustRequirement,
-    predicate: Option<TrustRequirement>,
+    condition: Option<TrustRequirement>,
     gate: Option<TrustRequirement>,
 ) -> TrustRequirement {
-    let with_predicate = predicate.map_or(config, |p| config.stricter(p));
-    gate.map_or(with_predicate, |g| with_predicate.stricter(g))
+    let with_condition = condition.map_or(config, |p| config.stricter(p));
+    gate.map_or(with_condition, |g| with_condition.stricter(g))
 }
 
 #[test]
-fn three_level_config_asserted_predicate_verified_gate_none_yields_verified() {
+fn three_level_config_asserted_condition_verified_gate_none_yields_verified() {
     let config = TrustRequirement {
         min_lane: TrustLane::Asserted,
     };
-    let predicate = Some(TrustRequirement {
+    let condition = Some(TrustRequirement {
         min_lane: TrustLane::Verified,
     });
     let gate = None;
 
-    let result = compose_three_levels(config, predicate, gate);
+    let result = compose_three_levels(config, condition, gate);
     assert_eq!(result.min_lane, TrustLane::Verified);
 }
 
 #[test]
-fn three_level_config_verified_predicate_asserted_gate_verified_yields_verified() {
+fn three_level_config_verified_condition_asserted_gate_verified_yields_verified() {
     let config = TrustRequirement {
         min_lane: TrustLane::Verified,
     };
-    let predicate = Some(TrustRequirement {
+    let condition = Some(TrustRequirement {
         min_lane: TrustLane::Asserted,
     });
     let gate = Some(TrustRequirement {
         min_lane: TrustLane::Verified,
     });
 
-    let result = compose_three_levels(config, predicate, gate);
+    let result = compose_three_levels(config, condition, gate);
     assert_eq!(result.min_lane, TrustLane::Verified);
 }
 
 #[test]
-fn three_level_config_asserted_predicate_none_gate_asserted_yields_asserted() {
+fn three_level_config_asserted_condition_none_gate_asserted_yields_asserted() {
     let config = TrustRequirement {
         min_lane: TrustLane::Asserted,
     };
-    let predicate = None;
+    let condition = None;
     let gate = Some(TrustRequirement {
         min_lane: TrustLane::Asserted,
     });
 
-    let result = compose_three_levels(config, predicate, gate);
+    let result = compose_three_levels(config, condition, gate);
     assert_eq!(result.min_lane, TrustLane::Asserted);
 }
 
@@ -256,14 +256,14 @@ fn three_level_all_verified_yields_verified() {
     let config = TrustRequirement {
         min_lane: TrustLane::Verified,
     };
-    let predicate = Some(TrustRequirement {
+    let condition = Some(TrustRequirement {
         min_lane: TrustLane::Verified,
     });
     let gate = Some(TrustRequirement {
         min_lane: TrustLane::Verified,
     });
 
-    let result = compose_three_levels(config, predicate, gate);
+    let result = compose_three_levels(config, condition, gate);
     assert_eq!(result.min_lane, TrustLane::Verified);
 }
 
@@ -272,76 +272,76 @@ fn three_level_all_asserted_yields_asserted() {
     let config = TrustRequirement {
         min_lane: TrustLane::Asserted,
     };
-    let predicate = Some(TrustRequirement {
+    let condition = Some(TrustRequirement {
         min_lane: TrustLane::Asserted,
     });
     let gate = Some(TrustRequirement {
         min_lane: TrustLane::Asserted,
     });
 
-    let result = compose_three_levels(config, predicate, gate);
+    let result = compose_three_levels(config, condition, gate);
     assert_eq!(result.min_lane, TrustLane::Asserted);
 }
 
 #[test]
 fn three_level_default_stacks_correctly_with_asserted_override() {
-    // Default is Verified; if predicate says Asserted, config's Verified wins
+    // Default is Verified; if condition says Asserted, config's Verified wins
     let config = TrustRequirement::default(); // Verified
-    let predicate = Some(TrustRequirement {
+    let condition = Some(TrustRequirement {
         min_lane: TrustLane::Asserted,
     });
     let gate = None;
 
-    let result = compose_three_levels(config, predicate, gate);
+    let result = compose_three_levels(config, condition, gate);
     assert_eq!(result.min_lane, TrustLane::Verified);
 }
 
 #[test]
-fn three_level_gate_can_tighten_relaxed_predicate() {
-    // Even if config and predicate allow Asserted, gate can require Verified
+fn three_level_gate_can_tighten_relaxed_condition() {
+    // Even if config and condition allow Asserted, gate can require Verified
     let config = TrustRequirement {
         min_lane: TrustLane::Asserted,
     };
-    let predicate = Some(TrustRequirement {
+    let condition = Some(TrustRequirement {
         min_lane: TrustLane::Asserted,
     });
     let gate = Some(TrustRequirement {
         min_lane: TrustLane::Verified,
     });
 
-    let result = compose_three_levels(config, predicate, gate);
+    let result = compose_three_levels(config, condition, gate);
     assert_eq!(result.min_lane, TrustLane::Verified);
 }
 
 #[test]
-fn three_level_predicate_cannot_relax_config() {
-    // Config says Verified; predicate saying Asserted cannot relax it
+fn three_level_condition_cannot_relax_config() {
+    // Config says Verified; condition saying Asserted cannot relax it
     let config = TrustRequirement {
         min_lane: TrustLane::Verified,
     };
-    let predicate = Some(TrustRequirement {
+    let condition = Some(TrustRequirement {
         min_lane: TrustLane::Asserted,
     });
     let gate = None;
 
-    let result = compose_three_levels(config, predicate, gate);
+    let result = compose_three_levels(config, condition, gate);
     assert_eq!(result.min_lane, TrustLane::Verified);
 }
 
 #[test]
-fn three_level_gate_cannot_relax_predicate() {
-    // Predicate says Verified; gate saying Asserted cannot relax it
+fn three_level_gate_cannot_relax_condition() {
+    // Condition says Verified; gate saying Asserted cannot relax it
     let config = TrustRequirement {
         min_lane: TrustLane::Asserted,
     };
-    let predicate = Some(TrustRequirement {
+    let condition = Some(TrustRequirement {
         min_lane: TrustLane::Verified,
     });
     let gate = Some(TrustRequirement {
         min_lane: TrustLane::Asserted,
     });
 
-    let result = compose_three_levels(config, predicate, gate);
+    let result = compose_three_levels(config, condition, gate);
     assert_eq!(result.min_lane, TrustLane::Verified);
 }
 

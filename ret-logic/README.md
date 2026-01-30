@@ -12,10 +12,10 @@ RET stands for **Requirement Evaluation Tree**.
 > — _Michael "Yung Bidness" Campbell, in reverence of Roy Jones Jr., on the eternal return of recursive formalism and falsity of premature abstraction_
 
 A domain-agnostic requirement evaluation engine that separates propositional
-logic (AND/OR/NOT/RequireGroup) from predicate semantics. It provides a small
-core for evaluating requirements against user-defined predicates and readers.
+logic (AND/OR/NOT/RequireGroup) from condition semantics. It provides a small
+core for evaluating requirements against user-defined conditions and readers.
 
-This crate comes from an attempt to derive the general class structure of "quests" for video games. At their core, quests ultimately culminate in the predicate "Has X been done?"; given the data-driven nature of those systems, we can generalize "X" to be "any data source." Structurally, ["Kill five shidar at the behest of Arx the Purifier"](https://yungbidness.dev/#future) is the same as "Did the football/soccer team score more than its opponent?" In both cases we can strip out the surrounding context and focus purely on the operative condition.
+This crate comes from an attempt to derive the general class structure of "quests" for video games. At their core, quests ultimately culminate in the condition "Has X been done?"; given the data-driven nature of those systems, we can generalize "X" to be "any data source." Structurally, ["Kill five shidar at the behest of Arx the Purifier"](https://yungbidness.dev/#future) is the same as "Did the football/soccer team score more than its opponent?" In both cases we can strip out the surrounding context and focus purely on the operative condition.
 
 Hence this crate.
 
@@ -23,8 +23,8 @@ That said, this crate exists because of my frustration with recreating the same 
 
 ## Status and Scope
 
-RET Logic is the universal predicate algebra used by Decision Gate. It provides
-deterministic boolean and tri-state evaluation over domain-defined predicates.
+RET Logic is the universal condition algebra used by Decision Gate. It provides
+deterministic boolean and tri-state evaluation over domain-defined conditions.
 
 In scope:
 
@@ -54,10 +54,10 @@ Out of scope:
 
 ## Overview
 
-RET models requirements as trees of logical operators over domain predicates.
-Evaluation is performed by calling user-provided predicate logic against a
+RET models requirements as trees of logical operators over domain conditions.
+Evaluation is performed by calling user-provided condition logic against a
 reader type that exposes domain data. The library does not define what a
-predicate means; you do.
+condition means; you do.
 
 ## Repository Note
 
@@ -71,16 +71,16 @@ require Decision Gate dependencies, and can be used independently.
 ```mermaid
 flowchart LR
   Author["Authoring<br/>(builder/DSL/RON)"] --> Req[Requirement tree]
-  Req --> Eval["Row evaluation<br/>via PredicateEval"]
+  Req --> Eval["Row evaluation<br/>via ConditionEval"]
 ```
 
 ## Quick Start
 
 ```rust
-use ret_logic::{Requirement, PredicateEval};
+use ret_logic::{Requirement, ConditionEval};
 
 #[derive(Clone)]
-enum GamePredicate {
+enum GameCondition {
     HealthGte(f32),
     HasFlag(u64),
 }
@@ -90,20 +90,20 @@ struct UnitReader<'a> {
     flags: &'a [u64],
 }
 
-impl PredicateEval for GamePredicate {
+impl ConditionEval for GameCondition {
     type Reader<'a> = UnitReader<'a>;
 
     fn eval_row(&self, reader: &Self::Reader<'_>, row: usize) -> bool {
         match self {
-            GamePredicate::HealthGte(threshold) => reader.health[row] >= *threshold,
-            GamePredicate::HasFlag(flag) => (reader.flags[row] & flag) != 0,
+            GameCondition::HealthGte(threshold) => reader.health[row] >= *threshold,
+            GameCondition::HasFlag(flag) => (reader.flags[row] & flag) != 0,
         }
     }
 }
 
 let requirement = Requirement::and(vec![
-    Requirement::predicate(GamePredicate::HealthGte(50.0)),
-    Requirement::predicate(GamePredicate::HasFlag(0b0100)),
+    Requirement::condition(GameCondition::HealthGte(50.0)),
+    Requirement::condition(GameCondition::HasFlag(0b0100)),
 ]);
 
 let reader = UnitReader { health: &health_slice, flags: &flags_slice };
@@ -141,7 +141,7 @@ pub enum Requirement<P> {
     Or(SmallVec<[Box<Self>; 4]>),
     Not(Box<Self>),
     RequireGroup { min: u8, reqs: SmallVec<[Box<Self>; 8]> },
-    Predicate(P),
+    Condition(P),
 }
 ```
 
@@ -151,18 +151,18 @@ For evidence-driven systems, boolean evaluation may be insufficient. RET
 supports tri-state evaluation (`true/false/unknown`) with configurable logic
 modes (Kleene and Bochvar).
 
-### PredicateEval Trait
+### ConditionEval Trait
 
-Predicates are evaluated against a reader type defined by the domain:
+Conditions are evaluated against a reader type defined by the domain:
 
 ```rust
-pub trait PredicateEval {
+pub trait ConditionEval {
     type Reader<'a>;
 
     fn eval_row(&self, reader: &Self::Reader<'_>, row: usize) -> bool;
 }
 
-pub trait BatchPredicateEval: PredicateEval {
+pub trait BatchConditionEval: ConditionEval {
     fn eval_block(&self, reader: &Self::Reader<'_>, start: usize, count: usize) -> u64 {
         // Default: scalar evaluation; domains can override
     }
@@ -171,9 +171,9 @@ pub trait BatchPredicateEval: PredicateEval {
 
 ## Domain Integration
 
-1. Define a reader type that exposes the data needed for predicates.
-2. Define predicate types for your domain.
-3. Implement `PredicateEval` (and optionally `BatchPredicateEval`).
+1. Define a reader type that exposes the data needed for conditions.
+2. Define condition types for your domain.
+3. Implement `ConditionEval` (and optionally `BatchConditionEval`).
 4. Build requirements using the builder API, the DSL, or RON.
 
 Authoring options:
@@ -212,7 +212,7 @@ registered in the dispatch table.
 ## Module Structure
 
 - **[requirement.rs](src/requirement.rs)** - Core `Requirement<P>` enum
-- **[traits.rs](src/traits.rs)** - Predicate and reader traits
+- **[traits.rs](src/traits.rs)** - Condition and reader traits
 - **[plan.rs](src/plan.rs)** - Plan structures and opcodes
 - **[executor.rs](src/executor.rs)** - Plan execution engine and dispatch helper
 - **[tristate.rs](src/tristate.rs)** - Tri-state logic and traces
@@ -228,7 +228,7 @@ Apache 2.0. See `../LICENSE`.
 
 I built this system because I kept running into the same problem: evaluating complex boolean conditions over thousands of game entities, and watching naive implementations become bottlenecks. The insight that boolean algebra is universal—that AND/OR/NOT never change regardless of domain—led to this separation of concerns.
 
-The mathematical approach here is sound. I'm confident in the architecture: universal logic at the top, domain-specific optimization at the predicate boundary, and zero-allocation evaluation in the hot path.
+The mathematical approach here is sound. I'm confident in the architecture: universal logic at the top, domain-specific optimization at the condition boundary, and zero-allocation evaluation in the hot path.
 
 That said, I'm still deepening my understanding of low-level optimization. I look forward to experimenting with hand-tuned SIMD implementations, formal benchmarking against alternative approaches, and exploring edge cases as time permits. If you find issues or have suggestions, I'd genuinely appreciate the feedback.
 

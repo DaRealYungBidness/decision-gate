@@ -44,7 +44,7 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     (
         "scenario_define",
         "Registers a ScenarioSpec with the runtime and returns its canonical spec_hash. The \
-         runtime validates the spec structure, checks that all referenced predicates and \
+         runtime validates the spec structure, checks that all referenced conditions and \
          providers exist, and computes a SHA-256 hash of the canonical JSON form. Store the \
          spec_hash for audit: it proves which exact spec governed a run.",
     ),
@@ -80,14 +80,14 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
         "scenario_trigger",
         "Submits a trigger event with an explicit timestamp and evaluates the run. Unlike \
          scenario_next, triggers carry kind, source_id, and optional payload metadata for \
-         time-based predicates and auditing. The trigger_id ensures idempotent processing: \
-         repeated calls with the same trigger_id return the cached decision.",
+         time-based checks and auditing. The trigger_id ensures idempotent processing: repeated \
+         calls with the same trigger_id return the cached decision.",
     ),
     (
         "evidence_query",
         "Queries an evidence provider with the configured disclosure policy applied. Returns the \
          EvidenceResult containing the value (or hash), anchor metadata, and optional signature. \
-         Use this for debugging predicates or building custom gates outside the standard scenario \
+         Use this for debugging conditions or building custom gates outside the standard scenario \
          flow.",
     ),
     (
@@ -113,12 +113,12 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     (
         "provider_contract_get",
         "Fetches the canonical provider contract JSON and its hash for a provider. Use this to \
-         discover predicate schemas, comparator allow-lists, and examples. Disclosure is \
-         controlled by authz and provider contract visibility policy.",
+         discover check schemas, comparator allow-lists, and examples. Disclosure is controlled \
+         by authz and provider contract visibility policy.",
     ),
     (
-        "provider_schema_get",
-        "Fetches predicate-level schema details for a provider (params schema, result schema, \
+        "provider_check_schema_get",
+        "Fetches check-level schema details for a provider (params schema, result schema, \
          comparator allow-lists, and examples). Use this for authoring forms or LLM guidance \
          without loading the full provider contract.",
     ),
@@ -154,9 +154,14 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     (
         "ScenarioSpec",
         "The complete specification for a deterministic decision workflow. Contains an ordered \
-         list of stages, predicate definitions, and optional policies/schemas. A ScenarioSpec is \
+         list of stages, condition definitions, and optional policies/schemas. A ScenarioSpec is \
          immutable once registered: its canonical JSON form is hashed to produce the spec_hash. \
          Same spec + same evidence = same decisions, always.",
+    ),
+    (
+        "Provider",
+        "An evidence source (built-in or external MCP server) that answers EvidenceQuery checks. \
+         Providers are configured in decision-gate.toml and discovered via MCP contracts.",
     ),
     (
         "GateSpec",
@@ -166,11 +171,22 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          in a stage are evaluated together.",
     ),
     (
-        "PredicateSpec",
-        "Binds a predicate key to an evidence query, comparator, and expected value. The \
-         predicate key is referenced by Requirement leaves. When evaluated, the runtime queries \
-         the provider, applies the comparator to the evidence, and returns true/false/unknown. \
-         Missing expected (except for exists/not_exists) yields unknown.",
+        "ConditionSpec",
+        "Binds a condition_id to an evidence query, comparator, and expected value. The \
+         condition_id is referenced by Requirement leaves. When evaluated, the runtime queries \
+         the provider using EvidenceQuery (provider_id + check_id + params), applies the \
+         comparator to the evidence, and returns true/false/unknown. Missing expected (except for \
+         exists/not_exists) yields unknown.",
+    ),
+    (
+        "conditions",
+        "List of ConditionSpec entries in a ScenarioSpec. Each condition binds a provider check \
+         to comparator rules and expected values for gate evaluation.",
+    ),
+    (
+        "condition_id",
+        "Stable identifier for a condition within a ScenarioSpec. Condition IDs are referenced by \
+         Requirement leaves and should be descriptive and stable (e.g., 'env_is_prod').",
     ),
     // =====================================================================
     // RET SYSTEM - Requirement Evaluation Trees
@@ -178,15 +194,26 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     (
         "Requirement",
         "A Requirement Evaluation Tree (RET) is a boolean algebra over tri-state outcomes. It \
-         composes And, Or, Not, RequireGroup, and Predicate nodes into a tree. Evaluation uses \
+         composes And, Or, Not, RequireGroup, and Condition nodes into a tree. Evaluation uses \
          strong Kleene logic: false dominates And, true dominates Or, and unknown propagates. \
          Gates pass only when the root evaluates to true. RETs make gate logic explicit, \
          auditable, and replayable.",
     ),
     (
+        "RET",
+        "Requirement Evaluation Tree. A boolean algebra over tri-state outcomes that composes \
+         And, Or, Not, RequireGroup, and Condition nodes. RETs make gate logic explicit and \
+         auditable.",
+    ),
+    (
+        "TriState",
+        "Tri-state evaluation outcome: true, false, or unknown. Used by comparators and RET \
+         evaluation to represent missing evidence or type mismatch without false positives.",
+    ),
+    (
         "requirement",
         "The RET expression that a gate must satisfy. This field contains the root of a \
-         Requirement tree (And/Or/Not/RequireGroup/Predicate). The gate passes only when the \
+         Requirement tree (And/Or/Not/RequireGroup/Condition). The gate passes only when the \
          entire tree evaluates to true. Design requirements to handle unknown outcomes explicitly \
          via branching or RequireGroup thresholds.",
     ),
@@ -199,14 +226,22 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          redundant checks.",
     ),
     (
-        "Predicate",
-        "A leaf node in a Requirement tree that references a predicate key defined in the \
-         ScenarioSpec. When evaluated, looks up the PredicateSpec, queries the evidence provider, \
-         applies the comparator, and returns a tri-state outcome. Predicate keys should be stable \
-         and descriptive (e.g., 'env_is_prod', 'after_freeze').",
+        "Condition",
+        "A leaf node in a Requirement tree that references a condition_id defined in the \
+         ScenarioSpec. When evaluated, looks up the ConditionSpec, queries the evidence provider \
+         check, applies the comparator, and returns a tri-state outcome. Condition IDs should be \
+         stable and descriptive (e.g., 'env_is_prod', 'after_freeze').",
     ),
     (
         "GateOutcome",
+        "The tri-state result of evaluating a gate: true, false, or unknown. True means the \
+         requirement is satisfied. False means evidence contradicts the requirement. Unknown \
+         means evidence is missing, the comparator cannot evaluate (type mismatch), or the \
+         provider failed. Branching can route on any outcome; only true advances linear/fixed \
+         stages.",
+    ),
+    (
+        "gate outcome",
         "The tri-state result of evaluating a gate: true, false, or unknown. True means the \
          requirement is satisfied. False means evidence contradicts the requirement. Unknown \
          means evidence is missing, the comparator cannot evaluate (type mismatch), or the \
@@ -256,7 +291,7 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     (
         "EvidenceQuery",
         "The request sent to an evidence provider. Contains provider_id (which provider to ask), \
-         predicate (which provider check to run), and params (provider-specific arguments). The \
+         check_id (which provider check to run), and params (provider-specific arguments). The \
          query is deterministic: same query always returns the same result given the same \
          external state. Queries are logged for audit.",
     ),
@@ -264,7 +299,7 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
         "EvidenceContext",
         "Runtime context passed to evidence providers during queries. Includes tenant_id, run_id, \
          scenario_id, stage_id, trigger_id, trigger_time, and optional correlation_id for audit \
-         correlation. Context is metadata only and does not change predicate logic.",
+         correlation. Context is metadata only and does not change condition logic.",
     ),
     (
         "EvidenceResult",
@@ -294,11 +329,26 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          URI to retrieve evidence as needed.",
     ),
     (
-        "predicate",
-        "The provider check name to evaluate within a provider. Each provider exposes named \
-         checks (e.g., 'get' for env, 'after' for time, 'status' for http). The check determines \
-         what the provider returns and what params it accepts. See providers.json for the \
-         complete check catalog per provider.",
+        "evidence_anchor",
+        "EvidenceResult field containing anchor metadata (anchor_type + anchor_value) used to \
+         link evidence to its source for offline verification.",
+    ),
+    (
+        "evidence_ref",
+        "EvidenceResult field containing an external URI reference to evidence content stored \
+         outside the runtime.",
+    ),
+    (
+        "content_type",
+        "MIME content type associated with an evidence value or packet payload (for example, \
+         application/json). Used for disclosure and compatibility checks.",
+    ),
+    (
+        "check_id",
+        "The provider check identifier to evaluate within a provider. Each provider exposes named \
+         checks (e.g., 'get' for env, 'after' for time, 'status' for http). The check_id \
+         determines what the provider returns and what params it accepts. See providers.json for \
+         the complete check catalog per provider.",
     ),
     (
         "params",
@@ -381,7 +431,7 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     ),
     (
         "trigger_time",
-        "Caller-supplied timestamp from the trigger event used by time predicates and \
+        "Caller-supplied timestamp from the trigger event used by time checks and \
          EvidenceContext. Uses the Timestamp type (unix_millis or logical when allowed) to avoid \
          wall-clock reads. Auditors can replay runs with the recorded trigger_time.",
     ),
@@ -453,7 +503,7 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     (
         "provider_id",
         "Identifier for an evidence provider registered in decision-gate.toml. Providers supply \
-         predicates: 'time' for timestamps, 'env' for environment variables, 'http' for health \
+         checks: 'time' for timestamps, 'env' for environment variables, 'http' for health \
          checks, 'json' for file queries. Custom providers can be registered via MCP \
          configuration.",
     ),
@@ -537,10 +587,10 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     // =====================================================================
     (
         "policy_tags",
-        "Labels applied to runs, predicates, or disclosures for policy routing. Tags enable \
+        "Labels applied to runs, conditions, or disclosures for policy routing. Tags enable \
          conditional behavior: different disclosure rules per environment, tenant-specific rate \
          limits, or audit categories. Define tags in the ScenarioSpec and apply them to runs, \
-         predicates, packets, or timeouts as needed.",
+         conditions, packets, or timeouts as needed.",
     ),
     (
         "visibility_labels",
@@ -561,13 +611,6 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          are hashed for integrity and may be schema-validated before emission.",
     ),
     (
-        "decision",
-        "The recorded outcome of a trigger evaluation. Contains decision_id, seq, trigger_id, \
-         stage_id, decided_at, and a DecisionOutcome (start/advance/hold/fail/complete). Advance \
-         outcomes include a timeout flag when triggered by timeouts. Decisions form the audit \
-         trail for run progression.",
-    ),
-    (
         "record",
         "Wrapper for submission responses. Contains submission_id, run_id, payload, content_type, \
          content_hash, submitted_at, and correlation_id. Records prove artifacts were submitted \
@@ -586,7 +629,7 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     ("description", "Short summary describing provider behavior and intent."),
     ("config_schema", "JSON Schema validating provider configuration entries."),
     ("notes", "Optional notes about provider behavior or determinism."),
-    ("predicates", "List of provider checks exposed by the provider contract."),
+    ("checks", "List of provider checks exposed by the provider contract."),
     ("determinism", "Provider check output stability: deterministic, time_dependent, or external."),
     ("params_required", "Whether EvidenceQuery.params must be supplied for this check."),
     ("params_schema", "JSON Schema for provider check params payloads."),
@@ -729,8 +772,8 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     ),
     (
         "allow_logical",
-        "Permits logical timestamps in time predicates instead of requiring real unix_millis. \
-         Enable for testing and simulation where deterministic time control is needed. Disable in \
+        "Permits logical timestamps in time checks instead of requiring real unix_millis. Enable \
+         for testing and simulation where deterministic time control is needed. Disable in \
          production for real-time constraints.",
     ),
     (
@@ -790,7 +833,7 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
         "allowlist",
         "List of environment variable keys the env provider may read. Queries for keys not in the \
          allowlist fail with a policy error. Use allowlists to limit exposure: only permit the \
-         specific variables your predicates need.",
+         specific variables your checks need.",
     ),
     (
         "denylist",
@@ -863,8 +906,8 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     (
         "unix_millis",
         "Unix timestamp expressed in milliseconds since epoch (1970-01-01 UTC). Standard format \
-         for trigger_time and time predicates. Millisecond precision enables sub-second \
-         scheduling. Convert from ISO 8601: parse to Date, call getTime().",
+         for trigger_time and time checks. Millisecond precision enables sub-second scheduling. \
+         Convert from ISO 8601: parse to Date, call getTime().",
     ),
     // =====================================================================
     // RUNPACK EXPORT

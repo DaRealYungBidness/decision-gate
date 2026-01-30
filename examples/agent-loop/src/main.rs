@@ -1,13 +1,13 @@
 // examples/agent-loop/src/main.rs
 // ============================================================================
 // Module: Decision Gate Agent Loop Example
-// Description: Scenario gating that simulates an agent satisfying predicates.
+// Description: Scenario gating that simulates an agent satisfying conditions.
 // Purpose: Demonstrate multi-step gate satisfaction with an in-memory provider.
 // Dependencies: decision-gate-core, ret-logic
 // ============================================================================
 
 //! ## Overview
-//! This example models an agent loop where predicates are satisfied over time.
+//! This example models an agent loop where conditions are satisfied over time.
 //! It updates in-memory signals between `scenario_next` calls to show staged
 //! gate progression.
 
@@ -18,6 +18,7 @@ use std::sync::atomic::Ordering;
 
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::DecisionOutcome;
 use decision_gate_core::DispatchReceipt;
 use decision_gate_core::DispatchTarget;
@@ -34,7 +35,6 @@ use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketPayload;
 use decision_gate_core::PolicyDecider;
 use decision_gate_core::PolicyDecision;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::ScenarioId;
@@ -108,15 +108,12 @@ impl EvidenceProvider for AgentEvidenceProvider {
         query: &EvidenceQuery,
         _ctx: &EvidenceContext,
     ) -> Result<EvidenceResult, EvidenceError> {
-        let value = match query.predicate.as_str() {
+        let value = match query.check_id.as_str() {
             "file_exists" => self.signals.file_written.load(Ordering::Relaxed),
             "tests_pass" => self.signals.tests_pass.load(Ordering::Relaxed),
             "review_approved" => self.signals.review_approved.load(Ordering::Relaxed),
             _ => {
-                return Err(EvidenceError::Provider(format!(
-                    "unknown predicate: {}",
-                    query.predicate
-                )));
+                return Err(EvidenceError::Provider(format!("unknown check: {}", query.check_id)));
             }
         };
         Ok(EvidenceResult {
@@ -185,9 +182,9 @@ fn build_spec(namespace_id: NamespaceId) -> ScenarioSpec {
             gates: vec![GateSpec {
                 gate_id: GateId::new("requirements-met"),
                 requirement: ret_logic::Requirement::and(vec![
-                    ret_logic::Requirement::predicate("file_exists".into()),
-                    ret_logic::Requirement::predicate("tests_pass".into()),
-                    ret_logic::Requirement::predicate("review_approved".into()),
+                    ret_logic::Requirement::condition("file_exists".into()),
+                    ret_logic::Requirement::condition("tests_pass".into()),
+                    ret_logic::Requirement::condition("review_approved".into()),
                 ]),
                 trust: None,
             }],
@@ -195,12 +192,12 @@ fn build_spec(namespace_id: NamespaceId) -> ScenarioSpec {
             timeout: None,
             on_timeout: decision_gate_core::TimeoutPolicy::Fail,
         }],
-        predicates: vec![
-            PredicateSpec {
-                predicate: "file_exists".into(),
+        conditions: vec![
+            ConditionSpec {
+                condition_id: "file_exists".into(),
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("agent"),
-                    predicate: "file_exists".to_string(),
+                    check_id: "file_exists".to_string(),
                     params: Some(json!({})),
                 },
                 comparator: Comparator::Equals,
@@ -208,11 +205,11 @@ fn build_spec(namespace_id: NamespaceId) -> ScenarioSpec {
                 policy_tags: Vec::new(),
                 trust: None,
             },
-            PredicateSpec {
-                predicate: "tests_pass".into(),
+            ConditionSpec {
+                condition_id: "tests_pass".into(),
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("agent"),
-                    predicate: "tests_pass".to_string(),
+                    check_id: "tests_pass".to_string(),
                     params: Some(json!({})),
                 },
                 comparator: Comparator::Equals,
@@ -220,11 +217,11 @@ fn build_spec(namespace_id: NamespaceId) -> ScenarioSpec {
                 policy_tags: Vec::new(),
                 trust: None,
             },
-            PredicateSpec {
-                predicate: "review_approved".into(),
+            ConditionSpec {
+                condition_id: "review_approved".into(),
                 query: EvidenceQuery {
                     provider_id: ProviderId::new("agent"),
-                    predicate: "review_approved".to_string(),
+                    check_id: "review_approved".to_string(),
                     params: Some(json!({})),
                 },
                 comparator: Comparator::Equals,

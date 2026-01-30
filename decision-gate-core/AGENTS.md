@@ -15,7 +15,7 @@
 - **Runpack-ready:** outputs must remain offline verifiable and deterministic.
 - **Requirements crate boundary:** gate algebra lives in `ret-logic/`;
   Decision Gate owns evidence anchoring, decision records, and disclosure policy.
-- **Trust lanes:** asserted vs verified evidence is enforced at gate/predicate level.
+- **Trust lanes:** asserted vs verified evidence is enforced at gate/condition level.
 - **Precheck:** read-only evaluation path must not mutate run state.
 - **Docs/tooltips alignment:** after behavior or schema changes, update contract
   tooltips and regenerate `Docs/generated/decision-gate`.

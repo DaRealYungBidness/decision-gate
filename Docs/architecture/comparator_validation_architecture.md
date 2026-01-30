@@ -49,14 +49,14 @@ fail-closed behavior.
 ## Validation Pipeline (MCP)
 
 ### Scenario definition (`scenario_define`)
-- MCP validates provider contracts and predicate schemas.
+- MCP validates provider contracts and check schemas.
 - Strict validation enforces comparator/type compatibility and expected-value
   shape.
 - Implementation: `decision-gate-mcp/src/tools.rs` (calls `StrictValidator`).
 
 ### Precheck (`precheck` tool)
 - MCP validates payload against the registered data shape schema.
-- Strict validation enforces predicate compatibility against the data shape
+- Strict validation enforces condition compatibility against the data shape
   schema.
 - Implementation: `decision-gate-mcp/src/tools.rs` (calls `validate_precheck`).
 

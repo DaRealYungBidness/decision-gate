@@ -31,12 +31,12 @@ use std::sync::Arc;
 
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::EvidenceContext;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::GateId;
 use decision_gate_core::GateSpec;
 use decision_gate_core::NamespaceId;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::RunId;
@@ -333,18 +333,18 @@ pub fn sample_spec_with_id(id: &str) -> ScenarioSpec {
             entry_packets: Vec::new(),
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-time"),
-                requirement: ret_logic::Requirement::predicate("after".into()),
+                requirement: ret_logic::Requirement::condition("after".into()),
                 trust: None,
             }],
             advance_to: AdvanceTo::Terminal,
             timeout: None,
             on_timeout: TimeoutPolicy::Fail,
         }],
-        predicates: vec![PredicateSpec {
-            predicate: "after".into(),
+        conditions: vec![ConditionSpec {
+            condition_id: "after".into(),
             query: EvidenceQuery {
                 provider_id: ProviderId::new("time"),
-                predicate: "after".to_string(),
+                check_id: "after".to_string(),
                 params: Some(json!({"timestamp": 0})),
             },
             comparator: Comparator::Equals,
@@ -358,15 +358,15 @@ pub fn sample_spec_with_id(id: &str) -> ScenarioSpec {
     }
 }
 
-/// Creates a scenario spec with two predicates in a single gate.
+/// Creates a scenario spec with two conditions in a single gate.
 #[must_use]
-pub fn sample_spec_with_two_predicates(id: &str) -> ScenarioSpec {
+pub fn sample_spec_with_two_conditions(id: &str) -> ScenarioSpec {
     let mut spec = sample_spec_with_id(id);
-    spec.predicates.push(PredicateSpec {
-        predicate: "after_alt".into(),
+    spec.conditions.push(ConditionSpec {
+        condition_id: "after_alt".into(),
         query: EvidenceQuery {
             provider_id: ProviderId::new("time"),
-            predicate: "after".to_string(),
+            check_id: "after".to_string(),
             params: Some(json!({"timestamp": 0})),
         },
         comparator: Comparator::Equals,
@@ -375,8 +375,8 @@ pub fn sample_spec_with_two_predicates(id: &str) -> ScenarioSpec {
         trust: None,
     });
     spec.stages[0].gates[0].requirement = ret_logic::Requirement::and(vec![
-        ret_logic::Requirement::predicate("after".into()),
-        ret_logic::Requirement::predicate("after_alt".into()),
+        ret_logic::Requirement::condition("after".into()),
+        ret_logic::Requirement::condition("after_alt".into()),
     ]);
     spec
 }

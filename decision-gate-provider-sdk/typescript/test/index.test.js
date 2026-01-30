@@ -77,7 +77,7 @@ test("tools/call returns evidence result with lane and error fields", async () =
     params: {
       name: "evidence_query",
       arguments: {
-        query: { provider_id: "custom", predicate: "echo", params: { value: "ok" } },
+        query: { provider_id: "custom", check_id: "echo", params: { value: "ok" } },
         context: {
           tenant_id: 1,
           namespace_id: 1,

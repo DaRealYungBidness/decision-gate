@@ -89,8 +89,8 @@ impl EvidenceProvider for EnvProvider {
         query: &EvidenceQuery,
         _ctx: &EvidenceContext,
     ) -> Result<EvidenceResult, EvidenceError> {
-        if query.predicate.as_str() != "get" {
-            return Err(EvidenceError::Provider("unsupported env predicate".to_string()));
+        if query.check_id.as_str() != "get" {
+            return Err(EvidenceError::Provider("unsupported env check".to_string()));
         }
 
         let key = extract_key(query.params.as_ref())?;
@@ -125,8 +125,8 @@ impl EvidenceProvider for EnvProvider {
 
 /// Extracts the env key from the query parameters.
 fn extract_key(params: Option<&Value>) -> Result<&str, EvidenceError> {
-    let params = params
-        .ok_or_else(|| EvidenceError::Provider("env predicate requires params".to_string()))?;
+    let params =
+        params.ok_or_else(|| EvidenceError::Provider("env check requires params".to_string()))?;
     let Value::Object(map) = params else {
         return Err(EvidenceError::Provider("env params must be an object".to_string()));
     };

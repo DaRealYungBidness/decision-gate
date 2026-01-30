@@ -49,7 +49,7 @@ Decision Gate calls the provider with `tools/call`:
   "params": {
     "name": "evidence_query",
     "arguments": {
-      "query": { "provider_id": "env", "predicate": "get", "params": { "key": "DEPLOY_ENV" } },
+      "query": { "provider_id": "env", "check_id": "get", "params": { "key": "DEPLOY_ENV" } },
       "context": {
         "tenant_id": 1,
         "namespace_id": 42,
@@ -97,7 +97,7 @@ The response must include a `content` array with a JSON EvidenceResult:
 ```json
 {
   "provider_id": "string",
-  "predicate": "string",
+  "check_id": "string",
   "params": { "any": "json" }
 }
 ```
@@ -136,6 +136,6 @@ The response must include a `content` array with a JSON EvidenceResult:
 - `value.kind = "bytes"` encodes `value` as a JSON array of 0-255 integers.
 - `evidence_hash` is optional; Decision Gate can compute it if `value` is present.
 - `tenant_id` and `namespace_id` are numeric identifiers and serialize as JSON numbers.
-- Use JSON-RPC errors for unsupported predicates or malformed requests.
+- Use JSON-RPC errors for unsupported checks or malformed requests.
 - When evidence is invalid or missing, set `value = null` and include structured
   `error` metadata. This keeps evaluation fail-closed while enabling recovery.

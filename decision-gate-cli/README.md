@@ -43,7 +43,7 @@ The installed binary name is `decision-gate`. When run via Cargo, use:
 - `authoring normalize` - normalize authoring inputs to canonical JSON.
 - `config validate` - validate `decision-gate.toml`.
 - `provider contract get` - fetch provider contract JSON from the registry.
-- `provider schema get` - fetch predicate schema details for a provider.
+- `provider check-schema get` - fetch check schema details for a provider.
 - `interop eval` - drive an MCP server via HTTP JSON-RPC for integration checks.
 
 Run `decision-gate --help` (or `cargo run -p decision-gate-cli -- --help`) for
@@ -93,7 +93,7 @@ Fetch provider schema details:
 ```bash
 cargo run -p decision-gate-cli -- provider schema get \
   --provider json \
-  --predicate path \
+  --check-id path \
   --config decision-gate.toml
 ```
 

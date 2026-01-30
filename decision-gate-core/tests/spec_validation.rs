@@ -26,14 +26,14 @@
 
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionId;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::GateId;
 use decision_gate_core::GateSpec;
 use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketId;
 use decision_gate_core::PacketSpec;
-use decision_gate_core::PredicateKey;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::ScenarioId;
 use decision_gate_core::ScenarioSpec;
@@ -68,18 +68,18 @@ fn base_spec() -> ScenarioSpec {
             }],
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-1"),
-                requirement: ret_logic::Requirement::predicate(PredicateKey::from("ready")),
+                requirement: ret_logic::Requirement::condition(ConditionId::from("ready")),
                 trust: None,
             }],
             advance_to: AdvanceTo::Terminal,
             timeout: None,
             on_timeout: TimeoutPolicy::Fail,
         }],
-        predicates: vec![PredicateSpec {
-            predicate: PredicateKey::from("ready"),
+        conditions: vec![ConditionSpec {
+            condition_id: ConditionId::from("ready"),
             query: EvidenceQuery {
                 provider_id: ProviderId::new("time"),
-                predicate: "now".to_string(),
+                check_id: "now".to_string(),
                 params: Some(json!({})),
             },
             comparator: Comparator::Equals,
@@ -147,39 +147,39 @@ fn spec_validate_rejects_duplicate_packet_ids() {
     assert!(matches!(spec.validate(), Err(SpecError::DuplicatePacketId(_))));
 }
 
-/// Verifies duplicate predicate keys are rejected.
+/// Verifies duplicate condition ids are rejected.
 #[test]
-fn spec_validate_rejects_duplicate_predicates() {
+fn spec_validate_rejects_duplicate_conditions() {
     let mut spec = base_spec();
-    spec.predicates.push(spec.predicates[0].clone());
-    assert!(matches!(spec.validate(), Err(SpecError::DuplicatePredicate(_))));
+    spec.conditions.push(spec.conditions[0].clone());
+    assert!(matches!(spec.validate(), Err(SpecError::DuplicateCondition(_))));
 }
 
 // ============================================================================
-// SECTION: Predicate Validation
+// SECTION: Condition Validation
 // ============================================================================
 
-/// Verifies missing predicate definitions are rejected.
+/// Verifies missing condition definitions are rejected.
 #[test]
-fn spec_validate_rejects_missing_predicates() {
+fn spec_validate_rejects_missing_conditions() {
     let mut spec = base_spec();
-    spec.predicates.clear();
-    assert!(matches!(spec.validate(), Err(SpecError::MissingPredicate(_))));
+    spec.conditions.clear();
+    assert!(matches!(spec.validate(), Err(SpecError::MissingCondition(_))));
 }
 
 /// Verifies empty provider IDs are rejected.
 #[test]
 fn spec_validate_rejects_empty_provider_id() {
     let mut spec = base_spec();
-    spec.predicates[0].query.provider_id = ProviderId::new(" ");
+    spec.conditions[0].query.provider_id = ProviderId::new(" ");
     assert!(matches!(spec.validate(), Err(SpecError::InvalidEvidenceQuery(_, _))));
 }
 
-/// Verifies empty predicate names are rejected.
+/// Verifies empty check identifiers are rejected.
 #[test]
-fn spec_validate_rejects_empty_query_predicate() {
+fn spec_validate_rejects_empty_query_check_id() {
     let mut spec = base_spec();
-    spec.predicates[0].query.predicate = "   ".to_string();
+    spec.conditions[0].query.check_id = "   ".to_string();
     assert!(matches!(spec.validate(), Err(SpecError::InvalidEvidenceQuery(_, _))));
 }
 

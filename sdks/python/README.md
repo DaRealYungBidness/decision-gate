@@ -39,7 +39,7 @@ response = client.scenario_define({
         "namespace_id": 1,
         "default_tenant_id": None,
         "policies": [],
-        "predicates": [],
+        "conditions": [],
         "schemas": [],
         "stages": [],
     }
@@ -60,6 +60,6 @@ pip install -e .[validation]
 from decision_gate import validate_scenario_define_request
 
 payload = {"spec": { "scenario_id": "example-scenario", "spec_version": "v1", "namespace_id": 1,
-    "default_tenant_id": None, "policies": [], "predicates": [], "schemas": [], "stages": [] }}
+    "default_tenant_id": None, "policies": [], "conditions": [], "schemas": [], "stages": [] }}
 validate_scenario_define_request(payload)
 ```

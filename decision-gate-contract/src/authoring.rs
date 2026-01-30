@@ -198,7 +198,7 @@ pub fn authoring_markdown() -> String {
     out.push_str("## Normalization Pipeline\n\n");
     out.push_str("1. Parse JSON or RON into a structured value.\n");
     out.push_str("2. Validate against `schemas/scenario.schema.json`.\n");
-    out.push_str("3. Run ScenarioSpec semantic validation (IDs, predicates, gates).\n");
+    out.push_str("3. Run ScenarioSpec semantic validation (IDs, conditions, gates).\n");
     out.push_str("4. Canonicalize to JSON (RFC 8785).\n");
     out.push_str("5. Compute the canonical spec hash.\n\n");
     out.push_str("## CLI Usage\n\n");

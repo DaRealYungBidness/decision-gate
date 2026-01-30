@@ -165,14 +165,14 @@ impl EvidenceProvider for ProviderRegistry {
         let mut required = BTreeSet::new();
         let mut blocked_by_policy = false;
 
-        for predicate in &spec.predicates {
-            let provider_id = predicate.query.provider_id.as_str();
-            let predicate_name = predicate.query.predicate.as_str();
+        for condition in &spec.conditions {
+            let provider_id = condition.query.provider_id.as_str();
+            let check_id = condition.query.check_id.as_str();
             let exists = self.providers.contains_key(provider_id);
             let allowed = self.policy.is_allowed(provider_id);
             if !exists || !allowed {
                 missing.insert(provider_id.to_string());
-                required.insert(predicate_name.to_string());
+                required.insert(check_id.to_string());
                 if exists && !allowed {
                     blocked_by_policy = true;
                 }

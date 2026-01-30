@@ -93,7 +93,7 @@ pub async fn spawn_namespace_authority_stub(
         requests: Arc::clone(&requests),
     };
     let app =
-        Router::new().route("/v1/write/namespaces/:id", get(handle_namespace)).with_state(state);
+        Router::new().route("/v1/write/namespaces/{id}", get(handle_namespace)).with_state(state);
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
     let join = thread::spawn(move || {
         let runtime = match Builder::new_current_thread().enable_all().build() {

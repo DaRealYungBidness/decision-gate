@@ -21,6 +21,7 @@
 
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
+use decision_gate_core::ConditionSpec;
 use decision_gate_core::DecisionOutcome;
 use decision_gate_core::DispatchReceipt;
 use decision_gate_core::DispatchTarget;
@@ -37,7 +38,6 @@ use decision_gate_core::PacketPayload;
 use decision_gate_core::PacketSpec;
 use decision_gate_core::PolicyDecider;
 use decision_gate_core::PolicyDecision;
-use decision_gate_core::PredicateSpec;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::ScenarioId;
@@ -142,18 +142,18 @@ fn spec_with_secret_gate() -> ScenarioSpec {
             }],
             gates: vec![GateSpec {
                 gate_id: GateId::new("gate-1"),
-                requirement: ret_logic::Requirement::predicate("needs_secret".into()),
+                requirement: ret_logic::Requirement::condition("needs_secret".into()),
                 trust: None,
             }],
             advance_to: AdvanceTo::Terminal,
             timeout: None,
             on_timeout: decision_gate_core::TimeoutPolicy::Fail,
         }],
-        predicates: vec![PredicateSpec {
-            predicate: "needs_secret".into(),
+        conditions: vec![ConditionSpec {
+            condition_id: "needs_secret".into(),
             query: EvidenceQuery {
                 provider_id: ProviderId::new("test"),
-                predicate: "needs_secret".to_string(),
+                check_id: "needs_secret".to_string(),
                 params: Some(json!({})),
             },
             comparator: Comparator::Equals,
