@@ -21,7 +21,7 @@ Dependencies:
 
 ---
 
-## Fail-Closed Architecture (Exact)
+## Fail-Closed Architecture
 
 Decision Gate **fails closed**: missing or invalid evidence produces `unknown`, which holds gates.
 
@@ -33,7 +33,7 @@ Security controls applied (in order):
 
 ---
 
-## Access Control (Exact)
+## Access Control
 
 ### Tool Access (MCP API)
 Tool access is controlled by `[server.auth]`.
@@ -50,7 +50,7 @@ Modes:
 - `bearer_token`: HTTP `Authorization: Bearer <token>` required
 - `mtls`: uses the `x-decision-gate-client-subject` header from a trusted TLS-terminating proxy
 
-### Non-Loopback Binding (Exact)
+### Non-Loopback Binding
 Binding HTTP/SSE to non-loopback requires **all** of:
 1. `--allow-non-loopback` or `DECISION_GATE_ALLOW_NON_LOOPBACK=1`
 2. `[server.tls]` configured
@@ -60,7 +60,7 @@ For `mtls`, `server.tls.client_ca_path` must be set and `require_client_cert = t
 
 ---
 
-## Trust Lanes (Exact)
+## Trust Lanes
 
 Evidence is classified into lanes:
 - **Verified**: provider-fetched evidence
@@ -74,7 +74,7 @@ min_lane = "verified"   # or "asserted"
 
 If evidence lane is below the minimum, the predicate becomes `unknown` and a `trust_lane` error is recorded in the runpack.
 
-### Dev-Permissive Mode (Exact)
+### Dev-Permissive Mode
 
 ```toml
 [dev]
@@ -88,7 +88,7 @@ Effects:
 
 ---
 
-## Signature Verification (Exact)
+## Signature Verification
 
 Configured with `trust.default_policy`:
 
@@ -107,7 +107,7 @@ If a signature check fails, the provider call fails and the predicate becomes `u
 
 ---
 
-## Anchor Validation (Exact)
+## Anchor Validation
 
 Anchors are configured via **server config**, not the scenario:
 
@@ -129,7 +129,7 @@ Violations produce `anchor_invalid` and the predicate becomes `unknown`.
 
 ---
 
-## Evidence Disclosure (Exact)
+## Evidence Disclosure
 
 `evidence_query` can return raw values, but disclosure is policy-controlled:
 
@@ -150,7 +150,7 @@ Behavior:
 
 ---
 
-## Secure Production Configuration (Exact)
+## Secure Production Configuration
 
 ```toml
 [server]
@@ -200,7 +200,7 @@ sync_mode = "full"
 
 ---
 
-## SQLite Integrity (Exact)
+## SQLite Integrity
 
 The SQLite run state store saves canonical JSON snapshots and **verifies hashes on load**. Corruption or hash mismatches fail closed.
 

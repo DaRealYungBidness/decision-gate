@@ -235,7 +235,7 @@ To inspect evidence and errors, call `runpack_export` or `evidence_query` (if di
 
 ---
 
-## Error Recovery (Exact)
+## Error Recovery
 
 Precheck failures are either:
 - **Tool errors** (schema not found, payload invalid), or

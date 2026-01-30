@@ -63,7 +63,7 @@ JSONPath extracts values from a JSON document.
 
 ---
 
-## JSON Provider Match Behavior (Exact)
+## JSON Provider Match Behavior
 
 The `json` provider behaves as follows:
 
@@ -77,7 +77,7 @@ The provider does **not** return JSON `null` for missing paths; it returns **no 
 
 ---
 
-## JSON Provider File and Parsing Rules (Exact)
+## JSON Provider File and Parsing Rules
 
 - **File size limit:** `max_bytes` (default `1_048_576`). Oversize returns `size_limit_exceeded`.
 - **YAML support:** enabled when `allow_yaml = true` and file extension is `.yaml`/`.yml`.
@@ -255,7 +255,7 @@ These are **examples**, not standards. Use them as starting points.
 1. Call `evidence_query` with the same `query` and any valid `context`.
 2. Inspect `EvidenceResult.error` and `evidence_anchor`.
 
-### Common JSON Provider Error Codes (Exact)
+### Common JSON Provider Error Codes
 
 These codes come from the built-in `json` provider:
 

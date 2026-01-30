@@ -20,7 +20,7 @@ Dependencies:
 
 ---
 
-## Provider Architecture (Exact)
+## Provider Architecture
 
 A provider is an MCP server that implements **one tool**: `evidence_query`.
 
@@ -189,7 +189,7 @@ capabilities_path = "contracts/file-provider.json"
 
 ---
 
-## Timeouts (Exact)
+## Timeouts
 
 Decision Gate only applies HTTP timeouts to **HTTP MCP** providers:
 
@@ -206,7 +206,7 @@ There is **no** Decision Gate timeout for stdio MCP providers; keep their handle
 
 ---
 
-## Signing Evidence (Exact)
+## Signing Evidence
 
 When `trust.default_policy = { require_signature = { keys = [...] } }`, providers must include signatures:
 
@@ -229,7 +229,7 @@ Decision Gate verifies that signature against the configured public key file. If
 
 ---
 
-## Error Handling (Exact)
+## Error Handling
 
 - Return **EvidenceResult.error** for expected errors.
 - Use JSON-RPC errors only for protocol failures (invalid JSON-RPC, internal crashes). DG converts JSON-RPC errors to `provider_error`.

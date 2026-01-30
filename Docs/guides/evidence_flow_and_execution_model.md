@@ -28,7 +28,7 @@ Dependencies:
 
 ---
 
-## Core Data Flow (Exact)
+## Core Data Flow
 
 ```
 Trigger (scenario_next / scenario_trigger / precheck)
@@ -74,7 +74,7 @@ Precheck **does not** call providers. The client supplies a payload that is:
 
 ---
 
-## Trust Enforcement (Exact)
+## Trust Enforcement
 
 ### Trust Lanes
 - `Verified`: evidence returned by providers.
@@ -133,7 +133,7 @@ required_fields = ["path"]
 
 ---
 
-## Comparator Evaluation (Exact)
+## Comparator Evaluation
 
 Comparators produce **TriState** results:
 - `true`

@@ -24,7 +24,7 @@ Dependencies:
 
 ## Fixture vs Live Mode
 
-### Offline Fixtures (Deterministic)
+### Deterministic Offline Fixtures
 - Uses a provider stub with a fixture map.
 - Fully deterministic and fast.
 
@@ -34,7 +34,7 @@ Dependencies:
 
 ---
 
-## Anchor Policy (Exact)
+## Anchor Policy
 
 Decision Gate enforces anchor rules **via config**, not the scenario:
 

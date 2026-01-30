@@ -202,7 +202,7 @@ default_policy = { require_signature = { keys = ["/etc/decision-gate/keys/cloud.
 
 ---
 
-## Deployment Checklist (Accurate)
+## Deployment Checklist
 
 - [ ] Config validates (`decision-gate config validate`)
 - [ ] Providers have valid `capabilities_path` files

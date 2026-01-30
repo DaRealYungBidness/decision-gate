@@ -10,8 +10,9 @@ Dependencies: None required (this file is standalone).
 
 # Provider Schema Authoring Guide (Self-Contained)
 
-This document is exhaustive and standalone. You can upload this file alone
-and it is sufficient to produce a correct Decision Gate provider contract JSON.
+This document is intended to be exhaustive and standalone. You can upload this
+file alone to draft a Decision Gate provider contract JSON, but correctness
+still depends on validation and your provider implementation.
 
 If you only remember one sentence:
 **Decision Gate evaluates evidence. It does not execute arbitrary tasks.**

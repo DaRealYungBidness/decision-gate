@@ -20,7 +20,7 @@ Dependencies:
 
 ---
 
-## How Decision Gate Calls Providers (Exact)
+## How Decision Gate Calls Providers
 
 - Decision Gate calls **one tool**: `evidence_query`.
 - Calls are always `tools/call` with `name = "evidence_query"`.
@@ -30,7 +30,7 @@ Providers should still implement `tools/list` for MCP compatibility and SDK temp
 
 ---
 
-## External Provider Configuration (Exact)
+## External Provider Configuration
 
 External providers use `type = "mcp"` and must declare `capabilities_path`:
 
@@ -180,7 +180,7 @@ Notes:
 
 ---
 
-## Error Handling (Exact)
+## Error Handling
 
 Providers should return an **EvidenceResult** with `error` set for expected failures (missing files, invalid params, etc.).
 

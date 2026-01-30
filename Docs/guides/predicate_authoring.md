@@ -47,7 +47,7 @@ It consists of:
 
 ---
 
-## Tri-State Outcomes (Exact)
+## Tri-State Outcomes
 
 Comparators return **TriState**:
 - `true`
@@ -62,7 +62,7 @@ Key rules (exact):
 
 ---
 
-## Comparator Reference (Exact)
+## Comparator Reference
 
 ### General Rules
 
@@ -129,7 +129,7 @@ If validation fails, `scenario_define` or `precheck` is rejected.
 
 ---
 
-## Provider Patterns (Exact)
+## Provider Patterns
 
 ### time Provider
 - **Predicates:** `now`, `after`, `before`.
@@ -163,7 +163,7 @@ To minimize `unknown` outcomes:
 
 ---
 
-## Evidence Disclosure (Exact)
+## Evidence Disclosure
 
 Evidence values are **not** returned by `scenario_next`. To inspect evidence:
 - Use `evidence_query` (subject to disclosure policy), or
