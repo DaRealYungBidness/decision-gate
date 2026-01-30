@@ -103,6 +103,7 @@ async fn assetcore_determinism_replay() -> Result<(), Box<dyn std::error::Error>
             "runpack/".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -167,8 +168,8 @@ async fn execute_fixture_run(
     let status_request = ScenarioStatusRequest {
         scenario_id: define_output.scenario_id,
         request: decision_gate_core::runtime::StatusRequest {
-            tenant_id: run_config.tenant_id.clone(),
-            namespace_id: run_config.namespace_id.clone(),
+            tenant_id: run_config.tenant_id,
+            namespace_id: run_config.namespace_id,
             run_id: run_config.run_id.clone(),
             requested_at: trigger.time,
             correlation_id: trigger.correlation_id.clone(),
@@ -182,8 +183,8 @@ async fn execute_fixture_run(
     fs::create_dir_all(&runpack_dir)?;
     let export_request = RunpackExportRequest {
         scenario_id: run_config.scenario_id.clone(),
-        tenant_id: run_config.tenant_id.clone(),
-        namespace_id: run_config.namespace_id.clone(),
+        tenant_id: run_config.tenant_id,
+        namespace_id: run_config.namespace_id,
         run_id: run_config.run_id.clone(),
         output_dir: Some(runpack_dir.to_string_lossy().to_string()),
         manifest_name: Some("manifest.json".to_string()),

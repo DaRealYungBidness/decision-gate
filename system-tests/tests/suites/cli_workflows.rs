@@ -13,6 +13,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 use std::process::Output;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use decision_gate_core::Timestamp;
@@ -58,7 +59,65 @@ impl CliServer {
 }
 
 fn cli_binary() -> Option<PathBuf> {
-    option_env!("CARGO_BIN_EXE_decision_gate").map(PathBuf::from)
+    if let Some(path) = option_env!("CARGO_BIN_EXE_decision_gate") {
+        let candidate = PathBuf::from(path);
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+    if let Ok(path) = std::env::var("CARGO_BIN_EXE_decision_gate") {
+        let candidate = PathBuf::from(path);
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+    build_cli_binary().map_or_else(|_| resolve_cli_from_current_exe(), Some)
+}
+
+fn resolve_cli_from_current_exe() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let profile_dir = exe.parent()?.parent()?;
+    let candidate = profile_dir.join(format!("decision-gate{}", exe_suffix()));
+    if candidate.exists() { Some(candidate) } else { None }
+}
+
+fn target_dir_from_current_exe() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let profile_dir = exe.parent()?.parent()?;
+    profile_dir.parent().map(PathBuf::from)
+}
+
+fn build_cli_binary() -> Result<PathBuf, String> {
+    static BUILD_RESULT: OnceLock<Result<PathBuf, String>> = OnceLock::new();
+    let result = BUILD_RESULT.get_or_init(|| {
+        let Some(target_dir) = target_dir_from_current_exe() else {
+            return Err("unable to resolve target dir from current exe".to_string());
+        };
+        let output = Command::new("cargo")
+            .args(["build", "-p", "decision-gate-cli", "--bin", "decision-gate", "--target-dir"])
+            .arg(&target_dir)
+            .output()
+            .map_err(|err| format!("spawn cargo build failed: {err}"))?;
+        if !output.status.success() {
+            return Err(format!(
+                "cargo build decision-gate-cli failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+        resolve_cli_from_target_dir(&target_dir)
+            .ok_or_else(|| "decision-gate binary not found after build".to_string())
+    });
+    result.clone()
+}
+
+fn resolve_cli_from_target_dir(target_dir: &Path) -> Option<PathBuf> {
+    let profile_dir = target_dir.join("debug");
+    let candidate = profile_dir.join(format!("decision-gate{}", exe_suffix()));
+    if candidate.exists() { Some(candidate) } else { None }
+}
+
+const fn exe_suffix() -> &'static str {
+    if cfg!(windows) { ".exe" } else { "" }
 }
 
 fn write_cli_config(path: &Path, bind: &str) -> Result<(), String> {
@@ -104,6 +163,7 @@ fn run_cli(binary: &Path, args: &[&str]) -> Result<Output, String> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[allow(clippy::too_many_lines, reason = "End-to-end CLI workflow stays linear for auditability.")]
 async fn cli_workflows_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("cli_workflows_end_to_end")?;
     let Some(cli) = cli_binary() else {
@@ -112,10 +172,12 @@ async fn cli_workflows_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
             vec!["decision-gate CLI binary unavailable".to_string()],
             vec!["summary.json".to_string(), "summary.md".to_string()],
         )?;
+        drop(reporter);
         return Ok(());
     };
     let temp_dir = TempDir::new()?;
     let bind = allocate_bind_addr()?.to_string();
+    helpers::harness::release_bind_addr(&bind);
     let config_path = temp_dir.path().join("decision-gate.toml");
     write_cli_config(&config_path, &bind)?;
 
@@ -124,12 +186,12 @@ async fn cli_workflows_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
     let server = CliServer::spawn(&cli, &config_path, &stdout_path, &stderr_path)?;
 
     let base_url = format!("http://{bind}/rpc");
-    let client = McpHttpClient::new(base_url.clone(), Duration::from_secs(5))?;
-    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+    let client = McpHttpClient::new(base_url.clone(), Duration::from_millis(750))?;
+    wait_for_server_ready(&client, Duration::from_secs(15)).await?;
 
     let fixture = ScenarioFixture::time_after("cli-runpack", "run-1", 0);
     let mut spec = fixture.spec.clone();
-    spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    spec.default_tenant_id = Some(fixture.tenant_id);
     let define_request = decision_gate_mcp::tools::ScenarioDefineRequest {
         spec: spec.clone(),
     };
@@ -198,7 +260,10 @@ async fn cli_workflows_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
         return Err("runpack verify CLI failed".into());
     }
 
-    let ron_path = PathBuf::from("Docs/generated/decision-gate/examples/scenario.ron");
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repo_root =
+        manifest_dir.parent().ok_or_else(|| "failed to resolve repo root".to_string())?;
+    let ron_path = repo_root.join("Docs/generated/decision-gate/examples/scenario.ron");
     let normalized_path = temp_dir.path().join("scenario.json");
     let validate = run_cli(
         &cli,
@@ -311,7 +376,7 @@ async fn cli_workflows_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
 
     let interop_fixture = ScenarioFixture::time_after("cli-interop", "run-interop", 0);
     let mut interop_spec = interop_fixture.spec.clone();
-    interop_spec.default_tenant_id = Some(interop_fixture.tenant_id.clone());
+    interop_spec.default_tenant_id = Some(interop_fixture.tenant_id);
     let interop_spec_path = temp_dir.path().join("interop_spec.json");
     let interop_run_config_path = temp_dir.path().join("interop_run_config.json");
     let interop_trigger_path = temp_dir.path().join("interop_trigger.json");
@@ -385,6 +450,7 @@ async fn cli_workflows_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
             "cli.interop.stderr.log".to_string(),
         ],
     )?;
+    drop(reporter);
     server.shutdown();
     Ok(())
 }
@@ -398,6 +464,7 @@ async fn cli_rejects_non_loopback_bind() -> Result<(), Box<dyn std::error::Error
             vec!["decision-gate CLI binary unavailable".to_string()],
             vec!["summary.json".to_string(), "summary.md".to_string()],
         )?;
+        drop(reporter);
         return Ok(());
     };
     let temp_dir = TempDir::new()?;
@@ -452,5 +519,6 @@ type = "builtin"
             "cli.non_loopback.stderr.log".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }

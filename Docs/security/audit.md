@@ -104,7 +104,7 @@ None.
    - Severity: Medium (availability / DoS).
    - Impact: `McpProviderClient` used a blocking HTTP client without timeouts.
    - Affected files: `decision-gate-mcp/src/evidence.rs`,
-     `decision-gate-mcp/src/config.rs`.
+     `decision-gate-config/src/config.rs`.
    - Resolution: added per-provider HTTP timeouts with bounded validation and
      fail-closed error handling plus system-test coverage.
 

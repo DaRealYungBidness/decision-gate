@@ -10,6 +10,7 @@
 
 
 use std::fs;
+use std::num::NonZeroU64;
 use std::time::Duration;
 
 use decision_gate_core::DataShapeId;
@@ -36,7 +37,16 @@ use serde_json::json;
 
 use crate::helpers;
 
+const fn tenant_id_one() -> TenantId {
+    TenantId::new(NonZeroU64::MIN)
+}
+
+const fn namespace_id_one() -> NamespaceId {
+    NamespaceId::new(NonZeroU64::MIN)
+}
+
 #[tokio::test(flavor = "multi_thread")]
+#[allow(clippy::too_many_lines, reason = "End-to-end audit assertions are clearer in one flow.")]
 async fn registry_security_audit_events() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("registry_security_audit_events")?;
     let bind = allocate_bind_addr()?.to_string();
@@ -63,8 +73,8 @@ async fn registry_security_audit_events() -> Result<(), Box<dyn std::error::Erro
             policy_class: Some("prod".to_string()),
             roles: vec![PrincipalRoleConfig {
                 name: "TenantAdmin".to_string(),
-                tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
-                namespace_id: Some(NamespaceId::from_raw(1).expect("nonzero namespaceid")),
+                tenant_id: Some(tenant_id_one()),
+                namespace_id: Some(namespace_id_one()),
             }],
         }],
     });
@@ -74,8 +84,8 @@ async fn registry_security_audit_events() -> Result<(), Box<dyn std::error::Erro
     wait_for_server_ready(&allowed, Duration::from_secs(5)).await?;
 
     let record = DataShapeRecord {
-        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
-        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        tenant_id: tenant_id_one(),
+        namespace_id: namespace_id_one(),
         schema_id: DataShapeId::new("audit-schema"),
         version: DataShapeVersion::new("v1"),
         schema: json!({
@@ -174,6 +184,7 @@ async fn registry_security_audit_events() -> Result<(), Box<dyn std::error::Erro
             "audit.log".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 

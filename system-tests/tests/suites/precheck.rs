@@ -35,6 +35,7 @@ use serde_json::json;
 use crate::helpers;
 
 #[tokio::test(flavor = "multi_thread")]
+#[allow(clippy::too_many_lines, reason = "Precheck read-only flow is clearer as one sequence.")]
 async fn precheck_read_only_does_not_mutate_run_state() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("precheck_read_only_does_not_mutate_run_state")?;
     let bind = allocate_bind_addr()?.to_string();
@@ -44,7 +45,7 @@ async fn precheck_read_only_does_not_mutate_run_state() -> Result<(), Box<dyn st
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("precheck-readonly", "run-1", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -54,8 +55,8 @@ async fn precheck_read_only_does_not_mutate_run_state() -> Result<(), Box<dyn st
         client.call_tool_typed("scenario_define", define_input).await?;
 
     let record = DataShapeRecord {
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         schema_id: DataShapeId::new("asserted"),
         version: DataShapeVersion::new("v1"),
         schema: json!({
@@ -90,8 +91,8 @@ async fn precheck_read_only_does_not_mutate_run_state() -> Result<(), Box<dyn st
         scenario_id: define_output.scenario_id.clone(),
         request: StatusRequest {
             run_id: run_config.run_id.clone(),
-            tenant_id: run_config.tenant_id.clone(),
-            namespace_id: run_config.namespace_id.clone(),
+            tenant_id: run_config.tenant_id,
+            namespace_id: run_config.namespace_id,
             requested_at: Timestamp::Logical(3),
             correlation_id: None,
         },
@@ -101,8 +102,8 @@ async fn precheck_read_only_does_not_mutate_run_state() -> Result<(), Box<dyn st
         client.call_tool_typed("scenario_status", status_input).await?;
 
     let precheck_request = PrecheckToolRequest {
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         scenario_id: Some(define_output.scenario_id.clone()),
         spec: None,
         stage_id: None,
@@ -120,8 +121,8 @@ async fn precheck_read_only_does_not_mutate_run_state() -> Result<(), Box<dyn st
         scenario_id: define_output.scenario_id.clone(),
         request: StatusRequest {
             run_id: run_config.run_id.clone(),
-            tenant_id: run_config.tenant_id.clone(),
-            namespace_id: run_config.namespace_id.clone(),
+            tenant_id: run_config.tenant_id,
+            namespace_id: run_config.namespace_id,
             requested_at: Timestamp::Logical(4),
             correlation_id: None,
         },
@@ -144,6 +145,7 @@ async fn precheck_read_only_does_not_mutate_run_state() -> Result<(), Box<dyn st
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     server.shutdown().await;
     Ok(())
 }

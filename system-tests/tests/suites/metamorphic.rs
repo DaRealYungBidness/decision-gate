@@ -42,7 +42,7 @@ async fn metamorphic_concurrent_runs_identical_runpacks() -> Result<(), Box<dyn 
     wait_for_server_ready(&client_b, Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("metamorphic-concurrent", "run-1", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -78,6 +78,7 @@ async fn metamorphic_concurrent_runs_identical_runpacks() -> Result<(), Box<dyn 
             "run_b_manifest.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -108,8 +109,8 @@ async fn run_flow(
     let runpack_dir = temp.path().to_path_buf();
     let export_request = RunpackExportRequest {
         scenario_id: fixture.spec.scenario_id.clone(),
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         run_id: fixture.run_id.clone(),
         output_dir: Some(runpack_dir.to_string_lossy().to_string()),
         manifest_name: Some("manifest.json".to_string()),

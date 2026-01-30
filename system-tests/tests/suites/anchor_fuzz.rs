@@ -10,6 +10,7 @@
 
 
 use std::fs;
+use std::num::NonZeroU64;
 use std::time::Duration;
 
 use decision_gate_core::AdvanceTo;
@@ -53,6 +54,14 @@ use serde::Serialize;
 use serde_json::json;
 
 use crate::helpers;
+
+fn tenant_id(value: u64) -> TenantId {
+    TenantId::new(NonZeroU64::new(value).unwrap_or(NonZeroU64::MIN))
+}
+
+fn namespace_id(value: u64) -> NamespaceId {
+    NamespaceId::new(NonZeroU64::new(value).unwrap_or(NonZeroU64::MIN))
+}
 
 const ASSETCORE_PROVIDER_ID: &str = "assetcore_read";
 const ASSETCORE_ANCHOR_TYPE: &str = "assetcore.anchor_set";
@@ -140,6 +149,7 @@ async fn anchor_validation_fuzz_cases_fail_closed() -> Result<(), Box<dyn std::e
             "runpack/".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -231,8 +241,8 @@ async fn run_case(
     fs::create_dir_all(&runpack_dir)?;
     let export_request = RunpackExportRequest {
         scenario_id: define_output.scenario_id,
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         run_id: fixture.run_id.clone(),
         output_dir: Some(runpack_dir.to_string_lossy().to_string()),
         manifest_name: Some("manifest.json".to_string()),
@@ -296,8 +306,8 @@ struct AssetcoreFixture {
 impl AssetcoreFixture {
     fn run_config(&self) -> RunConfig {
         RunConfig {
-            tenant_id: self.tenant_id.clone(),
-            namespace_id: self.namespace_id.clone(),
+            tenant_id: self.tenant_id,
+            namespace_id: self.namespace_id,
             run_id: self.run_id.clone(),
             scenario_id: self.scenario_id.clone(),
             dispatch_targets: Vec::new(),
@@ -308,8 +318,8 @@ impl AssetcoreFixture {
     fn trigger(&self, correlation_id: Option<decision_gate_core::CorrelationId>) -> TriggerEvent {
         TriggerEvent {
             run_id: self.run_id.clone(),
-            tenant_id: self.tenant_id.clone(),
-            namespace_id: self.namespace_id.clone(),
+            tenant_id: self.tenant_id,
+            namespace_id: self.namespace_id,
             trigger_id: TriggerId::new("trigger-1"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
@@ -322,12 +332,12 @@ impl AssetcoreFixture {
 
 fn assetcore_fixture(scenario: &str, run: &str) -> AssetcoreFixture {
     let scenario_id = ScenarioId::new(scenario);
-    let namespace_id = NamespaceId::from_raw(11).expect("nonzero namespaceid");
+    let namespace_id = namespace_id(11);
     let stage_id = StageId::new("stage-1");
     let predicate_key = PredicateKey::new("slot_occupied");
     let spec = ScenarioSpec {
         scenario_id: scenario_id.clone(),
-        namespace_id: namespace_id.clone(),
+        namespace_id,
         spec_version: SpecVersion::new("1"),
         stages: vec![decision_gate_core::StageSpec {
             stage_id,
@@ -361,7 +371,7 @@ fn assetcore_fixture(scenario: &str, run: &str) -> AssetcoreFixture {
     AssetcoreFixture {
         scenario_id,
         run_id: RunId::new(run),
-        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        tenant_id: tenant_id(1),
         namespace_id,
         spec,
     }

@@ -11,7 +11,7 @@ Dependencies:
   - decision-gate-core/src/runtime/engine.rs
   - decision-gate-core/src/runtime/store.rs
   - decision-gate-mcp/src/tools.rs
-  - decision-gate-mcp/src/config.rs
+  - decision-gate-config/src/config.rs
   - decision-gate-store-sqlite/src/store.rs
 ============================================================================
 Last Updated: 2026-01-26 (UTC)
@@ -143,7 +143,7 @@ limits.
 
 ### MCP Configuration
 The MCP layer selects store type via `run_state_store` configuration.
-[F:decision-gate-mcp/src/config.rs L1140-L1184]
+[F:decision-gate-config/src/config.rs L1140-L1184]
 
 ---
 
@@ -157,5 +157,5 @@ The MCP layer selects store type via `run_state_store` configuration.
 | MCP tool lifecycle | `decision-gate-mcp/src/tools.rs` | scenario_define/start/next/submit/trigger/status. |
 | In-memory store | `decision-gate-core/src/runtime/store.rs` | Test/deterministic store implementation. |
 | SQLite store | `decision-gate-store-sqlite/src/store.rs` | Durable store with hash verification + retention. |
-| Store config | `decision-gate-mcp/src/config.rs` | run_state_store selection + validation. |
+| Store config | `decision-gate-config/src/config.rs` | run_state_store selection + validation. |
 

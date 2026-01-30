@@ -10,6 +10,8 @@
 
 mod helpers;
 
+#[path = "suites/config_artifacts.rs"]
+mod config_artifacts;
 #[path = "suites/contract.rs"]
 mod contract;
 #[path = "suites/provider_discovery.rs"]

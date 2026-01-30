@@ -7,7 +7,7 @@ Description: Current-state reference for provider configuration, capability
 Purpose: Provide an implementation-grade map of how DG integrates providers and
          validates predicates/queries.
 Dependencies:
-  - decision-gate-mcp/src/config.rs
+  - decision-gate-config/src/config.rs
   - decision-gate-mcp/src/capabilities.rs
   - decision-gate-mcp/src/evidence.rs
   - decision-gate-mcp/src/tools.rs
@@ -46,7 +46,7 @@ Provider capability contracts are the authoritative schema for predicate
 parameters, results, and allowed comparators. The capability registry validates
 scenario specs and evidence queries before evaluation. Evidence federation
 routes queries to providers and enforces trust policies.
-[F:decision-gate-mcp/src/config.rs L1456-L1542][F:decision-gate-mcp/src/capabilities.rs L216-L369][F:decision-gate-mcp/src/evidence.rs L91-L209]
+[F:decision-gate-config/src/config.rs L1456-L1542][F:decision-gate-mcp/src/capabilities.rs L216-L369][F:decision-gate-mcp/src/evidence.rs L91-L209]
 
 ---
 
@@ -70,7 +70,7 @@ Validation enforces:
 - MCP providers must specify `command` or `url` and `capabilities_path`.
 - `allow_insecure_http` is required for `http://` URLs.
 
-[F:decision-gate-mcp/src/config.rs L1412-L1542]
+[F:decision-gate-config/src/config.rs L1412-L1542]
 
 ---
 
@@ -144,7 +144,7 @@ Tool behavior enforces capability and disclosure policy:
 
 | Area | File | Notes |
 | --- | --- | --- |
-| Provider config + validation | `decision-gate-mcp/src/config.rs` | Provider type, transport, contract path, timeouts, discovery allow/deny. |
+| Provider config + validation | `decision-gate-config/src/config.rs` | Provider type, transport, contract path, timeouts, discovery allow/deny. |
 | Capability registry | `decision-gate-mcp/src/capabilities.rs` | Contract loading, schema compilation, validation. |
 | Evidence federation | `decision-gate-mcp/src/evidence.rs` | Provider registry + trust enforcement. |
 | Tool integration | `decision-gate-mcp/src/tools.rs` | Spec/query validation and disclosure policy. |

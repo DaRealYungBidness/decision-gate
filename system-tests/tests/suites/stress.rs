@@ -46,14 +46,14 @@ const LIST_WORKERS: usize = 8;
 const PRECHECK_STORM: usize = 64;
 
 fn schema_record(
-    tenant_id: &decision_gate_core::TenantId,
-    namespace_id: &decision_gate_core::NamespaceId,
+    tenant_id: decision_gate_core::TenantId,
+    namespace_id: decision_gate_core::NamespaceId,
     schema_id: &str,
     version: &str,
 ) -> DataShapeRecord {
     DataShapeRecord {
-        tenant_id: tenant_id.clone(),
-        namespace_id: namespace_id.clone(),
+        tenant_id,
+        namespace_id,
         schema_id: DataShapeId::new(schema_id),
         version: DataShapeVersion::new(version),
         schema: json!({
@@ -71,8 +71,8 @@ fn schema_record(
 
 async fn list_all_schemas(
     client: &McpHttpClient,
-    tenant_id: &decision_gate_core::TenantId,
-    namespace_id: &decision_gate_core::NamespaceId,
+    tenant_id: decision_gate_core::TenantId,
+    namespace_id: decision_gate_core::NamespaceId,
     limit: usize,
 ) -> Result<Vec<(String, String)>, String> {
     let mut cursor: Option<String> = None;
@@ -80,8 +80,8 @@ async fn list_all_schemas(
 
     loop {
         let request = SchemasListRequest {
-            tenant_id: tenant_id.clone(),
-            namespace_id: namespace_id.clone(),
+            tenant_id,
+            namespace_id,
             cursor: cursor.clone(),
             limit: Some(limit),
         };
@@ -131,17 +131,14 @@ async fn stress_registry_concurrent_writes() -> Result<(), Box<dyn std::error::E
     wait_for_server_ready(&client, std::time::Duration::from_secs(10)).await?;
 
     let fixture = ScenarioFixture::time_after("stress-registry", "run-0", 0);
-    let tenant_id = fixture.tenant_id.clone();
-    let namespace_id = fixture.namespace_id.clone();
+    let tenant_id = fixture.tenant_id;
+    let namespace_id = fixture.namespace_id;
 
     let mut joins = JoinSet::new();
     for idx in 0 .. CONCURRENT_WRITES {
         let client = client.clone();
-        let tenant_id = tenant_id.clone();
-        let namespace_id = namespace_id.clone();
         joins.spawn(async move {
-            let record =
-                schema_record(&tenant_id, &namespace_id, &format!("stress-{idx:03}"), "v1");
+            let record = schema_record(tenant_id, namespace_id, &format!("stress-{idx:03}"), "v1");
             let request = SchemasRegisterRequest {
                 record,
             };
@@ -157,7 +154,7 @@ async fn stress_registry_concurrent_writes() -> Result<(), Box<dyn std::error::E
             .map_err(|err| format!("schemas_register failed: {err}"))?;
     }
 
-    let keys = list_all_schemas(&client, &tenant_id, &namespace_id, 25).await?;
+    let keys = list_all_schemas(&client, tenant_id, namespace_id, 25).await?;
     if keys.len() != CONCURRENT_WRITES {
         return Err(format!("expected {CONCURRENT_WRITES} entries, got {}", keys.len()).into());
     }
@@ -173,6 +170,7 @@ async fn stress_registry_concurrent_writes() -> Result<(), Box<dyn std::error::E
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -186,11 +184,11 @@ async fn stress_schema_list_paging_concurrent_reads() -> Result<(), Box<dyn std:
     wait_for_server_ready(&client, std::time::Duration::from_secs(10)).await?;
 
     let fixture = ScenarioFixture::time_after("stress-list", "run-0", 0);
-    let tenant_id = fixture.tenant_id.clone();
-    let namespace_id = fixture.namespace_id.clone();
+    let tenant_id = fixture.tenant_id;
+    let namespace_id = fixture.namespace_id;
 
     for idx in 0 .. LIST_ENTRIES {
-        let record = schema_record(&tenant_id, &namespace_id, &format!("list-{idx:03}"), "v1");
+        let record = schema_record(tenant_id, namespace_id, &format!("list-{idx:03}"), "v1");
         let request = SchemasRegisterRequest {
             record,
         };
@@ -198,7 +196,7 @@ async fn stress_schema_list_paging_concurrent_reads() -> Result<(), Box<dyn std:
         let _: serde_json::Value = client.call_tool_typed("schemas_register", input).await?;
     }
 
-    let baseline = list_all_schemas(&client, &tenant_id, &namespace_id, 7).await?;
+    let baseline = list_all_schemas(&client, tenant_id, namespace_id, 7).await?;
     if baseline.len() != LIST_ENTRIES {
         return Err(format!("expected {LIST_ENTRIES} entries, got {}", baseline.len()).into());
     }
@@ -207,11 +205,9 @@ async fn stress_schema_list_paging_concurrent_reads() -> Result<(), Box<dyn std:
     let mut joins = JoinSet::new();
     for _ in 0 .. LIST_WORKERS {
         let client = client.clone();
-        let tenant_id = tenant_id.clone();
-        let namespace_id = namespace_id.clone();
         let baseline = baseline.clone();
         joins.spawn(async move {
-            let keys = list_all_schemas(&client, &tenant_id, &namespace_id, 7).await?;
+            let keys = list_all_schemas(&client, tenant_id, namespace_id, 7).await?;
             if keys != baseline {
                 return Err("schemas_list returned unstable ordering".to_string());
             }
@@ -234,6 +230,7 @@ async fn stress_schema_list_paging_concurrent_reads() -> Result<(), Box<dyn std:
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -248,7 +245,7 @@ async fn stress_precheck_request_storm() -> Result<(), Box<dyn std::error::Error
     wait_for_server_ready(&client, std::time::Duration::from_secs(10)).await?;
 
     let mut fixture = ScenarioFixture::time_after("stress-precheck", "run-0", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };
@@ -256,7 +253,7 @@ async fn stress_precheck_request_storm() -> Result<(), Box<dyn std::error::Error
     let define_output: ScenarioDefineResponse =
         client.call_tool_typed("scenario_define", define_input).await?;
 
-    let record = schema_record(&fixture.tenant_id, &fixture.namespace_id, "asserted", "v1");
+    let record = schema_record(fixture.tenant_id, fixture.namespace_id, "asserted", "v1");
     let register_request = SchemasRegisterRequest {
         record: record.clone(),
     };
@@ -266,8 +263,8 @@ async fn stress_precheck_request_storm() -> Result<(), Box<dyn std::error::Error
     let mut joins = JoinSet::new();
     for _ in 0 .. PRECHECK_STORM {
         let client = client.clone();
-        let tenant_id = fixture.tenant_id.clone();
-        let namespace_id = fixture.namespace_id.clone();
+        let tenant_id = fixture.tenant_id;
+        let namespace_id = fixture.namespace_id;
         let scenario_id = define_output.scenario_id.clone();
         let record = record.clone();
         joins.spawn(async move {
@@ -314,5 +311,6 @@ async fn stress_precheck_request_storm() -> Result<(), Box<dyn std::error::Error
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }

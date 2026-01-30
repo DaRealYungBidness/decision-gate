@@ -11,6 +11,7 @@ use std::fs;
 use std::io;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Mutex;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::time::Instant;
@@ -37,8 +38,21 @@ fn default_run_root(test_name: &str) -> PathBuf {
     PathBuf::from("target/system-tests").join(format!("run_{pid}_{run_id}")).join(test_name)
 }
 
+static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+struct EnvLockGuard {
+    _guard: std::sync::MutexGuard<'static, ()>,
+}
+
+fn lock_env() -> io::Result<EnvLockGuard> {
+    let guard = ENV_LOCK.lock().map_err(|_| io::Error::other("env lock poisoned"))?;
+    Ok(EnvLockGuard {
+        _guard: guard,
+    })
+}
+
 /// Artifact manager for a single system-test.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct TestArtifacts {
     root: PathBuf,
 }
@@ -107,16 +121,19 @@ pub struct TestReporter {
     test_name: String,
     started_at: Instant,
     finalized: bool,
+    _env_guard: EnvLockGuard,
 }
 
 impl TestReporter {
     /// Creates a reporter for the named test.
     pub fn new(test_name: &str) -> io::Result<Self> {
+        let env_guard = lock_env()?;
         Ok(Self {
             artifacts: TestArtifacts::new(test_name)?,
             test_name: test_name.to_string(),
             started_at: Instant::now(),
             finalized: false,
+            _env_guard: env_guard,
         })
     }
 
@@ -191,14 +208,11 @@ fn summary_markdown(summary: &TestSummary) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
-
     use system_tests::config::SystemTestEnv;
     use tempfile::TempDir;
 
     use super::*;
-
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    use crate::helpers::env;
 
     struct EnvGuard {
         entries: Vec<(&'static str, Option<String>)>,
@@ -217,50 +231,66 @@ mod tests {
         fn drop(&mut self) {
             for (name, value) in self.entries.drain(..) {
                 match value {
-                    Some(value) => std::env::set_var(name, value),
-                    None => std::env::remove_var(name),
+                    Some(value) => env::set_var(name, &value),
+                    None => env::remove_var(name),
                 }
             }
         }
     }
 
     #[test]
-    fn run_root_fails_closed_when_marker_exists() {
-        let _lock = ENV_LOCK.lock().unwrap();
+    fn run_root_fails_closed_when_marker_exists() -> Result<(), Box<dyn std::error::Error>> {
+        let _lock = super::lock_env()?;
         let _guard = EnvGuard::new(&[
             SystemTestEnv::RunRoot.as_str(),
             SystemTestEnv::AllowOverwrite.as_str(),
         ]);
 
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new()?;
         let root = temp_dir.path().join("run_root");
-        fs::create_dir_all(&root).unwrap();
-        fs::write(root.join(".system-test-run"), "existing\n").unwrap();
+        fs::create_dir_all(&root)?;
+        fs::write(root.join(".system-test-run"), "existing\n")?;
 
-        std::env::set_var(SystemTestEnv::RunRoot.as_str(), root.to_string_lossy().as_ref());
-        std::env::remove_var(SystemTestEnv::AllowOverwrite.as_str());
+        env::set_var(SystemTestEnv::RunRoot.as_str(), root.to_string_lossy().as_ref());
+        env::remove_var(SystemTestEnv::AllowOverwrite.as_str());
 
-        let err = TestArtifacts::new("fail_closed").unwrap_err();
-        assert!(err.to_string().contains("system-test run root already exists"));
+        match TestArtifacts::new("fail_closed") {
+            Err(err) => {
+                let message = err.to_string();
+                if !message.contains("system-test run root already exists") {
+                    return Err(io::Error::other(format!(
+                        "expected fail-closed error, got {message}"
+                    ))
+                    .into());
+                }
+            }
+            Ok(_) => {
+                return Err(io::Error::other("expected fail-closed error").into());
+            }
+        }
+        Ok(())
     }
 
     #[test]
-    fn run_root_allows_overwrite_when_flag_set() {
-        let _lock = ENV_LOCK.lock().unwrap();
+    fn run_root_allows_overwrite_when_flag_set() -> Result<(), Box<dyn std::error::Error>> {
+        let _lock = super::lock_env()?;
         let _guard = EnvGuard::new(&[
             SystemTestEnv::RunRoot.as_str(),
             SystemTestEnv::AllowOverwrite.as_str(),
         ]);
 
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new()?;
         let root = temp_dir.path().join("run_root");
-        fs::create_dir_all(&root).unwrap();
-        fs::write(root.join(".system-test-run"), "existing\n").unwrap();
+        fs::create_dir_all(&root)?;
+        fs::write(root.join(".system-test-run"), "existing\n")?;
 
-        std::env::set_var(SystemTestEnv::RunRoot.as_str(), root.to_string_lossy().as_ref());
-        std::env::set_var(SystemTestEnv::AllowOverwrite.as_str(), "1");
+        env::set_var(SystemTestEnv::RunRoot.as_str(), root.to_string_lossy().as_ref());
+        env::set_var(SystemTestEnv::AllowOverwrite.as_str(), "1");
 
-        let artifacts = TestArtifacts::new("allow_overwrite").unwrap();
-        assert_eq!(artifacts.root(), root.as_path());
+        let artifacts = TestArtifacts::new("allow_overwrite")?;
+        if artifacts.root() != root.as_path() {
+            return Err(io::Error::other("run root mismatch after overwrite").into());
+        }
+        Ok(())
     }
 }

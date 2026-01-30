@@ -47,11 +47,11 @@ use crate::helpers;
 async fn multi_transport_parity() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("multi_transport_parity")?;
     let mut fixture = ScenarioFixture::time_after("transport-parity", "run-parity", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
     let trigger = TriggerEvent {
         run_id: fixture.run_id.clone(),
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         trigger_id: TriggerId::new("trigger-1"),
         kind: TriggerKind::ExternalEvent,
         time: Timestamp::Logical(2),
@@ -99,6 +99,7 @@ async fn multi_transport_parity() -> Result<(), Box<dyn std::error::Error>> {
             "mcp.stderr.log".to_string(),
         ],
     )?;
+    drop(reporter);
 
     Ok(())
 }
@@ -275,8 +276,8 @@ async fn run_scenario_http(
     let status_request = ScenarioStatusRequest {
         scenario_id: define_output.scenario_id,
         request: decision_gate_core::runtime::StatusRequest {
-            tenant_id: fixture.tenant_id.clone(),
-            namespace_id: fixture.namespace_id.clone(),
+            tenant_id: fixture.tenant_id,
+            namespace_id: fixture.namespace_id,
             run_id: fixture.run_id.clone(),
             requested_at: Timestamp::Logical(3),
             correlation_id: None,
@@ -322,8 +323,8 @@ async fn run_scenario_stdio(
     let status_request = ScenarioStatusRequest {
         scenario_id: define_response.scenario_id,
         request: decision_gate_core::runtime::StatusRequest {
-            tenant_id: fixture.tenant_id.clone(),
-            namespace_id: fixture.namespace_id.clone(),
+            tenant_id: fixture.tenant_id,
+            namespace_id: fixture.namespace_id,
             run_id: fixture.run_id.clone(),
             requested_at: Timestamp::Logical(3),
             correlation_id: None,
@@ -344,8 +345,8 @@ async fn export_runpack_http(
     fs::create_dir_all(runpack_dir)?;
     let export_request = RunpackExportRequest {
         scenario_id: fixture.scenario_id.clone(),
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         run_id: fixture.run_id.clone(),
         output_dir: Some(runpack_dir.to_string_lossy().to_string()),
         manifest_name: Some("manifest.json".to_string()),
@@ -366,8 +367,8 @@ async fn export_runpack_stdio(
     fs::create_dir_all(runpack_dir)?;
     let export_request = RunpackExportRequest {
         scenario_id: fixture.scenario_id.clone(),
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         run_id: fixture.run_id.clone(),
         output_dir: Some(runpack_dir.to_string_lossy().to_string()),
         manifest_name: Some("manifest.json".to_string()),

@@ -30,6 +30,10 @@ fn run_sdk_gen(binary: &Path, args: &[&str]) -> Result<std::process::Output, Str
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "SDK generator flow kept in one sequence for auditability."
+)]
 async fn sdk_gen_cli_generate_and_check() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("sdk_gen_cli_generate_and_check")?;
     let Some(binary) = sdk_gen_binary() else {
@@ -38,6 +42,7 @@ async fn sdk_gen_cli_generate_and_check() -> Result<(), Box<dyn std::error::Erro
             vec!["decision-gate-sdk-gen binary unavailable".to_string()],
             vec!["summary.json".to_string(), "summary.md".to_string()],
         )?;
+        drop(reporter);
         return Ok(());
     };
     let temp_dir = TempDir::new()?;
@@ -169,5 +174,6 @@ async fn sdk_gen_cli_generate_and_check() -> Result<(), Box<dyn std::error::Erro
             "sdk_gen.invalid.stderr.log".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }

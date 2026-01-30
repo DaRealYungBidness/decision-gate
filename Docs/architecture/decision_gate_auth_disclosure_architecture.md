@@ -10,7 +10,7 @@ Dependencies:
   - decision-gate-mcp/src/auth.rs
   - decision-gate-mcp/src/tools.rs
   - decision-gate-mcp/src/server.rs
-  - decision-gate-mcp/src/config.rs
+  - decision-gate-config/src/config.rs
 ============================================================================
 Last Updated: 2026-01-29 (UTC)
 ============================================================================
@@ -86,7 +86,7 @@ Auth mode is configured via `server.auth.mode` with supporting allowlists:
 
 Configuration surface:
 - `server.auth.mode`, `bearer_tokens`, `mtls_subjects`, `allowed_tools`.
-[F:decision-gate-mcp/src/config.rs L565-L651]
+[F:decision-gate-config/src/config.rs L565-L651]
 
 Implementation details:
 - Local-only rejects non-loopback HTTP/SSE.
@@ -215,7 +215,7 @@ marked retryable when appropriate.
 
 | Area | File | Notes |
 | --- | --- | --- |
-| Auth config surface | `decision-gate-mcp/src/config.rs` | Auth modes, token/subject allowlists, tool allowlist. |
+| Auth config surface | `decision-gate-config/src/config.rs` | Auth modes, token/subject allowlists, tool allowlist. |
 | Auth policy engine | `decision-gate-mcp/src/auth.rs` | DefaultToolAuthz, auth modes, audit events, token parsing. |
 | Tool auth integration | `decision-gate-mcp/src/tools.rs` | Per-call authorization + audit emission. |
 | Tenant authz interface | `decision-gate-mcp/src/tenant_authz.rs` | Pluggable tenant/namespace authorization seam. |

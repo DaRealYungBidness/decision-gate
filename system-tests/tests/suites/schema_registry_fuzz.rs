@@ -30,15 +30,15 @@ use serde_json::json;
 use crate::helpers;
 
 fn schema_record(
-    tenant_id: &decision_gate_core::TenantId,
-    namespace_id: &decision_gate_core::NamespaceId,
+    tenant_id: decision_gate_core::TenantId,
+    namespace_id: decision_gate_core::NamespaceId,
     schema_id: &str,
     version: &str,
     schema: serde_json::Value,
 ) -> DataShapeRecord {
     DataShapeRecord {
-        tenant_id: tenant_id.clone(),
-        namespace_id: namespace_id.clone(),
+        tenant_id,
+        namespace_id,
         schema_id: DataShapeId::new(schema_id),
         version: DataShapeVersion::new(version),
         schema,
@@ -59,8 +59,8 @@ async fn schema_registry_cursor_rejects_invalid_inputs() -> Result<(), Box<dyn s
 
     let fixture = ScenarioFixture::time_after("cursor-fuzz", "run-1", 0);
     let record = schema_record(
-        &fixture.tenant_id,
-        &fixture.namespace_id,
+        fixture.tenant_id,
+        fixture.namespace_id,
         "cursor-schema",
         "v1",
         json!({
@@ -84,8 +84,8 @@ async fn schema_registry_cursor_rejects_invalid_inputs() -> Result<(), Box<dyn s
     ];
     for cursor in invalid_cursors {
         let request = SchemasListRequest {
-            tenant_id: fixture.tenant_id.clone(),
-            namespace_id: fixture.namespace_id.clone(),
+            tenant_id: fixture.tenant_id,
+            namespace_id: fixture.namespace_id,
             cursor: Some(cursor),
             limit: Some(10),
         };
@@ -100,8 +100,8 @@ async fn schema_registry_cursor_rejects_invalid_inputs() -> Result<(), Box<dyn s
 
     for limit in [0usize, 10_000usize] {
         let request = SchemasListRequest {
-            tenant_id: fixture.tenant_id.clone(),
-            namespace_id: fixture.namespace_id.clone(),
+            tenant_id: fixture.tenant_id,
+            namespace_id: fixture.namespace_id,
             cursor: None,
             limit: Some(limit),
         };
@@ -115,8 +115,8 @@ async fn schema_registry_cursor_rejects_invalid_inputs() -> Result<(), Box<dyn s
     }
 
     let request = SchemasListRequest {
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         cursor: None,
         limit: Some(10),
     };
@@ -141,11 +141,13 @@ async fn schema_registry_cursor_rejects_invalid_inputs() -> Result<(), Box<dyn s
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     server.shutdown().await;
     Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[allow(clippy::too_many_lines, reason = "Single flow covers schema + precheck rejection paths.")]
 async fn schema_registry_invalid_schema_and_precheck_rejected()
 -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("schema_registry_invalid_schema_and_precheck_rejected")?;
@@ -156,7 +158,7 @@ async fn schema_registry_invalid_schema_and_precheck_rejected()
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("schema-precheck", "run-1", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -166,8 +168,8 @@ async fn schema_registry_invalid_schema_and_precheck_rejected()
         client.call_tool_typed("scenario_define", define_input).await?;
 
     let invalid_record = schema_record(
-        &fixture.tenant_id,
-        &fixture.namespace_id,
+        fixture.tenant_id,
+        fixture.namespace_id,
         "invalid-schema",
         "v1",
         json!({
@@ -189,8 +191,8 @@ async fn schema_registry_invalid_schema_and_precheck_rejected()
     }
 
     let get_request = SchemasGetRequest {
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         schema_id: invalid_record.schema_id.clone(),
         version: invalid_record.version.clone(),
     };
@@ -203,8 +205,8 @@ async fn schema_registry_invalid_schema_and_precheck_rejected()
     }
 
     let valid_record = schema_record(
-        &fixture.tenant_id,
-        &fixture.namespace_id,
+        fixture.tenant_id,
+        fixture.namespace_id,
         "asserted",
         "v1",
         json!({
@@ -227,8 +229,8 @@ async fn schema_registry_invalid_schema_and_precheck_rejected()
         .await?;
 
     let precheck_request = PrecheckToolRequest {
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         scenario_id: Some(define_output.scenario_id),
         spec: None,
         stage_id: None,
@@ -256,6 +258,7 @@ async fn schema_registry_invalid_schema_and_precheck_rejected()
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     server.shutdown().await;
     Ok(())
 }

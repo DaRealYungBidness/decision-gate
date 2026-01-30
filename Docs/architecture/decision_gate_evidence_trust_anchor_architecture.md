@@ -12,7 +12,7 @@ Dependencies:
   - decision-gate-core/src/runtime/runpack.rs
   - decision-gate-mcp/src/evidence.rs
   - decision-gate-mcp/src/tools.rs
-  - decision-gate-mcp/src/config.rs
+  - decision-gate-config/src/config.rs
 ============================================================================
 Last Updated: 2026-01-26 (UTC)
 ============================================================================
@@ -117,7 +117,7 @@ Evidence disclosure is enforced at `evidence_query` time:
 
 If raw values are not allowed, the tool response redacts `value` and
 `content_type`, but retains hashes and anchors.
-[F:decision-gate-mcp/src/config.rs L959-L977][F:decision-gate-mcp/src/tools.rs L858-L885][F:decision-gate-mcp/src/evidence.rs L188-L209]
+[F:decision-gate-config/src/config.rs L959-L977][F:decision-gate-mcp/src/tools.rs L858-L885][F:decision-gate-mcp/src/evidence.rs L188-L209]
 
 ---
 
@@ -127,7 +127,7 @@ Anchor policy configuration is expressed in MCP config as
 `anchors.providers[{provider_id, anchor_type, required_fields}]`. The config is
 validated and converted into the runtime `EvidenceAnchorPolicy` used by the
 control plane and runpack verifier.
-[F:decision-gate-mcp/src/config.rs L979-L1054]
+[F:decision-gate-config/src/config.rs L979-L1054]
 
 ---
 
@@ -181,4 +181,4 @@ Precheck uses **asserted** evidence without contacting providers:
 | Runpack anchor verification | `decision-gate-core/src/runtime/runpack.rs` | Offline validation against anchor policy. |
 | Provider signature policy | `decision-gate-mcp/src/evidence.rs` | TrustPolicy parsing + signature enforcement. |
 | Evidence disclosure policy | `decision-gate-mcp/src/tools.rs` | Raw evidence redaction for evidence_query. |
-| Config surface | `decision-gate-mcp/src/config.rs` | evidence.* and anchors.* configuration. |
+| Config surface | `decision-gate-config/src/config.rs` | evidence.* and anchors.* configuration. |

@@ -9,6 +9,7 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::net::TcpListener;
+use std::num::NonZeroU64;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -84,9 +85,10 @@ pub fn allocate_bind_addr() -> Result<SocketAddr, String> {
 }
 
 fn reserve_port(port: u16, listener: TcpListener) -> Result<(), String> {
-    let mut guard =
-        port_reservations().lock().map_err(|_| "port reservation mutex poisoned".to_string())?;
-    guard.insert(port, listener);
+    port_reservations()
+        .lock()
+        .map_err(|_| "port reservation mutex poisoned".to_string())?
+        .insert(port, listener);
     Ok(())
 }
 
@@ -105,6 +107,11 @@ fn release_reserved_port(bind: &str) {
             std::thread::sleep(Duration::from_millis(100));
         }
     }
+}
+
+/// Releases a reserved bind address allocated by `allocate_bind_addr`.
+pub fn release_bind_addr(bind: &str) {
+    release_reserved_port(bind);
 }
 
 fn port_reservations() -> &'static Mutex<HashMap<u16, TcpListener>> {
@@ -136,7 +143,7 @@ pub fn base_http_config(bind: &str) -> DecisionGateConfig {
         },
         namespace: NamespaceConfig {
             allow_default: true,
-            default_tenants: vec![TenantId::from_raw(1).expect("nonzero tenantid")],
+            default_tenants: vec![TenantId::new(NonZeroU64::MIN)],
             ..NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
@@ -239,7 +246,7 @@ pub fn base_sse_config(bind: &str) -> DecisionGateConfig {
         },
         namespace: NamespaceConfig {
             allow_default: true,
-            default_tenants: vec![TenantId::from_raw(1).expect("nonzero tenantid")],
+            default_tenants: vec![TenantId::new(NonZeroU64::MIN)],
             ..NamespaceConfig::default()
         },
         trust: TrustConfig::default(),
@@ -355,13 +362,19 @@ fn tenant_admin_principal(
     tenant_id: u64,
     namespace_id: u64,
 ) -> PrincipalConfig {
+    let tenant = TenantId::from_raw(tenant_id);
+    assert!(tenant.is_some(), "tenant_id must be nonzero");
+    let tenant = tenant.unwrap_or(TenantId::new(NonZeroU64::MIN));
+    let namespace = NamespaceId::from_raw(namespace_id);
+    assert!(namespace.is_some(), "namespace_id must be nonzero");
+    let namespace = namespace.unwrap_or(NamespaceId::new(NonZeroU64::MIN));
     PrincipalConfig {
         subject: subject.into(),
         policy_class: Some("prod".to_string()),
         roles: vec![PrincipalRoleConfig {
             name: "TenantAdmin".to_string(),
-            tenant_id: Some(TenantId::from_raw(tenant_id).expect("nonzero tenantid")),
-            namespace_id: Some(NamespaceId::from_raw(namespace_id).expect("nonzero namespaceid")),
+            tenant_id: Some(tenant),
+            namespace_id: Some(namespace),
         }],
     }
 }

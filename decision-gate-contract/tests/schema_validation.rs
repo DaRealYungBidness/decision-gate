@@ -35,6 +35,7 @@ use std::error::Error;
 use std::io;
 use std::sync::Arc;
 
+use decision_gate_config as config;
 use decision_gate_contract::ContractBuilder;
 use decision_gate_contract::ToolName;
 use decision_gate_contract::examples;
@@ -294,7 +295,7 @@ fn tooling_and_provider_schemas_compile_and_examples_validate() -> Result<(), Bo
 
 #[test]
 fn run_state_schema_accepts_core_structs() -> Result<(), Box<dyn Error>> {
-    let resolver = build_registry(&[schemas::scenario_schema(), schemas::config_schema()])?;
+    let resolver = build_registry(&[schemas::scenario_schema(), config::config_schema()])?;
     let run_state_schema = compile_schema(&schemas::run_state_schema(), &resolver)?;
     let run_state_value = serde_json::to_value(sample_run_state())?;
     assert_valid(&run_state_schema, &run_state_value, "run state")?;
@@ -570,7 +571,7 @@ fn config_schema_rejects_invalid_transport() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn run_config_schema_rejects_missing_tenant_id() -> Result<(), Box<dyn Error>> {
-    let resolver = build_registry(&[schemas::scenario_schema(), schemas::config_schema()])?;
+    let resolver = build_registry(&[schemas::scenario_schema(), config::config_schema()])?;
     let run_config_validator = compile_schema(&schemas::run_config_schema(), &resolver)?;
 
     let invalid = json!({
@@ -584,7 +585,7 @@ fn run_config_schema_rejects_missing_tenant_id() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn run_config_schema_rejects_missing_run_id() -> Result<(), Box<dyn Error>> {
-    let resolver = build_registry(&[schemas::scenario_schema(), schemas::config_schema()])?;
+    let resolver = build_registry(&[schemas::scenario_schema(), config::config_schema()])?;
     let run_config_validator = compile_schema(&schemas::run_config_schema(), &resolver)?;
 
     let invalid = json!({

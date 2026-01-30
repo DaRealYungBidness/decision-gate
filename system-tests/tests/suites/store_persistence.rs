@@ -49,7 +49,7 @@ async fn sqlite_run_state_persists_across_restart() -> Result<(), Box<dyn std::e
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("sqlite-scenario", "run-1", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };
@@ -93,8 +93,8 @@ async fn sqlite_run_state_persists_across_restart() -> Result<(), Box<dyn std::e
         scenario_id: fixture.spec.scenario_id.clone(),
         request: StatusRequest {
             run_id: fixture.run_id.clone(),
-            tenant_id: fixture.tenant_id.clone(),
-            namespace_id: fixture.namespace_id.clone(),
+            tenant_id: fixture.tenant_id,
+            namespace_id: fixture.namespace_id,
             requested_at: Timestamp::Logical(2),
             correlation_id: None,
         },
@@ -123,11 +123,13 @@ async fn sqlite_run_state_persists_across_restart() -> Result<(), Box<dyn std::e
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     server2.shutdown().await;
     Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[allow(clippy::too_many_lines, reason = "Restart redefine workflow is clearer as one scenario.")]
 async fn sqlite_requires_redefine_after_restart() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("sqlite_requires_redefine_after_restart")?;
     let temp = TempDir::new()?;
@@ -149,7 +151,7 @@ async fn sqlite_requires_redefine_after_restart() -> Result<(), Box<dyn std::err
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("sqlite-scenario", "run-1", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };
@@ -182,8 +184,8 @@ async fn sqlite_requires_redefine_after_restart() -> Result<(), Box<dyn std::err
         scenario_id: fixture.spec.scenario_id.clone(),
         request: StatusRequest {
             run_id: fixture.run_id.clone(),
-            tenant_id: fixture.tenant_id.clone(),
-            namespace_id: fixture.namespace_id.clone(),
+            tenant_id: fixture.tenant_id,
+            namespace_id: fixture.namespace_id,
             requested_at: Timestamp::Logical(2),
             correlation_id: None,
         },
@@ -208,8 +210,8 @@ async fn sqlite_requires_redefine_after_restart() -> Result<(), Box<dyn std::err
         scenario_id: fixture.spec.scenario_id.clone(),
         request: StatusRequest {
             run_id: fixture.run_id.clone(),
-            tenant_id: fixture.tenant_id.clone(),
-            namespace_id: fixture.namespace_id.clone(),
+            tenant_id: fixture.tenant_id,
+            namespace_id: fixture.namespace_id,
             requested_at: Timestamp::Logical(3),
             correlation_id: None,
         },
@@ -238,6 +240,7 @@ async fn sqlite_requires_redefine_after_restart() -> Result<(), Box<dyn std::err
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     server2.shutdown().await;
     Ok(())
 }

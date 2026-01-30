@@ -12,7 +12,7 @@ Dependencies:
   - decision-gate-mcp/src/tools.rs
   - decision-gate-mcp/src/runpack.rs
   - decision-gate-mcp/src/runpack_object_store.rs
-  - decision-gate-mcp/src/config.rs
+  - decision-gate-config/src/config.rs
 ============================================================================
 Last Updated: 2026-01-28 (UTC)
 ============================================================================

@@ -53,6 +53,9 @@ const REGISTRY_PATH: &str = "tests/fixtures/agentic/scenario_registry.toml";
 const EXPECTED_HASH_FILE: &str = "expected/runpack_root_hash.txt";
 const HTTP_PLACEHOLDER: &str = "{{HTTP_BASE_URL}}";
 
+type DynError = Box<dyn std::error::Error + Send + Sync>;
+
+
 #[derive(Debug, Deserialize)]
 struct ScenarioRegistry {
     scenarios: Vec<ScenarioEntry>,
@@ -61,7 +64,10 @@ struct ScenarioRegistry {
 #[derive(Debug, Deserialize)]
 struct ScenarioEntry {
     id: String,
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "Description is captured for registry context but unused in tests."
+    )]
     description: Option<String>,
     providers: Vec<String>,
     drivers: Vec<String>,
@@ -123,7 +129,7 @@ impl Drop for HttpStubHandle {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agentic_flow_harness_deterministic() -> Result<(), Box<dyn std::error::Error>> {
+async fn agentic_flow_harness_deterministic() -> Result<(), DynError> {
     let mut reporter = TestReporter::new("agentic_flow_harness_deterministic")?;
     let registry = load_registry()?;
     let scenario_filter = parse_filter("DECISION_GATE_AGENTIC_SCENARIOS");
@@ -162,7 +168,7 @@ async fn agentic_flow_harness_deterministic() -> Result<(), Box<dyn std::error::
         scenario_results.baseline_root_hash = raw_result.runpack_root_hash.clone();
         scenario_results.drivers.push(raw_result);
 
-        for driver in scenario.drivers.iter() {
+        for driver in &scenario.drivers {
             if driver == "raw_mcp" {
                 continue;
             }
@@ -192,10 +198,11 @@ async fn agentic_flow_harness_deterministic() -> Result<(), Box<dyn std::error::
             "agentic_results.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
-fn load_registry() -> Result<ScenarioRegistry, Box<dyn std::error::Error>> {
+fn load_registry() -> Result<ScenarioRegistry, DynError> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(REGISTRY_PATH);
     let contents = fs::read_to_string(root)?;
     Ok(toml::from_str(&contents)?)
@@ -214,7 +221,7 @@ fn parse_filter(var: &str) -> HashSet<String> {
         .unwrap_or_default()
 }
 
-fn load_scenario_pack(id: &str) -> Result<ScenarioPack, Box<dyn std::error::Error>> {
+fn load_scenario_pack(id: &str) -> Result<ScenarioPack, DynError> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(FIXTURE_ROOT).join(id);
     let fixtures_dir = root.join("fixtures");
     let spec = load_json(root.join("spec.json"))?;
@@ -235,12 +242,12 @@ fn load_scenario_pack(id: &str) -> Result<ScenarioPack, Box<dyn std::error::Erro
     })
 }
 
-fn load_json(path: PathBuf) -> Result<Value, Box<dyn std::error::Error>> {
+fn load_json(path: PathBuf) -> Result<Value, DynError> {
     let bytes = fs::read(path)?;
     Ok(serde_json::from_slice(&bytes)?)
 }
 
-fn load_env_overrides(path: &Path) -> Result<BTreeMap<String, String>, Box<dyn std::error::Error>> {
+fn load_env_overrides(path: &Path) -> Result<BTreeMap<String, String>, DynError> {
     if !path.exists() {
         return Ok(BTreeMap::new());
     }
@@ -257,7 +264,7 @@ fn load_env_overrides(path: &Path) -> Result<BTreeMap<String, String>, Box<dyn s
     Ok(map)
 }
 
-async fn spawn_http_stub(scenario_id: &str) -> Result<HttpStubHandle, Box<dyn std::error::Error>> {
+async fn spawn_http_stub(scenario_id: &str) -> Result<HttpStubHandle, DynError> {
     async fn artifact_handler() -> impl IntoResponse {
         (
             StatusCode::OK,
@@ -282,7 +289,7 @@ async fn spawn_http_stub(scenario_id: &str) -> Result<HttpStubHandle, Box<dyn st
     let listener = tokio::net::TcpListener::bind(addr).await.map_err(|err| {
         format!("failed to bind deterministic http stub for {scenario_id} on {addr}: {err}")
     })?;
-    let base_url = format!("http://{}", addr);
+    let base_url = format!("http://{addr}");
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
     tokio::spawn(async move {
         let server = axum::serve(listener, app).with_graceful_shutdown(async move {
@@ -296,17 +303,13 @@ async fn spawn_http_stub(scenario_id: &str) -> Result<HttpStubHandle, Box<dyn st
     })
 }
 
-fn http_stub_port(scenario_id: &str) -> Result<u16, Box<dyn std::error::Error>> {
+fn http_stub_port(scenario_id: &str) -> Result<u16, DynError> {
     if let Ok(value) = env::var("DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT") {
         let port: u16 = value.parse().map_err(|_| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT must be a valid u16",
-            )
+            std::io::Error::other("DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT must be a valid u16")
         })?;
         if port == 0 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            return Err(std::io::Error::other(
                 "DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT must be nonzero",
             )
             .into());
@@ -323,24 +326,24 @@ fn http_stub_port(scenario_id: &str) -> Result<u16, Box<dyn std::error::Error>> 
         .and_then(|value| value.parse::<u16>().ok())
         .unwrap_or(20000);
     if base == 0 || range == 0 {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
+        return Err(std::io::Error::other(
             "DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_BASE and RANGE must be nonzero",
         )
         .into());
     }
-    let max = base as u32 + range as u32;
-    if max >= u16::MAX as u32 {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "http stub port range exceeds available port space",
-        )
-        .into());
+    let max = u32::from(base) + u32::from(range);
+    if max >= u32::from(u16::MAX) {
+        return Err(
+            std::io::Error::other("http stub port range exceeds available port space").into()
+        );
     }
 
     let digest = hash_bytes(HashAlgorithm::Sha256, scenario_id.as_bytes());
     let seed = u32::from_str_radix(&digest.value[.. 8], 16).unwrap_or(0);
-    Ok((base as u32 + (seed % range as u32)) as u16)
+    let offset = seed % u32::from(range);
+    let port = u32::from(base) + offset;
+    let port = u16::try_from(port).map_err(|_| std::io::Error::other("http stub port overflow"))?;
+    Ok(port)
 }
 
 async fn run_raw_mcp_driver(
@@ -348,7 +351,7 @@ async fn run_raw_mcp_driver(
     scenario: &ScenarioEntry,
     pack: &ScenarioPack,
     http_base_url: Option<&str>,
-) -> Result<DriverResult, Box<dyn std::error::Error>> {
+) -> Result<DriverResult, DynError> {
     let (server, client) =
         spawn_scenario_server(pack, http_base_url, scenario.policy_mode.as_deref()).await?;
     let result = async {
@@ -433,13 +436,14 @@ async fn run_raw_mcp_driver(
     result
 }
 
+#[allow(clippy::too_many_lines, reason = "Driver orchestration is clearer as a single flow.")]
 async fn run_script_driver(
     reporter: &TestReporter,
     driver: &str,
     scenario: &ScenarioEntry,
     pack: &ScenarioPack,
     http_base_url: Option<&str>,
-) -> Result<DriverResult, Box<dyn std::error::Error>> {
+) -> Result<DriverResult, DynError> {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let script = match driver {
         "python_sdk" => manifest_dir.join("tests/fixtures/agentic/drivers/sdk_python_driver.py"),
@@ -470,85 +474,75 @@ async fn run_script_driver(
     let runpack_dir = allocate_runpack_dir(reporter, &pack.id, driver)?;
 
     let mut envs = HashMap::new();
-    envs.insert("DG_ENDPOINT".to_string(), endpoint.to_string());
+    envs.insert("DG_ENDPOINT".to_string(), endpoint);
     envs.insert("DG_SCENARIO_PACK".to_string(), pack.root.to_string_lossy().to_string());
     envs.insert("DG_RUNPACK_DIR".to_string(), runpack_dir.to_string_lossy().to_string());
     if let Some(http_base) = http_base_url {
         envs.insert("DG_HTTP_BASE_URL".to_string(), http_base.to_string());
     }
 
-    let (interpreter, args) = match driver {
-        "typescript_sdk" => {
-            let runtime = match node_runtime_for_typescript() {
-                Ok(runtime) => runtime,
-                Err(err) => {
-                    return Ok(DriverResult {
-                        driver: driver.to_string(),
-                        status: "skipped".to_string(),
-                        outcome: None,
-                        runpack_root_hash: None,
-                        runpack_hash_algorithm: None,
-                        notes: vec![err],
-                    });
-                }
-            };
-            let args = vec![
-                "--experimental-strip-types".to_string(),
-                script.to_string_lossy().to_string(),
-            ];
-            let mut node_options = match env::var("NODE_OPTIONS") {
-                Ok(existing) if !existing.is_empty() => {
-                    format!("{existing} --unhandled-rejections=strict")
-                }
-                _ => "--unhandled-rejections=strict".to_string(),
-            };
-            let loader_path = manifest_dir.join("tests/fixtures/ts_loader.mjs");
-            if let Ok(loader_path) = loader_path.canonicalize() {
-                node_options =
-                    format!("{node_options} --experimental-loader={}", loader_path.display());
+    let (interpreter, args) = if driver == "typescript_sdk" {
+        let runtime = match node_runtime_for_typescript() {
+            Ok(runtime) => runtime,
+            Err(err) => {
+                return Ok(DriverResult {
+                    driver: driver.to_string(),
+                    status: "skipped".to_string(),
+                    outcome: None,
+                    runpack_root_hash: None,
+                    runpack_hash_algorithm: None,
+                    notes: vec![err],
+                });
             }
-            envs.insert("NODE_OPTIONS".to_string(), node_options);
-            (runtime.path, args)
-        }
-        _ => {
-            let runtime = match python_runtime() {
-                Ok(runtime) => runtime,
-                Err(err) => {
-                    return Ok(DriverResult {
-                        driver: driver.to_string(),
-                        status: "skipped".to_string(),
-                        outcome: None,
-                        runpack_root_hash: None,
-                        runpack_hash_algorithm: None,
-                        notes: vec![err],
-                    });
-                }
-            };
-            let args = vec![script.to_string_lossy().to_string()];
-            let workspace_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .parent()
-                .ok_or_else(|| {
-                    std::io::Error::new(std::io::ErrorKind::Other, "missing workspace root")
-                })?
-                .to_path_buf();
-            let mut paths = Vec::new();
-            paths.push(workspace_root.join("sdks/python"));
-            paths.push(workspace_root.join("adapters/langchain/src"));
-            paths.push(workspace_root.join("adapters/crewai/src"));
-            paths.push(workspace_root.join("adapters/autogen/src"));
-            paths.push(workspace_root.join("adapters/openai_agents/src"));
-            if let Some(existing) = env::var_os("PYTHONPATH") {
-                paths.extend(env::split_paths(&existing));
+        };
+        let args =
+            vec!["--experimental-strip-types".to_string(), script.to_string_lossy().to_string()];
+        let mut node_options = match env::var("NODE_OPTIONS") {
+            Ok(existing) if !existing.is_empty() => {
+                format!("{existing} --unhandled-rejections=strict")
             }
-            let joined = env::join_paths(paths).map_err(|err| {
-                std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("pythonpath join failed: {err}"),
-                )
-            })?;
-            envs.insert("PYTHONPATH".to_string(), joined.to_string_lossy().to_string());
-            (runtime.path, args)
+            _ => "--unhandled-rejections=strict".to_string(),
+        };
+        let loader_path = manifest_dir.join("tests/fixtures/ts_loader.mjs");
+        if let Ok(loader_path) = loader_path.canonicalize() {
+            node_options =
+                format!("{node_options} --experimental-loader={}", loader_path.display());
         }
+        envs.insert("NODE_OPTIONS".to_string(), node_options);
+        (runtime.path, args)
+    } else {
+        let runtime = match python_runtime() {
+            Ok(runtime) => runtime,
+            Err(err) => {
+                return Ok(DriverResult {
+                    driver: driver.to_string(),
+                    status: "skipped".to_string(),
+                    outcome: None,
+                    runpack_root_hash: None,
+                    runpack_hash_algorithm: None,
+                    notes: vec![err],
+                });
+            }
+        };
+        let args = vec![script.to_string_lossy().to_string()];
+        let workspace_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .ok_or_else(|| std::io::Error::other("missing workspace root"))?
+            .to_path_buf();
+        let mut paths = vec![
+            workspace_root.join("sdks/python"),
+            workspace_root.join("adapters/langchain/src"),
+            workspace_root.join("adapters/crewai/src"),
+            workspace_root.join("adapters/autogen/src"),
+            workspace_root.join("adapters/openai_agents/src"),
+        ];
+        if let Some(existing) = env::var_os("PYTHONPATH") {
+            paths.extend(env::split_paths(&existing));
+        }
+        let joined = env::join_paths(paths)
+            .map_err(|err| std::io::Error::other(format!("pythonpath join failed: {err}")))?;
+        envs.insert("PYTHONPATH".to_string(), joined.to_string_lossy().to_string());
+        (runtime.path, args)
     };
 
     let output = match run_script(&interpreter, &args, &envs, Duration::from_secs(60)).await {
@@ -594,15 +588,15 @@ async fn run_script_driver(
     Ok(DriverResult {
         driver: driver.to_string(),
         status: read_string(&payload, "status")?,
-        outcome: payload.get("outcome").and_then(|val| val.as_str()).map(|val| val.to_string()),
+        outcome: payload.get("outcome").and_then(Value::as_str).map(ToString::to_string),
         runpack_root_hash: payload
             .get("runpack_root_hash")
-            .and_then(|val| val.as_str())
-            .map(|val| val.to_string()),
+            .and_then(Value::as_str)
+            .map(ToString::to_string),
         runpack_hash_algorithm: payload
             .get("runpack_hash_algorithm")
-            .and_then(|val| val.as_str())
-            .map(|val| val.to_string()),
+            .and_then(Value::as_str)
+            .map(ToString::to_string),
         notes: Vec::new(),
     })
 }
@@ -611,21 +605,23 @@ async fn spawn_scenario_server(
     pack: &ScenarioPack,
     http_base_url: Option<&str>,
     policy_mode: Option<&str>,
-) -> Result<(helpers::harness::McpServerHandle, McpHttpClient), Box<dyn std::error::Error>> {
+) -> Result<(helpers::harness::McpServerHandle, McpHttpClient), DynError> {
     let bind = allocate_bind_addr()?.to_string();
     let mut config = base_http_config(&bind);
     apply_provider_config(&mut config, pack, http_base_url)?;
-    apply_policy_config(&mut config, policy_mode)?;
+    apply_policy_config(&mut config, policy_mode);
     let server = spawn_mcp_server(config).await?;
     let client = server.client(Duration::from_secs(10))?;
     wait_for_server_ready(&client, Duration::from_secs(10)).await?;
     Ok((server, client))
 }
 
-fn parse_driver_output(stdout: &str) -> Result<Value, Box<dyn std::error::Error>> {
-    let line = stdout.lines().rev().find(|line| !line.trim().is_empty()).ok_or_else(|| {
-        std::io::Error::new(std::io::ErrorKind::Other, "driver produced no output")
-    })?;
+fn parse_driver_output(stdout: &str) -> Result<Value, DynError> {
+    let line = stdout
+        .lines()
+        .rev()
+        .find(|line| !line.trim().is_empty())
+        .ok_or_else(|| std::io::Error::other("driver produced no output"))?;
     Ok(serde_json::from_str(line)?)
 }
 
@@ -633,7 +629,7 @@ fn apply_provider_config(
     config: &mut DecisionGateConfig,
     pack: &ScenarioPack,
     http_base_url: Option<&str>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), DynError> {
     let json_config = json_provider_config(&pack.fixtures_dir);
     set_provider_config(config, "json", json_config)?;
 
@@ -651,12 +647,9 @@ fn apply_provider_config(
     Ok(())
 }
 
-fn apply_policy_config(
-    config: &mut DecisionGateConfig,
-    policy_mode: Option<&str>,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn apply_policy_config(config: &mut DecisionGateConfig, policy_mode: Option<&str>) {
     if policy_mode != Some("deny_restricted") {
-        return Ok(());
+        return;
     }
     let rule = PolicyRule {
         effect: PolicyEffect::Deny,
@@ -681,7 +674,6 @@ fn apply_policy_config(
         engine: PolicyEngine::Static,
         static_policy: Some(static_policy),
     };
-    Ok(())
 }
 
 fn env_provider_config(overrides: &BTreeMap<String, String>) -> TomlValue {
@@ -733,11 +725,12 @@ fn set_provider_config(
     config: &mut DecisionGateConfig,
     name: &str,
     value: TomlValue,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let provider =
-        config.providers.iter_mut().find(|provider| provider.name == name).ok_or_else(|| {
-            std::io::Error::new(std::io::ErrorKind::Other, format!("missing provider {name}"))
-        })?;
+) -> Result<(), DynError> {
+    let provider = config
+        .providers
+        .iter_mut()
+        .find(|provider| provider.name == name)
+        .ok_or_else(|| std::io::Error::other(format!("missing provider {name}")))?;
     provider.config = Some(value);
     Ok(())
 }
@@ -772,16 +765,19 @@ fn replace_placeholder_value(value: &Value, token: &str, replacement: &str) -> V
     }
 }
 
-fn read_string(value: &Value, field: &str) -> Result<String, Box<dyn std::error::Error>> {
-    value.get(field).and_then(|val| val.as_str()).map(|val| val.to_string()).ok_or_else(|| {
-        std::io::Error::new(std::io::ErrorKind::Other, format!("missing {field}")).into()
-    })
+fn read_string(value: &Value, field: &str) -> Result<String, DynError> {
+    value
+        .get(field)
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
+        .ok_or_else(|| std::io::Error::other(format!("missing {field}")).into())
 }
 
-fn read_u64(value: &Value, field: &str) -> Result<u64, Box<dyn std::error::Error>> {
-    value.get(field).and_then(|val| val.as_u64()).ok_or_else(|| {
-        std::io::Error::new(std::io::ErrorKind::Other, format!("missing {field}")).into()
-    })
+fn read_u64(value: &Value, field: &str) -> Result<u64, DynError> {
+    value
+        .get(field)
+        .and_then(Value::as_u64)
+        .ok_or_else(|| std::io::Error::other(format!("missing {field}")).into())
 }
 
 fn extract_outcome(value: &Value) -> Option<String> {
@@ -803,8 +799,8 @@ fn read_root_hash(export: &Value) -> Option<String> {
         .and_then(|value| value.get("integrity"))
         .and_then(|value| value.get("root_hash"))
         .and_then(|value| value.get("value"))
-        .and_then(|value| value.as_str())
-        .map(|val| val.to_string())
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
 }
 
 fn read_root_hash_algorithm(export: &Value) -> Option<String> {
@@ -813,15 +809,15 @@ fn read_root_hash_algorithm(export: &Value) -> Option<String> {
         .and_then(|value| value.get("integrity"))
         .and_then(|value| value.get("root_hash"))
         .and_then(|value| value.get("algorithm"))
-        .and_then(|value| value.as_str())
-        .map(|val| val.to_string())
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
 }
 
 fn allocate_runpack_dir(
     reporter: &TestReporter,
     scenario_id: &str,
     driver: &str,
-) -> Result<PathBuf, Box<dyn std::error::Error>> {
+) -> Result<PathBuf, DynError> {
     let root =
         reporter.artifacts().root().join("agentic").join(sanitize_name(scenario_id)).join(driver);
     fs::create_dir_all(&root)?;
@@ -837,36 +833,31 @@ fn enforce_expectations(
     pack: &ScenarioPack,
     result: &ScenarioResult,
     update_expected: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let baseline = result.baseline_root_hash.clone().ok_or_else(|| {
-        std::io::Error::new(std::io::ErrorKind::Other, "missing baseline root hash")
-    })?;
+) -> Result<(), DynError> {
+    let baseline = result
+        .baseline_root_hash
+        .clone()
+        .ok_or_else(|| std::io::Error::other("missing baseline root hash"))?;
 
     let expected_hash = read_expected_hash(&pack.expected_hash_path)?;
     if update_expected {
         if let Some(parent) = pack.expected_hash_path.parent() {
             fs::create_dir_all(parent)?;
         }
-        fs::write(&pack.expected_hash_path, format!("{}\n", baseline))?;
+        fs::write(&pack.expected_hash_path, format!("{baseline}\n"))?;
     } else if let Some(expected) = expected_hash {
         if expected != baseline {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!(
-                    "runpack hash mismatch for {} (expected {}, got {})",
-                    scenario.id, expected, baseline
-                ),
-            )
+            return Err(std::io::Error::other(format!(
+                "runpack hash mismatch for {} (expected {}, got {})",
+                scenario.id, expected, baseline
+            ))
             .into());
         }
     } else {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            format!(
-                "missing expected runpack hash for {} (set UPDATE_AGENTIC_EXPECTED=1)",
-                scenario.id
-            ),
-        )
+        return Err(std::io::Error::other(format!(
+            "missing expected runpack hash for {} (set UPDATE_AGENTIC_EXPECTED=1)",
+            scenario.id
+        ))
         .into());
     }
 
@@ -875,45 +866,36 @@ fn enforce_expectations(
             continue;
         }
         if driver.status != scenario.expected_status {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!(
-                    "status mismatch for {} via {} (expected {}, got {})",
-                    scenario.id, driver.driver, scenario.expected_status, driver.status
-                ),
-            )
+            return Err(std::io::Error::other(format!(
+                "status mismatch for {} via {} (expected {}, got {})",
+                scenario.id, driver.driver, scenario.expected_status, driver.status
+            ))
             .into());
         }
-        if let Some(expected_outcome) = &scenario.expected_outcome {
-            if driver.outcome.as_ref().map(|val| val != expected_outcome).unwrap_or(true) {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!(
-                        "outcome mismatch for {} via {} (expected {:?}, got {:?})",
-                        scenario.id, driver.driver, scenario.expected_outcome, driver.outcome
-                    ),
-                )
-                .into());
-            }
+        if let Some(expected_outcome) = &scenario.expected_outcome
+            && driver.outcome.as_ref() != Some(expected_outcome)
+        {
+            return Err(std::io::Error::other(format!(
+                "outcome mismatch for {} via {} (expected {:?}, got {:?})",
+                scenario.id, driver.driver, scenario.expected_outcome, driver.outcome
+            ))
+            .into());
         }
-        if let Some(hash) = &driver.runpack_root_hash {
-            if hash != &baseline {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!(
-                        "runpack hash mismatch for {} via {} (expected {}, got {})",
-                        scenario.id, driver.driver, baseline, hash
-                    ),
-                )
-                .into());
-            }
+        if let Some(hash) = &driver.runpack_root_hash
+            && hash != &baseline
+        {
+            return Err(std::io::Error::other(format!(
+                "runpack hash mismatch for {} via {} (expected {}, got {})",
+                scenario.id, driver.driver, baseline, hash
+            ))
+            .into());
         }
     }
 
     Ok(())
 }
 
-fn read_expected_hash(path: &Path) -> Result<Option<String>, Box<dyn std::error::Error>> {
+fn read_expected_hash(path: &Path) -> Result<Option<String>, DynError> {
     if !path.exists() {
         return Ok(None);
     }
@@ -933,6 +915,7 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
+    use crate::helpers::env as test_env;
 
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
@@ -953,66 +936,81 @@ mod tests {
         fn drop(&mut self) {
             for (name, value) in self.entries.drain(..) {
                 match value {
-                    Some(value) => env::set_var(name, value),
-                    None => env::remove_var(name),
+                    Some(value) => test_env::set_var(name, &value),
+                    None => test_env::remove_var(name),
                 }
             }
         }
     }
 
     #[test]
-    fn http_stub_port_respects_explicit_override() {
-        let _lock = ENV_LOCK.lock().unwrap();
+    fn http_stub_port_respects_explicit_override() -> Result<(), DynError> {
+        let _lock = ENV_LOCK.lock().map_err(|_| std::io::Error::other("env lock poisoned"))?;
         let _guard = EnvGuard::new(&[
             "DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT",
             "DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_BASE",
             "DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_RANGE",
         ]);
-        env::set_var("DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT", "32123");
-        assert_eq!(http_stub_port("agentic-ci-gate").unwrap(), 32123);
+        test_env::set_var("DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT", "32123");
+        let port = http_stub_port("agentic-ci-gate")?;
+        if port != 32123 {
+            return Err(format!("expected port 32123, got {port}").into());
+        }
+        Ok(())
     }
 
     #[test]
-    fn http_stub_port_rejects_zero_override() {
-        let _lock = ENV_LOCK.lock().unwrap();
+    fn http_stub_port_rejects_zero_override() -> Result<(), DynError> {
+        let _lock = ENV_LOCK.lock().map_err(|_| std::io::Error::other("env lock poisoned"))?;
         let _guard = EnvGuard::new(&[
             "DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT",
             "DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_BASE",
             "DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_RANGE",
         ]);
-        env::set_var("DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT", "0");
-        assert!(http_stub_port("agentic-ci-gate").is_err());
+        test_env::set_var("DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT", "0");
+        if http_stub_port("agentic-ci-gate").is_ok() {
+            return Err("expected zero override to fail".into());
+        }
+        Ok(())
     }
 
     #[test]
-    fn http_stub_port_is_deterministic_and_bounded() {
-        let _lock = ENV_LOCK.lock().unwrap();
+    fn http_stub_port_is_deterministic_and_bounded() -> Result<(), DynError> {
+        let _lock = ENV_LOCK.lock().map_err(|_| std::io::Error::other("env lock poisoned"))?;
         let _guard = EnvGuard::new(&[
             "DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT",
             "DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_BASE",
             "DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_RANGE",
         ]);
-        env::remove_var("DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT");
-        env::set_var("DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_BASE", "30000");
-        env::set_var("DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_RANGE", "100");
-        let port_a = http_stub_port("agentic-ci-gate").unwrap();
-        let port_b = http_stub_port("agentic-ci-gate").unwrap();
-        assert_eq!(port_a, port_b);
-        assert!((30000 .. 30100).contains(&port_a));
+        test_env::remove_var("DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT");
+        test_env::set_var("DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_BASE", "30000");
+        test_env::set_var("DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_RANGE", "100");
+        let port_a = http_stub_port("agentic-ci-gate")?;
+        let port_b = http_stub_port("agentic-ci-gate")?;
+        if port_a != port_b {
+            return Err(format!("expected deterministic port, got {port_a} vs {port_b}").into());
+        }
+        if !(30000 .. 30100).contains(&port_a) {
+            return Err(format!("expected port in range, got {port_a}").into());
+        }
+        Ok(())
     }
 
     #[test]
-    fn http_stub_port_rejects_overflow_range() {
-        let _lock = ENV_LOCK.lock().unwrap();
+    fn http_stub_port_rejects_overflow_range() -> Result<(), DynError> {
+        let _lock = ENV_LOCK.lock().map_err(|_| std::io::Error::other("env lock poisoned"))?;
         let _guard = EnvGuard::new(&[
             "DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT",
             "DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_BASE",
             "DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_RANGE",
         ]);
-        env::remove_var("DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT");
-        env::set_var("DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_BASE", "65530");
-        env::set_var("DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_RANGE", "10");
-        assert!(http_stub_port("agentic-ci-gate").is_err());
+        test_env::remove_var("DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT");
+        test_env::set_var("DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_BASE", "65530");
+        test_env::set_var("DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_RANGE", "10");
+        if http_stub_port("agentic-ci-gate").is_ok() {
+            return Err("expected overflow range to fail".into());
+        }
+        Ok(())
     }
 
     #[test]
@@ -1038,11 +1036,14 @@ mod tests {
     }
 
     #[test]
-    fn enforce_expectations_overwrites_expected_hash() {
-        let dir = TempDir::new().unwrap();
+    fn enforce_expectations_overwrites_expected_hash() -> Result<(), DynError> {
+        let dir = TempDir::new()?;
         let expected_path = dir.path().join("expected/runpack_root_hash.txt");
-        fs::create_dir_all(expected_path.parent().unwrap()).unwrap();
-        fs::write(&expected_path, "oldhash\n").unwrap();
+        let Some(parent) = expected_path.parent() else {
+            return Err(std::io::Error::other("expected path missing parent").into());
+        };
+        fs::create_dir_all(parent)?;
+        fs::write(&expected_path, "oldhash\n")?;
 
         let scenario = ScenarioEntry {
             id: "agentic-ci-gate".to_string(),
@@ -1072,16 +1073,23 @@ mod tests {
             baseline_root_hash: Some("newhash".to_string()),
         };
 
-        enforce_expectations(&scenario, &pack, &result, true).unwrap();
-        assert_eq!(fs::read_to_string(expected_path).unwrap(), "newhash\n");
+        enforce_expectations(&scenario, &pack, &result, true)?;
+        let updated = fs::read_to_string(expected_path)?;
+        if updated != "newhash\n" {
+            return Err(format!("expected updated hash, got {updated:?}").into());
+        }
+        Ok(())
     }
 
     #[test]
-    fn enforce_expectations_rejects_hash_mismatch_without_update() {
-        let dir = TempDir::new().unwrap();
+    fn enforce_expectations_rejects_hash_mismatch_without_update() -> Result<(), DynError> {
+        let dir = TempDir::new()?;
         let expected_path = dir.path().join("expected/runpack_root_hash.txt");
-        fs::create_dir_all(expected_path.parent().unwrap()).unwrap();
-        fs::write(&expected_path, "oldhash\n").unwrap();
+        let Some(parent) = expected_path.parent() else {
+            return Err(std::io::Error::other("expected path missing parent").into());
+        };
+        fs::create_dir_all(parent)?;
+        fs::write(&expected_path, "oldhash\n")?;
 
         let scenario = ScenarioEntry {
             id: "agentic-ci-gate".to_string(),
@@ -1111,7 +1119,12 @@ mod tests {
             baseline_root_hash: Some("newhash".to_string()),
         };
 
-        let err = enforce_expectations(&scenario, &pack, &result, false).unwrap_err();
-        assert!(err.to_string().contains("runpack hash mismatch"));
+        let Err(err) = enforce_expectations(&scenario, &pack, &result, false) else {
+            return Err("expected hash mismatch error".into());
+        };
+        if !err.to_string().contains("runpack hash mismatch") {
+            return Err(format!("unexpected error: {err}").into());
+        }
+        Ok(())
     }
 }

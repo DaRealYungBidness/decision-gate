@@ -12,12 +12,14 @@ use std::io::BufRead;
 use std::io::BufReader;
 use std::io::Read;
 use std::io::Write;
+use std::num::NonZeroU64;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Child;
 use std::process::ChildStdin;
 use std::process::ChildStdout;
 use std::process::Command;
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use decision_gate_core::AdvanceTo;
@@ -53,8 +55,21 @@ use serde_json::Value;
 
 use crate::helpers;
 
+const fn tenant_id_one() -> TenantId {
+    TenantId::new(NonZeroU64::MIN)
+}
+
+const fn namespace_id_one() -> NamespaceId {
+    NamespaceId::new(NonZeroU64::MIN)
+}
+
+async fn lock_provider_template_mutex() -> tokio::sync::MutexGuard<'static, ()> {
+    PROVIDER_TEMPLATE_TEST_LOCK.lock().await
+}
+
 const MAX_BODY_BYTES: usize = 1024 * 1024;
-static PROVIDER_TEMPLATE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+static PROVIDER_TEMPLATE_TEST_LOCK: LazyLock<tokio::sync::Mutex<()>> =
+    LazyLock::new(|| tokio::sync::Mutex::new(()));
 
 #[derive(Debug, Deserialize, Serialize)]
 struct JsonRpcResponse {
@@ -137,8 +152,8 @@ fn read_frame(reader: &mut BufReader<ChildStdout>) -> Result<JsonRpcResponse, St
         }
         if line.to_ascii_lowercase().starts_with("content-length:") {
             let value = line
-                .splitn(2, ':')
-                .nth(1)
+                .split_once(':')
+                .map(|(_, value)| value)
                 .ok_or_else(|| "invalid content-length header".to_string())?
                 .trim();
             content_length =
@@ -197,13 +212,12 @@ fn template_contract_path() -> PathBuf {
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")))
+        .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")), Path::to_path_buf)
 }
 
 fn template_scenario(value: &str, include_value_param: bool) -> ScenarioSpec {
     let scenario_id = ScenarioId::new("template-scenario");
-    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+    let namespace_id = namespace_id_one();
     let stage_id = StageId::new("stage-1");
     let predicate_key = PredicateKey::new("value_check");
     ScenarioSpec {
@@ -240,7 +254,7 @@ fn template_scenario(value: &str, include_value_param: bool) -> ScenarioSpec {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
+        default_tenant_id: Some(tenant_id_one()),
     }
 }
 
@@ -281,7 +295,7 @@ async fn run_template_with_server(
     let start_request = ScenarioStartRequest {
         scenario_id: spec.scenario_id.clone(),
         run_config: decision_gate_core::RunConfig {
-            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+            tenant_id: tenant_id_one(),
             namespace_id: spec.namespace_id,
             run_id: decision_gate_core::RunId::new("run-1"),
             scenario_id: spec.scenario_id.clone(),
@@ -302,7 +316,7 @@ async fn run_template_with_server(
         scenario_id: spec.scenario_id.clone(),
         trigger: decision_gate_core::TriggerEvent {
             run_id: decision_gate_core::RunId::new("run-1"),
-            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+            tenant_id: tenant_id_one(),
             namespace_id: spec.namespace_id,
             trigger_id: decision_gate_core::TriggerId::new("trigger-1"),
             kind: decision_gate_core::TriggerKind::ExternalEvent,
@@ -407,6 +421,10 @@ fn typescript_command(node_path: &Path) -> Vec<String> {
     ]
 }
 
+#[allow(
+    clippy::future_not_send,
+    reason = "TestReporter uses a mutex guard; template tests are not spawned across threads."
+)]
 async fn run_template_test(
     label: &str,
     command: Vec<String>,
@@ -459,12 +477,13 @@ async fn run_template_test(
             "runtime_notes.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn provider_template_python() -> Result<(), Box<dyn std::error::Error>> {
-    let _guard = PROVIDER_TEMPLATE_TEST_LOCK.lock().expect("provider template test lock");
+    let _guard = lock_provider_template_mutex().await;
     let runtime = match sdk_runner::python_runtime() {
         Ok(runtime) => runtime,
         Err(reason) => {
@@ -474,6 +493,7 @@ async fn provider_template_python() -> Result<(), Box<dyn std::error::Error>> {
                 vec![reason],
                 vec!["summary.json".to_string(), "summary.md".to_string()],
             )?;
+            drop(reporter);
             return Ok(());
         }
     };
@@ -484,7 +504,7 @@ async fn provider_template_python() -> Result<(), Box<dyn std::error::Error>> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn provider_template_go() -> Result<(), Box<dyn std::error::Error>> {
-    let _guard = PROVIDER_TEMPLATE_TEST_LOCK.lock().expect("provider template test lock");
+    let _guard = lock_provider_template_mutex().await;
     let runtime = match go_runtime() {
         Ok(runtime) => runtime,
         Err(reason) => {
@@ -494,6 +514,7 @@ async fn provider_template_go() -> Result<(), Box<dyn std::error::Error>> {
                 vec![reason],
                 vec!["summary.json".to_string(), "summary.md".to_string()],
             )?;
+            drop(reporter);
             return Ok(());
         }
     };
@@ -504,7 +525,7 @@ async fn provider_template_go() -> Result<(), Box<dyn std::error::Error>> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn provider_template_typescript() -> Result<(), Box<dyn std::error::Error>> {
-    let _guard = PROVIDER_TEMPLATE_TEST_LOCK.lock().expect("provider template test lock");
+    let _guard = lock_provider_template_mutex().await;
     let runtime = match sdk_runner::node_runtime_for_typescript() {
         Ok(runtime) => runtime,
         Err(reason) => {
@@ -514,6 +535,7 @@ async fn provider_template_typescript() -> Result<(), Box<dyn std::error::Error>
                 vec![reason],
                 vec!["summary.json".to_string(), "summary.md".to_string()],
             )?;
+            drop(reporter);
             return Ok(());
         }
     };
@@ -524,7 +546,7 @@ async fn provider_template_typescript() -> Result<(), Box<dyn std::error::Error>
 
 #[tokio::test(flavor = "multi_thread")]
 async fn provider_template_error_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
-    let _guard = PROVIDER_TEMPLATE_TEST_LOCK.lock().expect("provider template test lock");
+    let _guard = lock_provider_template_mutex().await;
     let runtime = match sdk_runner::python_runtime() {
         Ok(runtime) => runtime,
         Err(reason) => {
@@ -534,6 +556,7 @@ async fn provider_template_error_fails_closed() -> Result<(), Box<dyn std::error
                 vec![reason],
                 vec!["summary.json".to_string(), "summary.md".to_string()],
             )?;
+            drop(reporter);
             return Ok(());
         }
     };
@@ -555,6 +578,7 @@ async fn provider_template_error_fails_closed() -> Result<(), Box<dyn std::error
             "runtime_notes.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 

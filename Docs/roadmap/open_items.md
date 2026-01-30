@@ -144,7 +144,7 @@ precheck are present; remaining items are audit hardening and docs.
 static rules, deny/permit/error effects, and contract schema support.
 **Refs**:
 - `decision-gate-mcp/src/policy.rs`
-- `decision-gate-mcp/src/config.rs`
+- `decision-gate-config/src/config.rs`
 - `decision-gate-contract/src/schemas.rs`
 - `decision-gate-contract/src/tooltips.rs`
 

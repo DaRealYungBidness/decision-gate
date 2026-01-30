@@ -20,6 +20,7 @@ aws-sdk-s3 = "1.60"
 base64 = "0.22"
 bytes = "1.6"
 decision-gate-core = { path = "../decision-gate-core" }
+decision-gate-config = { path = "../decision-gate-config" }
 decision-gate-contract = { path = "../decision-gate-contract" }
 decision-gate-providers = { path = "../decision-gate-providers" }
 decision-gate-store-sqlite = { path = "../decision-gate-store-sqlite" }
@@ -36,12 +37,12 @@ serde_jcs = "0.1"
 thiserror = "1.0"
 tokio = { version = "1.43", features = ["io-std", "io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
 tokio-stream = "0.1"
-toml = "0.8"
 tempfile = "3.10"
 
 [dev-dependencies]
 ret-logic = { path = "../ret-logic" }
 tempfile = "3.10"
+toml = "0.8"
 url = "2.5"
 
 [lints]

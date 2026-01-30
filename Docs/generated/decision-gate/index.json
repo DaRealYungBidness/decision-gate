@@ -68,7 +68,7 @@
       "content_type": "application/json",
       "digest": {
         "algorithm": "sha256",
-        "value": "270b706f3815bd44b90391688384b235b1bd529aa76571cab081747aa180128c"
+        "value": "8681590181244270f6f9e67d3bee827818ad1f055cacc04dc4ec5c731548d963"
       },
       "path": "schemas/config.schema.json"
     },

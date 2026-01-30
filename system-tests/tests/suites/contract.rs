@@ -163,7 +163,7 @@ async fn schema_conformance_all_tools() -> Result<(), Box<dyn Error>> {
     let tool_schemas = compile_tool_schemas(&resolver)?;
 
     let mut fixture = ScenarioFixture::time_after("contract-scenario", "run-1", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -192,8 +192,8 @@ async fn schema_conformance_all_tools() -> Result<(), Box<dyn Error>> {
         scenario_id: define_response.scenario_id.clone(),
         request: StatusRequest {
             run_id: run_config.run_id.clone(),
-            tenant_id: run_config.tenant_id.clone(),
-            namespace_id: run_config.namespace_id.clone(),
+            tenant_id: run_config.tenant_id,
+            namespace_id: run_config.namespace_id,
             requested_at: Timestamp::Logical(2),
             correlation_id: None,
         },
@@ -208,8 +208,8 @@ async fn schema_conformance_all_tools() -> Result<(), Box<dyn Error>> {
         scenario_id: define_response.scenario_id.clone(),
         request: NextRequest {
             run_id: run_config.run_id.clone(),
-            tenant_id: run_config.tenant_id.clone(),
-            namespace_id: run_config.namespace_id.clone(),
+            tenant_id: run_config.tenant_id,
+            namespace_id: run_config.namespace_id,
             trigger_id: TriggerId::new("trigger-1"),
             agent_id: "agent-1".to_string(),
             time: Timestamp::Logical(3),
@@ -226,8 +226,8 @@ async fn schema_conformance_all_tools() -> Result<(), Box<dyn Error>> {
         scenario_id: define_response.scenario_id.clone(),
         request: SubmitRequest {
             run_id: run_config.run_id.clone(),
-            tenant_id: run_config.tenant_id.clone(),
-            namespace_id: run_config.namespace_id.clone(),
+            tenant_id: run_config.tenant_id,
+            namespace_id: run_config.namespace_id,
             submission_id: "submission-1".to_string(),
             payload: PacketPayload::Json {
                 value: json!({"artifact": "alpha"}),
@@ -247,8 +247,8 @@ async fn schema_conformance_all_tools() -> Result<(), Box<dyn Error>> {
         scenario_id: define_response.scenario_id.clone(),
         trigger: TriggerEvent {
             run_id: run_config.run_id.clone(),
-            tenant_id: run_config.tenant_id.clone(),
-            namespace_id: run_config.namespace_id.clone(),
+            tenant_id: run_config.tenant_id,
+            namespace_id: run_config.namespace_id,
             trigger_id: TriggerId::new("trigger-2"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(5),
@@ -264,8 +264,8 @@ async fn schema_conformance_all_tools() -> Result<(), Box<dyn Error>> {
     assert_valid(&trigger_schema.output, &trigger_output, "scenario_trigger output")?;
 
     let context = EvidenceContext {
-        tenant_id: run_config.tenant_id.clone(),
-        namespace_id: run_config.namespace_id.clone(),
+        tenant_id: run_config.tenant_id,
+        namespace_id: run_config.namespace_id,
         run_id: run_config.run_id.clone(),
         scenario_id: define_response.scenario_id.clone(),
         stage_id: StageId::new("stage-1"),
@@ -292,8 +292,8 @@ async fn schema_conformance_all_tools() -> Result<(), Box<dyn Error>> {
     let manifest_name = "manifest.json".to_string();
     let export_request = RunpackExportRequest {
         scenario_id: define_response.scenario_id.clone(),
-        tenant_id: run_config.tenant_id.clone(),
-        namespace_id: run_config.namespace_id.clone(),
+        tenant_id: run_config.tenant_id,
+        namespace_id: run_config.namespace_id,
         run_id: run_config.run_id.clone(),
         output_dir: Some(output_dir.clone()),
         manifest_name: Some(manifest_name.clone()),
@@ -326,5 +326,6 @@ async fn schema_conformance_all_tools() -> Result<(), Box<dyn Error>> {
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }

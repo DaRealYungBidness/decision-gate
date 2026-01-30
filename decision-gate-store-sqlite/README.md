@@ -108,3 +108,8 @@ cargo test -p decision-gate-store-sqlite
 
 ## References
 
+Currents. (2025). _It Only Gets Darker_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=SfpVmH5jzd4
+
+As I Lay Dying. (2019). _My Own Grave_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=Q0wbyQRRQJA
+
+Art of Dying. (2011). _Get Thru This_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=F4aaxJCqumQ

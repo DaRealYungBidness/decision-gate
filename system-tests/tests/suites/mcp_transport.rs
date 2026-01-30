@@ -43,7 +43,7 @@ async fn http_transport_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut fixture = ScenarioFixture::time_after("transport-scenario", "run-1", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec,
     };
@@ -61,6 +61,7 @@ async fn http_transport_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -101,7 +102,7 @@ type = "builtin"
     wait_for_stdio_ready(&client, Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("stdio-scenario", "run-1", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };
@@ -130,5 +131,6 @@ type = "builtin"
             "mcp.stderr.log".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }

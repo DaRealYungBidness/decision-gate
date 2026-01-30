@@ -61,6 +61,10 @@ impl Drop for AuthProxyHandle {
 }
 
 /// Spawn an auth mapping proxy that forwards to a Decision Gate MCP server.
+#[allow(
+    clippy::unused_async,
+    reason = "Async signature keeps helper API uniform across async tests."
+)]
 pub async fn spawn_auth_proxy(target_url: String) -> Result<AuthProxyHandle, String> {
     let listener = StdTcpListener::bind("127.0.0.1:0")
         .map_err(|err| format!("auth proxy bind failed: {err}"))?;
@@ -69,7 +73,7 @@ pub async fn spawn_auth_proxy(target_url: String) -> Result<AuthProxyHandle, Str
         .map_err(|err| format!("auth proxy listener nonblocking failed: {err}"))?;
     let addr =
         listener.local_addr().map_err(|err| format!("auth proxy local addr failed: {err}"))?;
-    let base_url = format!("http://{}", addr);
+    let base_url = format!("http://{addr}");
 
     let state = ProxyState {
         target_url,
@@ -78,11 +82,21 @@ pub async fn spawn_auth_proxy(target_url: String) -> Result<AuthProxyHandle, Str
     let app = Router::new().route("/rpc", post(handle_rpc)).with_state(Arc::new(state));
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
     let join = thread::spawn(move || {
-        let runtime =
-            Builder::new_current_thread().enable_all().build().expect("auth proxy runtime");
+        let runtime = match Builder::new_current_thread().enable_all().build() {
+            Ok(runtime) => runtime,
+            Err(error) => {
+                let _ = error;
+                return;
+            }
+        };
         runtime.block_on(async move {
-            let listener =
-                tokio::net::TcpListener::from_std(listener).expect("auth proxy listener from_std");
+            let listener = match tokio::net::TcpListener::from_std(listener) {
+                Ok(listener) => listener,
+                Err(error) => {
+                    let _ = error;
+                    return;
+                }
+            };
             let server = axum::serve(listener, app).with_graceful_shutdown(async move {
                 let _ = shutdown_rx.await;
             });
@@ -263,10 +277,10 @@ async fn forward_request(
     if let Some(result) = payload.get("result") {
         return Ok(result.clone());
     }
-    if let Some(error) = payload.get("error") {
-        if let Some(message) = error.get("message").and_then(Value::as_str) {
-            return Err(message.to_string());
-        }
+    if let Some(error) = payload.get("error")
+        && let Some(message) = error.get("message").and_then(Value::as_str)
+    {
+        return Err(message.to_string());
     }
     Err("missing result in upstream response".to_string())
 }

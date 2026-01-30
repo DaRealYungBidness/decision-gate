@@ -6,9 +6,13 @@
 // Dependencies: system-tests helpers, decision-gate-core, tokio
 // ============================================================================
 
-#![allow(clippy::missing_docs_in_private_items)]
+#![allow(
+    clippy::missing_docs_in_private_items,
+    reason = "Test suite helpers keep documentation concise."
+)]
 
 use std::collections::HashMap;
+use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -38,6 +42,7 @@ async fn python_sdk_http_scenario_lifecycle() -> Result<(), Box<dyn std::error::
                 vec![reason],
                 vec!["summary.json".to_string(), "summary.md".to_string()],
             )?;
+            drop(reporter);
             return Ok(());
         }
     };
@@ -50,7 +55,7 @@ async fn python_sdk_http_scenario_lifecycle() -> Result<(), Box<dyn std::error::
 
     let fixture = ScenarioFixture::time_after("python-sdk-scenario", "run-python-1", 0);
     let mut spec = fixture.spec.clone();
-    spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    spec.default_tenant_id = Some(fixture.tenant_id);
     let run_config = fixture.run_config();
 
     let output = run_sdk_script(
@@ -98,6 +103,7 @@ async fn python_sdk_http_scenario_lifecycle() -> Result<(), Box<dyn std::error::
             "sdk.stderr.log".to_string(),
         ],
     )?;
+    drop(reporter);
     server.shutdown().await;
     Ok(())
 }
@@ -113,6 +119,7 @@ async fn python_sdk_bearer_auth_enforced() -> Result<(), Box<dyn std::error::Err
                 vec![reason],
                 vec!["summary.json".to_string(), "summary.md".to_string()],
             )?;
+            drop(reporter);
             return Ok(());
         }
     };
@@ -126,7 +133,7 @@ async fn python_sdk_bearer_auth_enforced() -> Result<(), Box<dyn std::error::Err
 
     let fixture = ScenarioFixture::time_after("python-sdk-auth", "run-python-2", 0);
     let mut spec = fixture.spec.clone();
-    spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    spec.default_tenant_id = Some(fixture.tenant_id);
     let run_config = fixture.run_config();
 
     let success = run_sdk_script(
@@ -178,6 +185,7 @@ async fn python_sdk_bearer_auth_enforced() -> Result<(), Box<dyn std::error::Err
         vec!["python sdk bearer auth enforced".to_string()],
         artifact_list_auth(),
     )?;
+    drop(reporter);
     server.shutdown().await;
     Ok(())
 }
@@ -193,6 +201,7 @@ async fn typescript_sdk_http_scenario_lifecycle() -> Result<(), Box<dyn std::err
                 vec![reason],
                 vec!["summary.json".to_string(), "summary.md".to_string()],
             )?;
+            drop(reporter);
             return Ok(());
         }
     };
@@ -205,7 +214,7 @@ async fn typescript_sdk_http_scenario_lifecycle() -> Result<(), Box<dyn std::err
 
     let fixture = ScenarioFixture::time_after("ts-sdk-scenario", "run-ts-1", 0);
     let mut spec = fixture.spec.clone();
-    spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    spec.default_tenant_id = Some(fixture.tenant_id);
     let run_config = fixture.run_config();
 
     let output = run_sdk_script(
@@ -253,6 +262,7 @@ async fn typescript_sdk_http_scenario_lifecycle() -> Result<(), Box<dyn std::err
             "sdk.stderr.log".to_string(),
         ],
     )?;
+    drop(reporter);
     server.shutdown().await;
     Ok(())
 }
@@ -268,6 +278,7 @@ async fn typescript_sdk_bearer_auth_enforced() -> Result<(), Box<dyn std::error:
                 vec![reason],
                 vec!["summary.json".to_string(), "summary.md".to_string()],
             )?;
+            drop(reporter);
             return Ok(());
         }
     };
@@ -281,7 +292,7 @@ async fn typescript_sdk_bearer_auth_enforced() -> Result<(), Box<dyn std::error:
 
     let fixture = ScenarioFixture::time_after("ts-sdk-auth", "run-ts-2", 0);
     let mut spec = fixture.spec.clone();
-    spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    spec.default_tenant_id = Some(fixture.tenant_id);
     let run_config = fixture.run_config();
 
     let success = run_sdk_script(
@@ -333,13 +344,14 @@ async fn typescript_sdk_bearer_auth_enforced() -> Result<(), Box<dyn std::error:
         vec!["typescript sdk bearer auth enforced".to_string()],
         artifact_list_auth(),
     )?;
+    drop(reporter);
     server.shutdown().await;
     Ok(())
 }
 
 async fn run_sdk_script(
-    interpreter: &PathBuf,
-    script: &PathBuf,
+    interpreter: &Path,
+    script: &Path,
     bind: &str,
     token: Option<&str>,
     spec: &decision_gate_core::ScenarioSpec,

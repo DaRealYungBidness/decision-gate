@@ -116,6 +116,7 @@ pub async fn spawn_provider_fixture_stub(
     .await
 }
 
+#[allow(clippy::unused_async, reason = "Async signature keeps helper API consistent in tests.")]
 async fn spawn_provider_stub_with_response(
     response: ProviderResponse,
     response_delay: Duration,
@@ -127,7 +128,7 @@ async fn spawn_provider_stub_with_response(
         .map_err(|err| format!("provider stub listener nonblocking failed: {err}"))?;
     let addr =
         listener.local_addr().map_err(|err| format!("provider stub local addr failed: {err}"))?;
-    let base_url = format!("http://{}/rpc", addr);
+    let base_url = format!("http://{addr}/rpc");
 
     let requests = Arc::new(Mutex::new(Vec::new()));
     let state = ProviderState {
@@ -138,11 +139,21 @@ async fn spawn_provider_stub_with_response(
     let app = Router::new().route("/rpc", post(handle_rpc)).with_state(state);
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
     let join = thread::spawn(move || {
-        let runtime =
-            Builder::new_current_thread().enable_all().build().expect("provider stub runtime");
+        let runtime = match Builder::new_current_thread().enable_all().build() {
+            Ok(runtime) => runtime,
+            Err(error) => {
+                let _ = error;
+                return;
+            }
+        };
         runtime.block_on(async move {
-            let listener = tokio::net::TcpListener::from_std(listener)
-                .expect("provider stub listener from_std");
+            let listener = match tokio::net::TcpListener::from_std(listener) {
+                Ok(listener) => listener,
+                Err(error) => {
+                    let _ = error;
+                    return;
+                }
+            };
             let server = axum::serve(listener, app).with_graceful_shutdown(async move {
                 let _ = shutdown_rx.await;
             });
@@ -226,6 +237,7 @@ async fn handle_rpc(
     axum::Json(response)
 }
 
+#[allow(clippy::too_many_lines, reason = "Single request handler keeps stub logic easy to audit.")]
 fn handle_request(state: &ProviderState, request: JsonRpcRequest) -> JsonRpcResponse {
     if request.jsonrpc != "2.0" {
         return JsonRpcResponse {

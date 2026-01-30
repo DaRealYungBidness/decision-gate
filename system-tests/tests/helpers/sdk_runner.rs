@@ -6,7 +6,10 @@
 // Dependencies: tokio, stdlib
 // ============================================================================
 
-#![allow(clippy::missing_docs_in_private_items)]
+#![allow(
+    clippy::missing_docs_in_private_items,
+    reason = "Test helper module keeps docs focused on external behavior."
+)]
 
 use std::collections::HashMap;
 use std::path::Path;

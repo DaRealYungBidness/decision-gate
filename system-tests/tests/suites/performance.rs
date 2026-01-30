@@ -61,8 +61,8 @@ async fn performance_smoke() -> Result<(), Box<dyn std::error::Error>> {
     for idx in 0 .. iterations {
         let run_id = decision_gate_core::RunId::new(format!("run-{idx}"));
         let run_config = decision_gate_core::RunConfig {
-            tenant_id: fixture.tenant_id.clone(),
-            namespace_id: fixture.namespace_id.clone(),
+            tenant_id: fixture.tenant_id,
+            namespace_id: fixture.namespace_id,
             run_id: run_id.clone(),
             scenario_id: define_output.scenario_id.clone(),
             dispatch_targets: Vec::new(),
@@ -83,8 +83,8 @@ async fn performance_smoke() -> Result<(), Box<dyn std::error::Error>> {
             scenario_id: define_output.scenario_id.clone(),
             trigger: decision_gate_core::TriggerEvent {
                 run_id,
-                tenant_id: fixture.tenant_id.clone(),
-                namespace_id: fixture.namespace_id.clone(),
+                tenant_id: fixture.tenant_id,
+                namespace_id: fixture.namespace_id,
                 trigger_id: TriggerId::new(format!("trigger-{idx}")),
                 kind: TriggerKind::ExternalEvent,
                 time: Timestamp::Logical(idx as u64 + 2),
@@ -130,5 +130,6 @@ async fn performance_smoke() -> Result<(), Box<dyn std::error::Error>> {
             "perf_metrics.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }

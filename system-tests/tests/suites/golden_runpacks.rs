@@ -49,7 +49,7 @@ async fn golden_runpack_cross_os() -> Result<(), Box<dyn std::error::Error>> {
     let scenarios = vec![
         {
             let mut fixture = ScenarioFixture::time_after("golden-time-after", "run-1", 0);
-            fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+            fixture.spec.default_tenant_id = Some(fixture.tenant_id);
             GoldenScenario::new("golden_time_after_pass", fixture, false)
         },
         {
@@ -59,7 +59,7 @@ async fn golden_runpack_cross_os() -> Result<(), Box<dyn std::error::Error>> {
                 vec!["confidential".to_string(), "restricted".to_string()],
                 vec!["policy-alpha".to_string()],
             );
-            fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+            fixture.spec.default_tenant_id = Some(fixture.tenant_id);
             GoldenScenario::new("golden_visibility_packet", fixture, true)
         },
     ];
@@ -69,7 +69,7 @@ async fn golden_runpack_cross_os() -> Result<(), Box<dyn std::error::Error>> {
         let runpack_dir = export_runpack(&client, &scenario).await?;
         let golden_dir = golden_dir(&scenario.label);
 
-        if update_golden()? {
+        if update_golden() {
             sync_golden(&runpack_dir, &golden_dir)?;
             notes.push(format!("updated golden runpack: {}", scenario.label));
         } else {
@@ -79,6 +79,7 @@ async fn golden_runpack_cross_os() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     reporter.finish("pass", notes, vec!["summary.json".to_string(), "summary.md".to_string()])?;
+    drop(reporter);
     Ok(())
 }
 
@@ -131,8 +132,8 @@ async fn export_runpack(
     let runpack_dir = temp.path().to_path_buf();
     let export_request = RunpackExportRequest {
         scenario_id: scenario.fixture.spec.scenario_id.clone(),
-        tenant_id: scenario.fixture.tenant_id.clone(),
-        namespace_id: scenario.fixture.namespace_id.clone(),
+        tenant_id: scenario.fixture.tenant_id,
+        namespace_id: scenario.fixture.namespace_id,
         run_id: scenario.fixture.run_id.clone(),
         output_dir: Some(runpack_dir.to_string_lossy().to_string()),
         manifest_name: Some(MANIFEST_NAME.to_string()),
@@ -162,8 +163,8 @@ fn golden_dir(label: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(GOLDEN_ROOT).join(label)
 }
 
-fn update_golden() -> Result<bool, Box<dyn std::error::Error>> {
-    Ok(env::var("UPDATE_GOLDEN_RUNPACKS").is_ok())
+fn update_golden() -> bool {
+    env::var("UPDATE_GOLDEN_RUNPACKS").is_ok()
 }
 
 fn sync_golden(source: &Path, dest: &Path) -> Result<(), Box<dyn std::error::Error>> {
@@ -208,7 +209,7 @@ fn compare_runpacks(golden: &Path, candidate: &Path) -> Result<(), Box<dyn std::
         let golden_bytes = fs::read(&golden_path)?;
         let candidate_bytes = fs::read(&candidate_path)?;
         if golden_bytes != candidate_bytes {
-            return Err(format!("artifact mismatch: {}", path).into());
+            return Err(format!("artifact mismatch: {path}").into());
         }
     }
 
@@ -216,8 +217,8 @@ fn compare_runpacks(golden: &Path, candidate: &Path) -> Result<(), Box<dyn std::
     collect_files(candidate, candidate, &mut actual_files)?;
     if actual_files != expected_files {
         return Err(format!(
-            "candidate runpack file set mismatch (expected={:?}, actual={:?})",
-            expected_files, actual_files
+            "candidate runpack file set mismatch (expected={expected_files:?}, \
+             actual={actual_files:?})"
         )
         .into());
     }

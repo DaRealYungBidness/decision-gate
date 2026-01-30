@@ -38,6 +38,7 @@ use decision_gate_mcp::config::NamespaceConfig;
 use decision_gate_mcp::config::ObjectStoreConfig;
 use decision_gate_mcp::config::ObjectStoreProvider;
 use decision_gate_mcp::config::PolicyConfig;
+use decision_gate_mcp::config::ProviderAuthConfig;
 use decision_gate_mcp::config::ProviderConfig;
 use decision_gate_mcp::config::ProviderTimeoutConfig;
 use decision_gate_mcp::config::ProviderType;
@@ -863,6 +864,30 @@ fn provider_mcp_with_https_url_valid() {
     assert!(validate_provider_config(config).is_ok());
 }
 
+/// Verifies provider auth rejects empty bearer tokens.
+#[test]
+fn provider_auth_rejects_empty_bearer_token() {
+    let config = ProviderConfig {
+        name: "external".to_string(),
+        provider_type: ProviderType::Mcp,
+        command: vec!["./provider".to_string()],
+        url: None,
+        allow_insecure_http: false,
+        capabilities_path: Some(PathBuf::from("provider.json")),
+        auth: Some(ProviderAuthConfig {
+            bearer_token: Some("  ".to_string()),
+        }),
+        trust: None,
+        allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
+        config: None,
+    };
+    let result = validate_provider_config(config);
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("providers.auth.bearer_token"));
+}
+
 /// Verifies provider timeouts reject out-of-range connect values.
 #[test]
 fn provider_timeouts_reject_connect_out_of_range() {
@@ -1532,6 +1557,41 @@ fn namespace_authority_none_rejects_assetcore_config() {
     assert!(result.is_err());
     let error = result.unwrap_err();
     assert!(error.to_string().contains("namespace.authority.assetcore"));
+}
+
+/// Verifies assetcore auth token rejects empty values.
+#[test]
+fn namespace_authority_assetcore_rejects_empty_token() {
+    let mut config = DecisionGateConfig {
+        server: ServerConfig::default(),
+        namespace: NamespaceConfig::default(),
+        dev: decision_gate_mcp::config::DevConfig::default(),
+        trust: TrustConfig::default(),
+        evidence: EvidencePolicyConfig::default(),
+        anchors: AnchorPolicyConfig::default(),
+        provider_discovery: decision_gate_mcp::config::ProviderDiscoveryConfig::default(),
+        validation: ValidationConfig::default(),
+        policy: PolicyConfig::default(),
+        run_state_store: RunStateStoreConfig::default(),
+        schema_registry: SchemaRegistryConfig::default(),
+        providers: Vec::new(),
+        runpack_storage: None,
+
+        source_modified_at: None,
+    };
+    config.namespace.authority.mode =
+        decision_gate_mcp::config::NamespaceAuthorityMode::AssetcoreHttp;
+    config.namespace.authority.assetcore =
+        Some(decision_gate_mcp::config::AssetCoreNamespaceAuthorityConfig {
+            base_url: "https://assetcore.example.com".to_string(),
+            auth_token: Some(" ".to_string()),
+            connect_timeout_ms: 500,
+            request_timeout_ms: 1_000,
+        });
+    let result = config.validate();
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("namespace.authority.assetcore.auth_token"));
 }
 
 /// Verifies dev-permissive is rejected when using assetcore namespace authority.

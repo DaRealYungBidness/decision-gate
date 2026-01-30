@@ -49,7 +49,7 @@ async fn smoke_define_start_next_status() -> Result<(), Box<dyn std::error::Erro
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("smoke-scenario", "run-1", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -72,8 +72,8 @@ async fn smoke_define_start_next_status() -> Result<(), Box<dyn std::error::Erro
         scenario_id: define_output.scenario_id.clone(),
         request: NextRequest {
             run_id: fixture.run_id.clone(),
-            tenant_id: fixture.tenant_id.clone(),
-            namespace_id: fixture.namespace_id.clone(),
+            tenant_id: fixture.tenant_id,
+            namespace_id: fixture.namespace_id,
             trigger_id: TriggerId::new("trigger-1"),
             agent_id: "agent-1".to_string(),
             time: Timestamp::Logical(2),
@@ -112,6 +112,7 @@ async fn smoke_define_start_next_status() -> Result<(), Box<dyn std::error::Erro
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -126,7 +127,7 @@ async fn smoke_schema_register_precheck() -> Result<(), Box<dyn std::error::Erro
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("precheck-scenario", "run-1", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };
@@ -135,8 +136,8 @@ async fn smoke_schema_register_precheck() -> Result<(), Box<dyn std::error::Erro
         client.call_tool_typed("scenario_define", define_input).await?;
 
     let record = DataShapeRecord {
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         schema_id: DataShapeId::new("asserted"),
         version: DataShapeVersion::new("v1"),
         schema: json!({
@@ -158,8 +159,8 @@ async fn smoke_schema_register_precheck() -> Result<(), Box<dyn std::error::Erro
         client.call_tool_typed("schemas_register", register_input).await?;
 
     let precheck_request = PrecheckToolRequest {
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         scenario_id: Some(define_output.scenario_id.clone()),
         spec: None,
         stage_id: None,
@@ -206,6 +207,7 @@ async fn smoke_schema_register_precheck() -> Result<(), Box<dyn std::error::Erro
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -221,8 +223,8 @@ async fn smoke_schema_registry_max_entries_enforced() -> Result<(), Box<dyn std:
 
     let fixture = ScenarioFixture::time_after("registry-limit", "run-1", 0);
     let record_a = DataShapeRecord {
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         schema_id: DataShapeId::new("asserted-a"),
         version: DataShapeVersion::new("v1"),
         schema: json!({
@@ -269,6 +271,7 @@ async fn smoke_schema_registry_max_entries_enforced() -> Result<(), Box<dyn std:
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -283,7 +286,7 @@ async fn smoke_precheck_rejects_invalid_payload() -> Result<(), Box<dyn std::err
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("precheck-invalid", "run-1", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };
@@ -292,8 +295,8 @@ async fn smoke_precheck_rejects_invalid_payload() -> Result<(), Box<dyn std::err
         client.call_tool_typed("scenario_define", define_input).await?;
 
     let record = DataShapeRecord {
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         schema_id: DataShapeId::new("asserted"),
         version: DataShapeVersion::new("v1"),
         schema: json!({
@@ -315,8 +318,8 @@ async fn smoke_precheck_rejects_invalid_payload() -> Result<(), Box<dyn std::err
         client.call_tool_typed("schemas_register", register_input).await?;
 
     let precheck_request = PrecheckToolRequest {
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         scenario_id: Some(define_output.scenario_id.clone()),
         spec: None,
         stage_id: None,
@@ -344,6 +347,7 @@ async fn smoke_precheck_rejects_invalid_payload() -> Result<(), Box<dyn std::err
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -357,7 +361,7 @@ async fn smoke_precheck_respects_trust_lane_default() -> Result<(), Box<dyn std:
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("precheck-trust-default", "run-1", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };
@@ -366,8 +370,8 @@ async fn smoke_precheck_respects_trust_lane_default() -> Result<(), Box<dyn std:
         client.call_tool_typed("scenario_define", define_input).await?;
 
     let record = DataShapeRecord {
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         schema_id: DataShapeId::new("asserted"),
         version: DataShapeVersion::new("v1"),
         schema: json!({
@@ -389,8 +393,8 @@ async fn smoke_precheck_respects_trust_lane_default() -> Result<(), Box<dyn std:
         client.call_tool_typed("schemas_register", register_input).await?;
 
     let precheck_request = PrecheckToolRequest {
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         scenario_id: Some(define_output.scenario_id.clone()),
         spec: None,
         stage_id: None,
@@ -424,5 +428,6 @@ async fn smoke_precheck_respects_trust_lane_default() -> Result<(), Box<dyn std:
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }

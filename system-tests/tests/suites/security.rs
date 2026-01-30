@@ -9,6 +9,8 @@
 //! Security posture tests for Decision Gate system-tests.
 
 
+use std::num::NonZeroU64;
+
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
 use decision_gate_core::DecisionOutcome;
@@ -28,6 +30,7 @@ use decision_gate_core::ScenarioSpec;
 use decision_gate_core::SpecVersion;
 use decision_gate_core::StageId;
 use decision_gate_core::StageSpec;
+use decision_gate_core::TenantId;
 use decision_gate_core::Timestamp;
 use decision_gate_core::TriggerEvent;
 use decision_gate_core::TriggerKind;
@@ -98,6 +101,7 @@ async fn evidence_redaction_default() -> Result<(), Box<dyn std::error::Error>> 
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -116,7 +120,7 @@ async fn packet_disclosure_visibility() -> Result<(), Box<dyn std::error::Error>
         vec!["confidential".to_string(), "restricted".to_string()],
         vec!["policy-alpha".to_string()],
     );
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -157,6 +161,7 @@ async fn packet_disclosure_visibility() -> Result<(), Box<dyn std::error::Error>
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -193,6 +198,7 @@ async fn strict_mode_rejects_default_namespace() -> Result<(), Box<dyn std::erro
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -243,12 +249,12 @@ async fn invalid_correlation_id_rejected() -> Result<(), Box<dyn std::error::Err
         .get("error")
         .and_then(|error| error.get("message"))
         .and_then(serde_json::Value::as_str)
-        .map(|message| message.to_string());
+        .map(ToString::to_string);
     let transcript = vec![TranscriptEntry {
         sequence: 1,
         method: "tools/list".to_string(),
         request: request.clone(),
-        response: payload.clone(),
+        response: payload,
         error: error_message,
     }];
     reporter.artifacts().write_json("tool_transcript.json", &transcript)?;
@@ -261,6 +267,7 @@ async fn invalid_correlation_id_rejected() -> Result<(), Box<dyn std::error::Err
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -297,13 +304,13 @@ async fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Erro
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let scenario_id = ScenarioId::new("policy-scenario");
-    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+    let namespace_id = NamespaceId::new(NonZeroU64::MIN);
     let stage1_id = StageId::new("stage-1");
     let stage2_id = StageId::new("stage-2");
     let predicate_key = PredicateKey::new("after");
     let spec = ScenarioSpec {
         scenario_id: scenario_id.clone(),
-        namespace_id: namespace_id.clone(),
+        namespace_id,
         spec_version: SpecVersion::new("1"),
         stages: vec![
             StageSpec {
@@ -353,9 +360,7 @@ async fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Erro
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(
-            decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
-        ),
+        default_tenant_id: Some(TenantId::new(NonZeroU64::MIN)),
     };
 
     let define_request = ScenarioDefineRequest {
@@ -366,7 +371,7 @@ async fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Erro
         client.call_tool_typed("scenario_define", define_input).await?;
 
     let mut run_config = decision_gate_core::RunConfig {
-        tenant_id: decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
+        tenant_id: TenantId::new(NonZeroU64::MIN),
         namespace_id,
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: define_output.scenario_id.clone(),
@@ -391,8 +396,8 @@ async fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Erro
         scenario_id: define_output.scenario_id.clone(),
         trigger: TriggerEvent {
             run_id: decision_gate_core::RunId::new("run-1"),
-            tenant_id: decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
-            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            tenant_id: TenantId::new(NonZeroU64::MIN),
+            namespace_id: NamespaceId::new(NonZeroU64::MIN),
             trigger_id: decision_gate_core::TriggerId::new("trigger-1"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
@@ -426,8 +431,8 @@ async fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Erro
         scenario_id: define_output.scenario_id,
         request: decision_gate_core::runtime::StatusRequest {
             run_id: decision_gate_core::RunId::new("run-1"),
-            tenant_id: decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
-            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            tenant_id: TenantId::new(NonZeroU64::MIN),
+            namespace_id: NamespaceId::new(NonZeroU64::MIN),
             requested_at: Timestamp::Logical(3),
             correlation_id: None,
         },
@@ -456,6 +461,7 @@ async fn policy_denies_dispatch_targets() -> Result<(), Box<dyn std::error::Erro
             "policy_state.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -492,13 +498,13 @@ async fn policy_error_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let scenario_id = ScenarioId::new("policy-error-scenario");
-    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+    let namespace_id = NamespaceId::new(NonZeroU64::MIN);
     let stage1_id = StageId::new("stage-1");
     let stage2_id = StageId::new("stage-2");
     let predicate_key = PredicateKey::new("after");
     let spec = ScenarioSpec {
         scenario_id: scenario_id.clone(),
-        namespace_id: namespace_id.clone(),
+        namespace_id,
         spec_version: SpecVersion::new("1"),
         stages: vec![
             StageSpec {
@@ -548,9 +554,7 @@ async fn policy_error_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(
-            decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
-        ),
+        default_tenant_id: Some(TenantId::new(NonZeroU64::MIN)),
     };
 
     let define_request = ScenarioDefineRequest {
@@ -561,7 +565,7 @@ async fn policy_error_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
         client.call_tool_typed("scenario_define", define_input).await?;
 
     let mut run_config = decision_gate_core::RunConfig {
-        tenant_id: decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
+        tenant_id: TenantId::new(NonZeroU64::MIN),
         namespace_id,
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: define_output.scenario_id.clone(),
@@ -586,8 +590,8 @@ async fn policy_error_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
         scenario_id: define_output.scenario_id.clone(),
         trigger: TriggerEvent {
             run_id: decision_gate_core::RunId::new("run-1"),
-            tenant_id: decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
-            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            tenant_id: TenantId::new(NonZeroU64::MIN),
+            namespace_id: NamespaceId::new(NonZeroU64::MIN),
             trigger_id: decision_gate_core::TriggerId::new("trigger-1"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
@@ -633,5 +637,6 @@ async fn policy_error_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
             "policy_state.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }

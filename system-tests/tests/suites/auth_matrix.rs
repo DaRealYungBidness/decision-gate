@@ -96,7 +96,7 @@ async fn asc_auth_mapping_matrix() -> Result<(), Box<dyn std::error::Error>> {
     let mut admin = ProxyClient::new(&proxy_url, &admin_roles, admin_policy)?;
 
     let mut admin_fixture = ScenarioFixture::time_after("admin-scenario", "run-admin", 0);
-    admin_fixture.spec.default_tenant_id = Some(admin_fixture.tenant_id.clone());
+    admin_fixture.spec.default_tenant_id = Some(admin_fixture.tenant_id);
     let admin_define = ScenarioDefineRequest {
         spec: admin_fixture.spec.clone(),
     };
@@ -105,8 +105,8 @@ async fn asc_auth_mapping_matrix() -> Result<(), Box<dyn std::error::Error>> {
         admin.call_tool_typed("scenario_define", admin_define_input).await?;
 
     let schema_record = DataShapeRecord {
-        tenant_id: admin_fixture.tenant_id.clone(),
-        namespace_id: admin_fixture.namespace_id.clone(),
+        tenant_id: admin_fixture.tenant_id,
+        namespace_id: admin_fixture.namespace_id,
         schema_id: DataShapeId::new("asserted"),
         version: DataShapeVersion::new("v1"),
         schema: json!({
@@ -157,8 +157,8 @@ async fn asc_auth_mapping_matrix() -> Result<(), Box<dyn std::error::Error>> {
     let runpack_dir = reporter.artifacts().runpack_dir();
     let runpack_request = RunpackExportRequest {
         scenario_id: admin_define_output.scenario_id.clone(),
-        tenant_id: admin_fixture.tenant_id.clone(),
-        namespace_id: admin_fixture.namespace_id.clone(),
+        tenant_id: admin_fixture.tenant_id,
+        namespace_id: admin_fixture.namespace_id,
         run_id: admin_fixture.run_id.clone(),
         output_dir: Some(runpack_dir.to_string_lossy().to_string()),
         manifest_name: Some("manifest.json".to_string()),
@@ -197,8 +197,8 @@ async fn asc_auth_mapping_matrix() -> Result<(), Box<dyn std::error::Error>> {
             scenario_id: admin_define_output.scenario_id.clone(),
             run_config: admin_fixture.run_config(),
             run_id: admin_fixture.run_id.clone(),
-            tenant_id: admin_fixture.tenant_id.clone(),
-            namespace_id: admin_fixture.namespace_id.clone(),
+            tenant_id: admin_fixture.tenant_id,
+            namespace_id: admin_fixture.namespace_id,
             schema_record: schema_record.clone(),
             runpack_dir: runpack_dir.clone(),
             role_label: case.label.clone(),
@@ -218,6 +218,7 @@ async fn asc_auth_mapping_matrix() -> Result<(), Box<dyn std::error::Error>> {
             "runpack/".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -264,7 +265,7 @@ async fn exercise_mapping(
     if allowed.contains(&ToolName::ScenarioDefine) {
         let mut fixture =
             ScenarioFixture::time_after(&format!("role-{}", context.role_label), "run-role", 0);
-        fixture.spec.default_tenant_id = Some(context.tenant_id.clone());
+        fixture.spec.default_tenant_id = Some(context.tenant_id);
         let request = ScenarioDefineRequest {
             spec: fixture.spec,
         };
@@ -277,7 +278,7 @@ async fn exercise_mapping(
     } else {
         let mut fixture =
             ScenarioFixture::time_after(&format!("deny-{}", context.role_label), "run-deny", 0);
-        fixture.spec.default_tenant_id = Some(context.tenant_id.clone());
+        fixture.spec.default_tenant_id = Some(context.tenant_id);
         let request = ScenarioDefineRequest {
             spec: fixture.spec,
         };
@@ -304,8 +305,8 @@ async fn exercise_mapping(
 
     if allowed.contains(&ToolName::SchemasList) {
         let request = SchemasListRequest {
-            tenant_id: context.tenant_id.clone(),
-            namespace_id: context.namespace_id.clone(),
+            tenant_id: context.tenant_id,
+            namespace_id: context.namespace_id,
             cursor: None,
             limit: Some(20),
         };
@@ -321,8 +322,8 @@ async fn exercise_mapping(
                 .call_tool(
                     "schemas_list",
                     serde_json::to_value(&SchemasListRequest {
-                        tenant_id: context.tenant_id.clone(),
-                        namespace_id: context.namespace_id.clone(),
+                        tenant_id: context.tenant_id,
+                        namespace_id: context.namespace_id,
                         cursor: None,
                         limit: Some(20),
                     })?,
@@ -333,8 +334,8 @@ async fn exercise_mapping(
 
     if allowed.contains(&ToolName::SchemasGet) {
         let request = SchemasGetRequest {
-            tenant_id: context.tenant_id.clone(),
-            namespace_id: context.namespace_id.clone(),
+            tenant_id: context.tenant_id,
+            namespace_id: context.namespace_id,
             schema_id: context.schema_record.schema_id.clone(),
             version: context.schema_record.version.clone(),
         };
@@ -350,8 +351,8 @@ async fn exercise_mapping(
                 .call_tool(
                     "schemas_get",
                     serde_json::to_value(&SchemasGetRequest {
-                        tenant_id: context.tenant_id.clone(),
-                        namespace_id: context.namespace_id.clone(),
+                        tenant_id: context.tenant_id,
+                        namespace_id: context.namespace_id,
                         schema_id: context.schema_record.schema_id.clone(),
                         version: context.schema_record.version.clone(),
                     })?,
@@ -383,8 +384,8 @@ async fn exercise_mapping(
 
     if allowed.contains(&ToolName::ScenariosList) {
         let request = ScenariosListRequest {
-            tenant_id: context.tenant_id.clone(),
-            namespace_id: context.namespace_id.clone(),
+            tenant_id: context.tenant_id,
+            namespace_id: context.namespace_id,
             cursor: None,
             limit: Some(20),
         };
@@ -400,8 +401,8 @@ async fn exercise_mapping(
                 .call_tool(
                     "scenarios_list",
                     serde_json::to_value(&ScenariosListRequest {
-                        tenant_id: context.tenant_id.clone(),
-                        namespace_id: context.namespace_id.clone(),
+                        tenant_id: context.tenant_id,
+                        namespace_id: context.namespace_id,
                         cursor: None,
                         limit: Some(20),
                     })?,
@@ -418,8 +419,8 @@ async fn exercise_mapping(
                 params: Some(json!({"timestamp": 0})),
             },
             context: EvidenceContext {
-                tenant_id: context.tenant_id.clone(),
-                namespace_id: context.namespace_id.clone(),
+                tenant_id: context.tenant_id,
+                namespace_id: context.namespace_id,
                 run_id: context.run_id.clone(),
                 scenario_id: context.scenario_id.clone(),
                 stage_id: decision_gate_core::StageId::new("stage-1"),
@@ -442,8 +443,8 @@ async fn exercise_mapping(
                 params: Some(json!({"timestamp": 0})),
             },
             context: EvidenceContext {
-                tenant_id: context.tenant_id.clone(),
-                namespace_id: context.namespace_id.clone(),
+                tenant_id: context.tenant_id,
+                namespace_id: context.namespace_id,
                 run_id: context.run_id.clone(),
                 scenario_id: context.scenario_id.clone(),
                 stage_id: decision_gate_core::StageId::new("stage-1"),
@@ -477,8 +478,8 @@ async fn exercise_mapping(
         if allowed.contains(&ToolName::ScenarioTrigger) {
             let trigger = decision_gate_core::TriggerEvent {
                 run_id: run_id.clone(),
-                tenant_id: run_config.tenant_id.clone(),
-                namespace_id: run_config.namespace_id.clone(),
+                tenant_id: run_config.tenant_id,
+                namespace_id: run_config.namespace_id,
                 trigger_id: TriggerId::new(format!("trigger-{}", context.role_label)),
                 kind: TriggerKind::ExternalEvent,
                 time: Timestamp::Logical(4),
@@ -503,8 +504,8 @@ async fn exercise_mapping(
                 scenario_id: context.scenario_id.clone(),
                 request: NextRequest {
                     run_id: run_id.clone(),
-                    tenant_id: run_config.tenant_id.clone(),
-                    namespace_id: run_config.namespace_id.clone(),
+                    tenant_id: run_config.tenant_id,
+                    namespace_id: run_config.namespace_id,
                     trigger_id: TriggerId::new(format!("next-{}", context.role_label)),
                     agent_id: "auth-matrix".to_string(),
                     time: Timestamp::Logical(5),
@@ -524,8 +525,8 @@ async fn exercise_mapping(
                 scenario_id: context.scenario_id.clone(),
                 request: SubmitRequest {
                     run_id: run_id.clone(),
-                    tenant_id: run_config.tenant_id.clone(),
-                    namespace_id: run_config.namespace_id.clone(),
+                    tenant_id: run_config.tenant_id,
+                    namespace_id: run_config.namespace_id,
                     submission_id: format!("submission-{}", context.role_label),
                     payload: decision_gate_core::PacketPayload::Json {
                         value: json!({"artifact": "value"}),
@@ -548,8 +549,8 @@ async fn exercise_mapping(
                 scenario_id: context.scenario_id.clone(),
                 request: StatusRequest {
                     run_id: run_id.clone(),
-                    tenant_id: run_config.tenant_id.clone(),
-                    namespace_id: run_config.namespace_id.clone(),
+                    tenant_id: run_config.tenant_id,
+                    namespace_id: run_config.namespace_id,
                     requested_at: Timestamp::Logical(7),
                     correlation_id: None,
                 },
@@ -566,8 +567,8 @@ async fn exercise_mapping(
             let runpack_dir = context.runpack_dir.join(format!("runpack-{}", context.role_label));
             let export_request = RunpackExportRequest {
                 scenario_id: context.scenario_id.clone(),
-                tenant_id: run_config.tenant_id.clone(),
-                namespace_id: run_config.namespace_id.clone(),
+                tenant_id: run_config.tenant_id,
+                namespace_id: run_config.namespace_id,
                 run_id: run_id.clone(),
                 output_dir: Some(runpack_dir.to_string_lossy().to_string()),
                 manifest_name: Some("manifest.json".to_string()),
@@ -583,8 +584,8 @@ async fn exercise_mapping(
         } else {
             let export_request = RunpackExportRequest {
                 scenario_id: context.scenario_id.clone(),
-                tenant_id: run_config.tenant_id.clone(),
-                namespace_id: run_config.namespace_id.clone(),
+                tenant_id: run_config.tenant_id,
+                namespace_id: run_config.namespace_id,
                 run_id: run_id.clone(),
                 output_dir: Some(context.runpack_dir.to_string_lossy().to_string()),
                 manifest_name: Some("manifest.json".to_string()),
@@ -609,8 +610,8 @@ async fn exercise_mapping(
 
     if allowed.contains(&ToolName::Precheck) {
         let precheck_request = PrecheckToolRequest {
-            tenant_id: context.tenant_id.clone(),
-            namespace_id: context.namespace_id.clone(),
+            tenant_id: context.tenant_id,
+            namespace_id: context.namespace_id,
             scenario_id: Some(context.scenario_id.clone()),
             spec: None,
             stage_id: None,
@@ -628,8 +629,8 @@ async fn exercise_mapping(
             .await?;
     } else {
         let precheck_request = PrecheckToolRequest {
-            tenant_id: context.tenant_id.clone(),
-            namespace_id: context.namespace_id.clone(),
+            tenant_id: context.tenant_id,
+            namespace_id: context.namespace_id,
             scenario_id: Some(context.scenario_id.clone()),
             spec: None,
             stage_id: None,
@@ -649,8 +650,8 @@ async fn exercise_mapping(
             scenario_id: context.scenario_id.clone(),
             request: StatusRequest {
                 run_id: context.run_id.clone(),
-                tenant_id: context.tenant_id.clone(),
-                namespace_id: context.namespace_id.clone(),
+                tenant_id: context.tenant_id,
+                namespace_id: context.namespace_id,
                 requested_at: Timestamp::Logical(9),
                 correlation_id: None,
             },

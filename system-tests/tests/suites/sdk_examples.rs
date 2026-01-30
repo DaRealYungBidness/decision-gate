@@ -6,9 +6,14 @@
 // Dependencies: system-tests helpers, decision-gate-core, tokio
 // ============================================================================
 
-#![allow(clippy::missing_docs_in_private_items)]
+#![allow(
+    clippy::missing_docs_in_private_items,
+    reason = "Test suite helpers keep documentation concise."
+)]
 
 use std::collections::HashMap;
+use std::num::NonZeroU64;
+use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -41,6 +46,14 @@ use helpers::sdk_runner;
 
 use crate::helpers;
 
+const fn tenant_id_one() -> TenantId {
+    TenantId::new(NonZeroU64::MIN)
+}
+
+const fn namespace_id_one() -> NamespaceId {
+    NamespaceId::new(NonZeroU64::MIN)
+}
+
 const PYTHON_BASIC: &str = "examples/python/basic_lifecycle.py";
 const PYTHON_AGENT: &str = "examples/python/agent_loop.py";
 const PYTHON_CI: &str = "examples/python/ci_gate.py";
@@ -62,6 +75,7 @@ async fn python_examples_runnable() -> Result<(), Box<dyn std::error::Error>> {
                 vec![reason],
                 vec!["summary.json".to_string(), "summary.md".to_string()],
             )?;
+            drop(reporter);
             return Ok(());
         }
     };
@@ -76,21 +90,22 @@ async fn python_examples_runnable() -> Result<(), Box<dyn std::error::Error>> {
         ExampleCase::new(
             "basic",
             PYTHON_BASIC,
-            ScenarioFixture::time_after("py-basic", "run-py-basic", 0),
+            &ScenarioFixture::time_after("py-basic", "run-py-basic", 0),
         ),
         ExampleCase::new(
             "agent",
             PYTHON_AGENT,
-            ScenarioFixture::time_after("py-agent", "run-py-agent", 0),
+            &ScenarioFixture::time_after("py-agent", "run-py-agent", 0),
         )
         .with_agent("agent-alpha"),
-        ExampleCase::new("ci", PYTHON_CI, ScenarioFixture::time_after("py-ci", "run-py-ci", 0))
-            .as_ci_gate(),
-        ExampleCase::precheck("precheck", PYTHON_PRECHECK, precheck_spec("py-precheck")),
+        ExampleCase::new("ci", PYTHON_CI, &ScenarioFixture::time_after("py-ci", "run-py-ci", 0))
+            .with_ci_gate(),
+        ExampleCase::precheck("precheck", PYTHON_PRECHECK, precheck_spec("py-precheck"))?,
     ];
 
-    run_examples(&mut reporter, &runtime.path, &bind, examples).await?;
+    run_examples(&mut reporter, runtime.path.as_path(), &bind, examples).await?;
 
+    drop(reporter);
     server.shutdown().await;
     Ok(())
 }
@@ -106,6 +121,7 @@ async fn typescript_examples_runnable() -> Result<(), Box<dyn std::error::Error>
                 vec![reason],
                 vec!["summary.json".to_string(), "summary.md".to_string()],
             )?;
+            drop(reporter);
             return Ok(());
         }
     };
@@ -120,21 +136,26 @@ async fn typescript_examples_runnable() -> Result<(), Box<dyn std::error::Error>
         ExampleCase::new(
             "basic",
             TYPESCRIPT_BASIC,
-            ScenarioFixture::time_after("ts-basic", "run-ts-basic", 0),
+            &ScenarioFixture::time_after("ts-basic", "run-ts-basic", 0),
         ),
         ExampleCase::new(
             "agent",
             TYPESCRIPT_AGENT,
-            ScenarioFixture::time_after("ts-agent", "run-ts-agent", 0),
+            &ScenarioFixture::time_after("ts-agent", "run-ts-agent", 0),
         )
         .with_agent("agent-alpha"),
-        ExampleCase::new("ci", TYPESCRIPT_CI, ScenarioFixture::time_after("ts-ci", "run-ts-ci", 0))
-            .as_ci_gate(),
-        ExampleCase::precheck("precheck", TYPESCRIPT_PRECHECK, precheck_spec("ts-precheck")),
+        ExampleCase::new(
+            "ci",
+            TYPESCRIPT_CI,
+            &ScenarioFixture::time_after("ts-ci", "run-ts-ci", 0),
+        )
+        .with_ci_gate(),
+        ExampleCase::precheck("precheck", TYPESCRIPT_PRECHECK, precheck_spec("ts-precheck"))?,
     ];
 
-    run_examples(&mut reporter, &runtime.path, &bind, examples).await?;
+    run_examples(&mut reporter, runtime.path.as_path(), &bind, examples).await?;
 
+    drop(reporter);
     server.shutdown().await;
     Ok(())
 }
@@ -150,9 +171,9 @@ struct ExampleCase {
 }
 
 impl ExampleCase {
-    fn new(name: &str, script: &'static str, fixture: ScenarioFixture) -> Self {
+    fn new(name: &str, script: &'static str, fixture: &ScenarioFixture) -> Self {
         let mut spec = fixture.spec.clone();
-        spec.default_tenant_id = Some(fixture.tenant_id.clone());
+        spec.default_tenant_id = Some(fixture.tenant_id);
         let run_config = fixture.run_config();
         Self {
             name: name.to_string(),
@@ -164,10 +185,14 @@ impl ExampleCase {
         }
     }
 
-    fn precheck(name: &str, script: &'static str, spec: ScenarioSpec) -> Self {
+    fn precheck(
+        name: &str,
+        script: &'static str,
+        spec: ScenarioSpec,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let run_config = RunConfig {
-            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
-            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            tenant_id: tenant_id_one(),
+            namespace_id: namespace_id_one(),
             run_id: decision_gate_core::RunId::new("precheck-run"),
             scenario_id: spec.scenario_id.clone(),
             dispatch_targets: Vec::new(),
@@ -181,11 +206,10 @@ impl ExampleCase {
             extra_envs: HashMap::new(),
             expects: ExampleExpectation::Precheck,
         };
-        case.extra_envs.insert(
-            "DG_SCHEMA_RECORD".to_string(),
-            serde_json::to_string(&schema_record_json()).expect("schema json"),
-        );
-        case
+        let schema_json = serde_json::to_string(&schema_record_json())
+            .map_err(|error| std::io::Error::other(format!("schema json failed: {error}")))?;
+        case.extra_envs.insert("DG_SCHEMA_RECORD".to_string(), schema_json);
+        Ok(case)
     }
 
     fn with_agent(mut self, agent_id: &str) -> Self {
@@ -197,7 +221,7 @@ impl ExampleCase {
         self
     }
 
-    fn as_ci_gate(mut self) -> Self {
+    const fn with_ci_gate(mut self) -> Self {
         self.expects = ExampleExpectation::CiGate;
         self
     }
@@ -211,9 +235,13 @@ enum ExampleExpectation {
     Precheck,
 }
 
+#[allow(
+    clippy::future_not_send,
+    reason = "TestReporter holds a mutex guard; examples are not spawned across threads."
+)]
 async fn run_examples(
     reporter: &mut TestReporter,
-    runtime: &PathBuf,
+    runtime: &Path,
     bind: &str,
     examples: Vec<ExampleCase>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -252,7 +280,7 @@ async fn run_examples(
         }
 
         let payload: serde_json::Value = serde_json::from_str(output.stdout.trim())?;
-        assert_example_payload(&case.expects, &payload)
+        assert_example_payload(case.expects, &payload)
             .map_err(|err| format!("example {} output invalid: {err}", case.name))?;
     }
 
@@ -261,7 +289,7 @@ async fn run_examples(
 }
 
 fn assert_example_payload(
-    expectation: &ExampleExpectation,
+    expectation: ExampleExpectation,
     payload: &serde_json::Value,
 ) -> Result<(), String> {
     let get_obj = |key: &str| {
@@ -313,8 +341,8 @@ fn assert_example_payload(
 }
 
 async fn run_example_script(
-    interpreter: &PathBuf,
-    script: &PathBuf,
+    interpreter: &Path,
+    script: &Path,
     bind: &str,
     token: Option<&str>,
     spec: &ScenarioSpec,
@@ -367,13 +395,14 @@ async fn run_example_script(
 }
 
 fn example_path(relative: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().expect("workspace root").join(relative)
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    root.parent().map_or_else(|| root.join(relative), |parent| parent.join(relative))
 }
 
 fn precheck_spec(scenario_id: &str) -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new(scenario_id),
-        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        namespace_id: namespace_id_one(),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: StageId::new("main"),
@@ -401,7 +430,7 @@ fn precheck_spec(scenario_id: &str) -> ScenarioSpec {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
+        default_tenant_id: Some(tenant_id_one()),
     }
 }
 

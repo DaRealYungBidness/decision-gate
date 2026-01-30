@@ -142,8 +142,8 @@ impl FederatedEvidenceProvider {
     ///
     /// Returns [`EvidenceError`] when provider configuration is invalid.
     pub fn from_config(config: &DecisionGateConfig) -> Result<Self, EvidenceError> {
-        let mut registry = ProviderRegistry::with_builtin_providers()
-            .map_err(|err| EvidenceError::Provider(err.to_string()))?;
+        let mut registry =
+            ProviderRegistry::new(decision_gate_providers::ProviderAccessPolicy::default());
         let mut policies = BTreeMap::new();
 
         let default_policy = ProviderPolicy {
@@ -737,19 +737,27 @@ fn register_builtin_provider(
 ) -> Result<(), EvidenceError> {
     match provider.name.as_str() {
         "time" => {
-            let config = provider.parse_config::<decision_gate_providers::TimeProviderConfig>()?;
+            let config = provider
+                .parse_config::<decision_gate_providers::TimeProviderConfig>()
+                .map_err(|err| EvidenceError::Provider(err.to_string()))?;
             registry.register_provider("time", decision_gate_providers::TimeProvider::new(config));
         }
         "env" => {
-            let config = provider.parse_config::<decision_gate_providers::EnvProviderConfig>()?;
+            let config = provider
+                .parse_config::<decision_gate_providers::EnvProviderConfig>()
+                .map_err(|err| EvidenceError::Provider(err.to_string()))?;
             registry.register_provider("env", decision_gate_providers::EnvProvider::new(config));
         }
         "json" => {
-            let config = provider.parse_config::<decision_gate_providers::JsonProviderConfig>()?;
+            let config = provider
+                .parse_config::<decision_gate_providers::JsonProviderConfig>()
+                .map_err(|err| EvidenceError::Provider(err.to_string()))?;
             registry.register_provider("json", decision_gate_providers::JsonProvider::new(config));
         }
         "http" => {
-            let config = provider.parse_config::<decision_gate_providers::HttpProviderConfig>()?;
+            let config = provider
+                .parse_config::<decision_gate_providers::HttpProviderConfig>()
+                .map_err(|err| EvidenceError::Provider(err.to_string()))?;
             let provider = decision_gate_providers::HttpProvider::new(config)?;
             registry.register_provider("http", provider);
         }
@@ -761,25 +769,6 @@ fn register_builtin_provider(
         }
     }
     Ok(())
-}
-
-// ============================================================================
-// SECTION: Provider Config Extension
-// ============================================================================
-
-impl ProviderConfig {
-    /// Parses the provider-specific config payload or returns the default.
-    fn parse_config<T: for<'de> Deserialize<'de> + Default>(&self) -> Result<T, EvidenceError> {
-        self.config.as_ref().map_or_else(
-            || Ok(T::default()),
-            |value| {
-                value
-                    .clone()
-                    .try_into::<T>()
-                    .map_err(|err| EvidenceError::Provider(format!("provider config error: {err}")))
-            },
-        )
-    }
 }
 
 // ============================================================================

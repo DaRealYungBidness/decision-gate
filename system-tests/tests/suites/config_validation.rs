@@ -67,5 +67,6 @@ async fn dev_permissive_assetcore_rejected() -> Result<(), Box<dyn std::error::E
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }

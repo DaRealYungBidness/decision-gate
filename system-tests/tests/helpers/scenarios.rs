@@ -6,6 +6,8 @@
 // Dependencies: decision-gate-core, ret-logic
 // ============================================================================
 
+use std::num::NonZeroU64;
+
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::BranchRule;
 use decision_gate_core::Comparator;
@@ -38,6 +40,14 @@ use decision_gate_core::TriggerId;
 use decision_gate_core::TriggerKind;
 use serde_json::json;
 
+const fn default_tenant_id() -> TenantId {
+    TenantId::new(NonZeroU64::MIN)
+}
+
+const fn default_namespace_id() -> NamespaceId {
+    NamespaceId::new(NonZeroU64::MIN)
+}
+
 /// Fixture bundle for a scenario and related IDs.
 #[derive(Debug, Clone)]
 pub struct ScenarioFixture {
@@ -53,12 +63,12 @@ impl ScenarioFixture {
     /// Creates a simple time-based scenario with a single gate.
     pub fn time_after(scenario_id: &str, run_id: &str, threshold: u64) -> Self {
         let scenario_id = ScenarioId::new(scenario_id);
-        let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+        let namespace_id = default_namespace_id();
         let stage_id = StageId::new("stage-1");
         let predicate_key = PredicateKey::new("after");
         let spec = ScenarioSpec {
             scenario_id: scenario_id.clone(),
-            namespace_id: namespace_id.clone(),
+            namespace_id,
             spec_version: SpecVersion::new("1"),
             stages: vec![StageSpec {
                 stage_id: stage_id.clone(),
@@ -91,7 +101,7 @@ impl ScenarioFixture {
         Self {
             scenario_id,
             run_id: RunId::new(run_id),
-            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+            tenant_id: default_tenant_id(),
             namespace_id,
             stage_id,
             spec,
@@ -106,7 +116,7 @@ impl ScenarioFixture {
         policy_tags: Vec<String>,
     ) -> Self {
         let scenario_id = ScenarioId::new(scenario_id);
-        let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+        let namespace_id = default_namespace_id();
         let stage_id = StageId::new("stage-1");
         let predicate_key = PredicateKey::new("after");
         let packet = PacketSpec {
@@ -122,7 +132,7 @@ impl ScenarioFixture {
         };
         let spec = ScenarioSpec {
             scenario_id: scenario_id.clone(),
-            namespace_id: namespace_id.clone(),
+            namespace_id,
             spec_version: SpecVersion::new("1"),
             stages: vec![StageSpec {
                 stage_id: stage_id.clone(),
@@ -155,7 +165,7 @@ impl ScenarioFixture {
         Self {
             scenario_id,
             run_id: RunId::new(run_id),
-            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+            tenant_id: default_tenant_id(),
             namespace_id,
             stage_id,
             spec,
@@ -165,12 +175,12 @@ impl ScenarioFixture {
     /// Creates a single-stage scenario that fails on timeout.
     pub fn timeout_fail(scenario_id: &str, run_id: &str, timeout_ms: u64) -> Self {
         let scenario_id = ScenarioId::new(scenario_id);
-        let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+        let namespace_id = default_namespace_id();
         let stage_id = StageId::new("stage-1");
         let predicate_key = PredicateKey::new("after");
         let spec = ScenarioSpec {
             scenario_id: scenario_id.clone(),
-            namespace_id: namespace_id.clone(),
+            namespace_id,
             spec_version: SpecVersion::new("1"),
             stages: vec![StageSpec {
                 stage_id: stage_id.clone(),
@@ -206,7 +216,7 @@ impl ScenarioFixture {
         Self {
             scenario_id,
             run_id: RunId::new(run_id),
-            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+            tenant_id: default_tenant_id(),
             namespace_id,
             stage_id,
             spec,
@@ -216,13 +226,13 @@ impl ScenarioFixture {
     /// Creates a two-stage scenario that advances on timeout with a timeout flag.
     pub fn timeout_advance(scenario_id: &str, run_id: &str, timeout_ms: u64) -> Self {
         let scenario_id = ScenarioId::new(scenario_id);
-        let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+        let namespace_id = default_namespace_id();
         let stage1_id = StageId::new("stage-1");
         let stage2_id = StageId::new("stage-2");
         let predicate_key = PredicateKey::new("after");
         let spec = ScenarioSpec {
             scenario_id: scenario_id.clone(),
-            namespace_id: namespace_id.clone(),
+            namespace_id,
             spec_version: SpecVersion::new("1"),
             stages: vec![
                 StageSpec {
@@ -268,7 +278,7 @@ impl ScenarioFixture {
         Self {
             scenario_id,
             run_id: RunId::new(run_id),
-            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+            tenant_id: default_tenant_id(),
             namespace_id,
             stage_id: stage1_id,
             spec,
@@ -278,13 +288,13 @@ impl ScenarioFixture {
     /// Creates a scenario that routes to an alternate branch on timeout.
     pub fn timeout_alternate_branch(scenario_id: &str, run_id: &str, timeout_ms: u64) -> Self {
         let scenario_id = ScenarioId::new(scenario_id);
-        let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+        let namespace_id = default_namespace_id();
         let stage1_id = StageId::new("stage-1");
         let stage2_id = StageId::new("stage-alt");
         let predicate_key = PredicateKey::new("after");
         let spec = ScenarioSpec {
             scenario_id: scenario_id.clone(),
-            namespace_id: namespace_id.clone(),
+            namespace_id,
             spec_version: SpecVersion::new("1"),
             stages: vec![
                 StageSpec {
@@ -337,7 +347,7 @@ impl ScenarioFixture {
         Self {
             scenario_id,
             run_id: RunId::new(run_id),
-            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+            tenant_id: default_tenant_id(),
             namespace_id,
             stage_id: stage1_id,
             spec,
@@ -347,8 +357,8 @@ impl ScenarioFixture {
     /// Returns a run config for the fixture.
     pub fn run_config(&self) -> RunConfig {
         RunConfig {
-            tenant_id: self.tenant_id.clone(),
-            namespace_id: self.namespace_id.clone(),
+            tenant_id: self.tenant_id,
+            namespace_id: self.namespace_id,
             run_id: self.run_id.clone(),
             scenario_id: self.scenario_id.clone(),
             dispatch_targets: Vec::new(),
@@ -359,8 +369,8 @@ impl ScenarioFixture {
     /// Builds an evidence context for the fixture.
     pub fn evidence_context(&self, trigger_id: &str, time: Timestamp) -> EvidenceContext {
         EvidenceContext {
-            tenant_id: self.tenant_id.clone(),
-            namespace_id: self.namespace_id.clone(),
+            tenant_id: self.tenant_id,
+            namespace_id: self.namespace_id,
             run_id: self.run_id.clone(),
             scenario_id: self.scenario_id.clone(),
             stage_id: self.stage_id.clone(),
@@ -374,8 +384,8 @@ impl ScenarioFixture {
     pub fn trigger_event(&self, trigger_id: &str, time: Timestamp) -> TriggerEvent {
         TriggerEvent {
             trigger_id: TriggerId::new(trigger_id),
-            tenant_id: self.tenant_id.clone(),
-            namespace_id: self.namespace_id.clone(),
+            tenant_id: self.tenant_id,
+            namespace_id: self.namespace_id,
             run_id: self.run_id.clone(),
             kind: TriggerKind::ExternalEvent,
             time,

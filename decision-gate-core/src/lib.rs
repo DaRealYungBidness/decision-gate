@@ -19,6 +19,7 @@
 pub mod core;
 pub mod interfaces;
 pub mod runtime;
+pub mod tooling;
 
 // ============================================================================
 // SECTION: Re-Exports
@@ -67,6 +68,7 @@ pub use runtime::SubmitResult;
 pub use runtime::TriggerResult;
 pub use runtime::VerificationReport;
 pub use runtime::VerificationStatus;
+pub use tooling::ToolName;
 
 #[cfg(test)]
 mod tests;

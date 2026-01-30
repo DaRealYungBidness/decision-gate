@@ -9,6 +9,8 @@
 //! `AssetCore` alignment tests for Decision Gate system-tests.
 
 
+use std::num::NonZeroU64;
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use decision_gate_core::AdvanceTo;
@@ -60,17 +62,26 @@ use helpers::readiness::wait_for_server_ready;
 use helpers::scenarios::ScenarioFixture;
 use serde_json::Value;
 use serde_json::json;
+use tokio::sync::Mutex;
 
 use crate::helpers;
+
+fn tenant_id(value: u64) -> TenantId {
+    TenantId::new(NonZeroU64::new(value).unwrap_or(NonZeroU64::MIN))
+}
+
+fn namespace_id(value: u64) -> NamespaceId {
+    NamespaceId::new(NonZeroU64::new(value).unwrap_or(NonZeroU64::MIN))
+}
 
 const ASSETCORE_PROVIDER_ID: &str = "assetcore_read";
 const ASSETCORE_ANCHOR_TYPE: &str = "assetcore.anchor_set";
 const SERVER_READY_TIMEOUT: Duration = Duration::from_secs(10);
-static ASSETCORE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+static ASSETCORE_TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 #[tokio::test(flavor = "multi_thread")]
 async fn assetcore_anchor_missing_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
-    let _guard = ASSETCORE_TEST_LOCK.lock().expect("assetcore test lock");
+    let _guard = ASSETCORE_TEST_LOCK.lock().await;
     let mut reporter = TestReporter::new("assetcore_anchor_missing_fails_closed")?;
     let fixture = assetcore_fixture("assetcore-anchor-missing", "run-anchor-missing");
     let provider_fixture = ProviderFixture {
@@ -151,12 +162,13 @@ async fn assetcore_anchor_missing_fails_closed() -> Result<(), Box<dyn std::erro
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn assetcore_correlation_id_passthrough() -> Result<(), Box<dyn std::error::Error>> {
-    let _guard = ASSETCORE_TEST_LOCK.lock().expect("assetcore test lock");
+    let _guard = ASSETCORE_TEST_LOCK.lock().await;
     let mut reporter = TestReporter::new("assetcore_correlation_id_passthrough")?;
     let fixture = assetcore_fixture("assetcore-correlation", "run-correlation");
     let anchor = assetcore_anchor(1, "commit-1", 42);
@@ -254,12 +266,13 @@ async fn assetcore_correlation_id_passthrough() -> Result<(), Box<dyn std::error
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn namespace_authority_allows_known_namespace() -> Result<(), Box<dyn std::error::Error>> {
-    let _guard = ASSETCORE_TEST_LOCK.lock().expect("assetcore test lock");
+    let _guard = ASSETCORE_TEST_LOCK.lock().await;
     let mut reporter = TestReporter::new("namespace_authority_allows_known_namespace")?;
     let authority = spawn_namespace_authority_stub(vec![1]).await?;
 
@@ -275,8 +288,8 @@ async fn namespace_authority_allows_known_namespace() -> Result<(), Box<dyn std:
     wait_for_server_ready(&client, SERVER_READY_TIMEOUT).await?;
 
     let mut fixture = ScenarioFixture::time_after("namespace-allow", "run-allow", 0);
-    fixture.spec.namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
-    fixture.spec.default_tenant_id = Some(TenantId::from_raw(1).expect("nonzero tenantid"));
+    fixture.spec.namespace_id = namespace_id(1);
+    fixture.spec.default_tenant_id = Some(tenant_id(1));
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };
@@ -296,12 +309,13 @@ async fn namespace_authority_allows_known_namespace() -> Result<(), Box<dyn std:
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn namespace_authority_denies_unknown_namespace() -> Result<(), Box<dyn std::error::Error>> {
-    let _guard = ASSETCORE_TEST_LOCK.lock().expect("assetcore test lock");
+    let _guard = ASSETCORE_TEST_LOCK.lock().await;
     let mut reporter = TestReporter::new("namespace_authority_denies_unknown_namespace")?;
     let authority = spawn_namespace_authority_stub(Vec::new()).await?;
 
@@ -317,8 +331,8 @@ async fn namespace_authority_denies_unknown_namespace() -> Result<(), Box<dyn st
     wait_for_server_ready(&client, SERVER_READY_TIMEOUT).await?;
 
     let mut fixture = ScenarioFixture::time_after("namespace-deny", "run-deny", 0);
-    fixture.spec.namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
-    fixture.spec.default_tenant_id = Some(TenantId::from_raw(1).expect("nonzero tenantid"));
+    fixture.spec.namespace_id = namespace_id(1);
+    fixture.spec.default_tenant_id = Some(tenant_id(1));
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };
@@ -349,20 +363,21 @@ async fn namespace_authority_denies_unknown_namespace() -> Result<(), Box<dyn st
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn namespace_mismatch_rejected() -> Result<(), Box<dyn std::error::Error>> {
-    let _guard = ASSETCORE_TEST_LOCK.lock().expect("assetcore test lock");
+    let _guard = ASSETCORE_TEST_LOCK.lock().await;
     let mut reporter = TestReporter::new("namespace_mismatch_rejected")?;
     let bind = allocate_bind_addr()?.to_string();
     let mut config = base_http_config(&bind);
     if let Some(auth) = config.server.auth.as_mut() {
         let role = PrincipalRoleConfig {
             name: "TenantAdmin".to_string(),
-            tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
-            namespace_id: Some(NamespaceId::from_raw(2).expect("nonzero namespaceid")),
+            tenant_id: Some(tenant_id(1)),
+            namespace_id: Some(namespace_id(2)),
         };
         if let Some(principal) = auth.principals.iter_mut().find(|p| p.subject == "loopback") {
             principal.roles.push(role);
@@ -379,8 +394,8 @@ async fn namespace_mismatch_rejected() -> Result<(), Box<dyn std::error::Error>>
     wait_for_server_ready(&client, SERVER_READY_TIMEOUT).await?;
 
     let mut fixture = ScenarioFixture::time_after("namespace-mismatch", "run-mismatch", 0);
-    fixture.spec.namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
-    fixture.spec.default_tenant_id = Some(TenantId::from_raw(1).expect("nonzero tenantid"));
+    fixture.spec.namespace_id = namespace_id(1);
+    fixture.spec.default_tenant_id = Some(tenant_id(1));
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
     };
@@ -389,7 +404,7 @@ async fn namespace_mismatch_rejected() -> Result<(), Box<dyn std::error::Error>>
         client.call_tool_typed("scenario_define", define_input).await?;
 
     let mut run_config = fixture.run_config();
-    run_config.namespace_id = NamespaceId::from_raw(2).expect("nonzero namespaceid");
+    run_config.namespace_id = namespace_id(2);
     let start_request = ScenarioStartRequest {
         scenario_id: define_output.scenario_id,
         run_config,
@@ -417,6 +432,7 @@ async fn namespace_mismatch_rejected() -> Result<(), Box<dyn std::error::Error>>
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -446,12 +462,12 @@ fn assetcore_anchor(namespace_id: u64, commit_id: &str, world_seq: u64) -> Evide
 
 fn assetcore_fixture(scenario: &str, run: &str) -> AssetcoreFixture {
     let scenario_id = ScenarioId::new(scenario);
-    let namespace_id = NamespaceId::from_raw(11).expect("nonzero namespaceid");
+    let namespace_id = namespace_id(11);
     let stage_id = StageId::new("stage-1");
     let predicate_key = PredicateKey::new("slot_occupied");
     let spec = ScenarioSpec {
         scenario_id: scenario_id.clone(),
-        namespace_id: namespace_id.clone(),
+        namespace_id,
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id,
@@ -484,7 +500,7 @@ fn assetcore_fixture(scenario: &str, run: &str) -> AssetcoreFixture {
     AssetcoreFixture {
         scenario_id,
         run_id: RunId::new(run),
-        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        tenant_id: tenant_id(1),
         namespace_id,
         spec,
     }
@@ -514,8 +530,8 @@ struct AssetcoreFixture {
 impl AssetcoreFixture {
     fn run_config(&self) -> RunConfig {
         RunConfig {
-            tenant_id: self.tenant_id.clone(),
-            namespace_id: self.namespace_id.clone(),
+            tenant_id: self.tenant_id,
+            namespace_id: self.namespace_id,
             run_id: self.run_id.clone(),
             scenario_id: self.scenario_id.clone(),
             dispatch_targets: Vec::new(),
@@ -526,8 +542,8 @@ impl AssetcoreFixture {
     fn trigger(&self, correlation_id: Option<CorrelationId>) -> TriggerEvent {
         TriggerEvent {
             run_id: self.run_id.clone(),
-            tenant_id: self.tenant_id.clone(),
-            namespace_id: self.namespace_id.clone(),
+            tenant_id: self.tenant_id,
+            namespace_id: self.namespace_id,
             trigger_id: TriggerId::new("trigger-1"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),

@@ -127,6 +127,9 @@ fn tooling_input_enforces_size_limit() -> Result<(), Box<dyn std::error::Error>>
     let payload = vec![b'a'; size];
     fs::write(&temp.path, payload)?;
     let result = SdkGenerator::load(&temp.path);
-    assert!(matches!(result, Err(SdkGenError::Tooling(_))));
-    Ok(())
+    match result {
+        Err(SdkGenError::Tooling(_)) => Ok(()),
+        Ok(_) => Err(std::io::Error::other("expected tooling size limit error").into()),
+        Err(other) => Err(std::io::Error::other(format!("unexpected error: {other}")).into()),
+    }
 }

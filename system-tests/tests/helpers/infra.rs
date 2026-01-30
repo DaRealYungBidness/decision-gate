@@ -7,17 +7,17 @@
 // ============================================================================
 
 use std::env;
+use std::sync::LazyLock;
 
 use aws_config::BehaviorVersion;
 use aws_config::Region;
 use aws_sdk_s3::Client;
-use once_cell::sync::Lazy;
 use testcontainers::Container;
 use testcontainers::GenericImage;
 use testcontainers::RunnableImage;
 use testcontainers::clients::Cli;
 
-static DOCKER: Lazy<Cli> = Lazy::new(Cli::default);
+static DOCKER: LazyLock<Cli> = LazyLock::new(Cli::default);
 
 pub struct S3Fixture {
     pub endpoint: String,

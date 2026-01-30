@@ -9,6 +9,7 @@
 //! Operational posture tests for Decision Gate system-tests.
 
 
+use std::num::NonZeroU64;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -46,6 +47,14 @@ use serde_json::json;
 use tempfile::TempDir;
 
 use crate::helpers;
+
+const fn tenant_id_one() -> TenantId {
+    TenantId::new(NonZeroU64::MIN)
+}
+
+const fn namespace_id_one() -> NamespaceId {
+    NamespaceId::new(NonZeroU64::MIN)
+}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn dev_permissive_emits_warning() -> Result<(), Box<dyn std::error::Error>> {
@@ -87,12 +96,13 @@ type = "builtin"
             "mcp.stderr.log".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
 fn precheck_spec() -> ScenarioSpec {
     let scenario_id = ScenarioId::new("precheck-audit");
-    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+    let namespace_id = namespace_id_one();
     let stage_id = StageId::new("stage-1");
     let predicate_key = PredicateKey::new("value");
     ScenarioSpec {
@@ -125,7 +135,7 @@ fn precheck_spec() -> ScenarioSpec {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
+        default_tenant_id: Some(tenant_id_one()),
     }
 }
 
@@ -181,10 +191,10 @@ type = "builtin"
     let define_output: ScenarioDefineResponse =
         serde_json::from_value(client.call_tool("scenario_define", define_input).await?)?;
 
-    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
+    let tenant_id = tenant_id_one();
     let record = DataShapeRecord {
-        tenant_id: tenant_id.clone(),
-        namespace_id: spec.namespace_id.clone(),
+        tenant_id,
+        namespace_id: spec.namespace_id,
         schema_id: DataShapeId::new("asserted"),
         version: DataShapeVersion::new("v1"),
         schema: json!({
@@ -207,8 +217,8 @@ type = "builtin"
         serde_json::from_value(client.call_tool("schemas_register", register_input).await?)?;
 
     let precheck_request = PrecheckToolRequest {
-        tenant_id: tenant_id.clone(),
-        namespace_id: spec.namespace_id.clone(),
+        tenant_id,
+        namespace_id: spec.namespace_id,
         scenario_id: Some(define_output.scenario_id),
         spec: None,
         stage_id: None,
@@ -259,5 +269,6 @@ type = "builtin"
             "mcp.stderr.log".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }

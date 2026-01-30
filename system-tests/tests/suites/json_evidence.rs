@@ -9,6 +9,7 @@
 //! JSON evidence playbook system tests.
 
 use std::fs;
+use std::num::NonZeroU64;
 use std::time::Duration;
 
 use decision_gate_core::AdvanceTo;
@@ -58,7 +59,19 @@ use tempfile::tempdir;
 
 use crate::helpers;
 
+const fn tenant_id_one() -> TenantId {
+    TenantId::new(NonZeroU64::MIN)
+}
+
+const fn namespace_id_one() -> NamespaceId {
+    NamespaceId::new(NonZeroU64::MIN)
+}
+
 #[tokio::test(flavor = "multi_thread")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "End-to-end playbook flow kept in one block for auditability."
+)]
 async fn json_evidence_playbook_templates_pass() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("json_evidence_playbook_templates_pass")?;
     let bind = allocate_bind_addr()?.to_string();
@@ -76,27 +89,27 @@ async fn json_evidence_playbook_templates_pass() -> Result<(), Box<dyn std::erro
 
     write_json(
         &report_path,
-        json!({
+        &json!({
             "summary": {"failed": 0, "passed": 128},
             "tool": "tests",
             "version": "1.0"
         }),
     )?;
-    write_json(&coverage_path, json!({"coverage": {"percent": 92}}))?;
+    write_json(&coverage_path, &json!({"coverage": {"percent": 92}}))?;
     write_json(
         &scan_path,
-        json!({
+        &json!({
             "summary": {"critical": 0, "high": 0, "medium": 2},
             "tool": "scanner"
         }),
     )?;
-    write_json(&reviews_path, json!({"reviews": {"approvals": 2}}))?;
-    write_json(&quality_path, json!({"checks": {"lint_ok": true, "format_ok": true}}))?;
+    write_json(&reviews_path, &json!({"reviews": {"approvals": 2}}))?;
+    write_json(&quality_path, &json!({"checks": {"lint_ok": true, "format_ok": true}}))?;
 
     let scenario_id = ScenarioId::new("json-evidence-playbook");
-    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+    let namespace_id = namespace_id_one();
     let stage_id = StageId::new("main");
-    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
+    let tenant_id = tenant_id_one();
 
     let tests_ok = PredicateKey::new("tests_ok");
     let coverage_ok = PredicateKey::new("coverage_ok");
@@ -157,7 +170,7 @@ async fn json_evidence_playbook_templates_pass() -> Result<(), Box<dyn std::erro
 
     let spec = ScenarioSpec {
         scenario_id: scenario_id.clone(),
-        namespace_id: namespace_id.clone(),
+        namespace_id,
         spec_version: SpecVersion::new("v1"),
         stages: vec![StageSpec {
             stage_id: stage_id.clone(),
@@ -170,7 +183,7 @@ async fn json_evidence_playbook_templates_pass() -> Result<(), Box<dyn std::erro
         predicates,
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(tenant_id.clone()),
+        default_tenant_id: Some(tenant_id),
     };
 
     let define_request = ScenarioDefineRequest {
@@ -181,8 +194,8 @@ async fn json_evidence_playbook_templates_pass() -> Result<(), Box<dyn std::erro
         client.call_tool_typed("scenario_define", define_input).await?;
 
     let run_config = RunConfig {
-        tenant_id: tenant_id.clone(),
-        namespace_id: namespace_id.clone(),
+        tenant_id,
+        namespace_id,
         run_id: RunId::new("run-1"),
         scenario_id: scenario_id.clone(),
         dispatch_targets: Vec::new(),
@@ -200,8 +213,8 @@ async fn json_evidence_playbook_templates_pass() -> Result<(), Box<dyn std::erro
 
     let trigger = TriggerEvent {
         run_id: RunId::new("run-1"),
-        tenant_id: tenant_id.clone(),
-        namespace_id: namespace_id.clone(),
+        tenant_id,
+        namespace_id,
         trigger_id: TriggerId::new("trigger-1"),
         kind: TriggerKind::ExternalEvent,
         time: Timestamp::Logical(2),
@@ -233,6 +246,7 @@ async fn json_evidence_playbook_templates_pass() -> Result<(), Box<dyn std::erro
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -247,14 +261,14 @@ async fn llm_native_precheck_payload_flow() -> Result<(), Box<dyn std::error::Er
     wait_for_server_ready(&client, Duration::from_secs(5)).await?;
 
     let scenario_id = ScenarioId::new("llm-precheck");
-    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+    let namespace_id = namespace_id_one();
     let stage_id = StageId::new("main");
-    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
+    let tenant_id = tenant_id_one();
 
     let predicate_key = PredicateKey::new("report_ok");
     let spec = ScenarioSpec {
         scenario_id: scenario_id.clone(),
-        namespace_id: namespace_id.clone(),
+        namespace_id,
         spec_version: SpecVersion::new("v1"),
         stages: vec![StageSpec {
             stage_id: stage_id.clone(),
@@ -274,7 +288,7 @@ async fn llm_native_precheck_payload_flow() -> Result<(), Box<dyn std::error::Er
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(tenant_id.clone()),
+        default_tenant_id: Some(tenant_id),
     };
 
     let define_request = ScenarioDefineRequest {
@@ -285,8 +299,8 @@ async fn llm_native_precheck_payload_flow() -> Result<(), Box<dyn std::error::Er
         client.call_tool_typed("scenario_define", define_input).await?;
 
     let record = DataShapeRecord {
-        tenant_id: tenant_id.clone(),
-        namespace_id: namespace_id.clone(),
+        tenant_id,
+        namespace_id,
         schema_id: DataShapeId::new("llm-precheck"),
         version: DataShapeVersion::new("v1"),
         schema: json!({
@@ -309,8 +323,8 @@ async fn llm_native_precheck_payload_flow() -> Result<(), Box<dyn std::error::Er
         client.call_tool_typed("schemas_register", register_input).await?;
 
     let precheck_request = PrecheckToolRequest {
-        tenant_id: tenant_id.clone(),
-        namespace_id: namespace_id.clone(),
+        tenant_id,
+        namespace_id,
         scenario_id: Some(define_output.scenario_id),
         spec: None,
         stage_id: Some(stage_id),
@@ -343,6 +357,7 @@ async fn llm_native_precheck_payload_flow() -> Result<(), Box<dyn std::error::Er
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -376,8 +391,8 @@ fn json_path_query_pathless(jsonpath: &str) -> decision_gate_core::EvidenceQuery
     }
 }
 
-fn write_json(path: &std::path::Path, value: Value) -> Result<(), Box<dyn std::error::Error>> {
-    let bytes = serde_json::to_vec(&value)?;
+fn write_json(path: &std::path::Path, value: &Value) -> Result<(), Box<dyn std::error::Error>> {
+    let bytes = serde_json::to_vec(value)?;
     fs::write(path, bytes)?;
     Ok(())
 }

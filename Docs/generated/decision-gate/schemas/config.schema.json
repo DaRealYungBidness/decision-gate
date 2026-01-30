@@ -6,23 +6,29 @@
   "properties": {
     "anchors": {
       "additionalProperties": false,
+      "description": "Evidence anchor policy configuration.",
       "properties": {
         "providers": {
           "default": [],
+          "description": "Provider-specific anchor requirements.",
           "items": {
             "additionalProperties": false,
             "properties": {
               "anchor_type": {
-                "description": "Anchor type identifier expected in evidence results.",
+                "description": "Anchor type identifier expected in results.",
+                "minLength": 1,
                 "type": "string"
               },
               "provider_id": {
                 "description": "Provider identifier requiring anchors.",
+                "minLength": 1,
                 "type": "string"
               },
               "required_fields": {
-                "description": "Required fields inside anchor payload.",
+                "description": "Required fields in anchor_value.",
                 "items": {
+                  "description": "Required fields in anchor_value.",
+                  "minLength": 1,
                   "type": "string"
                 },
                 "minItems": 1,
@@ -43,9 +49,11 @@
     },
     "dev": {
       "additionalProperties": false,
+      "description": "Development-mode overrides (explicit opt-in).",
       "properties": {
         "permissive": {
           "default": false,
+          "description": "Enable dev-permissive mode (explicit opt-in).",
           "type": "boolean"
         },
         "permissive_exempt_providers": {
@@ -53,13 +61,17 @@
             "assetcore_read",
             "assetcore"
           ],
+          "description": "Providers exempt from dev-permissive relaxations.",
           "items": {
+            "description": "Provider ID exempt from dev-permissive.",
+            "minLength": 1,
             "type": "string"
           },
           "type": "array"
         },
         "permissive_scope": {
           "default": "asserted_evidence_only",
+          "description": "Dev-permissive scope selection.",
           "enum": [
             "asserted_evidence_only"
           ],
@@ -67,6 +79,7 @@
         },
         "permissive_ttl_days": {
           "default": null,
+          "description": "Optional TTL for dev-permissive warnings (days).",
           "oneOf": [
             {
               "type": "null"
@@ -79,6 +92,7 @@
         },
         "permissive_warn": {
           "default": true,
+          "description": "Emit warnings when dev-permissive enabled/expired.",
           "type": "boolean"
         }
       },
@@ -86,13 +100,16 @@
     },
     "evidence": {
       "additionalProperties": false,
+      "description": "Evidence disclosure policy defaults.",
       "properties": {
         "allow_raw_values": {
           "default": false,
+          "description": "Allow raw evidence values to be disclosed.",
           "type": "boolean"
         },
         "require_provider_opt_in": {
           "default": true,
+          "description": "Require provider opt-in for raw disclosure.",
           "type": "boolean"
         }
       },
@@ -100,9 +117,11 @@
     },
     "namespace": {
       "additionalProperties": false,
+      "description": "Namespace policy configuration.",
       "properties": {
         "allow_default": {
           "default": false,
+          "description": "Allow the default namespace ID (1).",
           "type": "boolean"
         },
         "authority": {
@@ -139,6 +158,7 @@
               }
             }
           ],
+          "description": "Namespace authority backend selection.",
           "properties": {
             "assetcore": {
               "oneOf": [
@@ -147,23 +167,38 @@
                 },
                 {
                   "additionalProperties": false,
+                  "description": "Asset Core namespace authority settings.",
                   "properties": {
                     "auth_token": {
-                      "description": "Optional bearer token for namespace lookup.",
-                      "type": "string"
+                      "default": null,
+                      "oneOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "description": "Optional bearer token for namespace lookup.",
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      ]
                     },
                     "base_url": {
                       "description": "Asset Core write-daemon base URL.",
+                      "minLength": 1,
                       "type": "string"
                     },
                     "connect_timeout_ms": {
-                      "description": "Connect timeout in milliseconds.",
-                      "minimum": 0,
+                      "default": 500,
+                      "description": "HTTP connect timeout (ms).",
+                      "maximum": 10000,
+                      "minimum": 100,
                       "type": "integer"
                     },
                     "request_timeout_ms": {
-                      "description": "Request timeout in milliseconds.",
-                      "minimum": 0,
+                      "default": 2000,
+                      "description": "HTTP request timeout (ms).",
+                      "maximum": 30000,
+                      "minimum": 500,
                       "type": "integer"
                     }
                   },
@@ -176,6 +211,7 @@
             },
             "mode": {
               "default": "none",
+              "description": "Namespace authority backend selection.",
               "enum": [
                 "none",
                 "assetcore_http"
@@ -187,6 +223,7 @@
         },
         "default_tenants": {
           "default": [],
+          "description": "Tenant allowlist required when allow_default is true.",
           "items": {
             "description": "Tenant identifier allowed for default namespace.",
             "minimum": 1,
@@ -234,9 +271,11 @@
           }
         }
       ],
+      "description": "Dispatch policy engine configuration.",
       "properties": {
         "engine": {
           "default": "permit_all",
+          "description": "Dispatch policy engine selection.",
           "enum": [
             "permit_all",
             "deny_all",
@@ -245,140 +284,127 @@
           "type": "string"
         },
         "static": {
-          "additionalProperties": false,
-          "properties": {
-            "default": {
-              "default": "deny",
-              "enum": [
-                "permit",
-                "deny"
-              ],
-              "type": "string"
+          "default": null,
+          "oneOf": [
+            {
+              "type": "null"
             },
-            "rules": {
-              "items": {
-                "additionalProperties": false,
-                "allOf": [
-                  {
-                    "if": {
-                      "properties": {
-                        "effect": {
-                          "const": "error"
+            {
+              "additionalProperties": false,
+              "description": "Static dispatch policy rules.",
+              "properties": {
+                "default": {
+                  "default": "deny",
+                  "description": "Default decision when no rules match.",
+                  "enum": [
+                    "permit",
+                    "deny"
+                  ],
+                  "type": "string"
+                },
+                "rules": {
+                  "default": [],
+                  "description": "Ordered list of static policy rules.",
+                  "items": {
+                    "additionalProperties": false,
+                    "allOf": [
+                      {
+                        "if": {
+                          "properties": {
+                            "effect": {
+                              "const": "error"
+                            }
+                          }
+                        },
+                        "then": {
+                          "required": [
+                            "error_message"
+                          ]
                         }
                       }
-                    },
-                    "then": {
-                      "required": [
-                        "error_message"
-                      ]
-                    }
-                  }
-                ],
-                "properties": {
-                  "content_types": {
-                    "description": "Content types allowed by the rule.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "effect": {
-                    "enum": [
-                      "permit",
-                      "deny",
-                      "error"
                     ],
-                    "type": "string"
-                  },
-                  "error_message": {
-                    "description": "Error message when effect is 'error'.",
-                    "type": "string"
-                  },
-                  "forbid_labels": {
-                    "description": "Visibility labels that must not be present.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "forbid_policy_tags": {
-                    "description": "Policy tags that must not be present.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "packet_ids": {
-                    "description": "Packet identifiers allowed by the rule.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "require_labels": {
-                    "description": "Visibility labels that must be present.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "require_policy_tags": {
-                    "description": "Policy tags that must be present.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "scenario_ids": {
-                    "description": "Scenario identifiers allowed by the rule.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "schema_ids": {
-                    "description": "Schema identifiers allowed by the rule.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "stage_ids": {
-                    "description": "Stage identifiers allowed by the rule.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "target_kinds": {
-                    "items": {
-                      "enum": [
-                        "agent",
-                        "session",
-                        "external",
-                        "channel"
-                      ],
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "targets": {
-                    "items": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "system": {
-                          "description": "External system name.",
+                    "properties": {
+                      "content_types": {
+                        "description": "Allowed content types.",
+                        "items": {
                           "type": "string"
                         },
-                        "target": {
-                          "description": "External target identifier.",
+                        "type": "array"
+                      },
+                      "effect": {
+                        "description": "Rule effect.",
+                        "enum": [
+                          "permit",
+                          "deny",
+                          "error"
+                        ],
+                        "type": "string"
+                      },
+                      "error_message": {
+                        "description": "Error message when effect is 'error'.",
+                        "type": "string"
+                      },
+                      "forbid_labels": {
+                        "description": "Visibility labels that block a match.",
+                        "items": {
                           "type": "string"
                         },
-                        "target_id": {
-                          "description": "Target identifier for agent/session/channel.",
+                        "type": "array"
+                      },
+                      "forbid_policy_tags": {
+                        "description": "Policy tags that block a match.",
+                        "items": {
                           "type": "string"
                         },
-                        "target_kind": {
+                        "type": "array"
+                      },
+                      "packet_ids": {
+                        "description": "Allowed packet identifiers.",
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "require_labels": {
+                        "description": "Visibility labels required to match.",
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "require_policy_tags": {
+                        "description": "Policy tags required to match.",
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "scenario_ids": {
+                        "description": "Allowed scenario identifiers.",
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "schema_ids": {
+                        "description": "Allowed schema identifiers.",
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "stage_ids": {
+                        "description": "Allowed stage identifiers.",
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "target_kinds": {
+                        "default": [],
+                        "description": "Target kinds that may receive the packet.",
+                        "items": {
+                          "description": "Dispatch target kind.",
                           "enum": [
                             "agent",
                             "session",
@@ -386,44 +412,81 @@
                             "channel"
                           ],
                           "type": "string"
-                        }
+                        },
+                        "type": "array"
                       },
-                      "required": [
-                        "target_kind"
-                      ],
-                      "type": "object"
+                      "targets": {
+                        "default": [],
+                        "description": "Specific target selectors.",
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "system": {
+                              "description": "External system name.",
+                              "type": "string"
+                            },
+                            "target": {
+                              "description": "External target identifier.",
+                              "type": "string"
+                            },
+                            "target_id": {
+                              "description": "Target identifier for agent/session/channel.",
+                              "type": "string"
+                            },
+                            "target_kind": {
+                              "description": "Dispatch target kind.",
+                              "enum": [
+                                "agent",
+                                "session",
+                                "external",
+                                "channel"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "target_kind"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      }
                     },
-                    "type": "array"
-                  }
-                },
-                "required": [
-                  "effect"
-                ],
-                "type": "object"
+                    "required": [
+                      "effect"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
               },
-              "type": "array"
+              "type": "object"
             }
-          },
-          "type": "object"
+          ]
         }
       },
       "type": "object"
     },
     "provider_discovery": {
       "additionalProperties": false,
+      "description": "Provider discovery allow/deny policy.",
       "properties": {
         "allowlist": {
           "default": [],
+          "description": "Optional allowlist for provider disclosure.",
           "items": {
             "description": "Provider identifier allowed for disclosure.",
+            "minLength": 1,
             "type": "string"
           },
           "type": "array"
         },
         "denylist": {
           "default": [],
+          "description": "Provider identifiers denied for disclosure.",
           "items": {
             "description": "Provider identifier denied for disclosure.",
+            "minLength": 1,
             "type": "string"
           },
           "type": "array"
@@ -467,15 +530,35 @@
                 "capabilities_path"
               ]
             }
+          },
+          {
+            "if": {
+              "properties": {
+                "url": {
+                  "pattern": "^http://",
+                  "type": "string"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "allow_insecure_http": {
+                  "const": true
+                }
+              }
+            }
           }
         ],
+        "description": "Provider configuration entry.",
         "properties": {
           "allow_insecure_http": {
             "default": false,
+            "description": "Allow http:// URLs for MCP providers.",
             "type": "boolean"
           },
           "allow_raw": {
             "default": false,
+            "description": "Allow raw evidence disclosure for this provider.",
             "type": "boolean"
           },
           "auth": {
@@ -488,12 +571,14 @@
                 "additionalProperties": false,
                 "properties": {
                   "bearer_token": {
+                    "default": null,
                     "oneOf": [
                       {
                         "type": "null"
                       },
                       {
                         "description": "Bearer token for MCP providers.",
+                        "minLength": 1,
                         "type": "string"
                       }
                     ]
@@ -511,6 +596,7 @@
               },
               {
                 "description": "Path to provider capability contract JSON.",
+                "minLength": 1,
                 "type": "string"
               }
             ]
@@ -535,7 +621,29 @@
           },
           "name": {
             "description": "Provider identifier.",
+            "minLength": 1,
             "type": "string"
+          },
+          "timeouts": {
+            "additionalProperties": false,
+            "description": "HTTP timeout overrides for MCP providers.",
+            "properties": {
+              "connect_timeout_ms": {
+                "default": 2000,
+                "description": "TCP/TLS connect timeout (ms).",
+                "maximum": 10000,
+                "minimum": 100,
+                "type": "integer"
+              },
+              "request_timeout_ms": {
+                "default": 10000,
+                "description": "Total request timeout (ms).",
+                "maximum": 30000,
+                "minimum": 500,
+                "type": "integer"
+              }
+            },
+            "type": "object"
           },
           "trust": {
             "default": null,
@@ -544,6 +652,7 @@
                 "type": "null"
               },
               {
+                "description": "Default trust policy for providers.",
                 "oneOf": [
                   {
                     "default": "audit",
@@ -561,6 +670,8 @@
                           "keys": {
                             "description": "Signature key identifiers.",
                             "items": {
+                              "description": "Signature key identifiers.",
+                              "minLength": 1,
                               "type": "string"
                             },
                             "type": "array"
@@ -582,6 +693,7 @@
             ]
           },
           "type": {
+            "description": "Provider kind.",
             "enum": [
               "builtin",
               "mcp"
@@ -596,6 +708,7 @@
               },
               {
                 "description": "Provider HTTP URL.",
+                "minLength": 1,
                 "type": "string"
               }
             ]
@@ -611,46 +724,17 @@
     },
     "run_state_store": {
       "additionalProperties": false,
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "sqlite"
-              }
-            }
-          },
-          "then": {
-            "required": [
-              "path"
-            ]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "memory"
-              }
-            }
-          },
-          "then": {
-            "properties": {
-              "path": {
-                "type": "null"
-              }
-            }
-          }
-        }
-      ],
+      "description": "Run state store configuration.",
       "properties": {
         "busy_timeout_ms": {
           "default": 5000,
+          "description": "SQLite busy timeout (ms).",
           "minimum": 0,
           "type": "integer"
         },
         "journal_mode": {
           "default": "wal",
+          "description": "SQLite journal mode.",
           "enum": [
             "wal",
             "delete"
@@ -659,6 +743,7 @@
         },
         "max_versions": {
           "default": null,
+          "description": "Optional max versions retained per run.",
           "oneOf": [
             {
               "type": "null"
@@ -676,13 +761,15 @@
               "type": "null"
             },
             {
-              "description": "Path to the SQLite run state database.",
+              "description": "SQLite database path.",
+              "minLength": 1,
               "type": "string"
             }
           ]
         },
         "sync_mode": {
           "default": "full",
+          "description": "SQLite sync mode.",
           "enum": [
             "full",
             "normal"
@@ -691,6 +778,7 @@
         },
         "type": {
           "default": "memory",
+          "description": "Run state store backend selection.",
           "enum": [
             "memory",
             "sqlite"
@@ -700,46 +788,124 @@
       },
       "type": "object"
     },
-    "schema_registry": {
-      "additionalProperties": false,
-      "allOf": [
+    "runpack_storage": {
+      "default": null,
+      "oneOf": [
         {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "sqlite"
-              }
-            }
-          },
-          "then": {
-            "required": [
-              "path"
-            ]
-          }
+          "type": "null"
         },
         {
-          "if": {
-            "properties": {
-              "type": {
-                "const": "memory"
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "endpoint": {
+                    "pattern": "^http://",
+                    "type": "string"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "allow_http": {
+                    "const": true
+                  }
+                }
               }
+            }
+          ],
+          "description": "Runpack storage configuration.",
+          "properties": {
+            "allow_http": {
+              "default": false,
+              "description": "Allow non-TLS endpoints (explicit opt-in).",
+              "type": "boolean"
+            },
+            "bucket": {
+              "description": "Bucket name for runpack storage.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "endpoint": {
+              "default": null,
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "description": "Optional S3-compatible endpoint.",
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "force_path_style": {
+              "default": false,
+              "description": "Force path-style addressing (S3-compatible).",
+              "type": "boolean"
+            },
+            "prefix": {
+              "default": null,
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "description": "Optional key prefix inside the bucket.",
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "provider": {
+              "description": "Object-store provider.",
+              "enum": [
+                "s3"
+              ],
+              "type": "string"
+            },
+            "region": {
+              "default": null,
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "description": "Optional S3 region override.",
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "type": {
+              "description": "Runpack storage backend selection.",
+              "enum": [
+                "object_store"
+              ],
+              "type": "string"
             }
           },
-          "then": {
-            "properties": {
-              "path": {
-                "type": "null"
-              }
-            }
-          }
+          "required": [
+            "type",
+            "provider",
+            "bucket"
+          ],
+          "type": "object"
         }
-      ],
+      ]
+    },
+    "schema_registry": {
+      "additionalProperties": false,
+      "description": "Schema registry configuration.",
       "properties": {
         "acl": {
           "additionalProperties": false,
+          "description": "Schema registry ACL configuration.",
           "properties": {
             "default": {
               "default": "deny",
+              "description": "Default decision when no rules match (custom only).",
               "enum": [
                 "deny",
                 "allow"
@@ -748,6 +914,7 @@
             },
             "mode": {
               "default": "builtin",
+              "description": "Built-in role rules or custom ACL rules.",
               "enum": [
                 "builtin",
                 "custom"
@@ -756,15 +923,18 @@
             },
             "require_signing": {
               "default": false,
+              "description": "Require schema signing metadata on writes.",
               "type": "boolean"
             },
             "rules": {
               "default": [],
+              "description": "Custom ACL rules (mode = custom).",
               "items": {
                 "additionalProperties": false,
                 "properties": {
                   "actions": {
                     "default": [],
+                    "description": "Registry actions covered by the rule.",
                     "items": {
                       "enum": [
                         "register",
@@ -776,6 +946,7 @@
                     "type": "array"
                   },
                   "effect": {
+                    "description": "Rule effect.",
                     "enum": [
                       "allow",
                       "deny"
@@ -783,7 +954,7 @@
                     "type": "string"
                   },
                   "namespaces": {
-                    "default": [],
+                    "description": "Namespace identifier scope.",
                     "items": {
                       "description": "Namespace identifier.",
                       "minimum": 1,
@@ -792,28 +963,34 @@
                     "type": "array"
                   },
                   "policy_classes": {
-                    "default": [],
+                    "description": "Policy class labels in scope.",
                     "items": {
+                      "description": "Policy class label.",
+                      "minLength": 1,
                       "type": "string"
                     },
                     "type": "array"
                   },
                   "roles": {
-                    "default": [],
+                    "description": "Role names in scope.",
                     "items": {
+                      "description": "Role name.",
+                      "minLength": 1,
                       "type": "string"
                     },
                     "type": "array"
                   },
                   "subjects": {
-                    "default": [],
+                    "description": "Principal subjects in scope.",
                     "items": {
+                      "description": "Principal subject.",
+                      "minLength": 1,
                       "type": "string"
                     },
                     "type": "array"
                   },
                   "tenants": {
-                    "default": [],
+                    "description": "Tenant identifier scope.",
                     "items": {
                       "description": "Tenant identifier.",
                       "minimum": 1,
@@ -827,6 +1004,7 @@
                 ],
                 "type": "object"
               },
+              "maxItems": 256,
               "type": "array"
             }
           },
@@ -834,11 +1012,13 @@
         },
         "busy_timeout_ms": {
           "default": 5000,
+          "description": "SQLite busy timeout (ms).",
           "minimum": 0,
           "type": "integer"
         },
         "journal_mode": {
           "default": "wal",
+          "description": "SQLite journal mode.",
           "enum": [
             "wal",
             "delete"
@@ -847,6 +1027,7 @@
         },
         "max_entries": {
           "default": null,
+          "description": "Optional max schemas per tenant + namespace.",
           "oneOf": [
             {
               "type": "null"
@@ -859,6 +1040,8 @@
         },
         "max_schema_bytes": {
           "default": 1048576,
+          "description": "Maximum schema payload size in bytes.",
+          "maximum": 10485760,
           "minimum": 1,
           "type": "integer"
         },
@@ -869,13 +1052,15 @@
               "type": "null"
             },
             {
-              "description": "Path to the SQLite schema registry database.",
+              "description": "SQLite database path.",
+              "minLength": 1,
               "type": "string"
             }
           ]
         },
         "sync_mode": {
           "default": "full",
+          "description": "SQLite sync mode.",
           "enum": [
             "full",
             "normal"
@@ -884,6 +1069,7 @@
         },
         "type": {
           "default": "memory",
+          "description": "Schema registry backend selection.",
           "enum": [
             "memory",
             "sqlite"
@@ -911,6 +1097,7 @@
             "properties": {
               "bind": {
                 "description": "Bind address for HTTP/SSE transport.",
+                "minLength": 1,
                 "type": "string"
               }
             },
@@ -923,13 +1110,16 @@
       "properties": {
         "audit": {
           "additionalProperties": false,
+          "description": "Structured audit logging configuration.",
           "properties": {
             "enabled": {
               "default": true,
+              "description": "Enable structured audit logging (JSON lines).",
               "type": "boolean"
             },
             "log_precheck_payloads": {
               "default": false,
+              "description": "Log raw precheck payloads (explicit opt-in).",
               "type": "boolean"
             },
             "path": {
@@ -940,6 +1130,7 @@
                 },
                 {
                   "description": "Audit log path (JSON lines).",
+                  "minLength": 1,
                   "type": "string"
                 }
               ]
@@ -948,112 +1139,200 @@
           "type": "object"
         },
         "auth": {
-          "additionalProperties": false,
-          "properties": {
-            "allowed_tools": {
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
+          "default": null,
+          "oneOf": [
+            {
+              "type": "null"
             },
-            "bearer_tokens": {
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "mode": {
-              "default": "local_only",
-              "enum": [
-                "local_only",
-                "bearer_token",
-                "mtls"
-              ],
-              "type": "string"
-            },
-            "mtls_subjects": {
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "principals": {
-              "default": [],
-              "items": {
-                "additionalProperties": false,
-                "properties": {
-                  "policy_class": {
-                    "default": null,
-                    "oneOf": [
-                      {
-                        "type": "null"
-                      },
-                      {
-                        "description": "Policy class label.",
-                        "type": "string"
+            {
+              "additionalProperties": false,
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "mode": {
+                        "const": "bearer_token"
                       }
-                    ]
+                    }
                   },
-                  "roles": {
-                    "default": [],
-                    "items": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "name": {
-                          "description": "Role name.",
-                          "type": "string"
-                        },
-                        "namespace_id": {
-                          "default": null,
-                          "oneOf": [
-                            {
-                              "type": "null"
-                            },
-                            {
-                              "description": "Namespace identifier scope.",
-                              "minimum": 1,
-                              "type": "integer"
-                            }
-                          ]
-                        },
-                        "tenant_id": {
-                          "default": null,
-                          "oneOf": [
-                            {
-                              "type": "null"
-                            },
-                            {
-                              "description": "Tenant identifier scope.",
-                              "minimum": 1,
-                              "type": "integer"
-                            }
-                          ]
-                        }
-                      },
-                      "required": [
-                        "name"
-                      ],
-                      "type": "object"
+                  "then": {
+                    "properties": {
+                      "bearer_tokens": {
+                        "minItems": 1
+                      }
                     },
-                    "type": "array"
-                  },
-                  "subject": {
-                    "description": "Principal identifier (subject or token fingerprint).",
-                    "type": "string"
+                    "required": [
+                      "bearer_tokens"
+                    ]
                   }
                 },
-                "required": [
-                  "subject"
-                ],
-                "type": "object"
+                {
+                  "if": {
+                    "properties": {
+                      "mode": {
+                        "const": "mtls"
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "mtls_subjects": {
+                        "minItems": 1
+                      }
+                    },
+                    "required": [
+                      "mtls_subjects"
+                    ]
+                  }
+                }
+              ],
+              "description": "Inbound authentication configuration for MCP tool calls.",
+              "properties": {
+                "allowed_tools": {
+                  "default": [],
+                  "description": "Optional tool allowlist for inbound calls.",
+                  "items": {
+                    "enum": [
+                      "scenario_define",
+                      "scenario_start",
+                      "scenario_status",
+                      "scenario_next",
+                      "scenario_submit",
+                      "scenario_trigger",
+                      "evidence_query",
+                      "runpack_export",
+                      "runpack_verify",
+                      "providers_list",
+                      "provider_contract_get",
+                      "provider_schema_get",
+                      "schemas_register",
+                      "schemas_list",
+                      "schemas_get",
+                      "scenarios_list",
+                      "precheck"
+                    ],
+                    "type": "string"
+                  },
+                  "maxItems": 128,
+                  "type": "array"
+                },
+                "bearer_tokens": {
+                  "default": [],
+                  "description": "Allowed bearer tokens.",
+                  "items": {
+                    "description": "Bearer token value.",
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "maxItems": 64,
+                  "type": "array"
+                },
+                "mode": {
+                  "default": "local_only",
+                  "description": "Inbound auth mode for MCP tool calls.",
+                  "enum": [
+                    "local_only",
+                    "bearer_token",
+                    "mtls"
+                  ],
+                  "type": "string"
+                },
+                "mtls_subjects": {
+                  "default": [],
+                  "description": "Allowed mTLS subjects (via trusted proxy header).",
+                  "items": {
+                    "description": "mTLS subject string.",
+                    "maxLength": 512,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "maxItems": 64,
+                  "type": "array"
+                },
+                "principals": {
+                  "default": [],
+                  "description": "Optional principal-to-role mappings.",
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "policy_class": {
+                        "default": null,
+                        "oneOf": [
+                          {
+                            "type": "null"
+                          },
+                          {
+                            "description": "Policy class label.",
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "roles": {
+                        "default": [],
+                        "description": "Role bindings for this principal.",
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "name": {
+                              "description": "Role name.",
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "namespace_id": {
+                              "default": null,
+                              "oneOf": [
+                                {
+                                  "type": "null"
+                                },
+                                {
+                                  "description": "Namespace identifier scope.",
+                                  "minimum": 1,
+                                  "type": "integer"
+                                }
+                              ]
+                            },
+                            "tenant_id": {
+                              "default": null,
+                              "oneOf": [
+                                {
+                                  "type": "null"
+                                },
+                                {
+                                  "description": "Tenant identifier scope.",
+                                  "minimum": 1,
+                                  "type": "integer"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "name"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 128,
+                        "type": "array"
+                      },
+                      "subject": {
+                        "description": "Principal identifier (subject or token fingerprint).",
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "subject"
+                    ],
+                    "type": "object"
+                  },
+                  "maxItems": 64,
+                  "type": "array"
+                }
               },
-              "type": "array"
+              "type": "object"
             }
-          },
-          "type": "object"
+          ]
         },
         "bind": {
           "default": null,
@@ -1063,20 +1342,24 @@
             },
             {
               "description": "Bind address for HTTP/SSE transport.",
+              "minLength": 1,
               "type": "string"
             }
           ]
         },
         "limits": {
           "additionalProperties": false,
+          "description": "Request limits for MCP server.",
           "properties": {
             "max_inflight": {
               "default": 256,
+              "description": "Maximum concurrent MCP requests.",
               "minimum": 1,
               "type": "integer"
             },
             "rate_limit": {
               "default": null,
+              "description": "Optional rate limit configuration.",
               "oneOf": [
                 {
                   "type": "null"
@@ -1086,16 +1369,22 @@
                   "properties": {
                     "max_entries": {
                       "default": 4096,
+                      "description": "Maximum distinct rate limit entries.",
+                      "maximum": 65536,
                       "minimum": 1,
                       "type": "integer"
                     },
                     "max_requests": {
                       "default": 1000,
+                      "description": "Maximum requests per rate limit window.",
+                      "maximum": 100000,
                       "minimum": 1,
                       "type": "integer"
                     },
                     "window_ms": {
                       "default": 1000,
+                      "description": "Rate limit window in milliseconds.",
+                      "maximum": 60000,
                       "minimum": 100,
                       "type": "integer"
                     }
@@ -1109,11 +1398,13 @@
         },
         "max_body_bytes": {
           "default": 1048576,
-          "minimum": 0,
+          "description": "Maximum JSON-RPC request size in bytes.",
+          "minimum": 1,
           "type": "integer"
         },
         "mode": {
           "default": "strict",
+          "description": "Operational mode for MCP (dev_permissive is legacy).",
           "enum": [
             "strict",
             "dev_permissive"
@@ -1121,37 +1412,51 @@
           "type": "string"
         },
         "tls": {
-          "additionalProperties": false,
-          "properties": {
-            "cert_path": {
-              "description": "Server TLS certificate (PEM).",
-              "type": "string"
+          "default": null,
+          "oneOf": [
+            {
+              "type": "null"
             },
-            "client_ca_path": {
-              "default": null,
-              "oneOf": [
-                {
-                  "type": "null"
-                },
-                {
-                  "description": "Optional client CA bundle for mTLS.",
+            {
+              "additionalProperties": false,
+              "description": "TLS configuration for HTTP/SSE transports.",
+              "properties": {
+                "cert_path": {
+                  "description": "Server TLS certificate (PEM).",
+                  "minLength": 1,
                   "type": "string"
+                },
+                "client_ca_path": {
+                  "default": null,
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "description": "Optional client CA bundle for mTLS.",
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  ]
+                },
+                "key_path": {
+                  "description": "Server TLS private key (PEM).",
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "require_client_cert": {
+                  "default": true,
+                  "description": "Require client certificate for mTLS.",
+                  "type": "boolean"
                 }
-              ]
-            },
-            "key_path": {
-              "description": "Server TLS private key (PEM).",
-              "type": "string"
-            },
-            "require_client_cert": {
-              "default": true,
-              "type": "boolean"
+              },
+              "type": "object"
             }
-          },
-          "type": "object"
+          ]
         },
         "transport": {
           "default": "stdio",
+          "description": "Transport protocol for MCP.",
           "enum": [
             "stdio",
             "http",
@@ -1164,8 +1469,10 @@
     },
     "trust": {
       "additionalProperties": false,
+      "description": "Trust policy defaults for providers.",
       "properties": {
         "default_policy": {
+          "description": "Default trust policy for providers.",
           "oneOf": [
             {
               "default": "audit",
@@ -1183,6 +1490,8 @@
                     "keys": {
                       "description": "Signature key identifiers.",
                       "items": {
+                        "description": "Signature key identifiers.",
+                        "minLength": 1,
                         "type": "string"
                       },
                       "type": "array"
@@ -1202,12 +1511,66 @@
           ]
         },
         "min_lane": {
-          "description": "Trust lane classification for evidence.",
+          "default": "verified",
+          "description": "Minimum evidence trust lane accepted.",
           "enum": [
             "verified",
             "asserted"
           ],
           "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "validation": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "strict": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "allow_permissive": {
+                "const": true
+              }
+            }
+          }
+        }
+      ],
+      "description": "Comparator validation configuration.",
+      "properties": {
+        "allow_permissive": {
+          "default": false,
+          "description": "Explicit opt-in for permissive validation.",
+          "type": "boolean"
+        },
+        "enable_deep_equals": {
+          "default": false,
+          "description": "Enable deep equality comparators (opt-in per schema).",
+          "type": "boolean"
+        },
+        "enable_lexicographic": {
+          "default": false,
+          "description": "Enable lexicographic comparators (opt-in per schema).",
+          "type": "boolean"
+        },
+        "profile": {
+          "default": "strict_core_v1",
+          "description": "Strict comparator profile identifier.",
+          "enum": [
+            "strict_core_v1"
+          ],
+          "type": "string"
+        },
+        "strict": {
+          "default": true,
+          "description": "Enforce strict comparator validation.",
+          "type": "boolean"
         }
       },
       "type": "object"

@@ -16,6 +16,7 @@ autotests = false
 axum = { version = "0.7", features = ["json"] }
 aws-config = "1.1"
 aws-sdk-s3 = "1.60"
+decision-gate-config = { path = "../decision-gate-config" }
 decision-gate-contract = { path = "../decision-gate-contract" }
 decision-gate-core = { path = "../decision-gate-core" }
 decision-gate-cli = { path = "../decision-gate-cli" }

@@ -1019,10 +1019,14 @@ dependencies = [
 name = "decision-gate-cli"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "clap",
  "decision-gate-contract",
  "decision-gate-core",
  "decision-gate-mcp",
+ "http-body-util",
+ "hyper 1.8.1",
+ "hyper-util",
  "reqwest",
  "serde",
  "serde_jcs",
@@ -1032,10 +1036,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "decision-gate-config"
+version = "0.1.0"
+dependencies = [
+ "decision-gate-core",
+ "decision-gate-store-sqlite",
+ "jsonschema",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "toml",
+]
+
+[[package]]
 name = "decision-gate-contract"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "decision-gate-config",
  "decision-gate-core",
  "jsonschema",
  "ret-logic",
@@ -1131,6 +1150,7 @@ dependencies = [
  "axum-server",
  "base64 0.22.1",
  "bytes",
+ "decision-gate-config",
  "decision-gate-contract",
  "decision-gate-core",
  "decision-gate-providers",
@@ -3205,6 +3225,7 @@ dependencies = [
  "aws-sdk-s3",
  "axum",
  "decision-gate-cli",
+ "decision-gate-config",
  "decision-gate-contract",
  "decision-gate-core",
  "decision-gate-mcp",

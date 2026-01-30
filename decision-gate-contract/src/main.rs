@@ -21,6 +21,7 @@ use std::process::ExitCode;
 
 use clap::Parser;
 use clap::Subcommand;
+use decision_gate_config as config;
 use decision_gate_contract::ContractBuilder;
 use decision_gate_contract::ContractError;
 
@@ -76,11 +77,18 @@ fn run() -> Result<(), ContractError> {
             ..
         } => {
             builder.write_to(&output_dir)?;
+            config::write_config_docs(None)
+                .map_err(|err| ContractError::Generation(err.to_string()))?;
             Ok(())
         }
         Command::Check {
             ..
-        } => builder.verify_output(&output_dir),
+        } => {
+            builder.verify_output(&output_dir)?;
+            config::verify_config_docs(None)
+                .map_err(|err| ContractError::Generation(err.to_string()))?;
+            Ok(())
+        }
     }
 }
 

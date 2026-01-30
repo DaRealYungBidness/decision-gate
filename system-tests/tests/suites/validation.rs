@@ -9,6 +9,7 @@
 //! System tests for strict comparator validation behavior.
 
 
+use std::num::NonZeroU64;
 use std::path::PathBuf;
 
 use decision_gate_core::AdvanceTo;
@@ -51,9 +52,17 @@ use serde_json::json;
 
 use crate::helpers;
 
+const fn tenant_id_one() -> TenantId {
+    TenantId::new(NonZeroU64::MIN)
+}
+
+const fn namespace_id_one() -> NamespaceId {
+    NamespaceId::new(NonZeroU64::MIN)
+}
+
 fn time_now_spec(scenario_id: &str) -> ScenarioSpec {
     let scenario_id = ScenarioId::new(scenario_id);
-    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+    let namespace_id = namespace_id_one();
     let stage_id = StageId::new("stage-1");
     let predicate_key = PredicateKey::new("value");
     ScenarioSpec {
@@ -86,13 +95,13 @@ fn time_now_spec(scenario_id: &str) -> ScenarioSpec {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
+        default_tenant_id: Some(tenant_id_one()),
     }
 }
 
 fn time_now_in_set_spec(scenario_id: &str, expected: Value) -> ScenarioSpec {
     let scenario_id = ScenarioId::new(scenario_id);
-    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+    let namespace_id = namespace_id_one();
     let stage_id = StageId::new("stage-1");
     let predicate_key = PredicateKey::new("value");
     ScenarioSpec {
@@ -125,13 +134,13 @@ fn time_now_in_set_spec(scenario_id: &str, expected: Value) -> ScenarioSpec {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
+        default_tenant_id: Some(tenant_id_one()),
     }
 }
 
 fn env_contains_spec(scenario_id: &str) -> ScenarioSpec {
     let scenario_id = ScenarioId::new(scenario_id);
-    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+    let namespace_id = namespace_id_one();
     let stage_id = StageId::new("stage-1");
     let predicate_key = PredicateKey::new("value");
     ScenarioSpec {
@@ -164,13 +173,13 @@ fn env_contains_spec(scenario_id: &str) -> ScenarioSpec {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
+        default_tenant_id: Some(tenant_id_one()),
     }
 }
 
 fn strict_provider_spec(scenario_id: &str) -> ScenarioSpec {
     let scenario_id = ScenarioId::new(scenario_id);
-    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+    let namespace_id = namespace_id_one();
     let stage_id = StageId::new("stage-1");
     let lex_key = PredicateKey::new("lex");
     let deep_key = PredicateKey::new("deep");
@@ -225,7 +234,7 @@ fn strict_provider_spec(scenario_id: &str) -> ScenarioSpec {
         ],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
+        default_tenant_id: Some(tenant_id_one()),
     }
 }
 
@@ -248,10 +257,10 @@ async fn strict_validation_precheck_rejects_comparator_mismatch()
     let define_output: ScenarioDefineResponse =
         client.call_tool_typed("scenario_define", define_input).await?;
 
-    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
+    let tenant_id = tenant_id_one();
     let record = DataShapeRecord {
-        tenant_id: tenant_id.clone(),
-        namespace_id: spec.namespace_id.clone(),
+        tenant_id,
+        namespace_id: spec.namespace_id,
         schema_id: DataShapeId::new("asserted"),
         version: DataShapeVersion::new("v1"),
         schema: json!({
@@ -274,8 +283,8 @@ async fn strict_validation_precheck_rejects_comparator_mismatch()
         client.call_tool_typed("schemas_register", register_input).await?;
 
     let precheck_request = PrecheckToolRequest {
-        tenant_id: tenant_id.clone(),
-        namespace_id: spec.namespace_id.clone(),
+        tenant_id,
+        namespace_id: spec.namespace_id,
         scenario_id: Some(define_output.scenario_id),
         spec: None,
         stage_id: None,
@@ -303,6 +312,7 @@ async fn strict_validation_precheck_rejects_comparator_mismatch()
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -326,10 +336,10 @@ async fn strict_validation_precheck_allows_permissive() -> Result<(), Box<dyn st
     let define_output: ScenarioDefineResponse =
         client.call_tool_typed("scenario_define", define_input).await?;
 
-    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
+    let tenant_id = tenant_id_one();
     let record = DataShapeRecord {
-        tenant_id: tenant_id.clone(),
-        namespace_id: spec.namespace_id.clone(),
+        tenant_id,
+        namespace_id: spec.namespace_id,
         schema_id: DataShapeId::new("asserted"),
         version: DataShapeVersion::new("v1"),
         schema: json!({
@@ -352,8 +362,8 @@ async fn strict_validation_precheck_allows_permissive() -> Result<(), Box<dyn st
         client.call_tool_typed("schemas_register", register_input).await?;
 
     let precheck_request = PrecheckToolRequest {
-        tenant_id: tenant_id.clone(),
-        namespace_id: spec.namespace_id.clone(),
+        tenant_id,
+        namespace_id: spec.namespace_id,
         scenario_id: Some(define_output.scenario_id),
         spec: None,
         stage_id: None,
@@ -381,6 +391,7 @@ async fn strict_validation_precheck_allows_permissive() -> Result<(), Box<dyn st
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -415,6 +426,7 @@ async fn strict_validation_rejects_in_set_non_array() -> Result<(), Box<dyn std:
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -437,10 +449,10 @@ async fn strict_validation_precheck_allows_union_contains() -> Result<(), Box<dy
     let define_output: ScenarioDefineResponse =
         client.call_tool_typed("scenario_define", define_input).await?;
 
-    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
+    let tenant_id = tenant_id_one();
     let record = DataShapeRecord {
-        tenant_id: tenant_id.clone(),
-        namespace_id: spec.namespace_id.clone(),
+        tenant_id,
+        namespace_id: spec.namespace_id,
         schema_id: DataShapeId::new("asserted"),
         version: DataShapeVersion::new("v1"),
         schema: json!({
@@ -468,8 +480,8 @@ async fn strict_validation_precheck_allows_union_contains() -> Result<(), Box<dy
         client.call_tool_typed("schemas_register", register_input).await?;
 
     let precheck_request = PrecheckToolRequest {
-        tenant_id: tenant_id.clone(),
-        namespace_id: spec.namespace_id.clone(),
+        tenant_id,
+        namespace_id: spec.namespace_id,
         scenario_id: Some(define_output.scenario_id),
         spec: None,
         stage_id: None,
@@ -507,6 +519,7 @@ async fn strict_validation_precheck_allows_union_contains() -> Result<(), Box<dy
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -544,6 +557,7 @@ async fn strict_validation_rejects_disabled_comparators() -> Result<(), Box<dyn 
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -578,5 +592,6 @@ async fn strict_validation_allows_enabled_comparators() -> Result<(), Box<dyn st
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }

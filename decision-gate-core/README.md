@@ -267,8 +267,14 @@ See `../../ret-logic/README.md` for RET implementation details.
 
 ## References
 
+JILUKA. (2023). _VENΦM_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=psEMRalCPFQ
+
 Shadow of Intent. (2024). _Flying The Black Flag_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=GRBOrXvRiSc
+
+Brand of Sacrifice. (2022). _Exodus_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=yoXX7_pMJdU
+
+Synestia. (2025). _Premonitions_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=uukNqkWc4BU
 
 A Night In Texas. (2017). _Population Extermination_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=OObnE2KtBZU
 
-JILUKA. (2023). _VENΦM_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=psEMRalCPFQ
+Zebrahead. (2009). _Girlfriend_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=V6LLSgyd7Cw

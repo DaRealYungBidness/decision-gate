@@ -75,6 +75,7 @@ async fn http_rate_limit_enforced() -> Result<(), Box<dyn std::error::Error>> {
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     server.shutdown().await;
     Ok(())
 }
@@ -110,6 +111,7 @@ async fn http_tls_handshake_success() -> Result<(), Box<dyn std::error::Error>> 
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     server.shutdown().await;
     Ok(())
 }
@@ -167,6 +169,7 @@ async fn http_mtls_client_cert_required() -> Result<(), Box<dyn std::error::Erro
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     server.shutdown().await;
     Ok(())
 }
@@ -176,7 +179,8 @@ async fn http_audit_log_written() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("http_audit_log_written")?;
     let bind = allocate_bind_addr()?.to_string();
     let mut config = base_http_config(&bind);
-    let audit_path = reporter.artifacts().root().join("audit.log");
+    let audit_root = reporter.artifacts().root().canonicalize()?;
+    let audit_path = audit_root.join("audit.log");
     config.server.audit = ServerAuditConfig {
         enabled: true,
         path: Some(audit_path.display().to_string()),
@@ -211,6 +215,7 @@ async fn http_audit_log_written() -> Result<(), Box<dyn std::error::Error>> {
             "audit.log".to_string(),
         ],
     )?;
+    drop(reporter);
     server.shutdown().await;
     Ok(())
 }

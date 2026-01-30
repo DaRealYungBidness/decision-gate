@@ -83,8 +83,7 @@ impl SystemTestConfig {
             .and_then(|value| value.parse::<u64>().ok())
             .map(Duration::from_secs);
         let allow_overwrite = read_env_strict(SystemTestEnv::AllowOverwrite.as_str())?
-            .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
-            .unwrap_or(false);
+            .is_some_and(|value| value == "1" || value.eq_ignore_ascii_case("true"));
         Ok(Self {
             run_root,
             http_bind,

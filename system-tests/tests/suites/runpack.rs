@@ -9,7 +9,7 @@
 //! Runpack validation tests for Decision Gate system-tests.
 
 
-use std::sync::Mutex;
+use std::sync::LazyLock;
 
 use decision_gate_core::ArtifactReader;
 use decision_gate_core::RunpackManifest;
@@ -39,16 +39,20 @@ use helpers::infra::S3Fixture;
 use helpers::namespace_authority_stub::spawn_namespace_authority_stub;
 use helpers::readiness::wait_for_server_ready;
 use helpers::scenarios::ScenarioFixture;
-use once_cell::sync::Lazy;
 use tokio::io::AsyncReadExt;
+use tokio::sync::Mutex;
 
 use crate::helpers;
 
-static RUNPACK_TEST_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+static RUNPACK_TEST_MUTEX: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+async fn lock_runpack_mutex() -> tokio::sync::MutexGuard<'static, ()> {
+    RUNPACK_TEST_MUTEX.lock().await
+}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn runpack_export_verify_happy_path() -> Result<(), Box<dyn std::error::Error>> {
-    let _guard = RUNPACK_TEST_MUTEX.lock().expect("runpack test mutex");
+    let _guard = lock_runpack_mutex().await;
     let mut reporter = TestReporter::new("runpack_export_verify_happy_path")?;
     let bind = allocate_bind_addr()?.to_string();
     let config = base_http_config(&bind);
@@ -57,7 +61,7 @@ async fn runpack_export_verify_happy_path() -> Result<(), Box<dyn std::error::Er
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("runpack-scenario", "run-1", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -80,8 +84,8 @@ async fn runpack_export_verify_happy_path() -> Result<(), Box<dyn std::error::Er
         scenario_id: define_output.scenario_id.clone(),
         trigger: decision_gate_core::TriggerEvent {
             run_id: fixture.run_id.clone(),
-            tenant_id: fixture.tenant_id.clone(),
-            namespace_id: fixture.namespace_id.clone(),
+            tenant_id: fixture.tenant_id,
+            namespace_id: fixture.namespace_id,
             trigger_id: TriggerId::new("trigger-1"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
@@ -97,8 +101,8 @@ async fn runpack_export_verify_happy_path() -> Result<(), Box<dyn std::error::Er
     let runpack_dir = reporter.artifacts().runpack_dir();
     let export_request = RunpackExportRequest {
         scenario_id: define_output.scenario_id.clone(),
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         run_id: fixture.run_id.clone(),
         output_dir: Some(runpack_dir.to_string_lossy().to_string()),
         manifest_name: Some("manifest.json".to_string()),
@@ -132,12 +136,14 @@ async fn runpack_export_verify_happy_path() -> Result<(), Box<dyn std::error::Er
             "runpack/".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[allow(clippy::too_many_lines, reason = "Object-store roundtrip flow kept in one sequence.")]
 async fn runpack_export_object_store_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
-    let _guard = RUNPACK_TEST_MUTEX.lock().expect("runpack test mutex");
+    let _guard = lock_runpack_mutex().await;
     let mut reporter = TestReporter::new("runpack_export_object_store_roundtrip")?;
 
     let s3 = match S3Fixture::start().await {
@@ -149,6 +155,7 @@ async fn runpack_export_object_store_roundtrip() -> Result<(), Box<dyn std::erro
                     vec![format!("object store fixture unavailable: {err}")],
                     vec!["summary.json".to_string(), "summary.md".to_string()],
                 )?;
+                drop(reporter);
                 return Ok(());
             }
             return Err(err.into());
@@ -176,7 +183,7 @@ async fn runpack_export_object_store_roundtrip() -> Result<(), Box<dyn std::erro
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("runpack-object-store", "run-1", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -199,8 +206,8 @@ async fn runpack_export_object_store_roundtrip() -> Result<(), Box<dyn std::erro
         scenario_id: define_output.scenario_id.clone(),
         trigger: decision_gate_core::TriggerEvent {
             run_id: fixture.run_id.clone(),
-            tenant_id: fixture.tenant_id.clone(),
-            namespace_id: fixture.namespace_id.clone(),
+            tenant_id: fixture.tenant_id,
+            namespace_id: fixture.namespace_id,
             trigger_id: TriggerId::new("trigger-1"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
@@ -215,8 +222,8 @@ async fn runpack_export_object_store_roundtrip() -> Result<(), Box<dyn std::erro
 
     let export_request = RunpackExportRequest {
         scenario_id: define_output.scenario_id.clone(),
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         run_id: fixture.run_id.clone(),
         output_dir: None,
         manifest_name: Some("manifest.json".to_string()),
@@ -243,8 +250,8 @@ async fn runpack_export_object_store_roundtrip() -> Result<(), Box<dyn std::erro
     let spec_hash =
         fixture.spec.canonical_hash_with(decision_gate_core::hashing::HashAlgorithm::Sha256)?;
     let key = RunpackObjectKey {
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         scenario_id: define_output.scenario_id.clone(),
         run_id: fixture.run_id.clone(),
         spec_hash,
@@ -312,12 +319,13 @@ async fn runpack_export_object_store_roundtrip() -> Result<(), Box<dyn std::erro
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn runpack_tamper_detection() -> Result<(), Box<dyn std::error::Error>> {
-    let _guard = RUNPACK_TEST_MUTEX.lock().expect("runpack test mutex");
+    let _guard = lock_runpack_mutex().await;
     let mut reporter = TestReporter::new("runpack_tamper_detection")?;
     let bind = allocate_bind_addr()?.to_string();
     let config = base_http_config(&bind);
@@ -326,7 +334,7 @@ async fn runpack_tamper_detection() -> Result<(), Box<dyn std::error::Error>> {
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("runpack-tamper", "run-1", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -349,8 +357,8 @@ async fn runpack_tamper_detection() -> Result<(), Box<dyn std::error::Error>> {
         scenario_id: define_output.scenario_id.clone(),
         trigger: decision_gate_core::TriggerEvent {
             run_id: fixture.run_id.clone(),
-            tenant_id: fixture.tenant_id.clone(),
-            namespace_id: fixture.namespace_id.clone(),
+            tenant_id: fixture.tenant_id,
+            namespace_id: fixture.namespace_id,
             trigger_id: TriggerId::new("trigger-1"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
@@ -366,8 +374,8 @@ async fn runpack_tamper_detection() -> Result<(), Box<dyn std::error::Error>> {
     let runpack_dir = reporter.artifacts().runpack_dir();
     let export_request = RunpackExportRequest {
         scenario_id: define_output.scenario_id.clone(),
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         run_id: fixture.run_id.clone(),
         output_dir: Some(runpack_dir.to_string_lossy().to_string()),
         manifest_name: Some("manifest.json".to_string()),
@@ -409,12 +417,13 @@ async fn runpack_tamper_detection() -> Result<(), Box<dyn std::error::Error>> {
             "runpack/".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn runpack_missing_manifest_fails() -> Result<(), Box<dyn std::error::Error>> {
-    let _guard = RUNPACK_TEST_MUTEX.lock().expect("runpack test mutex");
+    let _guard = lock_runpack_mutex().await;
     let mut reporter = TestReporter::new("runpack_missing_manifest_fails")?;
     let bind = allocate_bind_addr()?.to_string();
     let config = base_http_config(&bind);
@@ -423,7 +432,7 @@ async fn runpack_missing_manifest_fails() -> Result<(), Box<dyn std::error::Erro
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("runpack-missing-manifest", "run-1", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -446,8 +455,8 @@ async fn runpack_missing_manifest_fails() -> Result<(), Box<dyn std::error::Erro
         scenario_id: define_output.scenario_id.clone(),
         trigger: decision_gate_core::TriggerEvent {
             run_id: fixture.run_id.clone(),
-            tenant_id: fixture.tenant_id.clone(),
-            namespace_id: fixture.namespace_id.clone(),
+            tenant_id: fixture.tenant_id,
+            namespace_id: fixture.namespace_id,
             trigger_id: TriggerId::new("trigger-1"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
@@ -463,8 +472,8 @@ async fn runpack_missing_manifest_fails() -> Result<(), Box<dyn std::error::Erro
     let runpack_dir = reporter.artifacts().runpack_dir();
     let export_request = RunpackExportRequest {
         scenario_id: define_output.scenario_id.clone(),
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         run_id: fixture.run_id.clone(),
         output_dir: Some(runpack_dir.to_string_lossy().to_string()),
         manifest_name: Some("manifest.json".to_string()),
@@ -501,12 +510,13 @@ async fn runpack_missing_manifest_fails() -> Result<(), Box<dyn std::error::Erro
             "runpack/".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn runpack_missing_artifact_fails() -> Result<(), Box<dyn std::error::Error>> {
-    let _guard = RUNPACK_TEST_MUTEX.lock().expect("runpack test mutex");
+    let _guard = lock_runpack_mutex().await;
     let mut reporter = TestReporter::new("runpack_missing_artifact_fails")?;
     let bind = allocate_bind_addr()?.to_string();
     let config = base_http_config(&bind);
@@ -515,7 +525,7 @@ async fn runpack_missing_artifact_fails() -> Result<(), Box<dyn std::error::Erro
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("runpack-missing-artifact", "run-1", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -538,8 +548,8 @@ async fn runpack_missing_artifact_fails() -> Result<(), Box<dyn std::error::Erro
         scenario_id: define_output.scenario_id.clone(),
         trigger: decision_gate_core::TriggerEvent {
             run_id: fixture.run_id.clone(),
-            tenant_id: fixture.tenant_id.clone(),
-            namespace_id: fixture.namespace_id.clone(),
+            tenant_id: fixture.tenant_id,
+            namespace_id: fixture.namespace_id,
             trigger_id: TriggerId::new("trigger-1"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
@@ -555,8 +565,8 @@ async fn runpack_missing_artifact_fails() -> Result<(), Box<dyn std::error::Erro
     let runpack_dir = reporter.artifacts().runpack_dir();
     let export_request = RunpackExportRequest {
         scenario_id: define_output.scenario_id.clone(),
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         run_id: fixture.run_id.clone(),
         output_dir: Some(runpack_dir.to_string_lossy().to_string()),
         manifest_name: Some("manifest.json".to_string()),
@@ -604,13 +614,14 @@ async fn runpack_missing_artifact_fails() -> Result<(), Box<dyn std::error::Erro
             "runpack/".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
 #[allow(clippy::too_many_lines, reason = "Security context checks cover two configurations.")]
 async fn runpack_export_includes_security_context() -> Result<(), Box<dyn std::error::Error>> {
-    let _guard = RUNPACK_TEST_MUTEX.lock().expect("runpack test mutex");
+    let _guard = lock_runpack_mutex().await;
     let mut reporter = TestReporter::new("runpack_export_includes_security_context")?;
     let mut transcripts = Vec::new();
 
@@ -624,7 +635,7 @@ async fn runpack_export_includes_security_context() -> Result<(), Box<dyn std::e
         wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
         let mut fixture = ScenarioFixture::time_after("runpack-security-dev", "run-1", 0);
-        fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+        fixture.spec.default_tenant_id = Some(fixture.tenant_id);
         let define_request = ScenarioDefineRequest {
             spec: fixture.spec.clone(),
         };
@@ -649,8 +660,8 @@ async fn runpack_export_includes_security_context() -> Result<(), Box<dyn std::e
             scenario_id: define_output.scenario_id.clone(),
             trigger: decision_gate_core::TriggerEvent {
                 run_id: fixture.run_id.clone(),
-                tenant_id: fixture.tenant_id.clone(),
-                namespace_id: fixture.namespace_id.clone(),
+                tenant_id: fixture.tenant_id,
+                namespace_id: fixture.namespace_id,
                 trigger_id: TriggerId::new("trigger-1"),
                 kind: TriggerKind::ExternalEvent,
                 time: Timestamp::Logical(2),
@@ -670,8 +681,8 @@ async fn runpack_export_includes_security_context() -> Result<(), Box<dyn std::e
         std::fs::create_dir_all(&runpack_dir)?;
         let export_request = RunpackExportRequest {
             scenario_id: define_output.scenario_id.clone(),
-            tenant_id: fixture.tenant_id.clone(),
-            namespace_id: fixture.namespace_id.clone(),
+            tenant_id: fixture.tenant_id,
+            namespace_id: fixture.namespace_id,
             run_id: fixture.run_id.clone(),
             output_dir: Some(runpack_dir.to_string_lossy().to_string()),
             manifest_name: Some("manifest.json".to_string()),
@@ -717,7 +728,7 @@ async fn runpack_export_includes_security_context() -> Result<(), Box<dyn std::e
         wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
         let mut fixture = ScenarioFixture::time_after("runpack-security-assetcore", "run-1", 0);
-        fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+        fixture.spec.default_tenant_id = Some(fixture.tenant_id);
         let define_request = ScenarioDefineRequest {
             spec: fixture.spec.clone(),
         };
@@ -742,8 +753,8 @@ async fn runpack_export_includes_security_context() -> Result<(), Box<dyn std::e
             scenario_id: define_output.scenario_id.clone(),
             trigger: decision_gate_core::TriggerEvent {
                 run_id: fixture.run_id.clone(),
-                tenant_id: fixture.tenant_id.clone(),
-                namespace_id: fixture.namespace_id.clone(),
+                tenant_id: fixture.tenant_id,
+                namespace_id: fixture.namespace_id,
                 trigger_id: TriggerId::new("trigger-1"),
                 kind: TriggerKind::ExternalEvent,
                 time: Timestamp::Logical(2),
@@ -763,8 +774,8 @@ async fn runpack_export_includes_security_context() -> Result<(), Box<dyn std::e
         std::fs::create_dir_all(&runpack_dir)?;
         let export_request = RunpackExportRequest {
             scenario_id: define_output.scenario_id.clone(),
-            tenant_id: fixture.tenant_id.clone(),
-            namespace_id: fixture.namespace_id.clone(),
+            tenant_id: fixture.tenant_id,
+            namespace_id: fixture.namespace_id,
             run_id: fixture.run_id.clone(),
             output_dir: Some(runpack_dir.to_string_lossy().to_string()),
             manifest_name: Some("manifest.json".to_string()),
@@ -803,5 +814,6 @@ async fn runpack_export_includes_security_context() -> Result<(), Box<dyn std::e
             "runpack/".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }

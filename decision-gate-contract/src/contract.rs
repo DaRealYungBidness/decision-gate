@@ -24,6 +24,7 @@ use std::path::Component;
 use std::path::Path;
 use std::path::PathBuf;
 
+use decision_gate_config as config;
 use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
 use decision_gate_core::hashing::HashAlgorithm;
 use decision_gate_core::hashing::hash_bytes;
@@ -92,7 +93,7 @@ impl ContractBuilder {
             json_artifact("providers.json", &provider_contracts)?,
             markdown_artifact("providers.md", providers::providers_markdown(&provider_contracts)),
             json_artifact("schemas/scenario.schema.json", &schemas::scenario_schema())?,
-            json_artifact("schemas/config.schema.json", &schemas::config_schema())?,
+            json_artifact("schemas/config.schema.json", &config::config_schema())?,
             pretty_json_artifact("examples/scenario.json", &examples::scenario_example())?,
             text_artifact(
                 "examples/scenario.ron",
@@ -103,7 +104,7 @@ impl ContractBuilder {
             pretty_json_artifact("examples/run-config.json", &examples::run_config_example())?,
             text_artifact(
                 "examples/decision-gate.toml",
-                examples::config_toml_example(),
+                config::config_toml_example(),
                 "application/toml",
             ),
         ];

@@ -14,17 +14,11 @@
 // SECTION: Imports
 // ============================================================================
 
-use std::io::Read;
-use std::io::Write;
 use std::net::SocketAddr;
-use std::net::TcpListener;
-use std::net::TcpStream;
 use std::sync::Arc;
-use std::sync::Mutex;
-use std::thread;
 use std::time::Duration;
-use std::time::Instant;
 
+use bytes::Bytes;
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::DecisionId;
 use decision_gate_core::DecisionOutcome;
@@ -55,8 +49,24 @@ use decision_gate_mcp::tools::ScenarioDefineResponse;
 use decision_gate_mcp::tools::ScenarioStartRequest;
 use decision_gate_mcp::tools::ScenarioStatusRequest;
 use decision_gate_mcp::tools::ScenarioTriggerRequest;
+use http_body_util::BodyExt;
+use http_body_util::Full;
+use hyper::Request;
+use hyper::Response;
+use hyper::StatusCode;
+use hyper::body::Incoming;
+use hyper::header::CONNECTION;
+use hyper::header::CONTENT_LENGTH;
+use hyper::header::CONTENT_TYPE;
+use hyper::server::conn::http1;
+use hyper::service::service_fn;
+use hyper_util::rt::TokioIo;
 use serde::Serialize;
 use serde_json::Value;
+use tokio::net::TcpListener;
+use tokio::sync::Mutex;
+use tokio::sync::oneshot;
+use tokio::task::JoinHandle;
 
 use crate::interop::InteropConfig;
 use crate::interop::MAX_INTEROP_RESPONSE_BYTES;
@@ -116,41 +126,120 @@ fn minimal_trigger(run_config: &RunConfig) -> TriggerEvent {
 // SECTION: Test Server
 // ============================================================================
 
-type Responder = Arc<Mutex<Box<dyn FnMut(Value) -> Value + Send>>>;
+type Responder = Arc<Mutex<Box<dyn FnMut(Value) -> TestResponse + Send>>>;
+
+#[derive(Clone, Debug)]
+struct TestResponse {
+    status: StatusCode,
+    headers: hyper::HeaderMap,
+    body: Bytes,
+}
+
+impl TestResponse {
+    fn json(value: &Value) -> Self {
+        let body = serde_json::to_vec(value).expect("serialize response body");
+        let mut headers = hyper::HeaderMap::new();
+        headers.insert(CONTENT_TYPE, hyper::header::HeaderValue::from_static("application/json"));
+        Self::raw(StatusCode::OK, headers, Bytes::from(body))
+    }
+
+    fn raw(status: StatusCode, mut headers: hyper::HeaderMap, body: Bytes) -> Self {
+        if !headers.contains_key(CONTENT_LENGTH) {
+            let length = body.len().to_string();
+            headers.insert(
+                CONTENT_LENGTH,
+                hyper::header::HeaderValue::from_str(&length).expect("content-length header value"),
+            );
+        }
+        headers
+            .entry(CONNECTION)
+            .or_insert_with(|| hyper::header::HeaderValue::from_static("close"));
+        Self {
+            status,
+            headers,
+            body,
+        }
+    }
+
+    fn into_response(self) -> Response<Full<Bytes>> {
+        let mut builder = Response::builder().status(self.status);
+        {
+            let headers = builder.headers_mut().expect("response headers");
+            for (name, value) in self.headers {
+                if let Some(name) = name {
+                    headers.insert(name, value);
+                }
+            }
+        }
+        builder.body(Full::new(self.body)).expect("build response body")
+    }
+}
 
 struct TestMcpServer {
     addr: SocketAddr,
     requests: Arc<Mutex<Vec<Value>>>,
-    handle: Option<thread::JoinHandle<()>>,
+    shutdown: Option<oneshot::Sender<()>>,
+    task: Option<JoinHandle<()>>,
 }
 
 impl TestMcpServer {
-    fn start<F>(expected_calls: usize, responder: F) -> Self
+    async fn start<F>(expected_calls: usize, responder: F) -> Self
     where
-        F: FnMut(Value) -> Value + Send + 'static,
+        F: FnMut(Value) -> TestResponse + Send + 'static,
     {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind test server");
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind test server");
         let addr = listener.local_addr().expect("server addr");
-        listener.set_nonblocking(true).expect("nonblocking listener");
         let requests = Arc::new(Mutex::new(Vec::new()));
         let responder: Responder = Arc::new(Mutex::new(Box::new(responder)));
+        let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
+        let (ready_tx, ready_rx) = oneshot::channel();
 
-        let requests_handle = Arc::clone(&requests);
-        let responder_handle = Arc::clone(&responder);
-        let handle = thread::spawn(move || {
-            for _ in 0 .. expected_calls {
-                let Some(mut stream) = accept_with_timeout(&listener, Duration::from_secs(5))
-                else {
-                    break;
-                };
-                let _ = handle_connection(&mut stream, &requests_handle, &responder_handle);
+        let task = tokio::spawn({
+            let requests = Arc::clone(&requests);
+            let responder = Arc::clone(&responder);
+            async move {
+                let _ = ready_tx.send(());
+                let mut remaining = expected_calls;
+                let mut connections = Vec::new();
+                loop {
+                    if remaining == 0 {
+                        break;
+                    }
+                    tokio::select! {
+                        _ = &mut shutdown_rx => break,
+                        accept = listener.accept() => {
+                            let (stream, _) = match accept {
+                                Ok(stream) => stream,
+                                Err(_) => continue,
+                            };
+                            remaining = remaining.saturating_sub(1);
+                            let requests = Arc::clone(&requests);
+                            let responder = Arc::clone(&responder);
+                            connections.push(tokio::spawn(async move {
+                                let io = TokioIo::new(stream);
+                                let service = service_fn(move |req| {
+                                    handle_request(req, Arc::clone(&requests), Arc::clone(&responder))
+                                });
+                                let _ = http1::Builder::new()
+                                    .keep_alive(false)
+                                    .serve_connection(io, service)
+                                    .await;
+                            }));
+                        }
+                    }
+                }
+                for connection in connections {
+                    let _ = connection.await;
+                }
             }
         });
 
+        let _ = ready_rx.await;
         Self {
             addr,
             requests,
-            handle: Some(handle),
+            shutdown: Some(shutdown_tx),
+            task: Some(task),
         }
     }
 
@@ -158,111 +247,55 @@ impl TestMcpServer {
         format!("http://{}/rpc", self.addr)
     }
 
-    fn requests(&self) -> Vec<Value> {
-        self.requests.lock().expect("requests lock").clone()
+    async fn requests(&self) -> Vec<Value> {
+        self.requests.lock().await.clone()
+    }
+
+    async fn shutdown(mut self) {
+        if let Some(shutdown) = self.shutdown.take() {
+            let _ = shutdown.send(());
+        }
+        if let Some(task) = self.task.take() {
+            let _ = task.await;
+        }
     }
 }
 
 impl Drop for TestMcpServer {
     fn drop(&mut self) {
-        if let Some(handle) = self.handle.take() {
-            let _ = handle.join();
+        if let Some(shutdown) = self.shutdown.take() {
+            let _ = shutdown.send(());
+        }
+        if let Some(task) = self.task.take() {
+            task.abort();
         }
     }
 }
 
-fn accept_with_timeout(listener: &TcpListener, timeout: Duration) -> Option<TcpStream> {
-    let start = Instant::now();
-    loop {
-        match listener.accept() {
-            Ok((stream, _)) => return Some(stream),
-            Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
-                if start.elapsed() >= timeout {
-                    return None;
-                }
-                thread::sleep(Duration::from_millis(10));
-            }
-            Err(_) => return None,
+async fn handle_request(
+    request: Request<Incoming>,
+    requests: Arc<Mutex<Vec<Value>>>,
+    responder: Responder,
+) -> Result<Response<Full<Bytes>>, std::convert::Infallible> {
+    let body_bytes = match request.into_body().collect().await {
+        Ok(collected) => collected.to_bytes(),
+        Err(err) => {
+            let response = TestResponse::raw(
+                StatusCode::BAD_REQUEST,
+                hyper::HeaderMap::new(),
+                Bytes::from(format!("failed to read body: {err}")),
+            );
+            return Ok(response.into_response());
         }
-    }
-}
-
-fn handle_connection(
-    stream: &mut TcpStream,
-    requests: &Arc<Mutex<Vec<Value>>>,
-    responder: &Responder,
-) -> Result<(), String> {
-    stream
-        .set_read_timeout(Some(Duration::from_secs(2)))
-        .map_err(|err| format!("set read timeout: {err}"))?;
-    stream
-        .set_write_timeout(Some(Duration::from_secs(2)))
-        .map_err(|err| format!("set write timeout: {err}"))?;
-    let request = read_json_body(stream)?;
-    requests.lock().expect("requests lock").push(request.clone());
-    let response = {
-        let mut handler = responder.lock().expect("responder lock");
-        handler(request)
     };
-    write_json_response(stream, &response)?;
-    Ok(())
-}
-
-fn read_json_body(stream: &mut TcpStream) -> Result<Value, String> {
-    let mut buffer = Vec::new();
-    let mut header_end = None;
-    let mut content_length = None;
-
-    loop {
-        let mut chunk = [0_u8; 1024];
-        let read = stream.read(&mut chunk).map_err(|err| format!("read request: {err}"))?;
-        if read == 0 {
-            break;
-        }
-        buffer.extend_from_slice(&chunk[.. read]);
-        if header_end.is_none()
-            && let Some(end) = find_header_end(&buffer)
-        {
-            header_end = Some(end);
-            content_length = Some(parse_content_length(&buffer[.. end])?);
-        }
-        if let (Some(end), Some(length)) = (header_end, content_length) {
-            let available = buffer.len().saturating_sub(end);
-            if available >= length {
-                let body = &buffer[end .. end + length];
-                return serde_json::from_slice(body).map_err(|err| format!("parse json: {err}"));
-            }
-        }
-    }
-    Err("incomplete request body".to_string())
-}
-
-fn find_header_end(buffer: &[u8]) -> Option<usize> {
-    buffer.windows(4).position(|window| window == b"\r\n\r\n").map(|pos| pos + 4)
-}
-
-fn parse_content_length(header: &[u8]) -> Result<usize, String> {
-    let header = std::str::from_utf8(header).map_err(|err| format!("invalid header: {err}"))?;
-    for line in header.split("\r\n") {
-        let lower = line.to_ascii_lowercase();
-        if let Some(value) = lower.strip_prefix("content-length:") {
-            return value.trim().parse().map_err(|err| format!("invalid content-length: {err}"));
-        }
-    }
-    Err("missing content-length".to_string())
-}
-
-fn write_json_response(stream: &mut TcpStream, response: &Value) -> Result<(), String> {
-    let body = serde_json::to_vec(response).map_err(|err| format!("serialize response: {err}"))?;
-    let header = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: \
-         close\r\n\r\n",
-        body.len()
-    );
-    stream.write_all(header.as_bytes()).map_err(|err| format!("write header: {err}"))?;
-    stream.write_all(&body).map_err(|err| format!("write body: {err}"))?;
-    stream.flush().map_err(|err| format!("flush: {err}"))?;
-    Ok(())
+    let request_value = serde_json::from_slice(&body_bytes)
+        .unwrap_or_else(|_| Value::String(String::from_utf8_lossy(&body_bytes).into_owned()));
+    requests.lock().await.push(request_value.clone());
+    let response = {
+        let mut handler = responder.lock().await;
+        (handler)(request_value)
+    };
+    Ok(response.into_response())
 }
 
 // ============================================================================
@@ -290,6 +323,26 @@ fn jsonrpc_error(request: &Value, code: i64, message: &str) -> Value {
         "id": id,
         "error": { "code": code, "message": message }
     })
+}
+
+fn jsonrpc_response_with_len<T: Serialize>(
+    request: &Value,
+    payload: &T,
+    target_len: usize,
+) -> Bytes {
+    let response = jsonrpc_response(request, payload);
+    let mut body = serde_json::to_vec(&response).expect("serialize sized response");
+    assert!(
+        body.len() <= target_len,
+        "response body too large for target len ({} > {})",
+        body.len(),
+        target_len
+    );
+    let padding = target_len - body.len();
+    if padding > 0 {
+        body.extend(std::iter::repeat(b' ').take(padding));
+    }
+    Bytes::from(body)
 }
 
 // ============================================================================
@@ -414,13 +467,18 @@ async fn run_interop_executes_full_sequence() {
             .and_then(Value::as_str)
             .unwrap_or_default();
         match name {
-            "scenario_define" => jsonrpc_response(&request, &define_response),
-            "scenario_start" => jsonrpc_response(&request, &run_state_response),
-            "scenario_trigger" => jsonrpc_response(&request, &trigger_response),
-            "scenario_status" => jsonrpc_response(&request, &status_response),
-            _ => jsonrpc_error(&request, -32601, "unknown tool"),
+            "scenario_define" => TestResponse::json(&jsonrpc_response(&request, &define_response)),
+            "scenario_start" => {
+                TestResponse::json(&jsonrpc_response(&request, &run_state_response))
+            }
+            "scenario_trigger" => {
+                TestResponse::json(&jsonrpc_response(&request, &trigger_response))
+            }
+            "scenario_status" => TestResponse::json(&jsonrpc_response(&request, &status_response)),
+            _ => TestResponse::json(&jsonrpc_error(&request, -32601, "unknown tool")),
         }
-    });
+    })
+    .await;
 
     let config = InteropConfig {
         mcp_url: server.url(),
@@ -442,7 +500,7 @@ async fn run_interop_executes_full_sequence() {
     assert_eq!(report.transcript.len(), 4);
     assert!(report.transcript.iter().all(|entry| entry.error.is_none()));
 
-    let requests = server.requests();
+    let requests = server.requests().await;
     assert_eq!(requests.len(), 4);
     let names: Vec<&str> = requests
         .iter()
@@ -491,6 +549,7 @@ async fn run_interop_executes_full_sequence() {
     assert_eq!(requests[1]["params"]["arguments"], start_args);
     assert_eq!(requests[2]["params"]["arguments"], trigger_args);
     assert_eq!(requests[3]["params"]["arguments"], status_args);
+    server.shutdown().await;
 }
 
 #[tokio::test]
@@ -504,8 +563,10 @@ async fn run_interop_rejects_define_scenario_mismatch() {
         spec_hash,
     };
 
-    let server =
-        TestMcpServer::start(1, move |request| jsonrpc_response(&request, &define_response));
+    let server = TestMcpServer::start(1, move |request| {
+        TestResponse::json(&jsonrpc_response(&request, &define_response))
+    })
+    .await;
 
     let config = InteropConfig {
         mcp_url: server.url(),
@@ -522,7 +583,114 @@ async fn run_interop_rejects_define_scenario_mismatch() {
 
     let err = run_interop(config).await.expect_err("expected mismatch error");
     assert!(err.contains("scenario_define returned unexpected scenario_id"));
-    assert_eq!(server.requests().len(), 1);
+    assert_eq!(server.requests().await.len(), 1);
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn run_interop_accepts_response_at_size_limit() {
+    let spec = minimal_spec("scenario-1");
+    let run_config = minimal_run_config(&spec.scenario_id);
+    let trigger = minimal_trigger(&run_config);
+    let started_at = Timestamp::Logical(10);
+    let status_requested_at = Timestamp::Logical(11);
+    let spec_hash = HashDigest::new(HashAlgorithm::Sha256, b"spec-hash");
+    let define_response = ScenarioDefineResponse {
+        scenario_id: spec.scenario_id.clone(),
+        spec_hash: spec_hash.clone(),
+    };
+    let run_state = RunState {
+        tenant_id: run_config.tenant_id,
+        namespace_id: run_config.namespace_id,
+        run_id: run_config.run_id.clone(),
+        scenario_id: run_config.scenario_id.clone(),
+        spec_hash: spec_hash.clone(),
+        current_stage_id: StageId::new("stage-1"),
+        stage_entered_at: started_at,
+        status: RunStatus::Active,
+        dispatch_targets: Vec::new(),
+        triggers: Vec::new(),
+        gate_evals: Vec::new(),
+        decisions: Vec::new(),
+        packets: Vec::new(),
+        submissions: Vec::new(),
+        tool_calls: Vec::new(),
+    };
+    let trigger_result = TriggerResult {
+        decision: DecisionRecord {
+            decision_id: DecisionId::new("decision-1"),
+            seq: 1,
+            trigger_id: trigger.trigger_id.clone(),
+            stage_id: StageId::new("stage-1"),
+            decided_at: Timestamp::Logical(12),
+            outcome: DecisionOutcome::Start {
+                stage_id: StageId::new("stage-1"),
+            },
+            correlation_id: trigger.correlation_id.clone(),
+        },
+        packets: Vec::new(),
+        status: RunStatus::Active,
+    };
+    let status = ScenarioStatus {
+        run_id: run_config.run_id.clone(),
+        scenario_id: run_config.scenario_id.clone(),
+        current_stage_id: StageId::new("stage-1"),
+        status: RunStatus::Active,
+        last_decision: None,
+        issued_packet_ids: Vec::new(),
+        safe_summary: None,
+    };
+
+    let run_state_response = run_state.clone();
+    let trigger_response = trigger_result.clone();
+    let status_response = status.clone();
+    let server = TestMcpServer::start(4, move |request| {
+        let name = request
+            .get("params")
+            .and_then(|params| params.get("name"))
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        match name {
+            "scenario_define" => {
+                let body = jsonrpc_response_with_len(
+                    &request,
+                    &define_response,
+                    MAX_INTEROP_RESPONSE_BYTES,
+                );
+                TestResponse::raw(StatusCode::OK, hyper::HeaderMap::new(), body)
+            }
+            "scenario_start" => {
+                TestResponse::json(&jsonrpc_response(&request, &run_state_response))
+            }
+            "scenario_trigger" => {
+                TestResponse::json(&jsonrpc_response(&request, &trigger_response))
+            }
+            "scenario_status" => TestResponse::json(&jsonrpc_response(&request, &status_response)),
+            _ => TestResponse::json(&jsonrpc_error(&request, -32601, "unknown tool")),
+        }
+    })
+    .await;
+
+    let config = InteropConfig {
+        mcp_url: server.url(),
+        spec,
+        run_config,
+        trigger,
+        started_at,
+        status_requested_at,
+        issue_entry_packets: true,
+        bearer_token: None,
+        client_subject: None,
+        timeout: Duration::from_secs(2),
+    };
+
+    let report = run_interop(config).await.expect("run interop");
+    assert_eq!(report.spec_hash, spec_hash);
+    assert_eq!(report.status, status);
+    assert_eq!(report.transcript.len(), 4);
+    assert!(report.transcript.iter().all(|entry| entry.error.is_none()));
+    assert_eq!(server.requests().await.len(), 4);
+    server.shutdown().await;
 }
 
 #[tokio::test]
@@ -530,8 +698,12 @@ async fn run_interop_rejects_oversized_response_body() {
     let spec = minimal_spec("scenario-1");
     let run_config = minimal_run_config(&spec.scenario_id);
     let trigger = minimal_trigger(&run_config);
-    let oversized = Value::String("x".repeat(MAX_INTEROP_RESPONSE_BYTES));
-    let server = TestMcpServer::start(1, move |request| jsonrpc_response(&request, &oversized));
+    let oversized = Value::String("x".repeat(64));
+    let server = TestMcpServer::start(1, move |request| {
+        let body = jsonrpc_response_with_len(&request, &oversized, MAX_INTEROP_RESPONSE_BYTES + 1);
+        TestResponse::raw(StatusCode::OK, hyper::HeaderMap::new(), body)
+    })
+    .await;
 
     let config = InteropConfig {
         mcp_url: server.url(),
@@ -548,5 +720,134 @@ async fn run_interop_rejects_oversized_response_body() {
 
     let err = run_interop(config).await.expect_err("expected size limit error");
     assert!(err.contains("response body exceeds size limit"), "unexpected error: {err}");
-    assert_eq!(server.requests().len(), 1);
+    assert_eq!(server.requests().await.len(), 1);
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn run_interop_rejects_invalid_jsonrpc_response() {
+    let spec = minimal_spec("scenario-1");
+    let run_config = minimal_run_config(&spec.scenario_id);
+    let trigger = minimal_trigger(&run_config);
+    let server = TestMcpServer::start(1, move |_request| {
+        TestResponse::raw(StatusCode::OK, hyper::HeaderMap::new(), Bytes::from_static(b"{not-json"))
+    })
+    .await;
+
+    let config = InteropConfig {
+        mcp_url: server.url(),
+        spec,
+        run_config,
+        trigger,
+        started_at: Timestamp::Logical(1),
+        status_requested_at: Timestamp::Logical(2),
+        issue_entry_packets: false,
+        bearer_token: None,
+        client_subject: None,
+        timeout: Duration::from_secs(2),
+    };
+
+    let err = run_interop(config).await.expect_err("expected invalid json-rpc error");
+    assert!(err.contains("invalid json-rpc response"), "unexpected error: {err}");
+    assert_eq!(server.requests().await.len(), 1);
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn run_interop_rejects_http_error_status() {
+    let spec = minimal_spec("scenario-1");
+    let run_config = minimal_run_config(&spec.scenario_id);
+    let trigger = minimal_trigger(&run_config);
+    let server = TestMcpServer::start(1, move |_request| {
+        TestResponse::raw(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            hyper::HeaderMap::new(),
+            Bytes::from_static(b"server error"),
+        )
+    })
+    .await;
+
+    let config = InteropConfig {
+        mcp_url: server.url(),
+        spec,
+        run_config,
+        trigger,
+        started_at: Timestamp::Logical(1),
+        status_requested_at: Timestamp::Logical(2),
+        issue_entry_packets: false,
+        bearer_token: None,
+        client_subject: None,
+        timeout: Duration::from_secs(2),
+    };
+
+    let err = run_interop(config).await.expect_err("expected http error");
+    assert!(err.contains("http status 500"), "unexpected error: {err}");
+    assert_eq!(server.requests().await.len(), 1);
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn run_interop_rejects_jsonrpc_error_payload() {
+    let spec = minimal_spec("scenario-1");
+    let run_config = minimal_run_config(&spec.scenario_id);
+    let trigger = minimal_trigger(&run_config);
+    let server = TestMcpServer::start(1, move |request| {
+        TestResponse::json(&jsonrpc_error(&request, -32000, "boom"))
+    })
+    .await;
+
+    let config = InteropConfig {
+        mcp_url: server.url(),
+        spec,
+        run_config,
+        trigger,
+        started_at: Timestamp::Logical(1),
+        status_requested_at: Timestamp::Logical(2),
+        issue_entry_packets: false,
+        bearer_token: None,
+        client_subject: None,
+        timeout: Duration::from_secs(2),
+    };
+
+    let err = run_interop(config).await.expect_err("expected json-rpc error");
+    assert!(err.contains("json-rpc error"), "unexpected error: {err}");
+    assert_eq!(server.requests().await.len(), 1);
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn run_interop_rejects_tool_without_json_content() {
+    let spec = minimal_spec("scenario-1");
+    let run_config = minimal_run_config(&spec.scenario_id);
+    let trigger = minimal_trigger(&run_config);
+    let server = TestMcpServer::start(1, move |request| {
+        let id = request.get("id").cloned().unwrap_or(Value::Null);
+        let response = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {
+                "content": []
+            }
+        });
+        TestResponse::json(&response)
+    })
+    .await;
+
+    let config = InteropConfig {
+        mcp_url: server.url(),
+        spec,
+        run_config,
+        trigger,
+        started_at: Timestamp::Logical(1),
+        status_requested_at: Timestamp::Logical(2),
+        issue_entry_packets: false,
+        bearer_token: None,
+        client_subject: None,
+        timeout: Duration::from_secs(2),
+    };
+
+    let err = run_interop(config).await.expect_err("expected missing json content error");
+    assert!(err.contains("returned no json content"), "unexpected error: {err}");
+    assert_eq!(server.requests().await.len(), 1);
+    server.shutdown().await;
 }

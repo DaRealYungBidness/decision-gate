@@ -7,7 +7,7 @@ Description: Comprehensive reference for namespace policy, namespace authority
 Purpose: Provide an implementation-grade map of namespace enforcement and
          registry RBAC/ACL behavior with security invariants.
 Dependencies:
-  - decision-gate-mcp/src/config.rs
+  - decision-gate-config/src/config.rs
   - decision-gate-mcp/src/tools.rs
   - decision-gate-mcp/src/namespace_authority.rs
   - decision-gate-mcp/src/registry_acl.rs
@@ -68,9 +68,9 @@ system is intentionally conservative:
 - Namespace routing requires explicit validation; unknown namespaces are denied.
 - The reserved default namespace id (1) is **blocked by default** and allowed only
   when both `namespace.allow_default = true` and the caller's tenant appears in
-  `namespace.default_tenants`.[F:decision-gate-mcp/src/config.rs L736-L765][F:decision-gate-mcp/src/tools.rs L1269-L1294]
+  `namespace.default_tenants`.[F:decision-gate-config/src/config.rs L736-L765][F:decision-gate-mcp/src/tools.rs L1269-L1294]
 - Asset Core integration is explicit and bounded to configured endpoints and
-  timeouts; no implicit namespace mapping is allowed.[F:decision-gate-mcp/src/config.rs L829-L900][F:decision-gate-mcp/src/namespace_authority.rs L109-L133]
+  timeouts; no implicit namespace mapping is allowed.[F:decision-gate-config/src/config.rs L829-L900][F:decision-gate-mcp/src/namespace_authority.rs L109-L133]
 - Schema registry access is guarded by a dedicated Registry ACL layer that is
   **independent** of tool allowlists; both must allow the action.[F:decision-gate-mcp/src/registry_acl.rs L137-L186][F:decision-gate-mcp/src/tools.rs L1296-L1322]
 
@@ -124,7 +124,7 @@ behavior is intentionally narrow:
 - The default namespace guard is enforced **before** external authority checks.
 
 Implementation:
-- Config validation enforces the allowlist requirement.[F:decision-gate-mcp/src/config.rs L736-L765]
+- Config validation enforces the allowlist requirement.[F:decision-gate-config/src/config.rs L736-L765]
 - Tool router enforces the guard per request.[F:decision-gate-mcp/src/tools.rs L1269-L1294]
 
 ### Namespace Authority Modes
@@ -132,8 +132,8 @@ Namespace authority determines how DG validates namespace existence:
 
 | Mode | Behavior | Source |
 | --- | --- | --- |
-| `none` | No external authority checks (DG-local namespace policy only) | `NamespaceAuthorityMode::None`[F:decision-gate-mcp/src/config.rs L767-L827] |
-| `assetcore_http` | Validate namespace via Asset Core write daemon HTTP API | `NamespaceAuthorityMode::AssetcoreHttp`[F:decision-gate-mcp/src/config.rs L767-L827][F:decision-gate-mcp/src/namespace_authority.rs L65-L187] |
+| `none` | No external authority checks (DG-local namespace policy only) | `NamespaceAuthorityMode::None`[F:decision-gate-config/src/config.rs L767-L827] |
+| `assetcore_http` | Validate namespace via Asset Core write daemon HTTP API | `NamespaceAuthorityMode::AssetcoreHttp`[F:decision-gate-config/src/config.rs L767-L827][F:decision-gate-mcp/src/namespace_authority.rs L65-L187] |
 
 When `assetcore_http` is enabled, DG validates namespaces by issuing a GET
 request to `/{base_url}/v1/write/namespaces/{resolved_id}`. HTTP 200 = allowed;
@@ -149,15 +149,15 @@ authority to prevent header injection and log spoofing.[F:decision-gate-mcp/src/
 
 **Integration constraint:** dev-permissive mode is **disallowed** when
 `namespace.authority.mode = assetcore_http` to avoid weakening namespace
-security in integrated deployments.[F:decision-gate-mcp/src/config.rs L354-L377]
+security in integrated deployments.[F:decision-gate-config/src/config.rs L354-L377]
 
 ### Asset Core Namespace Rules
 Namespace identifiers are numeric everywhere (>= 1). Asset Core authority
 validation is direct and does not apply any mapping or translation. Any parse
-failure yields a namespace validation error (fail closed).[F:decision-gate-mcp/src/config.rs L829-L900][F:decision-gate-mcp/src/namespace_authority.rs L109-L133]
+failure yields a namespace validation error (fail closed).[F:decision-gate-config/src/config.rs L829-L900][F:decision-gate-mcp/src/namespace_authority.rs L109-L133]
 
 Config validation enforces required Asset Core settings (base URL, timeout
-ranges) when Asset Core authority is enabled.[F:decision-gate-mcp/src/config.rs L829-L886]
+ranges) when Asset Core authority is enabled.[F:decision-gate-config/src/config.rs L829-L886]
 
 ### Failure Posture
 Namespace authority failures are mapped as follows:
@@ -184,7 +184,7 @@ Registry ACL is based on a principal derived from the MCP auth context:
 
 Implementation references:
 - Principal id derivation.[F:decision-gate-mcp/src/auth.rs L106-L141]
-- Principal configuration and validation.[F:decision-gate-mcp/src/config.rs L565-L714]
+- Principal configuration and validation.[F:decision-gate-config/src/config.rs L565-L714]
 - Principal mapping resolver and role scoping logic.[F:decision-gate-mcp/src/registry_acl.rs L41-L333]
 
 ### Builtin ACL Policy
@@ -214,7 +214,7 @@ and returns the first match. A rule matches when all non-empty dimensions match:
 - policy class
 
 If no rules match, the default effect (`allow` or `deny`) is applied.
-[F:decision-gate-mcp/src/registry_acl.rs L250-L311][F:decision-gate-mcp/src/config.rs L1265-L1395]
+[F:decision-gate-mcp/src/registry_acl.rs L250-L311][F:decision-gate-config/src/config.rs L1265-L1395]
 
 ### Signing Requirement
 Registry ACL can require schema signing metadata:
@@ -222,7 +222,7 @@ Registry ACL can require schema signing metadata:
 - `schema_registry.acl.require_signing = true` enforces presence of `signing`
   metadata on schema records.
 - Missing or empty signing metadata is rejected as unauthorized before registry
-  mutation.[F:decision-gate-mcp/src/config.rs L1355-L1394][F:decision-gate-mcp/src/tools.rs L1324-L1336]
+  mutation.[F:decision-gate-config/src/config.rs L1355-L1394][F:decision-gate-mcp/src/tools.rs L1324-L1336]
 
 ---
 
@@ -301,10 +301,10 @@ References:
    [F:decision-gate-mcp/src/namespace_authority.rs L159-L205][F:decision-gate-mcp/src/tools.rs L1495-L1502]
 2. **No implicit default namespace:** `default` requires explicit allowlist and
    tenant match; otherwise denied.
-   [F:decision-gate-mcp/src/config.rs L736-L765][F:decision-gate-mcp/src/tools.rs L1269-L1294]
+   [F:decision-gate-config/src/config.rs L736-L765][F:decision-gate-mcp/src/tools.rs L1269-L1294]
 3. **Asset Core integration is strict:** Mapping mode cannot be `none`, and
    dev-permissive is disallowed when using Asset Core authority.
-   [F:decision-gate-mcp/src/config.rs L354-L377][F:decision-gate-mcp/src/config.rs L829-L900]
+   [F:decision-gate-config/src/config.rs L354-L377][F:decision-gate-config/src/config.rs L829-L900]
 4. **Registry ACL is authoritative:** Tool allowlists do not bypass registry
    ACL; registry access is enforced and audited for every registry action.
    [F:decision-gate-mcp/src/tools.rs L1296-L1366]
@@ -334,7 +334,7 @@ maintained alongside changes to these policies.
 
 | Area | File | Notes |
 | --- | --- | --- |
-| Namespace config + validation | `decision-gate-mcp/src/config.rs` | Namespace policy + Asset Core authority config and validation. |
+| Namespace config + validation | `decision-gate-config/src/config.rs` | Namespace policy + Asset Core authority config and validation. |
 | Default namespace + authority enforcement | `decision-gate-mcp/src/tools.rs` | `ensure_namespace_allowed` and namespace error mapping. |
 | Namespace authority integration | `decision-gate-mcp/src/namespace_authority.rs` | HTTP validation, mapping rules, fail-closed semantics. |
 | Registry ACL engine | `decision-gate-mcp/src/registry_acl.rs` | Principal mapping + builtin/custom ACL evaluation. |

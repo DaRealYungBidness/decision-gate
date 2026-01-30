@@ -11,6 +11,7 @@
 
 use std::fs;
 use std::io;
+use std::num::NonZeroU64;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -92,12 +93,31 @@ use toml::value::Table;
 
 use crate::helpers;
 
-fn json_provider_config(root: &Path, max_bytes: usize) -> TomlValue {
+const fn tenant_id_one() -> TenantId {
+    TenantId::new(NonZeroU64::MIN)
+}
+
+const fn namespace_id_one() -> NamespaceId {
+    NamespaceId::new(NonZeroU64::MIN)
+}
+
+fn i64_from_usize(value: usize, label: &str) -> Result<i64, std::io::Error> {
+    i64::try_from(value).map_err(|_| std::io::Error::other(format!("{label} out of range")))
+}
+
+fn i64_from_u64(value: u64, label: &str) -> Result<i64, std::io::Error> {
+    i64::try_from(value).map_err(|_| std::io::Error::other(format!("{label} out of range")))
+}
+
+fn json_provider_config(root: &Path, max_bytes: usize) -> Result<TomlValue, std::io::Error> {
     let mut table = Table::new();
     table.insert("root".to_string(), TomlValue::String(root.to_string_lossy().to_string()));
-    table.insert("max_bytes".to_string(), TomlValue::Integer(max_bytes as i64));
+    table.insert(
+        "max_bytes".to_string(),
+        TomlValue::Integer(i64_from_usize(max_bytes, "max_bytes")?),
+    );
     table.insert("allow_yaml".to_string(), TomlValue::Boolean(false));
-    TomlValue::Table(table)
+    Ok(TomlValue::Table(table))
 }
 
 fn http_provider_config(
@@ -105,18 +125,24 @@ fn http_provider_config(
     timeout_ms: u64,
     max_response_bytes: usize,
     allowed_hosts: Option<Vec<String>>,
-) -> TomlValue {
+) -> Result<TomlValue, std::io::Error> {
     let mut table = Table::new();
     table.insert("allow_http".to_string(), TomlValue::Boolean(allow_http));
-    table.insert("timeout_ms".to_string(), TomlValue::Integer(timeout_ms as i64));
-    table.insert("max_response_bytes".to_string(), TomlValue::Integer(max_response_bytes as i64));
+    table.insert(
+        "timeout_ms".to_string(),
+        TomlValue::Integer(i64_from_u64(timeout_ms, "timeout_ms")?),
+    );
+    table.insert(
+        "max_response_bytes".to_string(),
+        TomlValue::Integer(i64_from_usize(max_response_bytes, "max_response_bytes")?),
+    );
     if let Some(hosts) = allowed_hosts {
         let list = hosts.into_iter().map(TomlValue::String).collect();
         table.insert("allowed_hosts".to_string(), TomlValue::Array(list));
     }
     table.insert("user_agent".to_string(), TomlValue::String("dg-test".to_string()));
     table.insert("hash_algorithm".to_string(), TomlValue::String("sha256".to_string()));
-    TomlValue::Table(table)
+    Ok(TomlValue::Table(table))
 }
 
 fn env_provider_config(
@@ -125,7 +151,7 @@ fn env_provider_config(
     overrides: Vec<(String, String)>,
     max_value_bytes: usize,
     max_key_bytes: usize,
-) -> TomlValue {
+) -> Result<TomlValue, std::io::Error> {
     let mut table = Table::new();
     if let Some(allowlist) = allowlist {
         let list = allowlist.into_iter().map(TomlValue::String).collect();
@@ -133,14 +159,20 @@ fn env_provider_config(
     }
     let denylist = denylist.into_iter().map(TomlValue::String).collect();
     table.insert("denylist".to_string(), TomlValue::Array(denylist));
-    table.insert("max_value_bytes".to_string(), TomlValue::Integer(max_value_bytes as i64));
-    table.insert("max_key_bytes".to_string(), TomlValue::Integer(max_key_bytes as i64));
+    table.insert(
+        "max_value_bytes".to_string(),
+        TomlValue::Integer(i64_from_usize(max_value_bytes, "max_value_bytes")?),
+    );
+    table.insert(
+        "max_key_bytes".to_string(),
+        TomlValue::Integer(i64_from_usize(max_key_bytes, "max_key_bytes")?),
+    );
     let mut overrides_table = Table::new();
     for (key, value) in overrides {
         overrides_table.insert(key, TomlValue::String(value));
     }
     table.insert("overrides".to_string(), TomlValue::Table(overrides_table));
-    TomlValue::Table(table)
+    Ok(TomlValue::Table(table))
 }
 
 fn time_provider_config(allow_logical: bool) -> TomlValue {
@@ -149,6 +181,7 @@ fn time_provider_config(allow_logical: bool) -> TomlValue {
     TomlValue::Table(table)
 }
 
+#[allow(clippy::missing_const_for_fn, reason = "Mutation helper is runtime-only.")]
 fn enable_raw_evidence(config: &mut DecisionGateConfig) {
     config.evidence.allow_raw_values = true;
     config.evidence.require_provider_opt_in = false;
@@ -214,7 +247,7 @@ async fn spawn_http_test_server() -> Result<HttpTestServerHandle, Box<dyn std::e
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;
-    let base_url = format!("http://{}", addr);
+    let base_url = format!("http://{addr}");
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
     tokio::spawn(async move {
         let server = axum::serve(listener, app).with_graceful_shutdown(async move {
@@ -239,7 +272,10 @@ fn create_symlink(src: &Path, dst: &Path) -> io::Result<()> {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "Struct mirrors JSON-RPC requests for validation; fields unused directly."
+)]
 struct JsonRpcRequest {
     jsonrpc: String,
     id: Value,
@@ -262,7 +298,7 @@ struct JsonRpcError {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
+#[allow(dead_code, reason = "Struct mirrors tool-call payloads for schema coverage in tests.")]
 struct ToolCallParams {
     name: String,
     arguments: Value,
@@ -276,7 +312,7 @@ struct ToolCallResult {
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ToolContent {
-    Json { json: decision_gate_core::EvidenceResult },
+    Json { json: Box<decision_gate_core::EvidenceResult> },
     Text { text: String },
 }
 
@@ -303,7 +339,7 @@ impl Drop for McpProviderHandle {
 async fn spawn_mcp_provider(app: Router) -> Result<McpProviderHandle, Box<dyn std::error::Error>> {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;
-    let base_url = format!("http://{}/rpc", addr);
+    let base_url = format!("http://{addr}/rpc");
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
     tokio::spawn(async move {
         let server = axum::serve(listener, app).with_graceful_shutdown(async move {
@@ -317,7 +353,7 @@ async fn spawn_mcp_provider(app: Router) -> Result<McpProviderHandle, Box<dyn st
     })
 }
 
-fn jsonrpc_success(id: Value, result: Value) -> JsonRpcResponse {
+const fn jsonrpc_success(id: Value, result: Value) -> JsonRpcResponse {
     JsonRpcResponse {
         jsonrpc: "2.0",
         id,
@@ -351,7 +387,7 @@ fn tool_result_for_value(value: Value) -> Value {
     };
     serde_json::to_value(ToolCallResult {
         content: vec![ToolContent::Json {
-            json: result,
+            json: Box::new(result),
         }],
     })
     .unwrap_or(Value::Null)
@@ -382,7 +418,7 @@ async fn provider_time_after() -> Result<(), Box<dyn std::error::Error>> {
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("provider-time", "run-1", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -405,8 +441,8 @@ async fn provider_time_after() -> Result<(), Box<dyn std::error::Error>> {
         scenario_id: define_output.scenario_id.clone(),
         trigger: decision_gate_core::TriggerEvent {
             run_id: fixture.run_id.clone(),
-            tenant_id: fixture.tenant_id.clone(),
-            namespace_id: fixture.namespace_id.clone(),
+            tenant_id: fixture.tenant_id,
+            namespace_id: fixture.namespace_id,
             trigger_id: TriggerId::new("trigger-1"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
@@ -434,6 +470,7 @@ async fn provider_time_after() -> Result<(), Box<dyn std::error::Error>> {
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -467,7 +504,7 @@ async fn json_provider_missing_jsonpath_returns_error_metadata()
     let input = serde_json::to_value(&request)?;
     let response: decision_gate_mcp::tools::EvidenceQueryResponse =
         client.call_tool_typed("evidence_query", input).await?;
-    let error = response.result.error.expect("missing error metadata");
+    let error = response.result.error.ok_or_else(|| io::Error::other("missing error metadata"))?;
     if error.code != "jsonpath_not_found" {
         return Err(format!("expected jsonpath_not_found, got {}", error.code).into());
     }
@@ -491,6 +528,7 @@ async fn json_provider_missing_jsonpath_returns_error_metadata()
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -505,7 +543,7 @@ async fn json_provider_rejects_path_outside_root() -> Result<(), Box<dyn std::er
     let outside_path = outside_dir.path().join("outside.json");
     fs::write(&outside_path, r#"{"ok":true}"#)?;
 
-    let json_config = json_provider_config(root_dir.path(), 1024);
+    let json_config = json_provider_config(root_dir.path(), 1024)?;
     let provider = config
         .providers
         .iter_mut()
@@ -547,6 +585,7 @@ async fn json_provider_rejects_path_outside_root() -> Result<(), Box<dyn std::er
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -560,7 +599,7 @@ async fn json_provider_enforces_size_limit() -> Result<(), Box<dyn std::error::E
     let report_path = root_dir.path().join("report.json");
     fs::write(&report_path, r#"{"payload":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}"#)?;
 
-    let json_config = json_provider_config(root_dir.path(), 8);
+    let json_config = json_provider_config(root_dir.path(), 8)?;
     let provider = config
         .providers
         .iter_mut()
@@ -602,6 +641,7 @@ async fn json_provider_enforces_size_limit() -> Result<(), Box<dyn std::error::E
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -623,12 +663,13 @@ async fn json_provider_rejects_symlink_escape() -> Result<(), Box<dyn std::error
                 vec![format!("symlink creation unavailable: {err}")],
                 vec!["summary.json".to_string(), "summary.md".to_string()],
             )?;
+            drop(reporter);
             return Ok(());
         }
         return Err(err.into());
     }
 
-    let json_config = json_provider_config(root_dir.path(), 1024);
+    let json_config = json_provider_config(root_dir.path(), 1024)?;
     set_provider_config(&mut config, "json", json_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -663,6 +704,7 @@ async fn json_provider_rejects_symlink_escape() -> Result<(), Box<dyn std::error
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -676,7 +718,7 @@ async fn json_provider_invalid_jsonpath_rejected() -> Result<(), Box<dyn std::er
     let report_path = root_dir.path().join("report.json");
     fs::write(&report_path, r#"{"summary":{"ok":true}}"#)?;
 
-    let json_config = json_provider_config(root_dir.path(), 1024);
+    let json_config = json_provider_config(root_dir.path(), 1024)?;
     set_provider_config(&mut config, "json", json_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -713,10 +755,12 @@ async fn json_provider_invalid_jsonpath_rejected() -> Result<(), Box<dyn std::er
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[allow(clippy::too_many_lines, reason = "Full JSON provider flow kept in one block for review.")]
 async fn json_provider_contains_array_succeeds() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("json_provider_contains_array_succeeds")?;
     let bind = allocate_bind_addr()?.to_string();
@@ -734,7 +778,7 @@ async fn json_provider_contains_array_succeeds() -> Result<(), Box<dyn std::erro
     let predicate_key = PredicateKey::new("summary-tags");
     let spec = ScenarioSpec {
         scenario_id: scenario_id.clone(),
-        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        namespace_id: namespace_id_one(),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: stage_id.clone(),
@@ -765,7 +809,7 @@ async fn json_provider_contains_array_succeeds() -> Result<(), Box<dyn std::erro
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(TenantId::from_raw(1).expect("nonzero tenantid")),
+        default_tenant_id: Some(tenant_id_one()),
     };
 
     let define_request = ScenarioDefineRequest {
@@ -778,8 +822,8 @@ async fn json_provider_contains_array_succeeds() -> Result<(), Box<dyn std::erro
     let start_request = ScenarioStartRequest {
         scenario_id: define_output.scenario_id.clone(),
         run_config: RunConfig {
-            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
-            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            tenant_id: tenant_id_one(),
+            namespace_id: namespace_id_one(),
             run_id: RunId::new("run-1"),
             scenario_id: define_output.scenario_id.clone(),
             dispatch_targets: Vec::new(),
@@ -796,8 +840,8 @@ async fn json_provider_contains_array_succeeds() -> Result<(), Box<dyn std::erro
         scenario_id: define_output.scenario_id,
         trigger: decision_gate_core::TriggerEvent {
             run_id: RunId::new("run-1"),
-            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
-            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            tenant_id: tenant_id_one(),
+            namespace_id: namespace_id_one(),
             trigger_id: TriggerId::new("trigger-1"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
@@ -825,6 +869,7 @@ async fn json_provider_contains_array_succeeds() -> Result<(), Box<dyn std::erro
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -865,6 +910,7 @@ async fn http_provider_blocks_http_scheme_by_default() -> Result<(), Box<dyn std
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -875,7 +921,7 @@ async fn http_provider_enforces_allowlist() -> Result<(), Box<dyn std::error::Er
     let mut config = base_http_config(&bind);
     enable_raw_evidence(&mut config);
 
-    let http_config = http_provider_config(true, 5_000, 1024, Some(vec!["127.0.0.1".to_string()]));
+    let http_config = http_provider_config(true, 5_000, 1024, Some(vec!["127.0.0.1".to_string()]))?;
     set_provider_config(&mut config, "http", http_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -908,6 +954,7 @@ async fn http_provider_enforces_allowlist() -> Result<(), Box<dyn std::error::Er
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -918,7 +965,7 @@ async fn http_provider_redirect_not_followed() -> Result<(), Box<dyn std::error:
     let mut config = base_http_config(&bind);
     enable_raw_evidence(&mut config);
 
-    let http_config = http_provider_config(true, 5_000, 1024, None);
+    let http_config = http_provider_config(true, 5_000, 1024, None)?;
     set_provider_config(&mut config, "http", http_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -945,7 +992,7 @@ async fn http_provider_redirect_not_followed() -> Result<(), Box<dyn std::error:
     };
     let status = value.as_u64().ok_or("status value not numeric")?;
     if status != 302 {
-        return Err(format!("expected status 302, got {}", status).into());
+        return Err(format!("expected status 302, got {status}").into());
     }
 
     reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
@@ -958,6 +1005,7 @@ async fn http_provider_redirect_not_followed() -> Result<(), Box<dyn std::error:
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -968,7 +1016,7 @@ async fn http_provider_body_hash_matches() -> Result<(), Box<dyn std::error::Err
     let mut config = base_http_config(&bind);
     enable_raw_evidence(&mut config);
 
-    let http_config = http_provider_config(true, 5_000, 1024, None);
+    let http_config = http_provider_config(true, 5_000, 1024, None)?;
     set_provider_config(&mut config, "http", http_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -1011,6 +1059,7 @@ async fn http_provider_body_hash_matches() -> Result<(), Box<dyn std::error::Err
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -1021,7 +1070,7 @@ async fn http_provider_response_size_limit_enforced() -> Result<(), Box<dyn std:
     let mut config = base_http_config(&bind);
     enable_raw_evidence(&mut config);
 
-    let http_config = http_provider_config(true, 5_000, 8, None);
+    let http_config = http_provider_config(true, 5_000, 8, None)?;
     set_provider_config(&mut config, "http", http_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -1055,6 +1104,7 @@ async fn http_provider_response_size_limit_enforced() -> Result<(), Box<dyn std:
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -1065,7 +1115,7 @@ async fn http_provider_timeout_enforced() -> Result<(), Box<dyn std::error::Erro
     let mut config = base_http_config(&bind);
     enable_raw_evidence(&mut config);
 
-    let http_config = http_provider_config(true, 10, 1024, None);
+    let http_config = http_provider_config(true, 10, 1024, None)?;
     set_provider_config(&mut config, "http", http_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -1099,6 +1149,7 @@ async fn http_provider_timeout_enforced() -> Result<(), Box<dyn std::error::Erro
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -1109,7 +1160,7 @@ async fn http_provider_tls_failure_fails_closed() -> Result<(), Box<dyn std::err
     let mut config = base_http_config(&bind);
     enable_raw_evidence(&mut config);
 
-    let http_config = http_provider_config(true, 5_000, 1024, None);
+    let http_config = http_provider_config(true, 5_000, 1024, None)?;
     set_provider_config(&mut config, "http", http_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -1144,6 +1195,7 @@ async fn http_provider_tls_failure_fails_closed() -> Result<(), Box<dyn std::err
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -1160,7 +1212,7 @@ async fn env_provider_missing_key_returns_empty() -> Result<(), Box<dyn std::err
         vec![("KNOWN".to_string(), "ok".to_string())],
         32,
         32,
-    );
+    )?;
     set_provider_config(&mut config, "env", env_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -1195,6 +1247,7 @@ async fn env_provider_missing_key_returns_empty() -> Result<(), Box<dyn std::err
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -1211,7 +1264,7 @@ async fn env_provider_denylist_blocks() -> Result<(), Box<dyn std::error::Error>
         vec![("BLOCKED".to_string(), "nope".to_string())],
         32,
         32,
-    );
+    )?;
     set_provider_config(&mut config, "env", env_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -1244,6 +1297,7 @@ async fn env_provider_denylist_blocks() -> Result<(), Box<dyn std::error::Error>
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -1260,7 +1314,7 @@ async fn env_provider_allowlist_blocks_unlisted() -> Result<(), Box<dyn std::err
         vec![("ALLOWED".to_string(), "ok".to_string())],
         32,
         32,
-    );
+    )?;
     set_provider_config(&mut config, "env", env_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -1293,6 +1347,7 @@ async fn env_provider_allowlist_blocks_unlisted() -> Result<(), Box<dyn std::err
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -1309,7 +1364,7 @@ async fn env_provider_value_size_limit_enforced() -> Result<(), Box<dyn std::err
         vec![("BIG".to_string(), "0123456789".to_string())],
         4,
         32,
-    );
+    )?;
     set_provider_config(&mut config, "env", env_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -1342,6 +1397,7 @@ async fn env_provider_value_size_limit_enforced() -> Result<(), Box<dyn std::err
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -1352,7 +1408,7 @@ async fn env_provider_key_size_limit_enforced() -> Result<(), Box<dyn std::error
     let mut config = base_http_config(&bind);
     enable_raw_evidence(&mut config);
 
-    let env_config = env_provider_config(None, Vec::new(), Vec::new(), 32, 3);
+    let env_config = env_provider_config(None, Vec::new(), Vec::new(), 32, 3)?;
     set_provider_config(&mut config, "env", env_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -1385,6 +1441,7 @@ async fn env_provider_key_size_limit_enforced() -> Result<(), Box<dyn std::error
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -1428,6 +1485,7 @@ async fn time_provider_rejects_logical_when_disabled() -> Result<(), Box<dyn std
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -1474,6 +1532,7 @@ async fn time_provider_rfc3339_parsing() -> Result<(), Box<dyn std::error::Error
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -1514,6 +1573,7 @@ async fn time_provider_invalid_rfc3339_rejected() -> Result<(), Box<dyn std::err
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -1560,6 +1620,7 @@ async fn mcp_provider_malformed_jsonrpc_response() -> Result<(), Box<dyn std::er
             "echo_provider_contract.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -1617,6 +1678,7 @@ async fn mcp_provider_text_content_rejected() -> Result<(), Box<dyn std::error::
             "echo_provider_contract.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -1672,6 +1734,7 @@ async fn mcp_provider_empty_result_rejected() -> Result<(), Box<dyn std::error::
             "echo_provider_contract.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -1739,6 +1802,7 @@ async fn mcp_provider_flaky_response() -> Result<(), Box<dyn std::error::Error>>
             "echo_provider_contract.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -1796,6 +1860,7 @@ async fn mcp_provider_wrong_namespace_rejected() -> Result<(), Box<dyn std::erro
             "echo_provider_contract.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -1862,6 +1927,7 @@ async fn mcp_provider_missing_signature_rejected() -> Result<(), Box<dyn std::er
             "echo_provider_contract.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -1888,10 +1954,12 @@ async fn mcp_provider_contract_mismatch_rejected() -> Result<(), Box<dyn std::er
         vec![format!("contract mismatch rejected: {err}")],
         vec!["summary.json".to_string(), "summary.md".to_string(), "bad_contract.json".to_string()],
     )?;
+    drop(reporter);
     Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[allow(clippy::too_many_lines, reason = "Interop echo flow stays linear for auditability.")]
 async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("federated_provider_echo")?;
     let provider = spawn_provider_stub(json!(true)).await?;
@@ -1908,7 +1976,7 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
     let predicate_key = PredicateKey::new("echo");
     let spec = ScenarioSpec {
         scenario_id: scenario_id.clone(),
-        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        namespace_id: namespace_id_one(),
         spec_version: SpecVersion::new("1"),
         stages: vec![StageSpec {
             stage_id: stage_id.clone(),
@@ -1936,9 +2004,7 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(
-            decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
-        ),
+        default_tenant_id: Some(tenant_id_one()),
     };
 
     let define_request = ScenarioDefineRequest {
@@ -1951,8 +2017,8 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
     let start_request = ScenarioStartRequest {
         scenario_id: define_output.scenario_id.clone(),
         run_config: decision_gate_core::RunConfig {
-            tenant_id: decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
-            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            tenant_id: tenant_id_one(),
+            namespace_id: namespace_id_one(),
             run_id: decision_gate_core::RunId::new("run-1"),
             scenario_id: define_output.scenario_id.clone(),
             dispatch_targets: Vec::new(),
@@ -1969,8 +2035,8 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
         scenario_id: define_output.scenario_id,
         trigger: decision_gate_core::TriggerEvent {
             run_id: decision_gate_core::RunId::new("run-1"),
-            tenant_id: decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
-            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            tenant_id: tenant_id_one(),
+            namespace_id: namespace_id_one(),
             trigger_id: TriggerId::new("trigger-1"),
             kind: TriggerKind::ExternalEvent,
             time: Timestamp::Logical(2),
@@ -1999,6 +2065,7 @@ async fn federated_provider_echo() -> Result<(), Box<dyn std::error::Error>> {
             "echo_provider_contract.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -2037,7 +2104,7 @@ async fn federated_provider_timeout_enforced() -> Result<(), Box<dyn std::error:
     let input = serde_json::to_value(&request)?;
     let response: decision_gate_mcp::tools::EvidenceQueryResponse =
         client.call_tool_typed("evidence_query", input).await?;
-    let error = response.result.error.expect("missing error metadata");
+    let error = response.result.error.ok_or_else(|| io::Error::other("missing error metadata"))?;
     if !error.message.contains("timed out") {
         return Err(format!("expected timeout error, got: {}", error.message).into());
     }
@@ -2053,6 +2120,7 @@ async fn federated_provider_timeout_enforced() -> Result<(), Box<dyn std::error:
             "echo_provider_contract.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -2146,8 +2214,8 @@ async fn assetcore_interop_fixtures() -> Result<(), Box<dyn std::error::Error>> 
     let status_request = ScenarioStatusRequest {
         scenario_id: define_output.scenario_id,
         request: decision_gate_core::runtime::StatusRequest {
-            tenant_id: run_config.tenant_id.clone(),
-            namespace_id: run_config.namespace_id.clone(),
+            tenant_id: run_config.tenant_id,
+            namespace_id: run_config.namespace_id,
             run_id: run_config.run_id.clone(),
             requested_at: trigger.time,
             correlation_id: trigger.correlation_id.clone(),
@@ -2183,6 +2251,7 @@ async fn assetcore_interop_fixtures() -> Result<(), Box<dyn std::error::Error>> 
             "interop_decision.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 

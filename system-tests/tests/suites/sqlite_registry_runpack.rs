@@ -6,7 +6,7 @@
 // Dependencies: system-tests helpers, decision-gate-mcp
 // ============================================================================
 
-//! SQLite registry + runpack persistence tests for Decision Gate system-tests.
+//! `SQLite` registry + runpack persistence tests for Decision Gate system-tests.
 
 use decision_gate_core::DataShapeId;
 use decision_gate_core::DataShapeRecord;
@@ -30,6 +30,7 @@ use tempfile::TempDir;
 use crate::helpers;
 
 #[tokio::test(flavor = "multi_thread")]
+#[allow(clippy::too_many_lines, reason = "Persistence flow is clearer as a single scenario.")]
 async fn sqlite_registry_and_runpack_persist_across_restart()
 -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("sqlite_registry_and_runpack_persist_across_restart")?;
@@ -57,8 +58,8 @@ async fn sqlite_registry_and_runpack_persist_across_restart()
 
     let fixture = ScenarioFixture::time_after("sqlite-runpack", "run-1", 0);
     let record = DataShapeRecord {
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         schema_id: DataShapeId::new("persisted"),
         version: DataShapeVersion::new("v1"),
         schema: json!({
@@ -102,7 +103,7 @@ async fn sqlite_registry_and_runpack_persist_across_restart()
     }
 
     let mut spec = fixture.spec.clone();
-    spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    spec.default_tenant_id = Some(fixture.tenant_id);
     let define_request = decision_gate_mcp::tools::ScenarioDefineRequest {
         spec: spec.clone(),
     };
@@ -154,8 +155,8 @@ async fn sqlite_registry_and_runpack_persist_across_restart()
         .await?;
 
     let get_request = SchemasGetRequest {
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         schema_id: record.schema_id.clone(),
         version: record.version.clone(),
     };
@@ -168,8 +169,8 @@ async fn sqlite_registry_and_runpack_persist_across_restart()
 
     let runpack_request = RunpackExportRequest {
         scenario_id: spec.scenario_id.clone(),
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         run_id: fixture.run_id.clone(),
         output_dir: Some(reporter.artifacts().runpack_dir().display().to_string()),
         manifest_name: Some("runpack.json".to_string()),
@@ -193,6 +194,7 @@ async fn sqlite_registry_and_runpack_persist_across_restart()
             "runpack/".to_string(),
         ],
     )?;
+    drop(reporter);
     server2.shutdown().await;
     Ok(())
 }

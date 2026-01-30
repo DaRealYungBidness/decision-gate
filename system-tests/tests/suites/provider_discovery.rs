@@ -43,8 +43,16 @@ async fn http_provider_discovery_tools() -> Result<(), Box<dyn std::error::Error
     let contract: ProviderContractGetResponse = client
         .call_tool_typed("provider_contract_get", serde_json::to_value(&contract_request)?)
         .await?;
-    assert_eq!(contract.provider_id, "time");
-    assert_eq!(contract.contract.provider_id, "time");
+    if contract.provider_id != "time" {
+        return Err(format!("expected provider_id time, got {}", contract.provider_id).into());
+    }
+    if contract.contract.provider_id != "time" {
+        return Err(format!(
+            "expected contract provider_id time, got {}",
+            contract.contract.provider_id
+        )
+        .into());
+    }
 
     let schema_request = ProviderSchemaGetRequest {
         provider_id: "time".to_string(),
@@ -53,9 +61,15 @@ async fn http_provider_discovery_tools() -> Result<(), Box<dyn std::error::Error
     let schema: ProviderSchemaGetResponse = client
         .call_tool_typed("provider_schema_get", serde_json::to_value(&schema_request)?)
         .await?;
-    assert_eq!(schema.provider_id, "time");
-    assert_eq!(schema.predicate, "after");
-    assert!(!schema.allowed_comparators.is_empty());
+    if schema.provider_id != "time" {
+        return Err(format!("expected schema provider_id time, got {}", schema.provider_id).into());
+    }
+    if schema.predicate != "after" {
+        return Err(format!("expected predicate after, got {}", schema.predicate).into());
+    }
+    if schema.allowed_comparators.is_empty() {
+        return Err("expected allowed_comparators to be non-empty".into());
+    }
 
     reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
     reporter.finish(
@@ -67,6 +81,7 @@ async fn http_provider_discovery_tools() -> Result<(), Box<dyn std::error::Error
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -116,7 +131,9 @@ type = "builtin"
     let contract_output =
         client.call_tool("provider_contract_get", serde_json::to_value(&contract_request)?).await?;
     let contract: ProviderContractGetResponse = serde_json::from_value(contract_output)?;
-    assert_eq!(contract.provider_id, "time");
+    if contract.provider_id != "time" {
+        return Err(format!("expected provider_id time, got {}", contract.provider_id).into());
+    }
 
     let schema_request = ProviderSchemaGetRequest {
         provider_id: "time".to_string(),
@@ -125,8 +142,12 @@ type = "builtin"
     let schema_output =
         client.call_tool("provider_schema_get", serde_json::to_value(&schema_request)?).await?;
     let schema: ProviderSchemaGetResponse = serde_json::from_value(schema_output)?;
-    assert_eq!(schema.provider_id, "time");
-    assert_eq!(schema.predicate, "after");
+    if schema.provider_id != "time" {
+        return Err(format!("expected schema provider_id time, got {}", schema.provider_id).into());
+    }
+    if schema.predicate != "after" {
+        return Err(format!("expected predicate after, got {}", schema.predicate).into());
+    }
 
     reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
     reporter.finish(
@@ -139,6 +160,7 @@ type = "builtin"
             "mcp.stderr.log".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -187,6 +209,7 @@ async fn provider_discovery_denylist_and_size_limits() -> Result<(), Box<dyn std
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     server.shutdown().await;
     Ok(())
 }

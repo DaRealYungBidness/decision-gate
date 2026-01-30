@@ -47,7 +47,7 @@ async fn idempotent_trigger() -> Result<(), Box<dyn std::error::Error>> {
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("idempotent-scenario", "run-1", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -68,8 +68,8 @@ async fn idempotent_trigger() -> Result<(), Box<dyn std::error::Error>> {
 
     let trigger_event = decision_gate_core::TriggerEvent {
         run_id: fixture.run_id.clone(),
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         trigger_id: TriggerId::new("trigger-1"),
         kind: TriggerKind::ExternalEvent,
         time: Timestamp::Logical(2),
@@ -100,8 +100,8 @@ async fn idempotent_trigger() -> Result<(), Box<dyn std::error::Error>> {
     let runpack_dir = reporter.artifacts().runpack_dir();
     let export_request = RunpackExportRequest {
         scenario_id: define_output.scenario_id,
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         run_id: fixture.run_id.clone(),
         output_dir: Some(runpack_dir.to_string_lossy().to_string()),
         manifest_name: Some("manifest.json".to_string()),
@@ -136,6 +136,7 @@ async fn idempotent_trigger() -> Result<(), Box<dyn std::error::Error>> {
             "runpack/".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -150,7 +151,7 @@ async fn idempotent_submission() -> Result<(), Box<dyn std::error::Error>> {
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let mut fixture = ScenarioFixture::time_after("idempotent-submission", "run-1", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -171,8 +172,8 @@ async fn idempotent_submission() -> Result<(), Box<dyn std::error::Error>> {
 
     let submit = SubmitRequest {
         run_id: fixture.run_id.clone(),
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         submission_id: "submission-1".to_string(),
         payload: PacketPayload::Json {
             value: serde_json::json!({"artifact": "alpha"}),
@@ -201,8 +202,8 @@ async fn idempotent_submission() -> Result<(), Box<dyn std::error::Error>> {
         scenario_id: define_output.scenario_id.clone(),
         request: SubmitRequest {
             run_id: fixture.run_id.clone(),
-            tenant_id: fixture.tenant_id.clone(),
-            namespace_id: fixture.namespace_id.clone(),
+            tenant_id: fixture.tenant_id,
+            namespace_id: fixture.namespace_id,
             submission_id: "submission-1".to_string(),
             payload: PacketPayload::Json {
                 value: serde_json::json!({"artifact": "beta"}),
@@ -224,8 +225,8 @@ async fn idempotent_submission() -> Result<(), Box<dyn std::error::Error>> {
     let runpack_dir = reporter.artifacts().runpack_dir();
     let export_request = RunpackExportRequest {
         scenario_id: define_output.scenario_id,
-        tenant_id: fixture.tenant_id.clone(),
-        namespace_id: fixture.namespace_id.clone(),
+        tenant_id: fixture.tenant_id,
+        namespace_id: fixture.namespace_id,
         run_id: fixture.run_id.clone(),
         output_dir: Some(runpack_dir.to_string_lossy().to_string()),
         manifest_name: Some("manifest.json".to_string()),
@@ -262,6 +263,7 @@ async fn idempotent_submission() -> Result<(), Box<dyn std::error::Error>> {
             "runpack/".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -276,7 +278,7 @@ async fn timeout_policies() -> Result<(), Box<dyn std::error::Error>> {
     wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let mut fail_fixture = ScenarioFixture::timeout_fail("timeout-fail", "run-fail", 5);
-    fail_fixture.spec.default_tenant_id = Some(fail_fixture.tenant_id.clone());
+    fail_fixture.spec.default_tenant_id = Some(fail_fixture.tenant_id);
     let fail_define = ScenarioDefineRequest {
         spec: fail_fixture.spec.clone(),
     };
@@ -298,8 +300,8 @@ async fn timeout_policies() -> Result<(), Box<dyn std::error::Error>> {
         scenario_id: fail_defined.scenario_id.clone(),
         trigger: decision_gate_core::TriggerEvent {
             run_id: fail_fixture.run_id.clone(),
-            tenant_id: fail_fixture.tenant_id.clone(),
-            namespace_id: fail_fixture.namespace_id.clone(),
+            tenant_id: fail_fixture.tenant_id,
+            namespace_id: fail_fixture.namespace_id,
             trigger_id: TriggerId::new("tick-1"),
             kind: TriggerKind::Tick,
             time: Timestamp::Logical(10),
@@ -327,7 +329,7 @@ async fn timeout_policies() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut advance_fixture = ScenarioFixture::timeout_advance("timeout-advance", "run-advance", 5);
-    advance_fixture.spec.default_tenant_id = Some(advance_fixture.tenant_id.clone());
+    advance_fixture.spec.default_tenant_id = Some(advance_fixture.tenant_id);
     let advance_define = ScenarioDefineRequest {
         spec: advance_fixture.spec.clone(),
     };
@@ -349,8 +351,8 @@ async fn timeout_policies() -> Result<(), Box<dyn std::error::Error>> {
         scenario_id: advance_defined.scenario_id.clone(),
         trigger: decision_gate_core::TriggerEvent {
             run_id: advance_fixture.run_id.clone(),
-            tenant_id: advance_fixture.tenant_id.clone(),
-            namespace_id: advance_fixture.namespace_id.clone(),
+            tenant_id: advance_fixture.tenant_id,
+            namespace_id: advance_fixture.namespace_id,
             trigger_id: TriggerId::new("tick-2"),
             kind: TriggerKind::Tick,
             time: Timestamp::Logical(10),
@@ -385,8 +387,8 @@ async fn timeout_policies() -> Result<(), Box<dyn std::error::Error>> {
         scenario_id: advance_defined.scenario_id.clone(),
         request: StatusRequest {
             run_id: advance_fixture.run_id.clone(),
-            tenant_id: advance_fixture.tenant_id.clone(),
-            namespace_id: advance_fixture.namespace_id.clone(),
+            tenant_id: advance_fixture.tenant_id,
+            namespace_id: advance_fixture.namespace_id,
             requested_at: Timestamp::Logical(11),
             correlation_id: None,
         },
@@ -402,7 +404,7 @@ async fn timeout_policies() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut branch_fixture =
         ScenarioFixture::timeout_alternate_branch("timeout-branch", "run-branch", 5);
-    branch_fixture.spec.default_tenant_id = Some(branch_fixture.tenant_id.clone());
+    branch_fixture.spec.default_tenant_id = Some(branch_fixture.tenant_id);
     let branch_define = ScenarioDefineRequest {
         spec: branch_fixture.spec.clone(),
     };
@@ -424,8 +426,8 @@ async fn timeout_policies() -> Result<(), Box<dyn std::error::Error>> {
         scenario_id: branch_defined.scenario_id.clone(),
         trigger: decision_gate_core::TriggerEvent {
             run_id: branch_fixture.run_id.clone(),
-            tenant_id: branch_fixture.tenant_id.clone(),
-            namespace_id: branch_fixture.namespace_id.clone(),
+            tenant_id: branch_fixture.tenant_id,
+            namespace_id: branch_fixture.namespace_id,
             trigger_id: TriggerId::new("tick-3"),
             kind: TriggerKind::Tick,
             time: Timestamp::Logical(10),
@@ -489,6 +491,7 @@ async fn timeout_policies() -> Result<(), Box<dyn std::error::Error>> {
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 

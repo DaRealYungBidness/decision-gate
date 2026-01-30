@@ -9,7 +9,7 @@ Purpose: Provide an architectural file reference and change guide for
 Dependencies:
   - decision-gate-mcp/src/validation.rs
   - decision-gate-mcp/src/tools.rs
-  - decision-gate-mcp/src/config.rs
+  - decision-gate-config/src/config.rs
   - decision-gate-core/src/core/evidence.rs
   - decision-gate-core/src/runtime/comparator.rs
   - decision-gate-contract/src/schemas.rs
@@ -39,7 +39,7 @@ fail-closed behavior.
 | Runtime comparator semantics | `decision-gate-core/src/runtime/comparator.rs` | Decimal-aware ordering, lex/deep behavior, Unknown on mismatch. |
 | Strict validation engine | `decision-gate-mcp/src/validation.rs` | Type-class matrix, schema parsing, domain overrides. |
 | MCP tool integration | `decision-gate-mcp/src/tools.rs` | `scenario_define` + `precheck` invoke strict validation. |
-| Validation config surface | `decision-gate-mcp/src/config.rs` | `ValidationConfig` toggles and profile identifiers. |
+| Validation config surface | `decision-gate-config/src/config.rs` | `ValidationConfig` toggles and profile identifiers. |
 | Contract schemas | `decision-gate-contract/src/schemas.rs` | Comparator schema and annotations. |
 | Tooltips/docs | `decision-gate-contract/src/tooltips.rs` | Public-facing comparator and validation behavior. |
 | Generated docs | `Docs/generated/decision-gate/` | Regenerated after schema/tooltip updates. |
@@ -73,7 +73,7 @@ fail-closed behavior.
 - Lexicographic ordering comparators are opt-in (config flag + schema override).
 - Deep equality comparators are opt-in (config flag + schema override).
 - Implemented in `decision-gate-mcp/src/validation.rs` and controlled by
-  `decision-gate-mcp/src/config.rs`.
+  `decision-gate-config/src/config.rs`.
 
 ### Domain overrides
 - `x-decision-gate.allowed_comparators` restricts allowed comparators to a
@@ -101,7 +101,7 @@ fail-closed behavior.
 - Strict validation is default-on. Disabling strict requires
   `validation.allow_permissive = true`.
 - Optional comparator families are gated by config toggles.
-- Implementation: `decision-gate-mcp/src/config.rs` (`ValidationConfig`).
+- Implementation: `decision-gate-config/src/config.rs` (`ValidationConfig`).
 
 ## Contract + Docs Alignment
 
@@ -116,7 +116,7 @@ fail-closed behavior.
 
 1) Update comparator semantics in `decision-gate-core/src/runtime/comparator.rs`.
 2) Update strict validation logic in `decision-gate-mcp/src/validation.rs`.
-3) Update config toggles in `decision-gate-mcp/src/config.rs` if needed.
+3) Update config toggles in `decision-gate-config/src/config.rs` if needed.
 4) Align schemas/tooltips in `decision-gate-contract/src/schemas.rs` and
    `decision-gate-contract/src/tooltips.rs`.
 5) Regenerate `Docs/generated/decision-gate/` artifacts.

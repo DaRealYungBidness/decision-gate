@@ -69,6 +69,10 @@ impl Drop for NamespaceAuthorityStubHandle {
 }
 
 /// Spawns a namespace authority stub with a set of allowed namespace IDs.
+#[allow(
+    clippy::unused_async,
+    reason = "Async signature keeps helper API uniform across async tests."
+)]
 pub async fn spawn_namespace_authority_stub(
     allowed: Vec<u64>,
 ) -> Result<NamespaceAuthorityStubHandle, String> {
@@ -80,7 +84,7 @@ pub async fn spawn_namespace_authority_stub(
     let addr = listener
         .local_addr()
         .map_err(|err| format!("namespace authority local addr failed: {err}"))?;
-    let base_url = format!("http://{}", addr);
+    let base_url = format!("http://{addr}");
 
     let allowed: BTreeSet<u64> = allowed.into_iter().collect();
     let requests = Arc::new(Mutex::new(Vec::new()));
@@ -92,13 +96,21 @@ pub async fn spawn_namespace_authority_stub(
         Router::new().route("/v1/write/namespaces/:id", get(handle_namespace)).with_state(state);
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
     let join = thread::spawn(move || {
-        let runtime = Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("namespace authority stub runtime");
+        let runtime = match Builder::new_current_thread().enable_all().build() {
+            Ok(runtime) => runtime,
+            Err(error) => {
+                let _ = error;
+                return;
+            }
+        };
         runtime.block_on(async move {
-            let listener = tokio::net::TcpListener::from_std(listener)
-                .expect("namespace authority listener from_std");
+            let listener = match tokio::net::TcpListener::from_std(listener) {
+                Ok(listener) => listener,
+                Err(error) => {
+                    let _ = error;
+                    return;
+                }
+            };
             let server = axum::serve(listener, app).with_graceful_shutdown(async move {
                 let _ = shutdown_rx.await;
             });

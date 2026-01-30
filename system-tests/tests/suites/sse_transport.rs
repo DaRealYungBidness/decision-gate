@@ -40,6 +40,7 @@ struct JsonRpcError {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[allow(clippy::too_many_lines, reason = "End-to-end SSE flow is best reviewed in one block.")]
 async fn sse_transport_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("sse_transport_end_to_end")?;
     let bind = allocate_bind_addr()?.to_string();
@@ -76,7 +77,7 @@ async fn sse_transport_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
     assert_correlation_headers(&tools_headers, Some("corr-1"))?;
 
     let mut fixture = ScenarioFixture::time_after("sse-interop", "run-1", 0);
-    fixture.spec.default_tenant_id = Some(fixture.tenant_id.clone());
+    fixture.spec.default_tenant_id = Some(fixture.tenant_id);
 
     let define_request = ScenarioDefineRequest {
         spec: fixture.spec.clone(),
@@ -118,8 +119,8 @@ async fn sse_transport_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
     let status_request = ScenarioStatusRequest {
         scenario_id: fixture.spec.scenario_id.clone(),
         request: decision_gate_core::runtime::StatusRequest {
-            tenant_id: fixture.tenant_id.clone(),
-            namespace_id: fixture.namespace_id.clone(),
+            tenant_id: fixture.tenant_id,
+            namespace_id: fixture.namespace_id,
             run_id: fixture.run_id.clone(),
             requested_at: Timestamp::Logical(3),
             correlation_id: None,
@@ -158,6 +159,7 @@ async fn sse_transport_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
         ],
     )?;
     server.shutdown().await;
+    drop(reporter);
     Ok(())
 }
 
@@ -202,6 +204,7 @@ async fn sse_transport_bearer_rejects_missing_token() -> Result<(), Box<dyn std:
         ],
     )?;
     server.shutdown().await;
+    drop(reporter);
     Ok(())
 }
 

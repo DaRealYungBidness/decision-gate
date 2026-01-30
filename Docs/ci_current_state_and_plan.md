@@ -58,7 +58,7 @@ entrypoints as the source of truth. Suggested split:
 - Add an actual CI config (GitHub Actions, GitLab CI, or similar) that invokes the steps above.
 - Add a matrix for Linux + Windows where deterministic output matters.
 - Add a scheduled job for P1/P2 system tests and adapter checks.
-- Explore generating `Docs/configuration/decision-gate.toml.md` from the config schema or
-  code source of truth to avoid hand-maintained configuration docs drifting.
+- Config docs are now generated from the canonical config crate via the contract CLI,
+  and drift is enforced in generation checks.
 - Decide whether and where fuzzing adds real value (avoid test theater). This needs active evaluation
   of the codebase to identify high-leverage fuzz targets before committing to long-running fuzz jobs.

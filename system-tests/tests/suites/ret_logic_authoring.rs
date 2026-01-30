@@ -10,6 +10,7 @@
 
 use std::collections::HashMap;
 use std::fs;
+use std::num::NonZeroU64;
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
@@ -29,11 +30,23 @@ use toml::Value as TomlValue;
 
 use crate::helpers;
 
+const fn tenant_id_one() -> decision_gate_core::TenantId {
+    decision_gate_core::TenantId::new(NonZeroU64::MIN)
+}
+
+const fn namespace_id_one() -> decision_gate_core::NamespaceId {
+    decision_gate_core::NamespaceId::new(NonZeroU64::MIN)
+}
+
 fn cli_binary() -> Option<PathBuf> {
     option_env!("CARGO_BIN_EXE_decision_gate").map(PathBuf::from)
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "Authoring normalize workflow is best audited as a single flow."
+)]
 async fn authoring_ron_normalize_and_execute() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("authoring_ron_normalize_and_execute")?;
     let Some(cli) = cli_binary() else {
@@ -42,6 +55,7 @@ async fn authoring_ron_normalize_and_execute() -> Result<(), Box<dyn std::error:
             vec!["decision-gate CLI binary unavailable".to_string()],
             vec!["summary.json".to_string(), "summary.md".to_string()],
         )?;
+        drop(reporter);
         return Ok(());
     };
     let temp_dir = TempDir::new()?;
@@ -98,7 +112,7 @@ async fn authoring_ron_normalize_and_execute() -> Result<(), Box<dyn std::error:
         .await?;
 
     let run_config = decision_gate_core::RunConfig {
-        tenant_id: decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
+        tenant_id: tenant_id_one(),
         namespace_id: spec.namespace_id,
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: spec.scenario_id.clone(),
@@ -108,7 +122,7 @@ async fn authoring_ron_normalize_and_execute() -> Result<(), Box<dyn std::error:
     let start_request = decision_gate_mcp::tools::ScenarioStartRequest {
         scenario_id: spec.scenario_id.clone(),
         run_config: run_config.clone(),
-        started_at: Timestamp::UnixMillis(1710000000001),
+        started_at: Timestamp::UnixMillis(1_710_000_000_001),
         issue_entry_packets: true,
     };
     client
@@ -126,7 +140,7 @@ async fn authoring_ron_normalize_and_execute() -> Result<(), Box<dyn std::error:
             namespace_id: run_config.namespace_id,
             trigger_id: decision_gate_core::TriggerId::new("trigger-1"),
             kind: decision_gate_core::TriggerKind::ExternalEvent,
-            time: Timestamp::UnixMillis(1710000000001),
+            time: Timestamp::UnixMillis(1_710_000_000_001),
             source_id: "authoring".to_string(),
             payload: None,
             correlation_id: None,
@@ -154,6 +168,7 @@ async fn authoring_ron_normalize_and_execute() -> Result<(), Box<dyn std::error:
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     server.shutdown().await;
     Ok(())
 }
@@ -167,6 +182,7 @@ async fn authoring_invalid_ron_rejected() -> Result<(), Box<dyn std::error::Erro
             vec!["decision-gate CLI binary unavailable".to_string()],
             vec!["summary.json".to_string(), "summary.md".to_string()],
         )?;
+        drop(reporter);
         return Ok(());
     };
     let temp_dir = TempDir::new()?;
@@ -205,6 +221,7 @@ async fn authoring_invalid_ron_rejected() -> Result<(), Box<dyn std::error::Erro
             "authoring.invalid.stderr.log".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -219,6 +236,7 @@ impl ret_logic::dsl::PredicateResolver<PredicateKey> for PredicateResolver {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[allow(clippy::too_many_lines, reason = "DSL evaluation flow kept in one block for auditability.")]
 async fn authoring_dsl_evaluates_and_rejects_deep_inputs() -> Result<(), Box<dyn std::error::Error>>
 {
     let mut reporter = TestReporter::new("authoring_dsl_evaluates_and_rejects_deep_inputs")?;
@@ -231,11 +249,11 @@ async fn authoring_dsl_evaluates_and_rejects_deep_inputs() -> Result<(), Box<dyn
         .map_err(|err| err.to_string())?;
 
     let scenario_id = decision_gate_core::ScenarioId::new("dsl-scenario");
-    let namespace_id = decision_gate_core::NamespaceId::from_raw(1).expect("nonzero namespaceid");
+    let namespace_id = namespace_id_one();
     let stage_id = decision_gate_core::StageId::new("stage-1");
     let spec = decision_gate_core::ScenarioSpec {
         scenario_id: scenario_id.clone(),
-        namespace_id: namespace_id.clone(),
+        namespace_id,
         spec_version: decision_gate_core::SpecVersion::new("1"),
         stages: vec![decision_gate_core::StageSpec {
             stage_id,
@@ -263,9 +281,7 @@ async fn authoring_dsl_evaluates_and_rejects_deep_inputs() -> Result<(), Box<dyn
         }],
         policies: Vec::new(),
         schemas: Vec::new(),
-        default_tenant_id: Some(
-            decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
-        ),
+        default_tenant_id: Some(tenant_id_one()),
     };
 
     let bind = allocate_bind_addr()?.to_string();
@@ -284,7 +300,7 @@ async fn authoring_dsl_evaluates_and_rejects_deep_inputs() -> Result<(), Box<dyn
         )
         .await?;
     let run_config = decision_gate_core::RunConfig {
-        tenant_id: decision_gate_core::TenantId::from_raw(1).expect("nonzero tenantid"),
+        tenant_id: tenant_id_one(),
         namespace_id,
         run_id: decision_gate_core::RunId::new("run-1"),
         scenario_id: scenario_id.clone(),
@@ -339,6 +355,7 @@ async fn authoring_dsl_evaluates_and_rejects_deep_inputs() -> Result<(), Box<dyn
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     server.shutdown().await;
     Ok(())
 }

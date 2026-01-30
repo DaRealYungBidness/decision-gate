@@ -9,6 +9,7 @@
 //! Registry ACL system tests.
 
 
+use std::num::NonZeroU64;
 use std::time::Duration;
 
 use decision_gate_core::DataShapeId;
@@ -42,6 +43,14 @@ use tempfile::TempDir;
 
 use crate::helpers;
 
+const fn tenant_id_one() -> TenantId {
+    TenantId::new(NonZeroU64::MIN)
+}
+
+const fn namespace_id_one() -> NamespaceId {
+    NamespaceId::new(NonZeroU64::MIN)
+}
+
 #[tokio::test(flavor = "multi_thread")]
 #[allow(clippy::too_many_lines, reason = "ACL matrix coverage is a full end-to-end check.")]
 async fn registry_acl_builtin_matrix() -> Result<(), Box<dyn std::error::Error>> {
@@ -49,8 +58,8 @@ async fn registry_acl_builtin_matrix() -> Result<(), Box<dyn std::error::Error>>
     let bind = allocate_bind_addr()?.to_string();
     let mut config = base_http_config(&bind);
 
-    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
-    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+    let tenant_id = tenant_id_one();
+    let namespace_id = namespace_id_one();
 
     let mut cases = vec![
         RoleCase::new("tenant_admin", vec!["TenantAdmin"], "prod", true, true),
@@ -75,8 +84,8 @@ async fn registry_acl_builtin_matrix() -> Result<(), Box<dyn std::error::Error>>
                 .iter()
                 .map(|name| PrincipalRoleConfig {
                     name: name.to_string(),
-                    tenant_id: Some(tenant_id.clone()),
-                    namespace_id: Some(namespace_id.clone()),
+                    tenant_id: Some(tenant_id),
+                    namespace_id: Some(namespace_id),
                 })
                 .collect(),
         });
@@ -102,7 +111,7 @@ async fn registry_acl_builtin_matrix() -> Result<(), Box<dyn std::error::Error>>
     let admin = server.client(Duration::from_secs(5))?.with_bearer_token(admin_case.token.clone());
     wait_for_server_ready(&admin, Duration::from_secs(5)).await?;
 
-    let base_record = build_schema_record(&tenant_id, &namespace_id, "base", "v1", None);
+    let base_record = build_schema_record(tenant_id, namespace_id, "base", "v1", None);
     let register_request = SchemasRegisterRequest {
         record: base_record.clone(),
     };
@@ -118,11 +127,11 @@ async fn registry_acl_builtin_matrix() -> Result<(), Box<dyn std::error::Error>>
     for case in &cases {
         let client = server.client(Duration::from_secs(5))?.with_bearer_token(case.token.clone());
 
-        assert_registry_list(&client, &tenant_id, &namespace_id, case.expect_read).await?;
+        assert_registry_list(&client, tenant_id, namespace_id, case.expect_read).await?;
         assert_registry_get(
             &client,
-            &tenant_id,
-            &namespace_id,
+            tenant_id,
+            namespace_id,
             &base_record.schema_id,
             &base_record.version,
             case.expect_read,
@@ -130,8 +139,8 @@ async fn registry_acl_builtin_matrix() -> Result<(), Box<dyn std::error::Error>>
         .await?;
 
         let record = build_schema_record(
-            &tenant_id,
-            &namespace_id,
+            tenant_id,
+            namespace_id,
             &format!("schema-{}", case.label),
             "v1",
             None,
@@ -142,17 +151,17 @@ async fn registry_acl_builtin_matrix() -> Result<(), Box<dyn std::error::Error>>
     }
 
     let unmapped = server.client(Duration::from_secs(5))?.with_bearer_token(unmapped_token);
-    assert_registry_list(&unmapped, &tenant_id, &namespace_id, false).await?;
+    assert_registry_list(&unmapped, tenant_id, namespace_id, false).await?;
     assert_registry_get(
         &unmapped,
-        &tenant_id,
-        &namespace_id,
+        tenant_id,
+        namespace_id,
         &base_record.schema_id,
         &base_record.version,
         false,
     )
     .await?;
-    let record = build_schema_record(&tenant_id, &namespace_id, "schema-unmapped", "v1", None);
+    let record = build_schema_record(tenant_id, namespace_id, "schema-unmapped", "v1", None);
     assert_registry_register(&unmapped, record, false).await?;
     transcripts.extend(unmapped.transcript());
 
@@ -166,6 +175,7 @@ async fn registry_acl_builtin_matrix() -> Result<(), Box<dyn std::error::Error>>
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -173,9 +183,9 @@ async fn registry_acl_builtin_matrix() -> Result<(), Box<dyn std::error::Error>>
 #[allow(clippy::too_many_lines, reason = "Multiple auth transports are validated in one pass.")]
 async fn registry_acl_principal_subject_mapping() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("registry_acl_principal_subject_mapping")?;
-    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
-    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
-    let record = build_schema_record(&tenant_id, &namespace_id, "subject-map", "v1", None);
+    let tenant_id = tenant_id_one();
+    let namespace_id = namespace_id_one();
+    let record = build_schema_record(tenant_id, namespace_id, "subject-map", "v1", None);
     let mut transcripts = Vec::new();
 
     // Stdio allowed subject.
@@ -249,8 +259,8 @@ async fn registry_acl_principal_subject_mapping() -> Result<(), Box<dyn std::err
                 "loopback",
                 "prod",
                 &["TenantAdmin"],
-                &tenant_id,
-                &namespace_id,
+                tenant_id,
+                namespace_id,
             )],
         });
         let server = spawn_mcp_server(config).await?;
@@ -273,13 +283,7 @@ async fn registry_acl_principal_subject_mapping() -> Result<(), Box<dyn std::err
             bearer_tokens: Vec::new(),
             mtls_subjects: Vec::new(),
             allowed_tools: Vec::new(),
-            principals: vec![principal(
-                "stdio",
-                "prod",
-                &["TenantAdmin"],
-                &tenant_id,
-                &namespace_id,
-            )],
+            principals: vec![principal("stdio", "prod", &["TenantAdmin"], tenant_id, namespace_id)],
         });
         let server = spawn_mcp_server(config).await?;
         let client = server.client(Duration::from_secs(5))?;
@@ -313,8 +317,8 @@ async fn registry_acl_principal_subject_mapping() -> Result<(), Box<dyn std::err
                 &token_subject(&allowed_token),
                 "prod",
                 &["TenantAdmin"],
-                &tenant_id,
-                &namespace_id,
+                tenant_id,
+                namespace_id,
             )],
         });
         let server = spawn_mcp_server(config).await?;
@@ -352,8 +356,8 @@ async fn registry_acl_principal_subject_mapping() -> Result<(), Box<dyn std::err
                 "CN=allowed",
                 "prod",
                 &["TenantAdmin"],
-                &tenant_id,
-                &namespace_id,
+                tenant_id,
+                namespace_id,
             )],
         });
         let server = spawn_mcp_server(config).await?;
@@ -391,6 +395,7 @@ async fn registry_acl_principal_subject_mapping() -> Result<(), Box<dyn std::err
             "stdio-denied.stderr.log".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -399,8 +404,8 @@ async fn registry_acl_principal_subject_mapping() -> Result<(), Box<dyn std::err
 async fn registry_acl_signing_required_memory_and_sqlite() -> Result<(), Box<dyn std::error::Error>>
 {
     let mut reporter = TestReporter::new("registry_acl_signing_required_memory_and_sqlite")?;
-    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
-    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+    let tenant_id = tenant_id_one();
+    let namespace_id = namespace_id_one();
 
     let mut transcripts = Vec::new();
 
@@ -423,13 +428,8 @@ async fn registry_acl_signing_required_memory_and_sqlite() -> Result<(), Box<dyn
         let client = server.client(Duration::from_secs(5))?;
         wait_for_server_ready(&client, Duration::from_secs(5)).await?;
 
-        let unsigned = build_schema_record(
-            &tenant_id,
-            &namespace_id,
-            &format!("unsigned-{label}"),
-            "v1",
-            None,
-        );
+        let unsigned =
+            build_schema_record(tenant_id, namespace_id, &format!("unsigned-{label}"), "v1", None);
         let request = SchemasRegisterRequest {
             record: unsigned,
         };
@@ -442,13 +442,13 @@ async fn registry_acl_signing_required_memory_and_sqlite() -> Result<(), Box<dyn
         }
 
         let invalid_signing = DataShapeSignature {
-            key_id: "".to_string(),
-            signature: "".to_string(),
+            key_id: String::new(),
+            signature: String::new(),
             algorithm: Some("ed25519".to_string()),
         };
         let invalid = build_schema_record(
-            &tenant_id,
-            &namespace_id,
+            tenant_id,
+            namespace_id,
             &format!("invalid-{label}"),
             "v1",
             Some(invalid_signing),
@@ -470,8 +470,8 @@ async fn registry_acl_signing_required_memory_and_sqlite() -> Result<(), Box<dyn
             algorithm: Some("ed25519".to_string()),
         };
         let signed = build_schema_record(
-            &tenant_id,
-            &namespace_id,
+            tenant_id,
+            namespace_id,
             &format!("signed-{label}"),
             "v1",
             Some(signing.clone()),
@@ -482,8 +482,8 @@ async fn registry_acl_signing_required_memory_and_sqlite() -> Result<(), Box<dyn
         client.call_tool("schemas_register", serde_json::to_value(&request)?).await?;
 
         let list_request = SchemasListRequest {
-            tenant_id: tenant_id.clone(),
-            namespace_id: namespace_id.clone(),
+            tenant_id,
+            namespace_id,
             cursor: None,
             limit: None,
         };
@@ -499,8 +499,8 @@ async fn registry_acl_signing_required_memory_and_sqlite() -> Result<(), Box<dyn
         }
 
         let get_request = SchemasGetRequest {
-            tenant_id: tenant_id.clone(),
-            namespace_id: namespace_id.clone(),
+            tenant_id,
+            namespace_id,
             schema_id: signed.schema_id.clone(),
             version: signed.version.clone(),
         };
@@ -524,6 +524,7 @@ async fn registry_acl_signing_required_memory_and_sqlite() -> Result<(), Box<dyn
             "tool_transcript.json".to_string(),
         ],
     )?;
+    drop(reporter);
     Ok(())
 }
 
@@ -537,7 +538,7 @@ struct RoleCase {
 }
 
 impl RoleCase {
-    fn new(
+    const fn new(
         label: &'static str,
         roles: Vec<&'static str>,
         policy_class: &'static str,
@@ -564,8 +565,8 @@ fn principal(
     subject: &str,
     policy_class: &str,
     roles: &[&str],
-    tenant_id: &TenantId,
-    namespace_id: &NamespaceId,
+    tenant_id: TenantId,
+    namespace_id: NamespaceId,
 ) -> PrincipalConfig {
     PrincipalConfig {
         subject: subject.to_string(),
@@ -574,23 +575,23 @@ fn principal(
             .iter()
             .map(|name| PrincipalRoleConfig {
                 name: (*name).to_string(),
-                tenant_id: Some(tenant_id.clone()),
-                namespace_id: Some(namespace_id.clone()),
+                tenant_id: Some(tenant_id),
+                namespace_id: Some(namespace_id),
             })
             .collect(),
     }
 }
 
 fn build_schema_record(
-    tenant_id: &TenantId,
-    namespace_id: &NamespaceId,
+    tenant_id: TenantId,
+    namespace_id: NamespaceId,
     schema_id: &str,
     version: &str,
     signing: Option<DataShapeSignature>,
 ) -> DataShapeRecord {
     DataShapeRecord {
-        tenant_id: tenant_id.clone(),
-        namespace_id: namespace_id.clone(),
+        tenant_id,
+        namespace_id,
         schema_id: DataShapeId::new(schema_id),
         version: DataShapeVersion::new(version),
         schema: json!({
@@ -608,13 +609,13 @@ fn build_schema_record(
 
 async fn assert_registry_list(
     client: &McpHttpClient,
-    tenant_id: &TenantId,
-    namespace_id: &NamespaceId,
+    tenant_id: TenantId,
+    namespace_id: NamespaceId,
     should_allow: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let request = SchemasListRequest {
-        tenant_id: tenant_id.clone(),
-        namespace_id: namespace_id.clone(),
+        tenant_id,
+        namespace_id,
         cursor: None,
         limit: None,
     };
@@ -622,7 +623,7 @@ async fn assert_registry_list(
         .call_tool_typed::<SchemasListResponse>("schemas_list", serde_json::to_value(&request)?)
         .await;
     if should_allow {
-        result.map(|_| ()).map_err(|err| err.into())
+        result.map(|_| ()).map_err(Into::into)
     } else {
         let err = result.err().ok_or("expected registry list denial")?;
         if !err.contains("unauthorized") {
@@ -634,15 +635,15 @@ async fn assert_registry_list(
 
 async fn assert_registry_get(
     client: &McpHttpClient,
-    tenant_id: &TenantId,
-    namespace_id: &NamespaceId,
+    tenant_id: TenantId,
+    namespace_id: NamespaceId,
     schema_id: &DataShapeId,
     version: &DataShapeVersion,
     should_allow: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let request = SchemasGetRequest {
-        tenant_id: tenant_id.clone(),
-        namespace_id: namespace_id.clone(),
+        tenant_id,
+        namespace_id,
         schema_id: schema_id.clone(),
         version: version.clone(),
     };
@@ -650,7 +651,7 @@ async fn assert_registry_get(
         .call_tool_typed::<SchemasGetResponse>("schemas_get", serde_json::to_value(&request)?)
         .await;
     if should_allow {
-        result.map(|_| ()).map_err(|err| err.into())
+        result.map(|_| ()).map_err(Into::into)
     } else {
         let err = result.err().ok_or("expected registry get denial")?;
         if !err.contains("unauthorized") {
@@ -672,7 +673,7 @@ async fn assert_registry_register(
         .call_tool_typed::<serde_json::Value>("schemas_register", serde_json::to_value(&request)?)
         .await;
     if should_allow {
-        result.map(|_| ()).map_err(|err| err.into())
+        result.map(|_| ()).map_err(Into::into)
     } else {
         let err = result.err().ok_or("expected registry register denial")?;
         if !err.contains("unauthorized") {

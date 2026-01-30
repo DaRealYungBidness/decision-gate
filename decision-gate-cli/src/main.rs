@@ -487,7 +487,11 @@ async fn command_serve(command: ServeCommand) -> CliResult<ExitCode> {
         warn_network_exposure(&bind_outcome)?;
     }
 
-    let server = McpServer::from_config(config)
+    let server = tokio::task::spawn_blocking(move || McpServer::from_config(config))
+        .await
+        .map_err(|err| {
+            CliError::new(t!("serve.init_failed", error = format!("init join failed: {err}")))
+        })?
         .map_err(|err| CliError::new(t!("serve.init_failed", error = err)))?;
     server.serve().await.map_err(|err: decision_gate_mcp::server::McpServerError| {
         CliError::new(t!("serve.failed", error = err))
