@@ -12,15 +12,15 @@ edition = "2024"
 rust-version = "1.92"
 
 [dependencies]
-decision-gate-core = { path = "../decision-gate-core" }
-decision-gate-store-sqlite = { path = "../decision-gate-store-sqlite" }
+decision-gate-core = { path = "../decision-gate-core", version = "0.1.0" }
+decision-gate-store-sqlite = { path = "../decision-gate-store-sqlite", version = "0.1.0" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-thiserror = "1.0"
-toml = "0.8"
+thiserror = "2.0"
+toml = "0.9"
 
 [dev-dependencies]
-jsonschema = { version = "0.18", features = ["draft202012"] }
+jsonschema = "0.40"
 serde_json = "1.0"
 tempfile = "3.10"
 

@@ -20,7 +20,6 @@ use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::convert::Infallible;
-use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::io::Read;
@@ -58,11 +57,8 @@ use decision_gate_store_sqlite::SqliteStoreConfig;
 use rustls::RootCertStore;
 use rustls::pki_types::CertificateDer;
 use rustls::pki_types::PrivateKeyDer;
-use rustls::pki_types::PrivatePkcs1KeyDer;
-use rustls::pki_types::PrivatePkcs8KeyDer;
-use rustls::pki_types::PrivateSec1KeyDer;
 use rustls::server::WebPkiClientVerifier;
-use rustls_pemfile::Item;
+use rustls_pki_types::pem::PemObject;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
@@ -565,42 +561,34 @@ fn build_tls_config(
 
 /// Loads a PEM-encoded certificate chain from disk.
 fn load_certificates(path: &str) -> Result<Vec<CertificateDer<'static>>, McpServerError> {
-    let file = File::open(path)
-        .map_err(|err| McpServerError::Config(format!("tls cert open failed: {err}")))?;
-    let mut reader = BufReader::new(file);
-    let certs = rustls_pemfile::certs(&mut reader)
+    let iter = CertificateDer::pem_file_iter(path)
         .map_err(|err| McpServerError::Config(format!("tls cert read failed: {err}")))?;
+    let certs = iter
+        .map(|item| {
+            item.map_err(|err| McpServerError::Config(format!("tls cert read failed: {err}")))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     if certs.is_empty() {
         return Err(McpServerError::Config("tls cert file contains no certificates".to_string()));
     }
-    Ok(certs.into_iter().map(CertificateDer::from).collect())
+    Ok(certs)
 }
 
 /// Loads a PEM-encoded private key from disk.
 fn load_private_key(path: &str) -> Result<PrivateKeyDer<'static>, McpServerError> {
-    let file = File::open(path)
-        .map_err(|err| McpServerError::Config(format!("tls key open failed: {err}")))?;
-    let mut reader = BufReader::new(file);
-    let items = rustls_pemfile::read_all(&mut reader)
-        .map_err(|err| McpServerError::Config(format!("tls key read failed: {err}")))?;
-    for item in items {
-        match item {
-            Item::PKCS8Key(key) => return Ok(PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(key))),
-            Item::RSAKey(key) => return Ok(PrivateKeyDer::Pkcs1(PrivatePkcs1KeyDer::from(key))),
-            Item::ECKey(key) => return Ok(PrivateKeyDer::Sec1(PrivateSec1KeyDer::from(key))),
-            _ => {}
-        }
-    }
-    Err(McpServerError::Config("tls key file contains no private key".to_string()))
+    PrivateKeyDer::from_pem_file(path)
+        .map_err(|err| McpServerError::Config(format!("tls key read failed: {err}")))
 }
 
 /// Loads a PEM-encoded CA bundle into a root store.
 fn load_root_store(path: &str) -> Result<RootCertStore, McpServerError> {
-    let file = File::open(path)
-        .map_err(|err| McpServerError::Config(format!("tls ca open failed: {err}")))?;
-    let mut reader = BufReader::new(file);
-    let certs = rustls_pemfile::certs(&mut reader)
+    let iter = CertificateDer::pem_file_iter(path)
         .map_err(|err| McpServerError::Config(format!("tls ca read failed: {err}")))?;
+    let certs = iter
+        .map(|item| {
+            item.map_err(|err| McpServerError::Config(format!("tls ca read failed: {err}")))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     if certs.is_empty() {
         return Err(McpServerError::Config(
             "tls client ca file contains no certificates".to_string(),
@@ -608,9 +596,7 @@ fn load_root_store(path: &str) -> Result<RootCertStore, McpServerError> {
     }
     let mut store = RootCertStore::empty();
     for cert in certs {
-        store
-            .add(CertificateDer::from(cert))
-            .map_err(|err| McpServerError::Config(format!("tls ca invalid: {err}")))?;
+        store.add(cert).map_err(|err| McpServerError::Config(format!("tls ca invalid: {err}")))?;
     }
     Ok(store)
 }

@@ -11,7 +11,7 @@ Decision Gate is intentionally built as a closed-form system with strict
 determinism, security boundaries, and a small core. As a solo maintainer, I
 cannot reliably validate intent or architecture alignment in unsolicited PRs.
 I also want to keep the system aligned with its mathematical shape
-(ret-logic -> DG core -> security model), which requires end-to-end reasoning.
+(i.e. ret-logic -> DG core -> security model), which requires end-to-end reasoning.
 
 If you see a problem, please open an issue instead. That helps me triage and
 address it without compromising correctness or auditability.

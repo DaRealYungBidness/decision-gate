@@ -12,16 +12,16 @@ edition = "2024"
 rust-version = "1.92"
 
 [dependencies]
-decision-gate-core = { path = "../decision-gate-core" }
+decision-gate-core = { path = "../decision-gate-core", version = "0.1.0" }
 jsonpath_lib = "0.3"
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls", "webpki-roots"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
-time = { version = "0.3", features = ["formatting", "parsing"] }
+time = { version = "0.3.46", features = ["formatting", "parsing"] }
 
 [dev-dependencies]
-ret-logic = { path = "../ret-logic" }
+ret-logic = { path = "../ret-logic", version = "0.1.0" }
 tempfile = "3.10"
 tiny_http = "0.12"
 

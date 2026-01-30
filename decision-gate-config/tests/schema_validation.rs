@@ -7,11 +7,19 @@
 // =============================================================================
 
 use decision_gate_config::config_schema;
-use jsonschema::JSONSchema;
+use jsonschema::Draft;
+use jsonschema::Validator;
 use serde_json::Value;
 use serde_json::json;
 
 type TestResult = Result<(), String>;
+
+fn compile_schema(schema: &Value) -> Result<Validator, String> {
+    jsonschema::options()
+        .with_draft(Draft::Draft202012)
+        .build(schema)
+        .map_err(|err| format!("failed to compile schema: {err}"))
+}
 
 /// Helper to get schema property by pointer
 fn schema_property<'a>(schema: &'a Value, pointer: &str) -> Result<&'a Value, String> {
@@ -114,7 +122,7 @@ fn schema_max_items_matches_max_auth_tokens() -> TestResult {
     )?;
     let max_items = bearer_tokens_schema
         .get("maxItems")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .ok_or("bearer_tokens missing maxItems")?;
 
     if max_items != 64 {
@@ -128,7 +136,7 @@ fn schema_max_items_matches_max_auth_tokens() -> TestResult {
     )?;
     let max_items = mtls_subjects_schema
         .get("maxItems")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .ok_or("mtls_subjects missing maxItems")?;
 
     if max_items != 64 {
@@ -148,7 +156,7 @@ fn schema_max_items_matches_max_auth_tool_rules() -> TestResult {
     )?;
     let max_items = allowed_tools_schema
         .get("maxItems")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .ok_or("allowed_tools missing maxItems")?;
 
     if max_items != 128 {
@@ -168,7 +176,7 @@ fn schema_max_length_matches_max_auth_token_length() -> TestResult {
     )?;
     let max_length = bearer_token_items_schema
         .get("maxLength")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .ok_or("bearer_token items missing maxLength")?;
 
     if max_length != 256 {
@@ -188,7 +196,7 @@ fn schema_max_length_matches_max_auth_subject_length() -> TestResult {
     )?;
     let max_length = mtls_subject_items_schema
         .get("maxLength")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .ok_or("mtls_subject items missing maxLength")?;
 
     if max_length != 512 {
@@ -209,11 +217,11 @@ fn schema_timeout_minimum_maximum_correct() -> TestResult {
     )?;
     let minimum = connect_timeout_schema
         .get("minimum")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .ok_or("connect_timeout_ms missing minimum")?;
     let maximum = connect_timeout_schema
         .get("maximum")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .ok_or("connect_timeout_ms missing maximum")?;
 
     if minimum != 100 {
@@ -230,11 +238,11 @@ fn schema_timeout_minimum_maximum_correct() -> TestResult {
     )?;
     let minimum = request_timeout_schema
         .get("minimum")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .ok_or("request_timeout_ms missing minimum")?;
     let maximum = request_timeout_schema
         .get("maximum")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .ok_or("request_timeout_ms missing maximum")?;
 
     if minimum != 500 {
@@ -258,11 +266,11 @@ fn schema_rate_limit_constraints_correct() -> TestResult {
     )?;
     let minimum = window_ms_schema
         .get("minimum")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .ok_or("window_ms missing minimum")?;
     let maximum = window_ms_schema
         .get("maximum")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .ok_or("window_ms missing maximum")?;
 
     if minimum != 100 {
@@ -280,11 +288,11 @@ fn schema_rate_limit_constraints_correct() -> TestResult {
     )?;
     let minimum = max_requests_schema
         .get("minimum")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .ok_or("max_requests missing minimum")?;
     let maximum = max_requests_schema
         .get("maximum")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .ok_or("max_requests missing maximum")?;
 
     if minimum != 1 {
@@ -391,7 +399,7 @@ fn schema_all_objects_have_additional_properties_false() -> TestResult {
     // Check top-level schema
     let additional_properties = schema
         .get("additionalProperties")
-        .and_then(|v| v.as_bool())
+        .and_then(serde_json::Value::as_bool)
         .ok_or("top-level schema missing additionalProperties")?;
 
     if additional_properties {
@@ -402,7 +410,7 @@ fn schema_all_objects_have_additional_properties_false() -> TestResult {
     let server_schema = schema_property(&schema, "/properties/server")?;
     let additional_properties = server_schema
         .get("additionalProperties")
-        .and_then(|v| v.as_bool())
+        .and_then(serde_json::Value::as_bool)
         .ok_or("server schema missing additionalProperties")?;
 
     if additional_properties {
@@ -415,8 +423,7 @@ fn schema_all_objects_have_additional_properties_false() -> TestResult {
 #[test]
 fn schema_rejects_unknown_top_level_field() -> TestResult {
     let schema = config_schema();
-    let json_schema =
-        JSONSchema::compile(&schema).map_err(|err| format!("failed to compile schema: {err}"))?;
+    let json_schema = compile_schema(&schema)?;
 
     let invalid_config = json!({
         "server": {},
@@ -532,8 +539,7 @@ fn schema_generation_is_deterministic() -> TestResult {
 #[test]
 fn schema_rejects_config_with_wrong_type() -> TestResult {
     let schema = config_schema();
-    let json_schema =
-        JSONSchema::compile(&schema).map_err(|err| format!("failed to compile schema: {err}"))?;
+    let json_schema = compile_schema(&schema)?;
 
     let invalid_config = json!({
         "server": {
@@ -551,8 +557,7 @@ fn schema_rejects_config_with_wrong_type() -> TestResult {
 #[test]
 fn schema_rejects_config_violating_min_items() -> TestResult {
     let schema = config_schema();
-    let json_schema =
-        JSONSchema::compile(&schema).map_err(|err| format!("failed to compile schema: {err}"))?;
+    let json_schema = compile_schema(&schema)?;
 
     let invalid_config = json!({
         "server": {
@@ -573,8 +578,7 @@ fn schema_rejects_config_violating_min_items() -> TestResult {
 #[test]
 fn schema_rejects_config_violating_max_items() -> TestResult {
     let schema = config_schema();
-    let json_schema =
-        JSONSchema::compile(&schema).map_err(|err| format!("failed to compile schema: {err}"))?;
+    let json_schema = compile_schema(&schema)?;
 
     let too_many_tokens: Vec<String> = (0 .. 65).map(|i| format!("token{i}")).collect();
     let invalid_config = json!({

@@ -5,7 +5,7 @@
 // Purpose: Reduce duplication across integration tests for decision-gate-config.
 // =============================================================================
 
-#![allow(dead_code)]
+#![allow(dead_code, reason = "Test helpers are selectively used across suites.")]
 
 use decision_gate_config::DecisionGateConfig;
 use decision_gate_config::RateLimitConfig;

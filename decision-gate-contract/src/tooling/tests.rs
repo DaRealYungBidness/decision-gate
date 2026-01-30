@@ -30,17 +30,10 @@
 // SECTION: Imports
 // ============================================================================
 
-use std::collections::BTreeMap;
-use std::io;
-use std::sync::Arc;
-
-use jsonschema::CompilationOptions;
 use jsonschema::Draft;
-use jsonschema::JSONSchema;
-use jsonschema::SchemaResolver;
-use jsonschema::SchemaResolverError;
+use jsonschema::Registry;
+use jsonschema::Validator;
 use serde_json::Value;
-use url::Url;
 
 use super::tool_contracts;
 use super::tool_examples;
@@ -50,39 +43,12 @@ use crate::schemas;
 // SECTION: Fixtures
 // ============================================================================
 
-#[derive(Clone)]
-struct ContractSchemaResolver {
-    registry: Arc<BTreeMap<String, Value>>,
-}
-
-impl ContractSchemaResolver {
-    fn new(registry: BTreeMap<String, Value>) -> Self {
-        Self {
-            registry: Arc::new(registry),
-        }
-    }
-}
-
-impl SchemaResolver for ContractSchemaResolver {
-    fn resolve(
-        &self,
-        _root_schema: &Value,
-        url: &Url,
-        _original_reference: &str,
-    ) -> Result<Arc<Value>, SchemaResolverError> {
-        let key = url.as_str();
-        self.registry.get(key).map_or_else(
-            || Err(io::Error::new(io::ErrorKind::NotFound, key.to_string()).into()),
-            |schema| Ok(Arc::new(schema.clone())),
-        )
-    }
-}
-
-fn compile_schema(schema: &Value, resolver: &ContractSchemaResolver) -> JSONSchema {
-    let mut options = CompilationOptions::default();
-    options.with_draft(Draft::Draft202012);
-    options.with_resolver(resolver.clone());
-    options.compile(schema).expect("schema compilation failed")
+fn compile_schema(schema: &Value, registry: &Registry) -> Validator {
+    jsonschema::options()
+        .with_draft(Draft::Draft202012)
+        .with_registry(registry.clone())
+        .build(schema)
+        .expect("schema compilation failed")
 }
 
 // ============================================================================
@@ -92,22 +58,28 @@ fn compile_schema(schema: &Value, resolver: &ContractSchemaResolver) -> JSONSche
 #[test]
 fn tool_examples_match_tool_schemas() {
     let scenario_schema = schemas::scenario_schema();
-    let mut registry = BTreeMap::new();
     let id =
         scenario_schema.get("$id").and_then(Value::as_str).expect("scenario schema missing $id");
-    registry.insert(id.to_string(), scenario_schema);
-    let resolver = ContractSchemaResolver::new(registry);
+    let registry =
+        Registry::try_new(id, Draft::Draft202012.create_resource(scenario_schema.clone()))
+            .expect("schema registry build failed");
 
     for contract in tool_contracts() {
-        let input_schema = compile_schema(&contract.input_schema, &resolver);
-        let output_schema = compile_schema(&contract.output_schema, &resolver);
+        let input_schema = compile_schema(&contract.input_schema, &registry);
+        let output_schema = compile_schema(&contract.output_schema, &registry);
         let examples = tool_examples(contract.name);
         assert!(!examples.is_empty(), "tool examples missing for {}", contract.name);
         for example in examples {
-            let result = input_schema.validate(&example.input);
-            assert!(result.is_ok(), "input example failed for {}", contract.name);
-            let result = output_schema.validate(&example.output);
-            assert!(result.is_ok(), "output example failed for {}", contract.name);
+            assert!(
+                input_schema.is_valid(&example.input),
+                "input example failed for {}",
+                contract.name
+            );
+            assert!(
+                output_schema.is_valid(&example.output),
+                "output example failed for {}",
+                contract.name
+            );
         }
     }
 }

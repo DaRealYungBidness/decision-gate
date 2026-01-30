@@ -29,9 +29,8 @@ use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
 use decision_gate_core::hashing::HashDigest;
 use decision_gate_core::hashing::HashError;
 use decision_gate_core::hashing::hash_canonical_json_with_limit;
-use jsonschema::CompilationOptions;
 use jsonschema::Draft;
-use jsonschema::JSONSchema;
+use jsonschema::Validator;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
@@ -253,9 +252,9 @@ struct PredicateCapabilities {
     /// Predicate contract metadata.
     contract: PredicateContract,
     /// Compiled schema for predicate parameters.
-    params_schema: JSONSchema,
+    params_schema: Validator,
     /// Compiled schema for predicate results.
-    result_schema: JSONSchema,
+    result_schema: Validator,
 }
 
 /// Provider contract source origin.
@@ -654,13 +653,13 @@ fn compile_schema(
     provider: &ProviderContract,
     predicate: &PredicateContract,
     schema: &Value,
-) -> Result<JSONSchema, CapabilityError> {
-    let mut options = CompilationOptions::default();
-    options.with_draft(Draft::Draft202012);
-    options.compile(schema).map_err(|err| CapabilityError::SchemaCompile {
-        provider_id: provider.provider_id.clone(),
-        predicate: predicate.name.clone(),
-        error: err.to_string(),
+) -> Result<Validator, CapabilityError> {
+    jsonschema::options().with_draft(Draft::Draft202012).build(schema).map_err(|err| {
+        CapabilityError::SchemaCompile {
+            provider_id: provider.provider_id.clone(),
+            predicate: predicate.name.clone(),
+            error: err.to_string(),
+        }
     })
 }
 
@@ -674,7 +673,7 @@ fn validate_params(
     predicate: &str,
     params: Option<&Value>,
     params_required: bool,
-    schema: &JSONSchema,
+    schema: &Validator,
 ) -> Result<(), CapabilityError> {
     if params_required && params.is_none() {
         return Err(CapabilityError::ParamsMissing {
@@ -699,15 +698,14 @@ fn validate_schema_value(
     provider_id: &str,
     predicate: &str,
     value: &Value,
-    schema: &JSONSchema,
+    schema: &Validator,
 ) -> Result<(), String> {
-    match schema.validate(value) {
-        Ok(()) => Ok(()),
-        Err(errors) => {
-            let messages: Vec<String> = errors.map(|err| err.to_string()).collect();
-            let summary = messages.join("; ");
-            Err(format!("{provider_id}.{predicate}: {summary}"))
-        }
+    let messages: Vec<String> = schema.iter_errors(value).map(|err| err.to_string()).collect();
+    if messages.is_empty() {
+        Ok(())
+    } else {
+        let summary = messages.join("; ");
+        Err(format!("{provider_id}.{predicate}: {summary}"))
     }
 }
 
@@ -717,7 +715,7 @@ fn validate_expected_value(
     predicate: &str,
     comparator: Comparator,
     expected: Option<&Value>,
-    schema: &JSONSchema,
+    schema: &Validator,
 ) -> Result<(), CapabilityError> {
     match comparator {
         Comparator::Exists | Comparator::NotExists => {

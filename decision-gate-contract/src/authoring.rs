@@ -23,9 +23,8 @@ use std::path::Path;
 use decision_gate_core::ScenarioSpec;
 use decision_gate_core::hashing::HashDigest;
 use decision_gate_core::hashing::canonical_json_bytes;
-use jsonschema::CompilationOptions;
 use jsonschema::Draft;
-use jsonschema::JSONSchema;
+use jsonschema::Validator;
 use serde_json::Value;
 use thiserror::Error;
 
@@ -243,22 +242,21 @@ fn parse_value(input: &str, format: AuthoringFormat) -> Result<Value, AuthoringE
 fn validate_scenario_schema(instance: &Value) -> Result<(), AuthoringError> {
     let schema = schemas::scenario_schema();
     let compiled = compile_schema(&schema)?;
-    match compiled.validate(instance) {
-        Ok(()) => Ok(()),
-        Err(errors) => {
-            let messages: Vec<String> = errors.map(|err| err.to_string()).collect();
-            Err(AuthoringError::Schema {
-                error: messages.join("; "),
-            })
-        }
+    let messages: Vec<String> = compiled.iter_errors(instance).map(|err| err.to_string()).collect();
+    if messages.is_empty() {
+        Ok(())
+    } else {
+        Err(AuthoringError::Schema {
+            error: messages.join("; "),
+        })
     }
 }
 
 /// Compile the `ScenarioSpec` JSON schema for validation.
-fn compile_schema(schema: &Value) -> Result<JSONSchema, AuthoringError> {
-    let mut options = CompilationOptions::default();
-    options.with_draft(Draft::Draft202012);
-    options.compile(schema).map_err(|err| AuthoringError::Schema {
-        error: err.to_string(),
+fn compile_schema(schema: &Value) -> Result<Validator, AuthoringError> {
+    jsonschema::options().with_draft(Draft::Draft202012).build(schema).map_err(|err| {
+        AuthoringError::Schema {
+            error: err.to_string(),
+        }
     })
 }

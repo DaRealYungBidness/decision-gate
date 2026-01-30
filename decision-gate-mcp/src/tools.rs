@@ -95,8 +95,8 @@ use decision_gate_core::runtime::SubmitResult;
 use decision_gate_core::runtime::TriggerResult;
 use decision_gate_core::runtime::VerificationReport;
 use decision_gate_core::runtime::VerificationStatus;
-use jsonschema::CompilationOptions;
 use jsonschema::Draft;
+use jsonschema::Validator;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
@@ -2726,24 +2726,24 @@ fn normalize_limit(limit: Option<usize>) -> Result<usize, ToolError> {
 }
 
 /// Compiles a JSON schema and maps errors to tool input failures.
-fn compile_json_schema(schema: &Value) -> Result<jsonschema::JSONSchema, ToolError> {
-    let mut options = CompilationOptions::default();
-    options.with_draft(Draft::Draft202012);
-    options
-        .compile(schema)
+fn compile_json_schema(schema: &Value) -> Result<Validator, ToolError> {
+    jsonschema::options()
+        .with_draft(Draft::Draft202012)
+        .build(schema)
         .map_err(|err| ToolError::InvalidParams(format!("invalid schema: {err}")))
 }
 
 /// Validates a JSON payload against a compiled schema.
-fn validate_payload(schema: &jsonschema::JSONSchema, payload: &Value) -> Result<(), ToolError> {
-    if let Err(errors) = schema.validate(payload) {
-        let messages = errors.map(|error| error.to_string()).collect::<Vec<_>>();
-        return Err(ToolError::InvalidParams(format!(
+fn validate_payload(schema: &Validator, payload: &Value) -> Result<(), ToolError> {
+    let messages = schema.iter_errors(payload).map(|error| error.to_string()).collect::<Vec<_>>();
+    if messages.is_empty() {
+        Ok(())
+    } else {
+        Err(ToolError::InvalidParams(format!(
             "payload does not match schema: {}",
             messages.join("; ")
-        )));
+        )))
     }
-    Ok(())
 }
 
 /// Builds asserted evidence results from a request payload.

@@ -89,7 +89,7 @@ fn bearer_tokens_at_max_auth_tokens_64() -> TestResult {
 
 #[test]
 fn bearer_tokens_exceeds_max_auth_tokens_65() -> TestResult {
-    let tokens: Vec<String> = (0 .. MAX_AUTH_TOKENS + 1).map(|i| format!("token{i}")).collect();
+    let tokens: Vec<String> = (0..=MAX_AUTH_TOKENS).map(|i| format!("token{i}")).collect();
     let auth = ServerAuthConfig {
         mode: ServerAuthMode::BearerToken,
         bearer_tokens: tokens,
@@ -120,7 +120,7 @@ fn mtls_subjects_at_max_auth_tokens_64() -> TestResult {
 #[test]
 fn mtls_subjects_exceeds_max_auth_tokens_65() -> TestResult {
     let subjects: Vec<String> =
-        (0 .. MAX_AUTH_TOKENS + 1).map(|i| format!("CN=subject{i}")).collect();
+        (0..=MAX_AUTH_TOKENS).map(|i| format!("CN=subject{i}")).collect();
     let auth = ServerAuthConfig {
         mode: ServerAuthMode::Mtls,
         bearer_tokens: Vec::new(),
@@ -158,7 +158,7 @@ fn allowed_tools_at_max_auth_tool_rules_128() -> TestResult {
 #[test]
 fn allowed_tools_exceeds_max_auth_tool_rules_129() -> TestResult {
     let mut tools = Vec::new();
-    for i in 0 .. MAX_AUTH_TOOL_RULES + 1 {
+    for i in 0..=MAX_AUTH_TOOL_RULES {
         if i % 2 == 0 {
             tools.push("precheck".to_string());
         } else {
@@ -200,7 +200,7 @@ fn principals_at_max_auth_tokens_64() -> TestResult {
 
 #[test]
 fn principals_exceeds_max_auth_tokens_65() -> TestResult {
-    let principals: Vec<PrincipalConfig> = (0 .. MAX_AUTH_TOKENS + 1)
+    let principals: Vec<PrincipalConfig> = (0..=MAX_AUTH_TOKENS)
         .map(|i| PrincipalConfig {
             subject: format!("user{i}@example.com"),
             policy_class: None,
@@ -247,7 +247,7 @@ fn principal_roles_at_max_principal_roles_128() -> TestResult {
 
 #[test]
 fn principal_roles_exceeds_max_principal_roles_129() -> TestResult {
-    let roles: Vec<PrincipalRoleConfig> = (0 .. MAX_PRINCIPAL_ROLES + 1)
+    let roles: Vec<PrincipalRoleConfig> = (0..=MAX_PRINCIPAL_ROLES)
         .map(|i| PrincipalRoleConfig {
             name: format!("role{i}"),
             tenant_id: None,
@@ -298,7 +298,7 @@ fn registry_acl_rules_at_max_registry_acl_rules_256() -> TestResult {
 
 #[test]
 fn registry_acl_rules_exceeds_max_registry_acl_rules_257() -> TestResult {
-    let rules: Vec<RegistryAclRule> = (0 .. MAX_REGISTRY_ACL_RULES + 1)
+    let rules: Vec<RegistryAclRule> = (0..=MAX_REGISTRY_ACL_RULES)
         .map(|_| RegistryAclRule {
             effect: RegistryAclEffect::Allow,
             actions: Vec::new(),

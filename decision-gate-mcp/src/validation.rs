@@ -17,9 +17,8 @@ use std::collections::BTreeSet;
 use decision_gate_core::Comparator;
 use decision_gate_core::PredicateSpec;
 use decision_gate_core::ScenarioSpec;
-use jsonschema::CompilationOptions;
 use jsonschema::Draft;
-use jsonschema::JSONSchema;
+use jsonschema::Validator;
 use serde_json::Value;
 use thiserror::Error;
 
@@ -588,7 +587,7 @@ fn validate_allowed_override(
 /// Validates predicate expected values against the compiled schema.
 fn validate_expected_value(
     predicate: &PredicateSpec,
-    schema: &JSONSchema,
+    schema: &Validator,
 ) -> Result<(), ValidationError> {
     match predicate.comparator {
         Comparator::Exists | Comparator::NotExists => {
@@ -617,8 +616,9 @@ fn validate_expected_value(
                 )));
             };
             for value in values {
-                if let Err(errors) = schema.validate(value) {
-                    let messages: Vec<String> = errors.map(|err| err.to_string()).collect();
+                let messages: Vec<String> =
+                    schema.iter_errors(value).map(|err| err.to_string()).collect();
+                if !messages.is_empty() {
                     return Err(ValidationError::Invalid(format!(
                         "predicate {} expected value invalid: {}",
                         predicate.predicate.as_str(),
@@ -658,8 +658,9 @@ fn validate_expected_value(
                     comparator_label(predicate.comparator)
                 )));
             }
-            if let Err(errors) = schema.validate(expected) {
-                let messages: Vec<String> = errors.map(|err| err.to_string()).collect();
+            let messages: Vec<String> =
+                schema.iter_errors(expected).map(|err| err.to_string()).collect();
+            if !messages.is_empty() {
                 return Err(ValidationError::Invalid(format!(
                     "predicate {} expected value invalid: {}",
                     predicate.predicate.as_str(),
@@ -818,11 +819,10 @@ fn schema_is_object(schema: &Value) -> bool {
 }
 
 /// Compiles a JSON schema for validation.
-fn compile_schema(schema: &Value) -> Result<JSONSchema, ValidationError> {
-    let mut options = CompilationOptions::default();
-    options.with_draft(Draft::Draft202012);
-    options
-        .compile(schema)
+fn compile_schema(schema: &Value) -> Result<Validator, ValidationError> {
+    jsonschema::options()
+        .with_draft(Draft::Draft202012)
+        .build(schema)
         .map_err(|err| ValidationError::Invalid(format!("invalid schema: {err}")))
 }
 

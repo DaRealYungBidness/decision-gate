@@ -112,7 +112,7 @@ fn namespace_allow_default_with_default_tenants() -> TestResult {
     let mut config = common::minimal_config().map_err(|err| err.to_string())?;
     config.namespace = NamespaceConfig {
         allow_default: true,
-        default_tenants: vec![TenantId::new(NonZeroU64::new(1).unwrap())],
+        default_tenants: vec![TenantId::new(NonZeroU64::MIN)],
         authority: NamespaceAuthorityConfig {
             mode: NamespaceAuthorityMode::None,
             assetcore: None,

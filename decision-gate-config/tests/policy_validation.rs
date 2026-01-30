@@ -48,7 +48,7 @@ fn assert_invalid(result: Result<(), String>, needle: &str) -> TestResult {
     }
 }
 
-/// Creates a test PacketEnvelope with specified visibility policy.
+/// Creates a test `PacketEnvelope` with specified visibility policy.
 fn test_envelope(labels: Vec<String>, policy_tags: Vec<String>) -> PacketEnvelope {
     PacketEnvelope {
         scenario_id: ScenarioId::new("scenario-1"),
@@ -65,7 +65,7 @@ fn test_envelope(labels: Vec<String>, policy_tags: Vec<String>) -> PacketEnvelop
     }
 }
 
-/// Creates a test PacketPayload (JSON variant).
+/// Creates a test `PacketPayload` (JSON variant).
 fn test_payload() -> PacketPayload {
     PacketPayload::Json {
         value: json!({"test": "data"}),
@@ -74,8 +74,8 @@ fn test_payload() -> PacketPayload {
 
 fn assert_rule_matches(
     mut rule: PolicyRule,
-    target: DispatchTarget,
-    envelope: PacketEnvelope,
+    target: &DispatchTarget,
+    envelope: &PacketEnvelope,
 ) -> TestResult {
     rule.effect = PolicyEffect::Permit;
     let policy = DispatchPolicy::Static(StaticPolicyConfig {
@@ -83,7 +83,7 @@ fn assert_rule_matches(
         rules: vec![rule],
     });
     let payload = test_payload();
-    match policy.authorize(&target, &envelope, &payload) {
+    match policy.authorize(target, envelope, &payload) {
         Ok(PolicyDecision::Permit) => Ok(()),
         Ok(PolicyDecision::Deny) => Err("expected rule to match (Permit)".to_string()),
         Err(err) => Err(format!("unexpected error: {err}")),
@@ -92,8 +92,8 @@ fn assert_rule_matches(
 
 fn assert_rule_not_match(
     mut rule: PolicyRule,
-    target: DispatchTarget,
-    envelope: PacketEnvelope,
+    target: &DispatchTarget,
+    envelope: &PacketEnvelope,
 ) -> TestResult {
     rule.effect = PolicyEffect::Deny;
     let policy = DispatchPolicy::Static(StaticPolicyConfig {
@@ -101,7 +101,7 @@ fn assert_rule_not_match(
         rules: vec![rule],
     });
     let payload = test_payload();
-    match policy.authorize(&target, &envelope, &payload) {
+    match policy.authorize(target, envelope, &payload) {
         Ok(PolicyDecision::Permit) => Ok(()),
         Ok(PolicyDecision::Deny) => Err("expected rule to not match (Permit)".to_string()),
         Err(err) => Err(format!("unexpected error: {err}")),
@@ -118,7 +118,7 @@ fn static_policy_default_permit_empty_rules() -> TestResult {
         default: PolicyEffect::Permit,
         rules: Vec::new(),
     };
-    policy.validate().map_err(|err| err.to_string())?;
+    policy.validate()?;
     Ok(())
 }
 
@@ -128,7 +128,7 @@ fn static_policy_default_deny_empty_rules() -> TestResult {
         default: PolicyEffect::Deny,
         rules: Vec::new(),
     };
-    policy.validate().map_err(|err| err.to_string())?;
+    policy.validate()?;
     Ok(())
 }
 
@@ -162,7 +162,7 @@ fn static_policy_with_valid_rules() -> TestResult {
             scenario_ids: Vec::new(),
         }],
     };
-    policy.validate().map_err(|err| err.to_string())?;
+    policy.validate()?;
     Ok(())
 }
 
@@ -290,7 +290,7 @@ fn policy_rule_error_effect_with_message_accepted() -> TestResult {
         default: PolicyEffect::Deny,
         rules: vec![rule],
     };
-    policy.validate().map_err(|err| err.to_string())?;
+    policy.validate()?;
     Ok(())
 }
 
@@ -315,7 +315,7 @@ fn policy_rule_permit_with_message_accepted() -> TestResult {
         default: PolicyEffect::Deny,
         rules: vec![rule],
     };
-    policy.validate().map_err(|err| err.to_string())?;
+    policy.validate()?;
     Ok(())
 }
 
@@ -340,7 +340,7 @@ fn policy_rule_with_target_kinds_only() -> TestResult {
         default: PolicyEffect::Deny,
         rules: vec![rule],
     };
-    policy.validate().map_err(|err| err.to_string())?;
+    policy.validate()?;
     Ok(())
 }
 
@@ -365,7 +365,7 @@ fn policy_rule_with_require_labels_only() -> TestResult {
         default: PolicyEffect::Deny,
         rules: vec![rule],
     };
-    policy.validate().map_err(|err| err.to_string())?;
+    policy.validate()?;
     Ok(())
 }
 
@@ -390,7 +390,7 @@ fn policy_rule_with_content_types_only() -> TestResult {
         default: PolicyEffect::Deny,
         rules: vec![rule],
     };
-    policy.validate().map_err(|err| err.to_string())?;
+    policy.validate()?;
     Ok(())
 }
 
@@ -484,7 +484,7 @@ fn target_selector_external_with_system_only() -> TestResult {
             scenario_ids: Vec::new(),
         }],
     };
-    policy.validate().map_err(|err| err.to_string())?;
+    policy.validate()?;
     Ok(())
 }
 
@@ -514,7 +514,7 @@ fn target_selector_external_with_target_only() -> TestResult {
             scenario_ids: Vec::new(),
         }],
     };
-    policy.validate().map_err(|err| err.to_string())?;
+    policy.validate()?;
     Ok(())
 }
 
@@ -544,7 +544,7 @@ fn target_selector_external_with_both() -> TestResult {
             scenario_ids: Vec::new(),
         }],
     };
-    policy.validate().map_err(|err| err.to_string())?;
+    policy.validate()?;
     Ok(())
 }
 
@@ -663,7 +663,7 @@ fn rule_matches_target_kind_agent() -> TestResult {
         agent_id: "agent1".to_string(),
     };
     let envelope = test_envelope(Vec::new(), Vec::new());
-    assert_rule_matches(rule, target, envelope)
+    assert_rule_matches(rule, &target, &envelope)
 }
 
 #[test]
@@ -687,7 +687,7 @@ fn rule_matches_target_kind_session() -> TestResult {
         session_id: "session1".to_string(),
     };
     let envelope = test_envelope(Vec::new(), Vec::new());
-    assert_rule_matches(rule, target, envelope)
+    assert_rule_matches(rule, &target, &envelope)
 }
 
 #[test]
@@ -712,7 +712,7 @@ fn rule_matches_target_kind_external() -> TestResult {
         target: "target1".to_string(),
     };
     let envelope = test_envelope(Vec::new(), Vec::new());
-    assert_rule_matches(rule, target, envelope)
+    assert_rule_matches(rule, &target, &envelope)
 }
 
 #[test]
@@ -736,7 +736,7 @@ fn rule_matches_target_kind_channel() -> TestResult {
         channel: "channel1".to_string(),
     };
     let envelope = test_envelope(Vec::new(), Vec::new());
-    assert_rule_matches(rule, target, envelope)
+    assert_rule_matches(rule, &target, &envelope)
 }
 
 #[test]
@@ -760,7 +760,7 @@ fn rule_target_kind_filter_mismatch() -> TestResult {
         session_id: "session1".to_string(),
     };
     let envelope = test_envelope(Vec::new(), Vec::new());
-    assert_rule_not_match(rule, target, envelope)
+    assert_rule_not_match(rule, &target, &envelope)
 }
 
 // ============================================================================
@@ -793,7 +793,7 @@ fn rule_matches_target_selector_agent_with_id() -> TestResult {
         agent_id: "agent1".to_string(),
     };
     let envelope = test_envelope(Vec::new(), Vec::new());
-    assert_rule_matches(rule, target, envelope)
+    assert_rule_matches(rule, &target, &envelope)
 }
 
 #[test]
@@ -822,7 +822,7 @@ fn rule_matches_target_selector_agent_without_id() -> TestResult {
         agent_id: "any_agent".to_string(),
     };
     let envelope = test_envelope(Vec::new(), Vec::new());
-    assert_rule_matches(rule, target, envelope)
+    assert_rule_matches(rule, &target, &envelope)
 }
 
 #[test]
@@ -851,7 +851,7 @@ fn rule_target_selector_agent_id_mismatch() -> TestResult {
         agent_id: "agent2".to_string(),
     };
     let envelope = test_envelope(Vec::new(), Vec::new());
-    assert_rule_not_match(rule, target, envelope)
+    assert_rule_not_match(rule, &target, &envelope)
 }
 
 #[test]
@@ -881,7 +881,7 @@ fn rule_matches_target_selector_external_system_match() -> TestResult {
         target: "any_target".to_string(),
     };
     let envelope = test_envelope(Vec::new(), Vec::new());
-    assert_rule_matches(rule, target, envelope)
+    assert_rule_matches(rule, &target, &envelope)
 }
 
 #[test]
@@ -911,7 +911,7 @@ fn rule_target_selector_external_system_mismatch() -> TestResult {
         target: "target1".to_string(),
     };
     let envelope = test_envelope(Vec::new(), Vec::new());
-    assert_rule_not_match(rule, target, envelope)
+    assert_rule_not_match(rule, &target, &envelope)
 }
 
 // ============================================================================
@@ -942,7 +942,7 @@ fn rule_matches_require_labels_all_present() -> TestResult {
         vec!["public".to_string(), "read".to_string(), "extra".to_string()],
         Vec::new(),
     );
-    assert_rule_matches(rule, target, envelope)
+    assert_rule_matches(rule, &target, &envelope)
 }
 
 #[test]
@@ -966,7 +966,7 @@ fn rule_require_labels_missing_one() -> TestResult {
         agent_id: "agent1".to_string(),
     };
     let envelope = test_envelope(vec!["public".to_string()], Vec::new());
-    assert_rule_not_match(rule, target, envelope)
+    assert_rule_not_match(rule, &target, &envelope)
 }
 
 #[test]
@@ -990,7 +990,7 @@ fn rule_matches_forbid_labels_none_present() -> TestResult {
         agent_id: "agent1".to_string(),
     };
     let envelope = test_envelope(vec!["public".to_string()], Vec::new());
-    assert_rule_matches(rule, target, envelope)
+    assert_rule_matches(rule, &target, &envelope)
 }
 
 #[test]
@@ -1014,7 +1014,7 @@ fn rule_forbid_labels_one_present() -> TestResult {
         agent_id: "agent1".to_string(),
     };
     let envelope = test_envelope(vec!["public".to_string(), "sensitive".to_string()], Vec::new());
-    assert_rule_not_match(rule, target, envelope)
+    assert_rule_not_match(rule, &target, &envelope)
 }
 
 #[test]
@@ -1038,7 +1038,7 @@ fn rule_matches_require_policy_tags() -> TestResult {
         agent_id: "agent1".to_string(),
     };
     let envelope = test_envelope(Vec::new(), vec!["audit".to_string()]);
-    assert_rule_matches(rule, target, envelope)
+    assert_rule_matches(rule, &target, &envelope)
 }
 
 #[test]
@@ -1062,7 +1062,7 @@ fn rule_forbid_policy_tags() -> TestResult {
         agent_id: "agent1".to_string(),
     };
     let envelope = test_envelope(Vec::new(), vec!["debug".to_string()]);
-    assert_rule_not_match(rule, target, envelope)
+    assert_rule_not_match(rule, &target, &envelope)
 }
 
 // ============================================================================
@@ -1090,7 +1090,7 @@ fn rule_matches_content_type() -> TestResult {
         agent_id: "agent1".to_string(),
     };
     let envelope = test_envelope(Vec::new(), Vec::new());
-    assert_rule_matches(rule, target, envelope)
+    assert_rule_matches(rule, &target, &envelope)
 }
 
 #[test]
@@ -1114,7 +1114,7 @@ fn rule_content_type_mismatch() -> TestResult {
         agent_id: "agent1".to_string(),
     };
     let envelope = test_envelope(Vec::new(), Vec::new());
-    assert_rule_not_match(rule, target, envelope)
+    assert_rule_not_match(rule, &target, &envelope)
 }
 
 #[test]
@@ -1138,7 +1138,7 @@ fn rule_matches_schema_id() -> TestResult {
         agent_id: "agent1".to_string(),
     };
     let envelope = test_envelope(Vec::new(), Vec::new());
-    assert_rule_matches(rule, target, envelope)
+    assert_rule_matches(rule, &target, &envelope)
 }
 
 // ============================================================================
@@ -1166,7 +1166,7 @@ fn rule_matches_multiple_selectors_all_match() -> TestResult {
         agent_id: "agent1".to_string(),
     };
     let envelope = test_envelope(vec!["public".to_string()], Vec::new());
-    assert_rule_matches(rule, target, envelope)
+    assert_rule_matches(rule, &target, &envelope)
 }
 
 #[test]
@@ -1190,7 +1190,7 @@ fn rule_multiple_selectors_one_fails() -> TestResult {
         agent_id: "agent1".to_string(),
     };
     let envelope = test_envelope(vec!["public".to_string()], Vec::new()); // missing "admin"
-    assert_rule_not_match(rule, target, envelope)
+    assert_rule_not_match(rule, &target, &envelope)
 }
 
 #[test]
@@ -1214,7 +1214,7 @@ fn rule_empty_selector_array_matches_any() -> TestResult {
         agent_id: "agent1".to_string(),
     };
     let envelope = test_envelope(Vec::new(), Vec::new());
-    assert_rule_matches(rule, target, envelope)
+    assert_rule_matches(rule, &target, &envelope)
 }
 
 // ============================================================================

@@ -19,9 +19,8 @@
 use decision_gate_contract::providers::provider_contracts;
 use decision_gate_contract::types::DeterminismClass;
 use decision_gate_core::Comparator;
-use jsonschema::CompilationOptions;
 use jsonschema::Draft;
-use jsonschema::JSONSchema;
+use jsonschema::Validator;
 use serde_json::Value;
 
 // ============================================================================
@@ -77,10 +76,11 @@ fn is_canonical_order(list: &[Comparator]) -> bool {
 // SECTION: Schema Helpers
 // ============================================================================
 
-fn compile_schema(schema: &Value) -> Result<JSONSchema, String> {
-    let mut options = CompilationOptions::default();
-    options.with_draft(Draft::Draft202012);
-    options.compile(schema).map_err(|err| format!("provider schema compilation failed: {err}"))
+fn compile_schema(schema: &Value) -> Result<Validator, String> {
+    jsonschema::options()
+        .with_draft(Draft::Draft202012)
+        .build(schema)
+        .map_err(|err| format!("provider schema compilation failed: {err}"))
 }
 
 // ============================================================================
@@ -206,13 +206,13 @@ fn provider_predicate_examples_match_schemas() -> Result<(), String> {
             let params_schema = compile_schema(&predicate.params_schema)?;
             let result_schema = compile_schema(&predicate.result_schema)?;
             for example in predicate.examples {
-                if params_schema.validate(&example.params).is_err() {
+                if !params_schema.is_valid(&example.params) {
                     return Err(format!(
                         "{}.{} example params failed",
                         provider.provider_id, predicate.name
                     ));
                 }
-                if result_schema.validate(&example.result).is_err() {
+                if !result_schema.is_valid(&example.result) {
                     return Err(format!(
                         "{}.{} example result failed",
                         provider.provider_id, predicate.name

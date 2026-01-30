@@ -208,9 +208,8 @@ impl TestMcpServer {
                     tokio::select! {
                         _ = &mut shutdown_rx => break,
                         accept = listener.accept() => {
-                            let (stream, _) = match accept {
-                                Ok(stream) => stream,
-                                Err(_) => continue,
+                            let Ok((stream, _)) = accept else {
+                                continue;
                             };
                             remaining = remaining.saturating_sub(1);
                             let requests = Arc::clone(&requests);
@@ -340,7 +339,7 @@ fn jsonrpc_response_with_len<T: Serialize>(
     );
     let padding = target_len - body.len();
     if padding > 0 {
-        body.extend(std::iter::repeat(b' ').take(padding));
+        body.extend(std::iter::repeat_n(b' ', padding));
     }
     Bytes::from(body)
 }

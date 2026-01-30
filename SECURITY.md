@@ -21,3 +21,8 @@ Include as much of the following as you can:
 - Any proof-of-concept or logs that help confirm the issue.
 
 I will acknowledge reports when I can; response time is best-effort.
+
+## Supply Chain & Compliance Roadmap
+
+- SBOM/provenance are planned but not yet provided.
+- FIPS-validated crypto is not currently supported; it is on the long-term roadmap.

@@ -119,7 +119,7 @@ fn docs_markdown_syntax_is_valid() -> TestResult {
     }
 
     // Check for tables (markdown syntax)
-    if !docs.contains("|") {
+    if !docs.contains('|') {
         return Err("docs missing tables".to_string());
     }
 
@@ -212,7 +212,7 @@ fn example_validates_against_config_model() -> TestResult {
 
 #[test]
 fn example_validates_against_json_schema() -> TestResult {
-    use jsonschema::JSONSchema;
+    use jsonschema::Draft;
     use serde_json::Value;
 
     let example = config_toml_example();
@@ -227,13 +227,17 @@ fn example_validates_against_json_schema() -> TestResult {
         serde_json::from_str(&json_str).map_err(|err| format!("failed to parse JSON: {err}"))?;
 
     // Compile schema
-    let schema = JSONSchema::compile(&schema_value)
+    let schema = jsonschema::options()
+        .with_draft(Draft::Draft202012)
+        .build(&schema_value)
         .map_err(|err| format!("failed to compile schema: {err}"))?;
 
     // Validate
-    if let Err(errors) = schema.validate(&json_value) {
-        let error_messages: Vec<String> =
-            errors.map(|e| format!("{} at {}", e, e.instance_path)).collect();
+    let error_messages: Vec<String> = schema
+        .iter_errors(&json_value)
+        .map(|e| format!("{} at {}", e, e.instance_path()))
+        .collect();
+    if !error_messages.is_empty() {
         return Err(format!(
             "example does not validate against schema: {}",
             error_messages.join(", ")

@@ -10,7 +10,6 @@
 use decision_gate_config::config_docs_markdown;
 use decision_gate_config::config_schema;
 use decision_gate_config::config_toml_example;
-use jsonschema::CompilationOptions;
 use jsonschema::Draft;
 use serde_json::json;
 
@@ -19,9 +18,10 @@ type TestResult = Result<(), String>;
 #[test]
 fn config_schema_accepts_minimal_and_example_configs() -> TestResult {
     let schema = config_schema();
-    let mut options = CompilationOptions::default();
-    options.with_draft(Draft::Draft202012);
-    let validator = options.compile(&schema).map_err(|err| err.to_string())?;
+    let validator = jsonschema::options()
+        .with_draft(Draft::Draft202012)
+        .build(&schema)
+        .map_err(|err| err.to_string())?;
 
     let minimal = json!({});
     if !validator.is_valid(&minimal) {

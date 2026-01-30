@@ -12,7 +12,6 @@
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::io;
-use std::sync::Arc;
 
 use decision_gate_contract::ToolName;
 use decision_gate_contract::schemas;
@@ -45,82 +44,48 @@ use helpers::harness::base_http_config;
 use helpers::harness::spawn_mcp_server;
 use helpers::readiness::wait_for_server_ready;
 use helpers::scenarios::ScenarioFixture;
-use jsonschema::CompilationOptions;
 use jsonschema::Draft;
-use jsonschema::JSONSchema;
-use jsonschema::SchemaResolver;
-use jsonschema::SchemaResolverError;
+use jsonschema::Registry;
+use jsonschema::Validator;
 use serde_json::Value;
 use serde_json::json;
 use tempfile::TempDir;
-use url::Url;
 
 use crate::helpers;
 
-#[derive(Clone)]
-struct ContractSchemaResolver {
-    registry: Arc<BTreeMap<String, Value>>,
-}
-
-impl ContractSchemaResolver {
-    fn new(registry: BTreeMap<String, Value>) -> Self {
-        Self {
-            registry: Arc::new(registry),
-        }
-    }
-}
-
-impl SchemaResolver for ContractSchemaResolver {
-    fn resolve(
-        &self,
-        _root_schema: &Value,
-        url: &Url,
-        _original_reference: &str,
-    ) -> Result<Arc<Value>, SchemaResolverError> {
-        let key = url.as_str();
-        self.registry.get(key).map_or_else(
-            || Err(io::Error::new(io::ErrorKind::NotFound, key.to_string()).into()),
-            |schema| Ok(Arc::new(schema.clone())),
-        )
-    }
-}
-
 struct ToolSchemas {
-    input: JSONSchema,
-    output: JSONSchema,
+    input: Validator,
+    output: Validator,
 }
 
-fn build_resolver() -> Result<ContractSchemaResolver, Box<dyn Error>> {
+fn build_registry() -> Result<Registry, Box<dyn Error>> {
     let scenario_schema = schemas::scenario_schema();
     let config_schema = schemas::config_schema();
-    let mut registry = BTreeMap::new();
+    let mut resources = Vec::new();
     for schema in [scenario_schema, config_schema] {
         let Some(id) = schema.get("$id").and_then(Value::as_str) else {
             return Err("schema missing $id".into());
         };
-        registry.insert(id.to_string(), schema);
+        resources.push((id.to_string(), Draft::Draft202012.create_resource(schema)));
     }
-    Ok(ContractSchemaResolver::new(registry))
+    Ok(Registry::try_from_resources(resources)?)
 }
 
-fn compile_schema(
-    schema: &Value,
-    resolver: &ContractSchemaResolver,
-) -> Result<JSONSchema, Box<dyn Error>> {
-    let mut options = CompilationOptions::default();
-    options.with_draft(Draft::Draft202012);
-    options.with_resolver(resolver.clone());
-    let compiled = options.compile(schema).map_err(|err| io::Error::other(err.to_string()))?;
-    Ok(compiled)
+fn compile_schema(schema: &Value, registry: &Registry) -> Result<Validator, Box<dyn Error>> {
+    jsonschema::options()
+        .with_draft(Draft::Draft202012)
+        .with_registry(registry.clone())
+        .build(schema)
+        .map_err(|err| io::Error::other(err.to_string()).into())
 }
 
 fn compile_tool_schemas(
-    resolver: &ContractSchemaResolver,
+    registry: &Registry,
 ) -> Result<BTreeMap<ToolName, ToolSchemas>, Box<dyn Error>> {
     let mut output = BTreeMap::new();
     for contract in tool_contracts() {
-        let input = compile_schema(&contract.input_schema, resolver)?;
-        let output_schema = compile_schema(&contract.output_schema, resolver)?;
+        let input = compile_schema(&contract.input_schema, registry)?;
+        let output_schema = compile_schema(&contract.output_schema, registry)?;
         output.insert(
             contract.name,
             ToolSchemas {
@@ -132,13 +97,12 @@ fn compile_tool_schemas(
     Ok(output)
 }
 
-fn assert_valid(schema: &JSONSchema, instance: &Value, label: &str) -> Result<(), Box<dyn Error>> {
-    match schema.validate(instance) {
-        Ok(()) => Ok(()),
-        Err(errors) => {
-            let messages: Vec<String> = errors.map(|err| err.to_string()).collect();
-            Err(format!("validation failed ({label}): {}", messages.join("; ")).into())
-        }
+fn assert_valid(schema: &Validator, instance: &Value, label: &str) -> Result<(), Box<dyn Error>> {
+    let messages: Vec<String> = schema.iter_errors(instance).map(|err| err.to_string()).collect();
+    if messages.is_empty() {
+        Ok(())
+    } else {
+        Err(format!("validation failed ({label}): {}", messages.join("; ")).into())
     }
 }
 
@@ -159,8 +123,8 @@ async fn schema_conformance_all_tools() -> Result<(), Box<dyn Error>> {
     let client = server.client(std::time::Duration::from_secs(10))?;
     wait_for_server_ready(&client, std::time::Duration::from_secs(10)).await?;
 
-    let resolver = build_resolver()?;
-    let tool_schemas = compile_tool_schemas(&resolver)?;
+    let registry = build_registry()?;
+    let tool_schemas = compile_tool_schemas(&registry)?;
 
     let mut fixture = ScenarioFixture::time_after("contract-scenario", "run-1", 0);
     fixture.spec.default_tenant_id = Some(fixture.tenant_id);
