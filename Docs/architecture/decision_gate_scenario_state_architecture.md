@@ -44,7 +44,7 @@ layer validates and registers scenarios, then instantiates a control plane
 runtime for each scenario. Runs are persisted via a `RunStateStore` implementation
 (in-memory or SQLite). The run state is append-only, logging triggers, gate
 outcomes, decisions, packets, submissions, and tool calls.
-[F:decision-gate-core/src/core/spec.rs L49-L108][F:decision-gate-mcp/src/tools.rs L694-L840][F:decision-gate-core/src/core/state.rs L312-L345]
+[F:decision-gate-core/src/core/spec.rs L49-L108](decision-gate-core/src/core/spec.rs#L49-L108)[F:decision-gate-mcp/src/tools.rs L694-L840](decision-gate-mcp/src/tools.rs#L694-L840)[F:decision-gate-core/src/core/state.rs L312-L345](decision-gate-core/src/core/state.rs#L312-L345)
 
 ---
 
@@ -58,11 +58,11 @@ outcomes, decisions, packets, submissions, and tool calls.
 - Optional schema references and default tenant id
 
 Specs are validated on load to ensure uniqueness and internal consistency.
-[F:decision-gate-core/src/core/spec.rs L49-L108]
+[F:decision-gate-core/src/core/spec.rs L49-L108](decision-gate-core/src/core/spec.rs#L49-L108)
 
 Stage-level behavior is defined by `StageSpec` (entry packets, gates, branching,
 optional timeout).
-[F:decision-gate-core/src/core/spec.rs L115-L130]
+[F:decision-gate-core/src/core/spec.rs L115-L130](decision-gate-core/src/core/spec.rs#L115-L130)
 
 ---
 
@@ -76,12 +76,12 @@ optional timeout).
 - Strict comparator validation
 - ControlPlane instantiation with current trust + anchor policy
 
-[F:decision-gate-mcp/src/tools.rs L694-L764]
+[F:decision-gate-mcp/src/tools.rs L694-L764](decision-gate-mcp/src/tools.rs#L694-L764)
 
 ### Start Run
 `scenario_start` creates a new run state using the control plane and persists it
 via the configured store.
-[F:decision-gate-mcp/src/tools.rs L767-L784]
+[F:decision-gate-mcp/src/tools.rs L767-L784](decision-gate-mcp/src/tools.rs#L767-L784)
 
 ### Status / Next / Submit / Trigger
 Subsequent tools operate on the cached runtime and persisted run state:
@@ -91,13 +91,13 @@ Subsequent tools operate on the cached runtime and persisted run state:
 - `scenario_submit` uploads external artifacts
 - `scenario_trigger` injects an external trigger event
 
-[F:decision-gate-mcp/src/tools.rs L786-L856]
+[F:decision-gate-mcp/src/tools.rs L786-L856](decision-gate-mcp/src/tools.rs#L786-L856)
 
 `scenario_next` can optionally include feedback (summary/trace/evidence) in the
 tool response when permitted by server feedback policy. Trace feedback reuses
 stored gate evaluations; evidence feedback can surface gate evaluation records
 with disclosure policy applied.
-[F:decision-gate-mcp/src/tools.rs L520-L620][F:decision-gate-core/src/core/state.rs L312-L345]
+[F:decision-gate-mcp/src/tools.rs L520-L620](decision-gate-mcp/src/tools.rs#L520-L620)[F:decision-gate-core/src/core/state.rs L312-L345](decision-gate-core/src/core/state.rs#L312-L345)
 
 ---
 
@@ -111,10 +111,10 @@ Run state is a structured, append-only log containing:
 - Trigger log, gate evaluation log, decision log
 - Packets, submissions, and tool call transcripts
 
-[F:decision-gate-core/src/core/state.rs L312-L345]
+[F:decision-gate-core/src/core/state.rs L312-L345](decision-gate-core/src/core/state.rs#L312-L345)
 
 Run lifecycle status is a closed enum: `active`, `completed`, `failed`.
-[F:decision-gate-core/src/core/state.rs L67-L77]
+[F:decision-gate-core/src/core/state.rs L67-L77](decision-gate-core/src/core/state.rs#L67-L77)
 
 ---
 
@@ -123,7 +123,7 @@ Run lifecycle status is a closed enum: `active`, `completed`, `failed`.
 The control plane engine executes scenario transitions, evaluates evidence, and
 records decisions. It persists run state after key transitions and uses
 trust/anchor policies configured at runtime.
-[F:decision-gate-core/src/runtime/engine.rs L146-L191][F:decision-gate-mcp/src/tools.rs L723-L736]
+[F:decision-gate-core/src/runtime/engine.rs L146-L191](decision-gate-core/src/runtime/engine.rs#L146-L191)[F:decision-gate-mcp/src/tools.rs L723-L736](decision-gate-mcp/src/tools.rs#L723-L736)
 
 ---
 
@@ -132,7 +132,7 @@ trust/anchor policies configured at runtime.
 ### In-Memory Store
 The in-memory store is intended for tests and demos. It implements `RunStateStore`
 with a mutex-protected map.
-[F:decision-gate-core/src/runtime/store.rs L53-L127]
+[F:decision-gate-core/src/runtime/store.rs L53-L127](decision-gate-core/src/runtime/store.rs#L53-L127)
 
 ### SQLite Store
 The SQLite store provides durable snapshots:
@@ -141,15 +141,15 @@ The SQLite store provides durable snapshots:
 - Loads verify hash integrity and key consistency.
 - Versions are tracked per run, with optional retention pruning.
 
-[F:decision-gate-store-sqlite/src/store.rs L9-L14][F:decision-gate-store-sqlite/src/store.rs L448-L568]
+[F:decision-gate-store-sqlite/src/store.rs L9-L14](decision-gate-store-sqlite/src/store.rs#L9-L14)[F:decision-gate-store-sqlite/src/store.rs L448-L568](decision-gate-store-sqlite/src/store.rs#L448-L568)
 
 Store configuration supports WAL mode, sync mode, busy timeout, and retention
 limits.
-[F:decision-gate-store-sqlite/src/store.rs L85-L146]
+[F:decision-gate-store-sqlite/src/store.rs L85-L146](decision-gate-store-sqlite/src/store.rs#L85-L146)
 
 ### MCP Configuration
 The MCP layer selects store type via `run_state_store` configuration.
-[F:decision-gate-config/src/config.rs L1140-L1184]
+[F:decision-gate-config/src/config.rs L1140-L1184](decision-gate-config/src/config.rs#L1140-L1184)
 
 ---
 

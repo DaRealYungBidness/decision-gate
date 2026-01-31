@@ -45,12 +45,12 @@ integrity metadata. The builder writes canonical JSON artifacts and computes
 hashes for every file, plus a root hash over the file hash list. Verification
 replays integrity checks, validates decision log uniqueness, and optionally
 validates evidence anchors when an anchor policy is present.
-[F:decision-gate-core/src/runtime/runpack.rs L80-L365]
+[F:decision-gate-core/src/runtime/runpack.rs L80-L365](decision-gate-core/src/runtime/runpack.rs#L80-L365)
 
 Runpack exports select a sink based on configuration: filesystem by default,
 OSS object-store when configured, or an optional override that uploads bundled
 archives.
-[F:decision-gate-mcp/src/tools.rs L1565-L1715]
+[F:decision-gate-mcp/src/tools.rs L1565-L1715](decision-gate-mcp/src/tools.rs#L1565-L1715)
 
 ---
 
@@ -64,11 +64,11 @@ The manifest is the canonical index for runpack artifacts. Key fields include:
 - File hash list and root hash
 - Artifact index entries
 
-[F:decision-gate-core/src/core/runpack.rs L49-L127]
+[F:decision-gate-core/src/core/runpack.rs L49-L127](decision-gate-core/src/core/runpack.rs#L49-L127)
 
 Security context metadata captures dev-permissive and namespace authority
 posture when provided by the MCP server.
-[F:decision-gate-core/src/core/runpack.rs L82-L92]
+[F:decision-gate-core/src/core/runpack.rs L82-L92](decision-gate-core/src/core/runpack.rs#L82-L92)
 
 ---
 
@@ -83,8 +83,8 @@ Runpack export is initiated via the MCP tool `runpack_export`:
    configuration.
 4. Optional in-line verification can be requested during export.
 
-[F:decision-gate-mcp/src/tools.rs L888-L929]
-[F:decision-gate-mcp/src/runpack_object_store.rs L1-L287]
+[F:decision-gate-mcp/src/tools.rs L888-L929](decision-gate-mcp/src/tools.rs#L888-L929)
+[F:decision-gate-mcp/src/runpack_object_store.rs L1-L287](decision-gate-mcp/src/runpack_object_store.rs#L1-L287)
 
 When a managed runpack storage override is configured, MCP builds the runpack
 on disk and uploads via the override. Otherwise, object-store exports write
@@ -100,7 +100,7 @@ The builder writes deterministic JSON artifacts for:
 - Submission log
 - Tool call log
 
-[F:decision-gate-core/src/runtime/runpack.rs L57-L208]
+[F:decision-gate-core/src/runtime/runpack.rs L57-L208](decision-gate-core/src/runtime/runpack.rs#L57-L208)
 
 ---
 
@@ -115,7 +115,7 @@ For each artifact, the builder:
 
 A root hash is computed over the canonical list of file hashes to guard against
 artifact reordering or omission.
-[F:decision-gate-core/src/runtime/runpack.rs L415-L463]
+[F:decision-gate-core/src/runtime/runpack.rs L415-L463](decision-gate-core/src/runtime/runpack.rs#L415-L463)
 
 ---
 
@@ -128,11 +128,11 @@ Verification validates integrity and structural invariants:
 - Decision log contains no duplicate decisions per trigger id.
 - Anchor policy validation runs when present in the manifest.
 
-[F:decision-gate-core/src/runtime/runpack.rs L320-L549]
+[F:decision-gate-core/src/runtime/runpack.rs L320-L549](decision-gate-core/src/runtime/runpack.rs#L320-L549)
 
 The `runpack_verify` tool parses the manifest, reads artifacts from disk, and
 returns a structured verification report.
-[F:decision-gate-mcp/src/tools.rs L931-L1011]
+[F:decision-gate-mcp/src/tools.rs L931-L1011](decision-gate-mcp/src/tools.rs#L931-L1011)
 
 ---
 
@@ -144,7 +144,7 @@ Filesystem artifacts are handled by hardened sink/reader implementations:
 - Path component and total path length limits are enforced.
 - Reads enforce max byte limits and fail closed on violations.
 
-[F:decision-gate-mcp/src/runpack.rs L43-L217]
+[F:decision-gate-mcp/src/runpack.rs L43-L217](decision-gate-mcp/src/runpack.rs#L43-L217)
 
 ---
 
@@ -158,7 +158,7 @@ storage:
 - Artifacts are capped at `MAX_RUNPACK_ARTIFACT_BYTES`.
 - Reads fail closed when size limits are exceeded.
 
-[F:decision-gate-mcp/src/runpack_object_store.rs L1-L340]
+[F:decision-gate-mcp/src/runpack_object_store.rs L1-L340](decision-gate-mcp/src/runpack_object_store.rs#L1-L340)
 
 ---
 

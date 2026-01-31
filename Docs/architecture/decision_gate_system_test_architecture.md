@@ -45,7 +45,7 @@ artifacts. Coverage is tracked in a registry file and a formal gap list. SDK
 client tests execute the Python and TypeScript SDKs against live MCP HTTP
 servers to validate transport correctness, auth behavior, and repository
 examples (which are treated as runnable system tests).
-[F:system-tests/README.md L10-L87]
+[F:system-tests/README.md L10-L87](system-tests/README.md#L10-L87)
 
 The agentic flow harness extends this model with canonical scenario packs that
 run across raw MCP, SDKs, and framework adapters. Scenario packs live under
@@ -69,7 +69,7 @@ System-tests must mirror production behavior and remain deterministic:
   `--experimental-strip-types`); tests skip with explicit summaries if runtimes
   are unavailable.
 
-[F:system-tests/AGENTS.md L12-L57][F:system-tests/README.md L30-L61]
+[F:system-tests/AGENTS.md L12-L57](system-tests/AGENTS.md#L12-L57)[F:system-tests/README.md L30-L61](system-tests/README.md#L30-L61)
 
 ---
 
@@ -82,7 +82,7 @@ specifies:
 - file locations and run command
 - required artifacts
 
-[F:system-tests/test_registry.toml L1-L43]
+[F:system-tests/test_registry.toml L1-L43](system-tests/test_registry.toml#L1-L43)
 
 Suite entrypoints live in `system-tests/tests/` and include test implementations
 under `system-tests/tests/suites/`. This reduces test binary proliferation while
@@ -95,7 +95,7 @@ preserving category-driven inventory in the registry. Each registry
 
 The system test matrix documents P0/P1/P2 coverage with goals and categories.
 This is the human-readable snapshot of what the registry enforces.
-[F:system-tests/TEST_MATRIX.md L10-L66]
+[F:system-tests/TEST_MATRIX.md L10-L66](system-tests/TEST_MATRIX.md#L10-L66)
 
 ---
 
@@ -104,7 +104,7 @@ This is the human-readable snapshot of what the registry enforces.
 `system-tests/test_gaps.toml` captures missing coverage and acceptance criteria.
 It provides a durable backlog for high-priority security, reliability, and audit
 coverage gaps.
-[F:system-tests/test_gaps.toml L1-L101]
+[F:system-tests/test_gaps.toml L1-L101](system-tests/test_gaps.toml#L1-L101)
 
 ---
 
@@ -119,7 +119,7 @@ and the harness fails closed if the target directory already exists unless
 Deterministic HTTP fixtures (for example the agentic harness HTTP stub) use
 stable, scenario-derived ports to prevent runpack hash drift; the port can be
 overridden via `DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT` when needed.
-[F:system-tests/README.md L74-L82][F:system-tests/AGENTS.md L63-L67]
+[F:system-tests/README.md L74-L82](system-tests/README.md#L74-L82)[F:system-tests/AGENTS.md L63-L67](system-tests/AGENTS.md#L63-L67)
 
 ## Execution Workflow
 
@@ -133,7 +133,7 @@ passes. Use explicit features or the registry-driven runner.
 - `python scripts/test_runner.py --priority P0`
 
 Tests should be registered and coverage docs regenerated when changes occur.
-[F:system-tests/README.md L38-L59]
+[F:system-tests/README.md L38-L59](system-tests/README.md#L38-L59)
 
 ---
 

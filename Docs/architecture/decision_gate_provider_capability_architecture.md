@@ -46,7 +46,7 @@ Provider capability contracts are the authoritative schema for check
 parameters, results, and allowed comparators. The capability registry validates
 scenario specs and evidence queries before evaluation. Evidence federation
 routes queries to providers and enforces trust policies.
-[F:decision-gate-config/src/config.rs L1456-L1542][F:decision-gate-mcp/src/capabilities.rs L216-L369][F:decision-gate-mcp/src/evidence.rs L91-L209]
+[F:decision-gate-config/src/config.rs L1456-L1542](decision-gate-config/src/config.rs#L1456-L1542)[F:decision-gate-mcp/src/capabilities.rs L216-L369](decision-gate-mcp/src/capabilities.rs#L216-L369)[F:decision-gate-mcp/src/evidence.rs L91-L209](decision-gate-mcp/src/evidence.rs#L91-L209)
 
 ---
 
@@ -70,7 +70,7 @@ Validation enforces:
 - MCP providers must specify `command` or `url` and `capabilities_path`.
 - `allow_insecure_http` is required for `http://` URLs.
 
-[F:decision-gate-config/src/config.rs L1412-L1542]
+[F:decision-gate-config/src/config.rs L1412-L1542](decision-gate-config/src/config.rs#L1412-L1542)
 
 ---
 
@@ -85,11 +85,11 @@ check params and results. It validates:
 - Expected-value schema conformance
 - Comparator allow-lists
 
-[F:decision-gate-mcp/src/capabilities.rs L216-L309][F:decision-gate-mcp/src/capabilities.rs L508-L520]
+[F:decision-gate-mcp/src/capabilities.rs L216-L309](decision-gate-mcp/src/capabilities.rs#L216-L309)[F:decision-gate-mcp/src/capabilities.rs L508-L520](decision-gate-mcp/src/capabilities.rs#L508-L520)
 
 Capability registry queries are used by both scenario definition and evidence
 query tools.
-[F:decision-gate-mcp/src/tools.rs L717-L720][F:decision-gate-mcp/src/tools.rs L869-L870]
+[F:decision-gate-mcp/src/tools.rs L717-L720](decision-gate-mcp/src/tools.rs#L717-L720)[F:decision-gate-mcp/src/tools.rs L869-L870](decision-gate-mcp/src/tools.rs#L869-L870)
 
 ---
 
@@ -102,7 +102,7 @@ External providers must supply a contract JSON file that:
 - Defines checks with allowed comparator lists
 
 Contracts are size-limited and path validated; invalid contracts fail closed.
-[F:decision-gate-mcp/src/capabilities.rs L392-L451][F:decision-gate-mcp/src/capabilities.rs L457-L487]
+[F:decision-gate-mcp/src/capabilities.rs L392-L451](decision-gate-mcp/src/capabilities.rs#L392-L451)[F:decision-gate-mcp/src/capabilities.rs L457-L487](decision-gate-mcp/src/capabilities.rs#L457-L487)
 
 ---
 
@@ -116,10 +116,10 @@ Evidence federation combines built-in providers and MCP providers:
 - Evidence results may include **structured error metadata** (`code`, `message`,
   `details`) to support deterministic recovery loops.
 
-[F:decision-gate-mcp/src/evidence.rs L137-L209][F:decision-gate-mcp/src/evidence.rs L220-L244]
+[F:decision-gate-mcp/src/evidence.rs L137-L209](decision-gate-mcp/src/evidence.rs#L137-L209)[F:decision-gate-mcp/src/evidence.rs L220-L244](decision-gate-mcp/src/evidence.rs#L220-L244)
 
 Trust policy enforcement (signature verification) runs per provider response.
-[F:decision-gate-mcp/src/evidence.rs L639-L689]
+[F:decision-gate-mcp/src/evidence.rs L639-L689](decision-gate-mcp/src/evidence.rs#L639-L689)
 
 ---
 
@@ -136,7 +136,7 @@ Tool behavior enforces capability and disclosure policy:
 - Comparator allow-lists are enforced from provider contracts; `json.path`
   exposes the full comparator surface area for deterministic JSON evidence.
 
-[F:decision-gate-mcp/src/tools.rs L694-L885]
+[F:decision-gate-mcp/src/tools.rs L694-L885](decision-gate-mcp/src/tools.rs#L694-L885)
 
 ---
 

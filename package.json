@@ -4,12 +4,12 @@
   "private": true,
   "version": "0.0.0",
   "devDependencies": {
-    "markdownlint-cli2": "^0.13.0",
-    "pyright": "^1.1.394"
+    "markdownlint-cli2": "^0.13.0"
   },
   "scripts": {
     "docs:lint": "markdownlint-cli2 --config .markdownlint.json \"Docs/**/*.md\" \"README.md\"",
     "docs:lint:fix": "markdownlint-cli2 --fix --config .markdownlint.json \"Docs/**/*.md\" \"README.md\"",
-    "typecheck:adapters": "pyright --project pyrightconfig.json"
+    "docs:linkify": "python3 scripts/docs_linkify_refs.py --write",
+    "docs:linkify:check": "python3 scripts/docs_linkify_refs.py"
   }
 }

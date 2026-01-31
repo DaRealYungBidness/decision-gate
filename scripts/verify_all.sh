@@ -16,6 +16,8 @@ PACKAGE_DRY_RUN="none"
 ADAPTER_TESTS="none"
 AGENTIC_HARNESS="none"
 DOCS_RUN="none"
+DOCS_LINT="none"
+DOCS_LINKS="none"
 
 print_usage() {
     cat <<EOF
@@ -38,6 +40,8 @@ Options:
   --agentic-harness        Run the agentic flow harness (deterministic mode).
   --docs-run               Execute runnable documentation blocks (fast level).
   --docs-run=all            Execute all runnable documentation blocks (fast + slow).
+  --docs-lint              Run Markdown linting for Docs/ and README.md.
+  --docs-links             Ensure [F:...] refs are linkified in Docs/ and README.md.
   -h, --help               Show this help message.
 EOF
 }
@@ -78,6 +82,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --docs-run=*)
             DOCS_RUN="${1#*=}"
+            shift
+            ;;
+        --docs-lint)
+            DOCS_LINT="enabled"
+            shift
+            ;;
+        --docs-links)
+            DOCS_LINKS="enabled"
             shift
             ;;
         -h|--help)
@@ -162,6 +174,14 @@ if [[ "$DOCS_RUN" != "none" ]]; then
             exit 1
             ;;
     esac
+fi
+
+if [[ "$DOCS_LINT" != "none" ]]; then
+    run npm run docs:lint
+fi
+
+if [[ "$DOCS_LINKS" != "none" ]]; then
+    run npm run docs:linkify:check
 fi
 
 if [[ "$PACKAGE_DRY_RUN" != "none" ]]; then

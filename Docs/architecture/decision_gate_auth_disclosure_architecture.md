@@ -48,7 +48,7 @@ authorization layer can enforce tenant/namespace scoping before tool execution.
 Auth decisions emit structured audit events, and request failures are mapped to
 stable JSON-RPC error codes and HTTP status codes for deterministic disclosure
 and metrics labeling.
-[F:decision-gate-mcp/src/auth.rs L217-L296][F:decision-gate-mcp/src/tools.rs L1420-L1435][F:decision-gate-mcp/src/tools.rs L1286-L1370][F:decision-gate-mcp/src/server.rs L1341-L1399]
+[F:decision-gate-mcp/src/auth.rs L217-L296](decision-gate-mcp/src/auth.rs#L217-L296)[F:decision-gate-mcp/src/tools.rs L1420-L1435](decision-gate-mcp/src/tools.rs#L1420-L1435)[F:decision-gate-mcp/src/tools.rs L1286-L1370](decision-gate-mcp/src/tools.rs#L1286-L1370)[F:decision-gate-mcp/src/server.rs L1341-L1399](decision-gate-mcp/src/server.rs#L1341-L1399)
 
 ---
 
@@ -64,14 +64,14 @@ proxy identity. Client-provided correlation identifiers arrive via
 validated and rejected if invalid. The server always issues its own
 `x-server-correlation-id` and returns it on responses, providing a stable,
 auditable identifier even when client IDs are missing or rejected.
-[F:decision-gate-mcp/src/auth.rs L32-L100][F:decision-gate-mcp/src/server.rs L1158-L1171]
+[F:decision-gate-mcp/src/auth.rs L32-L100](decision-gate-mcp/src/auth.rs#L32-L100)[F:decision-gate-mcp/src/server.rs L1158-L1171](decision-gate-mcp/src/server.rs#L1158-L1171)
 
 ### Principal Identity
 `AuthContext` captures the authentication method plus either an explicit subject
 or a bearer token fingerprint. If a local-only request has no subject, the
 subject is set to `stdio` or `loopback` based on transport. For bearer tokens, a
 sha256 fingerprint is computed and used as a stable identity label.
-[F:decision-gate-mcp/src/auth.rs L106-L141][F:decision-gate-mcp/src/auth.rs L268-L295][F:decision-gate-mcp/src/auth.rs L418-L433]
+[F:decision-gate-mcp/src/auth.rs L106-L141](decision-gate-mcp/src/auth.rs#L106-L141)[F:decision-gate-mcp/src/auth.rs L268-L295](decision-gate-mcp/src/auth.rs#L268-L295)[F:decision-gate-mcp/src/auth.rs L418-L433](decision-gate-mcp/src/auth.rs#L418-L433)
 
 ---
 
@@ -86,14 +86,14 @@ Auth mode is configured via `server.auth.mode` with supporting allowlists:
 
 Configuration surface:
 - `server.auth.mode`, `bearer_tokens`, `mtls_subjects`, `allowed_tools`.
-[F:decision-gate-config/src/config.rs L565-L651]
+[F:decision-gate-config/src/config.rs L565-L651](decision-gate-config/src/config.rs#L565-L651)
 
 Implementation details:
 - Local-only rejects non-loopback HTTP/SSE.
 - Bearer tokens are parsed with size and scheme validation; invalid/missing
   headers fail authentication.
 - mTLS requires a subject; unauthorized subjects are rejected.
-[F:decision-gate-mcp/src/auth.rs L394-L467]
+[F:decision-gate-mcp/src/auth.rs L394-L467](decision-gate-mcp/src/auth.rs#L394-L467)
 
 ---
 
@@ -103,12 +103,12 @@ Tool authorization is enforced per request by `DefaultToolAuthz`. If
 `server.auth.allowed_tools` is configured, any tool not in the allowlist is
 rejected with an unauthorized error. Invalid tool names in the allowlist are
 treated as a fail-closed configuration (empty allowlist).
-[F:decision-gate-mcp/src/auth.rs L229-L258][F:decision-gate-mcp/src/auth.rs L268-L285]
+[F:decision-gate-mcp/src/auth.rs L229-L258](decision-gate-mcp/src/auth.rs#L229-L258)[F:decision-gate-mcp/src/auth.rs L268-L285](decision-gate-mcp/src/auth.rs#L268-L285)
 
 Tool authorization results are emitted by the tool router:
 - `AuthAuditEvent::allowed` on success
 - `AuthAuditEvent::denied` on failure
-[F:decision-gate-mcp/src/tools.rs L1420-L1435][F:decision-gate-mcp/src/auth.rs L302-L360]
+[F:decision-gate-mcp/src/tools.rs L1420-L1435](decision-gate-mcp/src/tools.rs#L1420-L1435)[F:decision-gate-mcp/src/auth.rs L302-L360](decision-gate-mcp/src/auth.rs#L302-L360)
 
 ---
 
@@ -144,7 +144,7 @@ Implementation references:
 Auth decisions emit structured JSON audit events with transport, subject,
 method, and failure reason details. The default audit sink logs JSON lines to
 stderr; tests can use a no-op sink.
-[F:decision-gate-mcp/src/auth.rs L302-L379]
+[F:decision-gate-mcp/src/auth.rs L302-L379](decision-gate-mcp/src/auth.rs#L302-L379)
 
 ---
 
@@ -156,13 +156,13 @@ stderr; tests can use a no-op sink.
 role/subject checks resolved from `server.auth.principals`. Evidence feedback is
 still filtered through the evidence disclosure policy (raw values may be
 redacted unless explicitly allowed).
-[F:decision-gate-config/src/config.rs L468-L539][F:decision-gate-mcp/src/tools.rs L600-L720]
+[F:decision-gate-config/src/config.rs L468-L539](decision-gate-config/src/config.rs#L468-L539)[F:decision-gate-mcp/src/tools.rs L600-L720](decision-gate-mcp/src/tools.rs#L600-L720)
 
 ### JSON-RPC Error Envelope
 The MCP server responds using JSON-RPC error codes and structured metadata
 (`kind`, `retryable`, `request_id`, optional `retry_after_ms`). Error kinds are
 stable labels used for metrics and audit categorization.
-[F:decision-gate-mcp/src/server.rs L781-L805][F:decision-gate-mcp/src/server.rs L1319-L1399]
+[F:decision-gate-mcp/src/server.rs L781-L805](decision-gate-mcp/src/server.rs#L781-L805)[F:decision-gate-mcp/src/server.rs L1319-L1399](decision-gate-mcp/src/server.rs#L1319-L1399)
 
 ### Error Mapping (Tool Errors)
 Tool errors are mapped to HTTP status + JSON-RPC error codes:
@@ -182,14 +182,14 @@ Tool errors are mapped to HTTP status + JSON-RPC error codes:
 | Serialization | 200 | -32060 | serialization failed |
 
 These mappings are implemented in `jsonrpc_error`.
-[F:decision-gate-mcp/src/server.rs L1341-L1364]
+[F:decision-gate-mcp/src/server.rs L1341-L1364](decision-gate-mcp/src/server.rs#L1341-L1364)
 
 ### Auth Challenge Header (RFC 6750)
 HTTP/SSE responses for unauthenticated requests include a `WWW-Authenticate`
 header with a Bearer realm when bearer token auth is enabled. This aligns with
 RFC 6750 and keeps auth challenges explicit without leaking token validation
 details.
-[F:decision-gate-mcp/src/auth.rs L53-L87][F:decision-gate-mcp/src/server.rs L1445-L1465]
+[F:decision-gate-mcp/src/auth.rs L53-L87](decision-gate-mcp/src/auth.rs#L53-L87)[F:decision-gate-mcp/src/server.rs L1445-L1465](decision-gate-mcp/src/server.rs#L1445-L1465)
 
 ### Correlation Headers
 HTTP/SSE responses always include a server-issued `x-server-correlation-id`.
@@ -197,12 +197,12 @@ If the client supplied a valid `x-correlation-id`, it is echoed back. Invalid
 client correlation IDs are rejected before request parsing and are **not**
 echoed. The invalid-correlation rejection uses HTTP 400 with JSON-RPC error
 code `-32073` (`invalid_correlation_id`).
-[F:decision-gate-mcp/src/server.rs L831-L915][F:decision-gate-mcp/src/server.rs L1352-L1435]
+[F:decision-gate-mcp/src/server.rs L831-L915](decision-gate-mcp/src/server.rs#L831-L915)[F:decision-gate-mcp/src/server.rs L1352-L1435](decision-gate-mcp/src/server.rs#L1352-L1435)
 
 ### Request Parsing Failures
 Invalid JSON-RPC versions, unknown methods, and malformed request bodies are
 rejected with standard JSON-RPC error codes and HTTP 400.
-[F:decision-gate-mcp/src/server.rs L866-L1003][F:decision-gate-mcp/src/server.rs L1128-L1155]
+[F:decision-gate-mcp/src/server.rs L866-L1003](decision-gate-mcp/src/server.rs#L866-L1003)[F:decision-gate-mcp/src/server.rs L1128-L1155](decision-gate-mcp/src/server.rs#L1128-L1155)
 
 ---
 
@@ -215,7 +215,7 @@ The server enforces:
 
 These failures are reported with structured JSON-RPC error metadata and are
 marked retryable when appropriate.
-[F:decision-gate-mcp/src/server.rs L1028-L1126][F:decision-gate-mcp/src/server.rs L1392-L1399]
+[F:decision-gate-mcp/src/server.rs L1028-L1126](decision-gate-mcp/src/server.rs#L1028-L1126)[F:decision-gate-mcp/src/server.rs L1392-L1399](decision-gate-mcp/src/server.rs#L1392-L1399)
 
 ---
 
