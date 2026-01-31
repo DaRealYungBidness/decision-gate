@@ -23,6 +23,7 @@ dependencies = [
 ]
 
 [tool.setuptools]
+package-dir = { "" = "src" }
 packages = ["decision_gate_langchain"]
 
 [tool.setuptools.package-data]

@@ -25,10 +25,12 @@ Dependencies:
 ## Fixture vs Live Mode
 
 ### Deterministic Offline Fixtures
+
 - Uses a provider stub with a fixture map.
 - Fully deterministic and fast.
 
 ### Live Mode (Integration)
+
 - Runs AssetCore services in Docker.
 - Exercises real MCP calls and network paths.
 
@@ -71,6 +73,7 @@ cargo test -p system-tests \
 ```
 
 What happens:
+
 - Provider stub loads `system-tests/tests/fixtures/assetcore/interop/fixture_map.json`.
 - DG evaluates gates using fixture evidence.
 
@@ -156,10 +159,12 @@ cp <ASSETCORE_GENERATED_DIR>/decision-gate/providers/assetcore_read.json \
 ## Troubleshooting
 
 ### AssetCore MCP connection refused
+
 - Verify AssetCore MCP adapter is running.
 - Check the provider URL in the Decision Gate config (`http://127.0.0.1:9000/mcp`).
 
 ### Anchor validation failures
+
 - Confirm anchor policy under `[anchors]`.
 - Ensure `anchor_value` is a string containing canonical JSON with required fields.
 

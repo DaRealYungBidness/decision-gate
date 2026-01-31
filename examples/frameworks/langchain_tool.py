@@ -14,7 +14,7 @@ import sys
 from decision_gate import DecisionGateClient
 from decision_gate_langchain import build_decision_gate_tools
 
-from common import prepare_precheck
+from common import find_tool, prepare_precheck
 
 
 def main() -> int:
@@ -24,7 +24,7 @@ def main() -> int:
 
     client = DecisionGateClient(endpoint=endpoint, auth_token=token)
     tools = build_decision_gate_tools(client, validate=validate_enabled)
-    precheck_tool = tools[0]
+    precheck_tool = find_tool(tools, "decision_gate_precheck")
 
     precheck_request, _meta = prepare_precheck(client, validate_enabled=validate_enabled)
     result = precheck_tool.invoke({"request": precheck_request})

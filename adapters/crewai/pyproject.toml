@@ -21,9 +21,11 @@ dependencies = [
   "decision-gate>=0.1.0",
   "crewai",
   "pydantic>=1.10",
+  "typing-extensions>=4.7",
 ]
 
 [tool.setuptools]
+package-dir = { "" = "src" }
 packages = ["decision_gate_crewai"]
 
 [tool.setuptools.package-data]

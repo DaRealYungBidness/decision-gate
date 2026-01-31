@@ -20,7 +20,7 @@ from decision_gate_langchain import build_decision_gate_tools
 client = DecisionGateClient(endpoint="http://127.0.0.1:8080/rpc")
 tools = build_decision_gate_tools(client, validate=True)
 
-# tools = [decision_gate_precheck, decision_gate_scenario_next, decision_gate_scenario_status]
+# tools includes the full Decision Gate MCP tool surface.
 ```
 
 ## Notes

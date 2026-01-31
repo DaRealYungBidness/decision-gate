@@ -17,11 +17,11 @@ Dependencies:
 Decision Gate ships **three curated presets** to balance onboarding speed with
 security posture. Pick one, run it, then graduate to the next.
 
-| Preset | Intent | Path |
-| --- | --- | --- |
-| Quickstart-Dev | Lowest friction local onboarding | `configs/presets/quickstart-dev.toml` |
-| Default-Recommended | Safe-by-default local usage | `configs/presets/default-recommended.toml` |
-| Hardened | Strong local security posture (bearer auth + signing) | `configs/presets/hardened.toml` |
+| Preset              | Intent                                                | Path                                       |
+| ------------------- | ----------------------------------------------------- | ------------------------------------------ |
+| Quickstart-Dev      | Lowest friction local onboarding                      | `configs/presets/quickstart-dev.toml`      |
+| Default-Recommended | Safe-by-default local usage                           | `configs/presets/default-recommended.toml` |
+| Hardened            | Strong local security posture (bearer auth + signing) | `configs/presets/hardened.toml`            |
 
 **Important:** Every preset is runnable. For production exposure, add TLS and
 mTLS as described in `Docs/guides/security_guide.md`.

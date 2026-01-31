@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-# scripts/docs_verify.py
-# =============================================================================
-# Module: Documentation Verification Runner
-# Description: Parses guide code fences, validates metadata, and optionally runs them.
-# Purpose: Enforce executable documentation standards and prevent drift.
-# =============================================================================
+"""Decision Gate documentation verifier.
+
+This script scans guides in Docs/guides, validates fenced-code metadata,
+checks the verification registry, and optionally executes runnable blocks.
+It is safe to run in CI without --run; execution only happens when requested.
+"""
 
 from __future__ import annotations
 
@@ -14,11 +14,10 @@ import json
 import os
 import shlex
 import subprocess
-import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Mapping, Optional, Sequence, cast
 
 try:
     import tomllib  # Python 3.11+
@@ -31,18 +30,49 @@ GUIDE_ROOT = REPO_ROOT / "Docs" / "guides"
 REGISTRY_PATH = REPO_ROOT / "Docs" / "verification" / "registry.toml"
 
 
+def new_flags() -> set[str]:
+    """Return a new flag set for a Block."""
+    return set()
+
+
+def new_attrs() -> Dict[str, str]:
+    """Return a new attribute mapping for a Block."""
+    return {}
+
+
 @dataclass
 class Block:
+    """Represents a fenced code block parsed from a guide."""
+
     guide: Path
     start_line: int
     lang: str
     info: str
     content: str
-    flags: set[str] = field(default_factory=set)
-    attrs: Dict[str, str] = field(default_factory=dict)
+    flags: set[str] = field(default_factory=new_flags)
+    attrs: Dict[str, str] = field(default_factory=new_attrs)
+
+
+def read_text(path: Path) -> str:
+    """Read text with a consistent encoding for reproducible parsing."""
+    return path.read_text(encoding="utf-8")
+
+
+def to_str_keyed_dict(value: object) -> Optional[Dict[str, object]]:
+    """Return a dict[str, object] when value has only string keys."""
+    if not isinstance(value, dict):
+        return None
+    normalized: Dict[str, object] = {}
+    items = cast(Dict[object, object], value)
+    for key, entry_value in items.items():
+        if not isinstance(key, str):
+            return None
+        normalized[key] = entry_value
+    return normalized
 
 
 def parse_info(info: str) -> tuple[str, set[str], Dict[str, str]]:
+    """Parse a code-fence info string into language, flags, and attributes."""
     tokens = shlex.split(info)
     lang = tokens[0] if tokens else ""
     flags: set[str] = set()
@@ -62,8 +92,9 @@ def parse_info(info: str) -> tuple[str, set[str], Dict[str, str]]:
 
 
 def parse_blocks(path: Path) -> List[Block]:
+    """Extract fenced code blocks from a guide file."""
     blocks: List[Block] = []
-    lines = path.read_text().splitlines()
+    lines = read_text(path).splitlines()
     in_code = False
     info = ""
     lang = ""
@@ -101,15 +132,21 @@ def parse_blocks(path: Path) -> List[Block]:
 
 
 def load_registry() -> Dict[str, Dict[str, object]]:
+    """Load the guide verification registry from TOML."""
     if not REGISTRY_PATH.exists():
         return {}
-    raw = REGISTRY_PATH.read_text()
+    raw = read_text(REGISTRY_PATH)
     if tomllib is None:
         raise RuntimeError("Python 3.11+ required for toml parsing.")
-    return tomllib.loads(raw).get("guides", {})
+    data = tomllib.loads(raw)
+    guides = data.get("guides", {})
+    if not isinstance(guides, dict):
+        return {}
+    return cast(Dict[str, Dict[str, object]], guides)
 
 
 def ensure_registry(guide_paths: Iterable[Path], registry: Dict[str, Dict[str, object]]) -> List[str]:
+    """Confirm every guide has a registry entry."""
     errors: List[str] = []
     for path in guide_paths:
         key = path.name
@@ -119,6 +156,7 @@ def ensure_registry(guide_paths: Iterable[Path], registry: Dict[str, Dict[str, o
 
 
 def ensure_block_metadata(blocks: List[Block]) -> List[str]:
+    """Ensure every fenced block declares its execution/validation intent."""
     errors: List[str] = []
     for block in blocks:
         has_action = (
@@ -154,7 +192,8 @@ def ensure_block_metadata(blocks: List[Block]) -> List[str]:
     return errors
 
 
-def guide_has_verified_blocks(blocks: List[Block]) -> bool:
+def guide_has_verified_blocks(blocks: Sequence[Block]) -> bool:
+    """Return True when a guide has at least one runnable/parsable block."""
     for block in blocks:
         if "dg-skip" in block.flags:
             continue
@@ -164,28 +203,35 @@ def guide_has_verified_blocks(blocks: List[Block]) -> bool:
 
 
 def verify_registry_proofs(
-    guide: Path, registry_entry: Dict[str, object], test_names: set[str], blocks: List[Block]
+    guide: Path, registry_entry: Mapping[str, object], test_names: set[str], blocks: Sequence[Block]
 ) -> List[str]:
+    """Validate registry proof entries for a given guide."""
     errors: List[str] = []
-    proofs = registry_entry.get("proofs", [])
-    if not proofs:
+    proofs_value = registry_entry.get("proofs")
+    if not isinstance(proofs_value, list) or not proofs_value:
         errors.append(f"{guide}: registry entry missing proofs.")
         return errors
 
     has_doc_runner = False
-    for proof in proofs:
-        if not isinstance(proof, dict):
-            errors.append(f"{guide}: invalid proof entry {proof!r}")
+    proofs_list = cast(List[object], proofs_value)
+    for proof_value in proofs_list:
+        proof_map = to_str_keyed_dict(proof_value)
+        if proof_map is None:
+            errors.append(f"{guide}: invalid proof entry {proof_value!r}")
             continue
-        kind = proof.get("kind")
+        kind = proof_map.get("kind")
         if kind == "system-test":
-            name = proof.get("name")
-            if name not in test_names:
+            name = proof_map.get("name")
+            if not isinstance(name, str) or not name:
+                errors.append(f"{guide}: system-test proof missing name.")
+            elif name not in test_names:
                 errors.append(f"{guide}: system-test proof '{name}' not found in registry.")
         elif kind == "doc-runner":
             has_doc_runner = True
-        else:
+        elif isinstance(kind, str):
             errors.append(f"{guide}: unknown proof kind '{kind}'.")
+        else:
+            errors.append(f"{guide}: proof kind must be a string (got {kind!r}).")
 
     if has_doc_runner and not guide_has_verified_blocks(blocks):
         errors.append(f"{guide}: doc-runner proof present but no runnable blocks found.")
@@ -193,22 +239,37 @@ def verify_registry_proofs(
 
 
 def parse_test_registry() -> set[str]:
+    """Load the system-test registry and return known test names."""
     registry_path = REPO_ROOT / "system-tests" / "test_registry.toml"
     if not registry_path.exists():
         return set()
     if tomllib is None:
         raise RuntimeError("Python 3.11+ required for toml parsing.")
-    data = tomllib.loads(registry_path.read_text())
-    return {entry["name"] for entry in data.get("tests", []) if "name" in entry}
+    data = tomllib.loads(read_text(registry_path))
+    tests_value = data.get("tests")
+    if not isinstance(tests_value, list):
+        return set()
+    names: set[str] = set()
+    tests_list = cast(List[object], tests_value)
+    for entry_value in tests_list:
+        entry = to_str_keyed_dict(entry_value)
+        if entry is None:
+            continue
+        name = entry.get("name")
+        if isinstance(name, str):
+            names.add(name)
+    return names
 
 
 def parse_requires(value: Optional[str]) -> set[str]:
+    """Parse comma-separated dg-requires values into a set."""
     if not value:
         return set()
     return {item.strip() for item in value.split(",") if item.strip()}
 
 
 def requirements_satisfied(reqs: set[str]) -> bool:
+    """Return True when all runtime requirements are present."""
     for req in reqs:
         if req == "docker":
             if not shutil_which("docker"):
@@ -226,6 +287,7 @@ def requirements_satisfied(reqs: set[str]) -> bool:
 
 
 def shutil_which(cmd: str) -> Optional[str]:
+    """Minimal shutil.which replacement to avoid extra imports."""
     for path in os.getenv("PATH", "").split(os.pathsep):
         candidate = Path(path) / cmd
         if candidate.exists() and os.access(candidate, os.X_OK):
@@ -234,6 +296,7 @@ def shutil_which(cmd: str) -> Optional[str]:
 
 
 def run_command(cmd: List[str], cwd: Path) -> None:
+    """Run a command and raise with stdout/stderr on failure."""
     result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(
@@ -242,6 +305,7 @@ def run_command(cmd: List[str], cwd: Path) -> None:
 
 
 def execute_blocks(blocks: List[Block], level: str) -> List[str]:
+    """Execute runnable blocks while respecting dg-level and dg-session."""
     errors: List[str] = []
     sessions: Dict[str, Path] = {}
 
@@ -281,6 +345,7 @@ def execute_blocks(blocks: List[Block], level: str) -> List[str]:
 
 
 def run_parse(block: Block) -> None:
+    """Parse structured content without executing it."""
     if block.lang == "json":
         json.loads(block.content)
         return
@@ -293,6 +358,7 @@ def run_parse(block: Block) -> None:
 
 
 def run_validate(block: Block, session_dir: Path) -> None:
+    """Validate scenario/config content via decision-gate-cli."""
     kind = block.attrs.get("dg-validate")
     if not kind:
         raise RuntimeError("dg-validate requires a kind")
@@ -300,7 +366,7 @@ def run_validate(block: Block, session_dir: Path) -> None:
         fmt = block.attrs.get("dg-format", block.lang or "json")
         ext = ".ron" if fmt == "ron" else ".json"
         path = session_dir / f"scenario{ext}"
-        path.write_text(block.content)
+        path.write_text(block.content, encoding="utf-8")
         cmd = [
             "cargo",
             "run",
@@ -318,7 +384,7 @@ def run_validate(block: Block, session_dir: Path) -> None:
         return
     if kind == "config":
         path = session_dir / "decision-gate.toml"
-        path.write_text(block.content)
+        path.write_text(block.content, encoding="utf-8")
         cmd = [
             "cargo",
             "run",
@@ -336,11 +402,13 @@ def run_validate(block: Block, session_dir: Path) -> None:
 
 
 def run_shell(block: Block, cwd: Path) -> None:
+    """Execute shell content in a strict bash environment."""
     cmd = ["bash", "-euo", "pipefail", "-c", block.content]
     run_command(cmd, cwd)
 
 
 def main() -> int:
+    """CLI entrypoint."""
     parser = argparse.ArgumentParser(description="Decision Gate documentation verifier")
     parser.add_argument("--run", action="store_true", help="Execute dg-run/dg-parse blocks")
     parser.add_argument(

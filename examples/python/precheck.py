@@ -33,7 +33,7 @@ def default_precheck_spec(scenario_id: str) -> dict:
         "scenario_id": scenario_id,
         "namespace_id": 1,
         "spec_version": "1",
-        "default_tenant_id": None,
+        "default_tenant_id": 1,
         "policies": [],
         "schemas": [],
         "conditions": [

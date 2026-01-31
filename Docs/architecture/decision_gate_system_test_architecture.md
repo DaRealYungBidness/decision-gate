@@ -13,7 +13,7 @@ Dependencies:
   - system-tests/test_registry.toml
   - system-tests/test_gaps.toml
 ============================================================================
-Last Updated: 2026-01-29 (UTC)
+Last Updated: 2026-01-31 (UTC)
 ============================================================================
 -->
 
@@ -145,6 +145,10 @@ Tests should be registered and coverage docs regenerated when changes occur.
 | Usage and workflow | `system-tests/README.md` | Running tests and artifact contract. |
 | Agentic harness bootstrap | `scripts/agentic_harness_bootstrap.sh` | Installs Python deps for agentic driver matrix. |
 | Agentic harness runner | `scripts/agentic_harness.sh` | Deterministic entry point for agentic flow harness. |
+| Adapter smoke tests | `scripts/adapter_tests.sh` | Installs adapter deps, runs conformance, and executes adapter examples. |
+| Adapter conformance | `scripts/adapter_conformance.py` | Verifies adapter tool surfaces match MCP tooling.json. |
+| Adapter roundtrip | `scripts/adapter_roundtrip.py` | Runs per-tool roundtrip calls through each adapter against live MCP server. |
+| Adapter typecheck | `scripts/typecheck_adapters.sh` | Runs Pyright strict typing gate for adapters + adapter scripts. |
 | Coverage matrix | `system-tests/TEST_MATRIX.md` | P0/P1/P2 summary. |
 | Test registry | `system-tests/test_registry.toml` | Inventory + metadata. |
 | Gap tracking | `system-tests/test_gaps.toml` | Missing coverage + acceptance criteria. |

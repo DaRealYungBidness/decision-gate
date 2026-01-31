@@ -25,3 +25,4 @@ tools = build_decision_gate_tools(client, validate=True)
 
 - This adapter is not published to PyPI yet.
 - Use with the OpenAI Agents SDK tool APIs.
+- The tool list mirrors the full Decision Gate MCP tool surface.

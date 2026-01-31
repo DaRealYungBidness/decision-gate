@@ -14,6 +14,9 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 FRAMEWORKS=()
 ENDPOINT=""
 VALIDATE="false"
+if [[ -n "${CI:-}" ]]; then
+    VALIDATE="true"
+fi
 TMP_DIRS=()
 SERVER_PID=""
 
@@ -26,7 +29,7 @@ Options:
   --frameworks=LIST         Comma-separated list of adapters to test.
                            Values: langchain, crewai, autogen, openai_agents (openai-agents alias)
   --endpoint URL            Use an existing DG MCP endpoint (skip server spawn).
-  --validate                Enable runtime JSON Schema validation (installs jsonschema).
+  --validate                Enable runtime JSON Schema validation (default in CI).
   -h, --help                Show this help message.
 USAGE
 }
@@ -180,11 +183,17 @@ namespace_id = 1
 allow_default = true
 default_tenants = [1]
 
+[schema_registry.acl]
+allow_local_only = true
+
 [[providers]]
 name = "env"
 type = "builtin"
 [providers.config]
 allowlist = ["DEPLOY_ENV"]
+denylist = []
+max_key_bytes = 255
+max_value_bytes = 65536
 DG_CONFIG
 
     local log_path="$tmp_root/server.log"
@@ -224,42 +233,6 @@ if [[ -z "$ENDPOINT" ]]; then
     fi
 fi
 
-venv_root="$(mktemp -d)"
-TMP_DIRS+=("$venv_root")
-
-run "${PYTHON[@]}" -m venv "$venv_root/venv"
-VENV_PY="$venv_root/venv/bin/python"
-VENV_PIP="$venv_root/venv/bin/pip"
-
-export PIP_DISABLE_PIP_VERSION_CHECK=1
-export PIP_NO_INPUT=1
-
-run "$VENV_PY" -m pip install --upgrade pip
-
-if [[ "$VALIDATE" == "true" ]]; then
-    run "$VENV_PIP" install -e "$REPO_ROOT/sdks/python[validation]"
-else
-    run "$VENV_PIP" install -e "$REPO_ROOT/sdks/python"
-fi
-
-for framework in "${FRAMEWORKS[@]}"; do
-    case "$framework" in
-        langchain)
-            run "$VENV_PIP" install -e "$REPO_ROOT/adapters/langchain"
-            ;;
-        crewai)
-            run "$VENV_PIP" install -e "$REPO_ROOT/adapters/crewai"
-            ;;
-        autogen)
-            run "$VENV_PIP" install -e "$REPO_ROOT/adapters/autogen"
-            ;;
-        openai_agents)
-            run "$VENV_PIP" install -e "$REPO_ROOT/adapters/openai_agents"
-            ;;
-    esac
-
-done
-
 export DG_ENDPOINT="$ENDPOINT"
 if [[ "$VALIDATE" == "true" ]]; then
     export DG_VALIDATE="1"
@@ -268,22 +241,64 @@ else
 fi
 export DEPLOY_ENV="production"
 
-for framework in "${FRAMEWORKS[@]}"; do
+if [[ -n "${CI:-}" ]]; then
+    run "$REPO_ROOT/scripts/typecheck_adapters.sh"
+fi
+
+export PIP_DISABLE_PIP_VERSION_CHECK=1
+export PIP_NO_INPUT=1
+
+run_framework() {
+    local framework="$1"
+    local venv_root
+    venv_root="$(mktemp -d)"
+    TMP_DIRS+=("$venv_root")
+
+    run "${PYTHON[@]}" -m venv "$venv_root/venv"
+    local venv_py="$venv_root/venv/bin/python"
+    local venv_pip="$venv_root/venv/bin/pip"
+
+    run "$venv_py" -m pip install --upgrade pip
+    if [[ "$VALIDATE" == "true" ]]; then
+        run "$venv_pip" install -e "$REPO_ROOT/sdks/python[validation]"
+    else
+        run "$venv_pip" install -e "$REPO_ROOT/sdks/python"
+    fi
+
     case "$framework" in
         langchain)
-            run "$VENV_PY" "$REPO_ROOT/examples/frameworks/langchain_tool.py"
+            run "$venv_pip" install -e "$REPO_ROOT/adapters/langchain"
+            run "$venv_py" "$REPO_ROOT/scripts/adapter_conformance.py" --frameworks="langchain"
+            run "$venv_py" "$REPO_ROOT/scripts/adapter_roundtrip.py" --frameworks="langchain"
+            DG_TEST_SUFFIX="langchain" run "$venv_py" "$REPO_ROOT/examples/frameworks/langchain_tool.py"
             ;;
         crewai)
-            run "$VENV_PY" "$REPO_ROOT/examples/frameworks/crewai_tool.py"
+            run "$venv_pip" install -e "$REPO_ROOT/adapters/crewai"
+            run "$venv_py" "$REPO_ROOT/scripts/adapter_conformance.py" --frameworks="crewai"
+            run "$venv_py" "$REPO_ROOT/scripts/adapter_roundtrip.py" --frameworks="crewai"
+            DG_TEST_SUFFIX="crewai" run "$venv_py" "$REPO_ROOT/examples/frameworks/crewai_tool.py"
             ;;
         autogen)
-            run "$VENV_PY" "$REPO_ROOT/examples/frameworks/autogen_tool.py"
+            run "$venv_pip" install -e "$REPO_ROOT/adapters/autogen"
+            run "$venv_py" "$REPO_ROOT/scripts/adapter_conformance.py" --frameworks="autogen"
+            run "$venv_py" "$REPO_ROOT/scripts/adapter_roundtrip.py" --frameworks="autogen"
+            DG_TEST_SUFFIX="autogen" run "$venv_py" "$REPO_ROOT/examples/frameworks/autogen_tool.py"
             ;;
         openai_agents)
-            run "$VENV_PY" "$REPO_ROOT/examples/frameworks/openai_agents_tool.py"
+            run "$venv_pip" install -e "$REPO_ROOT/adapters/openai_agents"
+            run "$venv_py" "$REPO_ROOT/scripts/adapter_conformance.py" --frameworks="openai_agents"
+            run "$venv_py" "$REPO_ROOT/scripts/adapter_roundtrip.py" --frameworks="openai_agents"
+            DG_TEST_SUFFIX="openai_agents" run "$venv_py" "$REPO_ROOT/examples/frameworks/openai_agents_tool.py"
+            ;;
+        *)
+            echo "Unknown framework: $framework" >&2
+            exit 1
             ;;
     esac
+}
 
+for framework in "${FRAMEWORKS[@]}"; do
+    run_framework "$framework"
 done
 
 echo "Adapter tests complete."

@@ -24,3 +24,4 @@ tools = build_decision_gate_tools(client, validate=True)
 ## Notes
 
 - This adapter is not published to PyPI yet.
+- The tool list mirrors the full Decision Gate MCP tool surface.

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Iterable, Tuple
 
 from decision_gate import (
     DecisionGateClient,
@@ -16,6 +16,14 @@ from decision_gate import (
     validate_scenario_define_request,
     validate_schemas_register_request,
 )
+
+
+def _suffix(value: str, suffix: str) -> str:
+    return f"{value}-{suffix}" if suffix else value
+
+
+def _test_suffix() -> str:
+    return os.environ.get("DG_TEST_SUFFIX", "").strip()
 
 
 def load_env_json(name: str) -> object | None:
@@ -30,7 +38,7 @@ def default_precheck_spec(scenario_id: str) -> Dict[str, Any]:
         "scenario_id": scenario_id,
         "namespace_id": 1,
         "spec_version": "1",
-        "default_tenant_id": None,
+        "default_tenant_id": 1,
         "policies": [],
         "schemas": [],
         "conditions": [
@@ -66,9 +74,9 @@ def default_precheck_spec(scenario_id: str) -> Dict[str, Any]:
     }
 
 
-def default_schema_record() -> Dict[str, Any]:
+def default_schema_record(schema_id: str) -> Dict[str, Any]:
     return {
-        "schema_id": "asserted_payload",
+        "schema_id": schema_id,
         "version": "v1",
         "description": "Asserted payload schema.",
         "tenant_id": 1,
@@ -88,16 +96,29 @@ def maybe_validate(enabled: bool, validator, payload: Dict[str, Any]) -> None:
         validator(payload)
 
 
+def find_tool(tools: Iterable[object], name: str) -> object:
+    for tool in tools:
+        tool_name = getattr(tool, "name", None) or getattr(tool, "tool_name", None)
+        if isinstance(tool_name, str) and tool_name == name:
+            return tool
+        func_name = getattr(tool, "__name__", None)
+        if isinstance(func_name, str) and func_name == name:
+            return tool
+    raise KeyError(f"Tool not found: {name}")
+
+
 def prepare_precheck(
     client: DecisionGateClient,
     *,
     validate_enabled: bool,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    spec = load_env_json("DG_SCENARIO_SPEC") or default_precheck_spec(
-        "example-framework-precheck"
-    )
+    suffix = _test_suffix()
+    default_scenario_id = _suffix("example-framework-precheck", suffix)
+    default_schema_id = _suffix("asserted_payload", suffix)
+
+    spec = load_env_json("DG_SCENARIO_SPEC") or default_precheck_spec(default_scenario_id)
     scenario_id = spec["scenario_id"]
-    schema_record = load_env_json("DG_SCHEMA_RECORD") or default_schema_record()
+    schema_record = load_env_json("DG_SCHEMA_RECORD") or default_schema_record(default_schema_id)
 
     define_request = {"spec": spec}
     maybe_validate(validate_enabled, validate_scenario_define_request, define_request)
