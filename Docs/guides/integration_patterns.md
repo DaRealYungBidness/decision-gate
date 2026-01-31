@@ -43,7 +43,7 @@ Dependencies:
 4. Decision outcome drives deploy
 
 **Scenario (minimal, accurate fields):**
-```json
+```json dg-parse dg-level=fast
 {
   "scenario_id": "ci-gate",
   "namespace_id": 1,
@@ -124,6 +124,7 @@ Dependencies:
   - `advance` / `complete` -> gates passed
   - `hold` -> gates not satisfied
   - `fail` -> run failed
+- Optional: `feedback: "trace"` can return gate + condition status (if permitted by server feedback policy).
 
 ---
 
@@ -164,7 +165,7 @@ Typical flow:
 
 Use stage ordering plus `advance_to.kind = "linear"` to move to the next stage in spec order:
 
-```json
+```json dg-parse dg-level=fast
 {
   "stage_id": "dev",
   "advance_to": { "kind": "linear" }
@@ -180,7 +181,7 @@ Use `branch` when you need different destinations based on gate outcome.
 **When to use:** Evidence sources outside built-ins
 
 **Config (exact):**
-```toml
+```toml dg-parse dg-level=fast
 [[providers]]
 name = "git"
 type = "mcp"

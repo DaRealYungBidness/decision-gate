@@ -1,0 +1,1 @@
+[{"call_id":"call-1","called_at":{"kind":"unix_millis","value":1710000000000},"correlation_id":null,"error":null,"method":"scenario.next","request_hash":{"algorithm":"sha256","value":"b6a731adbc9bdb3533c152f348f07b243ad0db4b7bb20d290c76b5c5149bf54b"},"response_hash":{"algorithm":"sha256","value":"a876d5da317b59dc5610e4d124a03af68ee7b50b8b8c4cd0799ac81ce3102e64"}}]

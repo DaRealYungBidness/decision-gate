@@ -188,6 +188,7 @@ fn mcp_tool_outputs_match_contract_schemas() -> Result<(), Box<dyn Error>> {
             time: Timestamp::Logical(3),
             correlation_id: None,
         },
+        feedback: None,
     };
     let next_input = serde_json::to_value(&next_request)?;
     let next_schema = tool_schema(&tool_schemas, ToolName::ScenarioNext)?;

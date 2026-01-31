@@ -286,6 +286,7 @@ fn registry_acl_rules_at_max_registry_acl_rules_256() -> TestResult {
     let acl = RegistryAclConfig {
         mode: RegistryAclMode::Custom,
         default: RegistryAclDefault::Deny,
+        allow_local_only: true,
         require_signing: false,
         rules,
     };
@@ -311,6 +312,7 @@ fn registry_acl_rules_exceeds_max_registry_acl_rules_257() -> TestResult {
     let acl = RegistryAclConfig {
         mode: RegistryAclMode::Custom,
         default: RegistryAclDefault::Deny,
+        allow_local_only: true,
         require_signing: false,
         rules,
     };
@@ -898,6 +900,7 @@ fn schema_max_bytes_at_max_10mb() -> TestResult {
         acl: RegistryAclConfig {
             mode: RegistryAclMode::Builtin,
             default: RegistryAclDefault::Deny,
+            allow_local_only: true,
             require_signing: false,
             rules: Vec::new(),
         },
@@ -920,6 +923,7 @@ fn schema_max_bytes_exceeds_max_10mb_plus_1() -> TestResult {
         acl: RegistryAclConfig {
             mode: RegistryAclMode::Builtin,
             default: RegistryAclDefault::Deny,
+            allow_local_only: true,
             require_signing: false,
             rules: Vec::new(),
         },
@@ -942,6 +946,7 @@ fn schema_max_bytes_at_min_1() -> TestResult {
         acl: RegistryAclConfig {
             mode: RegistryAclMode::Builtin,
             default: RegistryAclDefault::Deny,
+            allow_local_only: true,
             require_signing: false,
             rules: Vec::new(),
         },
@@ -964,6 +969,7 @@ fn schema_max_bytes_at_zero_rejected() -> TestResult {
         acl: RegistryAclConfig {
             mode: RegistryAclMode::Builtin,
             default: RegistryAclDefault::Deny,
+            allow_local_only: true,
             require_signing: false,
             rules: Vec::new(),
         },

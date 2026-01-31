@@ -37,6 +37,7 @@ use decision_gate_mcp::config::ServerAuditConfig;
 use decision_gate_mcp::config::ServerAuthConfig;
 use decision_gate_mcp::config::ServerAuthMode;
 use decision_gate_mcp::config::ServerConfig;
+use decision_gate_mcp::config::ServerFeedbackConfig;
 use decision_gate_mcp::config::ServerLimitsConfig;
 use decision_gate_mcp::config::ServerMode;
 use decision_gate_mcp::config::ServerTlsConfig;
@@ -140,6 +141,7 @@ pub fn base_http_config(bind: &str) -> DecisionGateConfig {
             }),
             tls: None,
             audit: ServerAuditConfig::default(),
+            feedback: ServerFeedbackConfig::default(),
         },
         namespace: NamespaceConfig {
             allow_default: true,
@@ -243,6 +245,7 @@ pub fn base_sse_config(bind: &str) -> DecisionGateConfig {
             }),
             tls: None,
             audit: ServerAuditConfig::default(),
+            feedback: ServerFeedbackConfig::default(),
         },
         namespace: NamespaceConfig {
             allow_default: true,

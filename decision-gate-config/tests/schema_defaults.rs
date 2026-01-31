@@ -76,5 +76,34 @@ fn schema_defaults_match_runtime_defaults() -> TestResult {
         "/properties/schema_registry/properties/max_schema_bytes/default",
         &serde_json::json!(config.schema_registry.max_schema_bytes),
     )?;
+    let feedback_default = serde_json::to_value(config.server.feedback.scenario_next.default)
+        .map_err(|err| err.to_string())?;
+    assert_default(
+        &schema,
+        "/properties/server/properties/feedback/properties/scenario_next/properties/default/\
+         default",
+        &feedback_default,
+    )?;
+    let feedback_local_default =
+        serde_json::to_value(config.server.feedback.scenario_next.local_only_default)
+            .map_err(|err| err.to_string())?;
+    assert_default(
+        &schema,
+        "/properties/server/properties/feedback/properties/scenario_next/properties/\
+         local_only_default/default",
+        &feedback_local_default,
+    )?;
+    let feedback_max = serde_json::to_value(config.server.feedback.scenario_next.max)
+        .map_err(|err| err.to_string())?;
+    assert_default(
+        &schema,
+        "/properties/server/properties/feedback/properties/scenario_next/properties/max/default",
+        &feedback_max,
+    )?;
+    assert_default(
+        &schema,
+        "/properties/schema_registry/properties/acl/properties/allow_local_only/default",
+        &serde_json::json!(config.schema_registry.acl.allow_local_only),
+    )?;
     Ok(())
 }

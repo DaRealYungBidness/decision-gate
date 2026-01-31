@@ -511,6 +511,7 @@ async fn exercise_mapping(
                     time: Timestamp::Logical(5),
                     correlation_id: None,
                 },
+                feedback: None,
             };
             client
                 .call_tool_typed::<decision_gate_core::runtime::NextResult>(

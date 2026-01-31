@@ -32,6 +32,7 @@ Server transport, auth, limits, and audit settings.
 | `auth` | table | null | Inbound authentication configuration for MCP tool calls. |
 | `tls` | table | null | TLS configuration for HTTP/SSE transports. |
 | `audit` | table | { enabled = true } | Structured audit logging configuration. |
+| `feedback` | table | n/a | Feedback disclosure configuration for tool responses. |
 
 HTTP/SSE require `bind`; non-loopback requires explicit CLI opt-in plus TLS + non-local auth.
 
@@ -90,6 +91,32 @@ Structured audit logging configuration.
 | `enabled` | bool | true | Enable structured audit logging (JSON lines). |
 | `path` | string | null | Audit log path (JSON lines). |
 | `log_precheck_payloads` | bool | false | Log raw precheck payloads (explicit opt-in). |
+
+### [server.feedback]
+
+Feedback disclosure controls for tool responses.
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `scenario_next` | table | { default = "summary", local_only_default = "trace", max = "trace" } | Feedback policy for scenario_next responses. |
+
+Feedback levels: `summary` (unmet gates only), `trace` (gate + condition status), `evidence` (includes evidence records, subject to disclosure policy).
+
+### [server.feedback.scenario_next]
+
+Feedback policy for scenario_next responses.
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `default` | "summary" \| "trace" \| "evidence" | summary | Default feedback level for non-local requests. |
+| `local_only_default` | "summary" \| "trace" \| "evidence" | trace | Default feedback level for local-only requests. |
+| `max` | "summary" \| "trace" \| "evidence" | trace | Maximum feedback level permitted. |
+| `trace_subjects` | array | ["loopback", "stdio"] | Subject identifiers allowed to request trace feedback. |
+| `trace_roles` | array | [] | Role names allowed to request trace feedback. |
+| `evidence_subjects` | array | [] | Subject identifiers allowed to request evidence feedback. |
+| `evidence_roles` | array | [] | Role names allowed to request evidence feedback. |
+
+Local-only defaults apply to loopback/stdio. Subjects and roles are resolved from `server.auth.principals`.
 
 ### [server.limits]
 
@@ -402,10 +429,11 @@ Schema registry ACL configuration.
 | --- | --- | --- | --- |
 | `mode` | "builtin" \| "custom" | builtin | Built-in role rules or custom ACL rules. |
 | `default` | "deny" \| "allow" | deny | Default decision when no rules match (custom only). |
+| `allow_local_only` | bool | true | Allow local-only subjects to access the registry when using the built-in ACL. |
 | `require_signing` | bool | false | Require schema signing metadata on writes. |
 | `rules` | array | [] | Custom ACL rules (mode = custom). |
 
-Built-in ACL relies on `server.auth.principals` for role and policy_class resolution. Without principals, registry access defaults to deny.
+Built-in ACL relies on `server.auth.principals` for role and policy_class resolution. Without principals, registry access defaults to deny unless `allow_local_only` is enabled (loopback/stdio only).
 
 Custom ACL example:
 

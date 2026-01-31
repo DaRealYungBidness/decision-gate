@@ -1,0 +1,57 @@
+# Docs Verification Registry
+# =============================================================================
+# Maps guides to runnable verification proofs.
+# Proof kinds:
+#   - system-test: must match a test name in system-tests/test_registry.toml
+#   - doc-runner: requires at least one dg-run/dg-parse/dg-validate block in the guide
+# =============================================================================
+
+[guides]
+
+[guides."assetcore_interop_runbook.md"]
+proofs = [
+  { kind = "system-test", name = "assetcore_interop_fixtures" },
+  { kind = "doc-runner" }
+]
+
+[guides."condition_authoring.md"]
+proofs = [{ kind = "doc-runner" }]
+
+[guides."evidence_flow_and_execution_model.md"]
+proofs = [{ kind = "doc-runner" }]
+
+[guides."getting_started.md"]
+proofs = [
+  { kind = "system-test", name = "smoke_define_start_next_status" },
+  { kind = "doc-runner" }
+]
+
+[guides."integration_patterns.md"]
+proofs = [{ kind = "doc-runner" }]
+
+[guides."json_evidence_playbook.md"]
+proofs = [
+  { kind = "system-test", name = "json_evidence_playbook_templates_pass" },
+  { kind = "doc-runner" }
+]
+
+[guides."llm_native_playbook.md"]
+proofs = [
+  { kind = "system-test", name = "llm_native_precheck_payload_flow" },
+  { kind = "doc-runner" }
+]
+
+[guides."provider_development.md"]
+proofs = [{ kind = "doc-runner" }]
+
+[guides."provider_protocol.md"]
+proofs = [{ kind = "doc-runner" }]
+
+[guides."provider_schema_authoring.md"]
+proofs = [{ kind = "doc-runner" }]
+
+[guides."ret_logic.md"]
+proofs = [{ kind = "doc-runner" }]
+
+[guides."security_guide.md"]
+proofs = [{ kind = "doc-runner" }]

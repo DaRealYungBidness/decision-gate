@@ -53,7 +53,6 @@ use decision_gate_core::runtime::ControlPlane;
 use decision_gate_core::runtime::ControlPlaneConfig;
 use decision_gate_core::runtime::InMemoryRunStateStore;
 use decision_gate_core::runtime::NextRequest;
-use decision_gate_core::runtime::NextResult;
 use decision_gate_mcp::DecisionGateConfig;
 use decision_gate_mcp::DefaultToolAuthz;
 use decision_gate_mcp::FederatedEvidenceProvider;
@@ -245,6 +244,7 @@ fn build_router(config: &DecisionGateConfig) -> ToolRouter {
         precheck_audit_payloads: config.server.audit.log_precheck_payloads,
         registry_acl,
         principal_resolver,
+        scenario_next_feedback: config.server.feedback.scenario_next.clone(),
         allow_default_namespace: config.allow_default_namespace(),
         default_namespace_tenants,
         namespace_authority: Arc::new(NoopNamespaceAuthority),
@@ -341,6 +341,7 @@ fn mcp_tools_match_core_control_plane() {
     let tool_request = decision_gate_mcp::tools::ScenarioNextRequest {
         scenario_id: ScenarioId::new("scenario"),
         request: next_request.clone(),
+        feedback: None,
     };
     let tool_result = router
         .handle_tool_call_sync(
@@ -349,7 +350,8 @@ fn mcp_tools_match_core_control_plane() {
             serde_json::to_value(&tool_request).unwrap(),
         )
         .unwrap();
-    let mcp_result: NextResult = serde_json::from_value(tool_result).unwrap();
+    let mcp_result: decision_gate_mcp::tools::ScenarioNextResponse =
+        serde_json::from_value(tool_result).unwrap();
 
     let store = InMemoryRunStateStore::new();
     let core = ControlPlane::new(
@@ -364,8 +366,8 @@ fn mcp_tools_match_core_control_plane() {
     core.start_run(run_config, Timestamp::Logical(1), false).unwrap();
     let core_result = core.scenario_next(&next_request).unwrap();
 
-    assert_eq!(mcp_result.decision, core_result.decision);
-    assert_eq!(mcp_result.packets, core_result.packets);
+    assert_eq!(mcp_result.result.decision, core_result.decision);
+    assert_eq!(mcp_result.result.packets, core_result.packets);
 }
 
 /// Builds a default config for parity tests.

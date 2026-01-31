@@ -283,6 +283,7 @@ impl McpServer {
             precheck_audit_payloads: config.server.audit.log_precheck_payloads,
             registry_acl,
             principal_resolver,
+            scenario_next_feedback: config.server.feedback.scenario_next.clone(),
             allow_default_namespace: config.allow_default_namespace(),
             default_namespace_tenants,
             namespace_authority,
@@ -1470,8 +1471,8 @@ fn emit_local_only_warning(server: &crate::config::ServerConfig) {
     if auth_mode == ServerAuthMode::LocalOnly {
         let _ = writeln!(
             std::io::stderr(),
-            "decision-gate-mcp: WARNING: server running in local-only mode without explicit auth; \
-             configure server.auth to enable bearer_token or mtls"
+            "decision-gate-mcp: INFO: running in local-only mode; configure server.auth to enable \
+             bearer_token or mtls for network exposure"
         );
     }
 }

@@ -23,7 +23,7 @@ Dependencies:
 
 ## Mental Model: Two Paths
 
-```
+```dg-skip dg-reason="output-only" dg-expires=2026-06-30
 Path A: Precheck (fast, asserted)
   - client supplies payload
   - data shape validates payload
@@ -38,9 +38,11 @@ Path B: Live Run (audited, verified)
 
 ## Quick Start: Precheck
 
+**Windows tip:** PowerShell/CMD do not support bash-style multiline `curl`. Use a single-line command or PowerShell here-strings.
+
 ### Step 1: Define a Scenario
 
-```bash
+```bash dg-run dg-level=manual dg-requires=mcp
 curl -s http://127.0.0.1:4000/rpc \
   -H 'Content-Type: application/json' \
   -d '{
@@ -93,7 +95,7 @@ curl -s http://127.0.0.1:4000/rpc \
 
 ### Step 2: Register a Data Shape (Schema)
 
-```bash
+```bash dg-run dg-level=manual dg-requires=mcp
 curl -s http://127.0.0.1:4000/rpc \
   -H 'Content-Type: application/json' \
   -d '{
@@ -125,9 +127,11 @@ curl -s http://127.0.0.1:4000/rpc \
   }'
 ```
 
+**Note:** Schema registration is governed by the registry ACL. Local-only loopback can be allowed by default; in other modes, configure `server.auth.principals` or `schema_registry.acl` rules if you see `unauthorized`.
+
 ### Step 3: Precheck with Inline Payload
 
-```bash
+```bash dg-run dg-level=manual dg-requires=mcp
 curl -s http://127.0.0.1:4000/rpc \
   -H 'Content-Type: application/json' \
   -d '{
@@ -150,22 +154,29 @@ curl -s http://127.0.0.1:4000/rpc \
 ```
 
 **Precheck response (exact shape):**
-```json
+```json dg-parse dg-level=fast
 {
   "jsonrpc": "2.0",
   "id": 3,
   "result": {
-    "decision": {
-      "kind": "complete",
-      "stage_id": "main"
-    },
-    "gate_evaluations": [
+    "content": [
       {
-        "gate_id": "quality",
-        "status": "true",
-        "trace": [
-          { "condition_id": "report_ok", "status": "true" }
-        ]
+        "type": "json",
+        "json": {
+          "decision": {
+            "kind": "complete",
+            "stage_id": "main"
+          },
+          "gate_evaluations": [
+            {
+              "gate_id": "quality",
+              "status": "true",
+              "trace": [
+                { "condition_id": "report_ok", "status": "true" }
+              ]
+            }
+          ]
+        }
       }
     ]
   }
@@ -178,7 +189,7 @@ curl -s http://127.0.0.1:4000/rpc \
 
 ## Live Run Flow (Audited)
 
-```bash
+```bash dg-run dg-level=manual dg-requires=mcp
 # scenario_start
 curl -s http://127.0.0.1:4000/rpc \
   -H 'Content-Type: application/json' \
@@ -223,13 +234,14 @@ curl -s http://127.0.0.1:4000/rpc \
           "agent_id": "agent-1",
           "time": { "kind": "unix_millis", "value": 1710000000000 },
           "correlation_id": null
-        }
+        },
+        "feedback": "trace"
       }
     }
   }'
 ```
 
-**Live result:** `NextResult { decision, packets, status }`.
+**Live result:** `NextResult { decision, packets, status }`. Optional `feedback: "trace"` can return gate/condition status when allowed by server feedback policy; `feedback: "evidence"` is subject to evidence disclosure rules.
 
 To inspect evidence and errors, call `runpack_export` or `evidence_query` (if disclosure policy allows).
 

@@ -903,6 +903,11 @@
           "additionalProperties": false,
           "description": "Schema registry ACL configuration.",
           "properties": {
+            "allow_local_only": {
+              "default": true,
+              "description": "Allow local-only subjects to access the registry when using the built-in ACL.",
+              "type": "boolean"
+            },
             "default": {
               "default": "deny",
               "description": "Default decision when no rules match (custom only).",
@@ -1346,6 +1351,93 @@
               "type": "string"
             }
           ]
+        },
+        "feedback": {
+          "additionalProperties": false,
+          "description": "Feedback disclosure configuration for tool responses.",
+          "properties": {
+            "scenario_next": {
+              "additionalProperties": false,
+              "description": "Feedback policy for scenario_next responses.",
+              "properties": {
+                "default": {
+                  "default": "summary",
+                  "description": "Default feedback level for non-local requests.",
+                  "enum": [
+                    "summary",
+                    "trace",
+                    "evidence"
+                  ],
+                  "type": "string"
+                },
+                "evidence_roles": {
+                  "default": [],
+                  "description": "Role names allowed to request evidence feedback.",
+                  "items": {
+                    "description": "Role allowed to request evidence feedback.",
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "evidence_subjects": {
+                  "default": [],
+                  "description": "Subject identifiers allowed to request evidence feedback.",
+                  "items": {
+                    "description": "Subject allowed to request evidence feedback.",
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "local_only_default": {
+                  "default": "trace",
+                  "description": "Default feedback level for local-only requests.",
+                  "enum": [
+                    "summary",
+                    "trace",
+                    "evidence"
+                  ],
+                  "type": "string"
+                },
+                "max": {
+                  "default": "trace",
+                  "description": "Maximum feedback level permitted.",
+                  "enum": [
+                    "summary",
+                    "trace",
+                    "evidence"
+                  ],
+                  "type": "string"
+                },
+                "trace_roles": {
+                  "default": [],
+                  "description": "Role names allowed to request trace feedback.",
+                  "items": {
+                    "description": "Role allowed to request trace feedback.",
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "trace_subjects": {
+                  "default": [
+                    "loopback",
+                    "stdio"
+                  ],
+                  "description": "Subject identifiers allowed to request trace feedback.",
+                  "items": {
+                    "description": "Subject allowed to request trace feedback.",
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "type": "object"
         },
         "limits": {
           "additionalProperties": false,

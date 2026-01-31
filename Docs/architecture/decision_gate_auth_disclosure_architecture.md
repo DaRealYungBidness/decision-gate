@@ -12,7 +12,7 @@ Dependencies:
   - decision-gate-mcp/src/server.rs
   - decision-gate-config/src/config.rs
 ============================================================================
-Last Updated: 2026-01-29 (UTC)
+Last Updated: 2026-01-30 (UTC)
 ============================================================================
 -->
 
@@ -149,6 +149,14 @@ stderr; tests can use a no-op sink.
 ---
 
 ## Disclosure Posture (JSON-RPC + HTTP)
+
+### Feedback Disclosure (scenario_next)
+`scenario_next` responses are summary-only by default. Optional feedback levels
+(`trace`, `evidence`) are gated by `server.feedback.scenario_next` policy, with
+role/subject checks resolved from `server.auth.principals`. Evidence feedback is
+still filtered through the evidence disclosure policy (raw values may be
+redacted unless explicitly allowed).
+[F:decision-gate-config/src/config.rs L468-L539][F:decision-gate-mcp/src/tools.rs L600-L720]
 
 ### JSON-RPC Error Envelope
 The MCP server responds using JSON-RPC error codes and structured metadata

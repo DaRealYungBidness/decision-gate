@@ -50,6 +50,7 @@ use decision_gate_mcp::config::ServerAuditConfig;
 use decision_gate_mcp::config::ServerAuthConfig;
 use decision_gate_mcp::config::ServerAuthMode;
 use decision_gate_mcp::config::ServerConfig;
+use decision_gate_mcp::config::ServerFeedbackConfig;
 use decision_gate_mcp::config::ServerLimitsConfig;
 use decision_gate_mcp::config::ServerMode;
 use decision_gate_mcp::config::ServerTlsConfig;
@@ -351,6 +352,7 @@ fn server_stdio_no_bind_required() {
         auth: None,
         tls: None,
         audit: ServerAuditConfig::default(),
+        feedback: ServerFeedbackConfig::default(),
     };
     assert!(validate_server_config(config).is_ok());
 }
@@ -367,6 +369,7 @@ fn server_max_body_bytes_zero_rejected() {
         auth: None,
         tls: None,
         audit: ServerAuditConfig::default(),
+        feedback: ServerFeedbackConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -386,6 +389,7 @@ fn server_http_requires_bind() {
         auth: None,
         tls: None,
         audit: ServerAuditConfig::default(),
+        feedback: ServerFeedbackConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -405,6 +409,7 @@ fn server_sse_requires_bind() {
         auth: None,
         tls: None,
         audit: ServerAuditConfig::default(),
+        feedback: ServerFeedbackConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -424,6 +429,7 @@ fn server_http_loopback_allowed() {
         auth: None,
         tls: None,
         audit: ServerAuditConfig::default(),
+        feedback: ServerFeedbackConfig::default(),
     };
     assert!(validate_server_config(config).is_ok());
 }
@@ -440,6 +446,7 @@ fn server_http_ipv6_loopback_allowed() {
         auth: None,
         tls: None,
         audit: ServerAuditConfig::default(),
+        feedback: ServerFeedbackConfig::default(),
     };
     assert!(validate_server_config(config).is_ok());
 }
@@ -456,6 +463,7 @@ fn server_http_non_loopback_rejected() {
         auth: None,
         tls: None,
         audit: ServerAuditConfig::default(),
+        feedback: ServerFeedbackConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -475,6 +483,7 @@ fn server_http_external_ip_rejected() {
         auth: None,
         tls: None,
         audit: ServerAuditConfig::default(),
+        feedback: ServerFeedbackConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -492,6 +501,7 @@ fn server_invalid_bind_format_rejected() {
         auth: None,
         tls: None,
         audit: ServerAuditConfig::default(),
+        feedback: ServerFeedbackConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -511,6 +521,7 @@ fn server_empty_bind_rejected() {
         auth: None,
         tls: None,
         audit: ServerAuditConfig::default(),
+        feedback: ServerFeedbackConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -534,6 +545,7 @@ fn server_http_non_loopback_allowed_with_bearer_auth() {
         }),
         tls: None,
         audit: ServerAuditConfig::default(),
+        feedback: ServerFeedbackConfig::default(),
     };
     assert!(validate_server_config(config).is_ok());
 }
@@ -556,6 +568,7 @@ fn server_stdio_rejects_bearer_auth() {
         }),
         tls: None,
         audit: ServerAuditConfig::default(),
+        feedback: ServerFeedbackConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -579,6 +592,7 @@ fn server_auth_bearer_requires_token() {
         }),
         tls: None,
         audit: ServerAuditConfig::default(),
+        feedback: ServerFeedbackConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -602,6 +616,7 @@ fn server_auth_rejects_unknown_tool_in_allowlist() {
         }),
         tls: None,
         audit: ServerAuditConfig::default(),
+        feedback: ServerFeedbackConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -625,6 +640,7 @@ fn server_auth_mtls_requires_subjects() {
         }),
         tls: None,
         audit: ServerAuditConfig::default(),
+        feedback: ServerFeedbackConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -645,6 +661,7 @@ fn server_limits_rejects_zero_inflight() {
         auth: None,
         tls: None,
         audit: ServerAuditConfig::default(),
+        feedback: ServerFeedbackConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -669,6 +686,7 @@ fn server_rate_limit_rejects_zero_requests() {
         auth: None,
         tls: None,
         audit: ServerAuditConfig::default(),
+        feedback: ServerFeedbackConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -691,6 +709,7 @@ fn server_tls_rejects_empty_paths() {
             require_client_cert: true,
         }),
         audit: ServerAuditConfig::default(),
+        feedback: ServerFeedbackConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -713,6 +732,7 @@ fn server_stdio_rejects_tls() {
             require_client_cert: true,
         }),
         audit: ServerAuditConfig::default(),
+        feedback: ServerFeedbackConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());
@@ -734,6 +754,7 @@ fn server_audit_rejects_empty_path() {
             path: Some("   ".to_string()),
             log_precheck_payloads: false,
         },
+        feedback: ServerFeedbackConfig::default(),
     };
     let result = validate_server_config(config);
     assert!(result.is_err());

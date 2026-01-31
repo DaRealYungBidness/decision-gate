@@ -79,6 +79,7 @@ async fn smoke_define_start_next_status() -> Result<(), Box<dyn std::error::Erro
             time: Timestamp::Logical(2),
             correlation_id: None,
         },
+        feedback: None,
     };
     let next_input = serde_json::to_value(&next_request)?;
     let _next_result: decision_gate_core::runtime::NextResult =

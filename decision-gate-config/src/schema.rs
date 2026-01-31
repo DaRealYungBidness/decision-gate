@@ -48,7 +48,9 @@ use crate::config::default_provider_request_timeout_ms;
 use crate::config::default_rate_limit_max_entries;
 use crate::config::default_rate_limit_max_requests;
 use crate::config::default_rate_limit_window_ms;
+use crate::config::default_registry_acl_allow_local_only;
 use crate::config::default_require_provider_opt_in;
+use crate::config::default_scenario_next_trace_subjects;
 use crate::config::default_schema_max_bytes;
 use crate::config::default_store_busy_timeout_ms;
 use crate::config::default_tls_require_client_cert;
@@ -129,7 +131,8 @@ fn server_config_schema() -> Value {
             "limits": server_limits_schema(),
             "auth": nullable_schema(&server_auth_schema()),
             "tls": nullable_schema(&server_tls_schema()),
-            "audit": server_audit_schema()
+            "audit": server_audit_schema(),
+            "feedback": server_feedback_schema()
         },
         "allOf": [
             {
@@ -147,6 +150,74 @@ fn server_config_schema() -> Value {
             }
         ],
         "additionalProperties": false
+    })
+}
+
+/// Schema for server feedback settings.
+fn server_feedback_schema() -> Value {
+    json!({
+        "type": "object",
+        "description": "Feedback disclosure configuration for tool responses.",
+        "properties": {
+            "scenario_next": scenario_next_feedback_schema()
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Schema for scenario_next feedback policy.
+fn scenario_next_feedback_schema() -> Value {
+    json!({
+        "type": "object",
+        "description": "Feedback policy for scenario_next responses.",
+        "properties": {
+            "default": feedback_level_schema_with_default(
+                "Default feedback level for non-local requests.",
+                "summary"
+            ),
+            "local_only_default": feedback_level_schema_with_default(
+                "Default feedback level for local-only requests.",
+                "trace"
+            ),
+            "max": feedback_level_schema_with_default(
+                "Maximum feedback level permitted.",
+                "trace"
+            ),
+            "trace_subjects": {
+                "type": "array",
+                "items": schema_for_non_empty_string("Subject allowed to request trace feedback."),
+                "default": default_scenario_next_trace_subjects(),
+                "description": "Subject identifiers allowed to request trace feedback."
+            },
+            "trace_roles": {
+                "type": "array",
+                "items": schema_for_non_empty_string("Role allowed to request trace feedback."),
+                "default": [],
+                "description": "Role names allowed to request trace feedback."
+            },
+            "evidence_subjects": {
+                "type": "array",
+                "items": schema_for_non_empty_string("Subject allowed to request evidence feedback."),
+                "default": [],
+                "description": "Subject identifiers allowed to request evidence feedback."
+            },
+            "evidence_roles": {
+                "type": "array",
+                "items": schema_for_non_empty_string("Role allowed to request evidence feedback."),
+                "default": [],
+                "description": "Role names allowed to request evidence feedback."
+            }
+        },
+        "additionalProperties": false
+    })
+}
+
+fn feedback_level_schema_with_default(description: &str, default_value: &str) -> Value {
+    json!({
+        "type": "string",
+        "enum": ["summary", "trace", "evidence"],
+        "default": default_value,
+        "description": description
     })
 }
 
@@ -940,6 +1011,11 @@ fn schema_registry_acl_schema() -> Value {
                 "enum": ["deny", "allow"],
                 "default": "deny",
                 "description": "Default decision when no rules match (custom only)."
+            },
+            "allow_local_only": {
+                "type": "boolean",
+                "default": default_registry_acl_allow_local_only(),
+                "description": "Allow local-only subjects to access the registry when using the built-in ACL."
             },
             "require_signing": {
                 "type": "boolean",

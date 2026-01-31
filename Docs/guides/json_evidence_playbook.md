@@ -45,7 +45,7 @@ JSONPath extracts values from a JSON document.
 | `..field` | Recursive descent | `$..errors` -> all `errors` fields |
 
 **Example JSON document:**
-```json
+```json dg-parse dg-level=fast
 {
   "version": "1.0",
   "summary": { "failed": 0, "passed": 128 },
@@ -90,14 +90,14 @@ All file/JSONPath errors are returned via `EvidenceResult.error` (not JSON-RPC e
 
 ## Workflow Pattern: Tool -> JSON -> Gate
 
-```
+```dg-skip dg-reason="output-only" dg-expires=2026-06-30
 1. Run tool (outside DG) -> emit JSON file
 2. Define condition (json.path + comparator + expected)
 3. scenario_next -> DG reads file, extracts value, evaluates condition
 ```
 
 Example condition:
-```json
+```json dg-parse dg-level=fast
 {
   "condition_id": "tests_ok",
   "query": {
@@ -120,7 +120,7 @@ These are **examples**, not standards. Use them as starting points.
 ### Template 1: Test Results
 
 **Tool output (example):**
-```json
+```json dg-parse dg-level=fast
 {
   "summary": { "failed": 0, "passed": 128 },
   "tool": "tests",
@@ -129,7 +129,7 @@ These are **examples**, not standards. Use them as starting points.
 ```
 
 **Condition:**
-```json
+```json dg-parse dg-level=fast
 {
   "condition_id": "tests_ok",
   "query": {
@@ -144,7 +144,7 @@ These are **examples**, not standards. Use them as starting points.
 ```
 
 **Type mismatch (exact behavior):**
-```json
+```json dg-parse dg-level=fast
 { "summary": { "failed": "0" } }
 ```
 - Evidence value is **string**; expected is **number**.
@@ -153,12 +153,12 @@ These are **examples**, not standards. Use them as starting points.
 ### Template 2: Coverage Threshold
 
 **Tool output (example):**
-```json
+```json dg-parse dg-level=fast
 { "coverage": { "percent": 92 } }
 ```
 
 **Condition:**
-```json
+```json dg-parse dg-level=fast
 {
   "condition_id": "coverage_ok",
   "query": {
@@ -173,7 +173,7 @@ These are **examples**, not standards. Use them as starting points.
 ```
 
 **Type mismatch for ordering comparators:**
-```json
+```json dg-parse dg-level=fast
 { "coverage": { "percent": "92%" } }
 ```
 - Evidence value is **string**, not a number or RFC3339 date.
@@ -182,12 +182,12 @@ These are **examples**, not standards. Use them as starting points.
 ### Template 3: Security Scan Summary
 
 **Tool output (example):**
-```json
+```json dg-parse dg-level=fast
 { "summary": { "critical": 0, "high": 0, "medium": 2 } }
 ```
 
 **Condition:**
-```json
+```json dg-parse dg-level=fast
 {
   "condition_id": "no_critical",
   "query": {
@@ -204,12 +204,12 @@ These are **examples**, not standards. Use them as starting points.
 ### Template 4: Review Approval Count
 
 **Tool output (example):**
-```json
+```json dg-parse dg-level=fast
 { "reviews": { "approvals": 2 } }
 ```
 
 **Condition:**
-```json
+```json dg-parse dg-level=fast
 {
   "condition_id": "approvals_ok",
   "query": {
@@ -226,12 +226,12 @@ These are **examples**, not standards. Use them as starting points.
 ### Template 5: Explicit Boolean Flags
 
 **Tool output (example):**
-```json
+```json dg-parse dg-level=fast
 { "checks": { "lint_ok": true, "format_ok": true } }
 ```
 
 **Condition:**
-```json
+```json dg-parse dg-level=fast
 {
   "condition_id": "lint_ok",
   "query": {
@@ -251,7 +251,7 @@ These are **examples**, not standards. Use them as starting points.
 
 ### Use `evidence_query` for Provider Errors
 
-`scenario_next` does **not** return evidence values or provider errors. To debug JSON evidence:
+`scenario_next` does **not** return evidence values or provider errors by default. If feedback is permitted, `scenario_next` can return trace/evidence summaries. To debug JSON evidence:
 1. Call `evidence_query` with the same `query` and any valid `context`.
 2. Inspect `EvidenceResult.error` and `evidence_anchor`.
 

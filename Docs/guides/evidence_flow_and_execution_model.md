@@ -30,7 +30,7 @@ Dependencies:
 
 ## Core Data Flow
 
-```
+```dg-skip dg-reason="output-only" dg-expires=2026-06-30
 Trigger (scenario_next / scenario_trigger / precheck)
   |
   +-> Collect or accept evidence
@@ -82,7 +82,7 @@ Precheck **does not** call providers. The client supplies a payload that is:
 
 ### Minimum Lane (`min_lane`)
 Configured in `decision-gate.toml`:
-```toml
+```toml dg-parse dg-level=fast
 [trust]
 min_lane = "verified"   # or "asserted"
 ```
@@ -93,7 +93,7 @@ When `min_lane = "verified"`, asserted evidence is rejected (condition becomes `
 
 ### Per-Condition and Per-Gate Overrides
 You can raise the minimum lane in the scenario spec:
-```json
+```json dg-parse dg-level=fast
 {
   "condition_id": "tests_ok",
   "trust": { "min_lane": "verified" }
@@ -103,7 +103,7 @@ Gate-level `trust` can also raise requirements. Effective requirement is the **s
 
 ### Signature Verification
 Configured via `trust.default_policy`:
-```toml
+```toml dg-parse dg-level=fast
 [trust]
 # Audit mode accepts unsigned evidence.
 default_policy = "audit"
@@ -121,7 +121,7 @@ If `evidence_hash` is missing, Decision Gate computes it from the evidence value
 
 ### Anchor Validation
 Anchors are enforced via config (not the scenario spec):
-```toml
+```toml dg-parse dg-level=fast
 [anchors]
 [[anchors.providers]]
 provider_id = "json"
@@ -196,7 +196,7 @@ Decision Gate calls external MCP providers with `tools/call` and a single tool: 
 
 - **"DG runs the tools."** -> False. DG evaluates evidence; tools run elsewhere.
 - **"Precheck returns evidence errors."** -> False. It returns `decision` + `gate_evaluations` only.
-- **"scenario_next response includes evidence."** -> False. Use `runpack_export` or `evidence_query`.
+- **"scenario_next response includes evidence."** -> False by default. Use `feedback: "trace"`/`"evidence"` (if permitted) or `runpack_export`/`evidence_query`.
 - **"Anchor policy is in the scenario."** -> False. It is configured under `[anchors]`.
 
 ---

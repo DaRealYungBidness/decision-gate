@@ -34,7 +34,7 @@ Providers should still implement `tools/list` for MCP compatibility and SDK temp
 
 External providers use `type = "mcp"` and must declare `capabilities_path`:
 
-```toml
+```toml dg-parse dg-level=fast
 [[providers]]
 name = "git"
 type = "mcp"
@@ -62,7 +62,7 @@ Built-in providers use `type = "builtin"` and are **not** MCP servers.
 
 ### Request (JSON-RPC)
 
-```json
+```json dg-parse dg-level=fast
 {
   "jsonrpc": "2.0",
   "id": 1,
@@ -92,7 +92,7 @@ Built-in providers use `type = "builtin"` and are **not** MCP servers.
 
 ### Response (JSON-RPC)
 
-```json
+```json dg-parse dg-level=fast
 {
   "jsonrpc": "2.0",
   "id": 1,
@@ -125,7 +125,7 @@ Built-in providers use `type = "builtin"` and are **not** MCP servers.
 
 ## EvidenceQuery Structure
 
-```json
+```json dg-skip dg-reason="non-json-example" dg-expires=2026-06-30
 {
   "provider_id": "string",
   "check_id": "string",
@@ -141,7 +141,7 @@ Built-in providers use `type = "builtin"` and are **not** MCP servers.
 
 ## EvidenceContext Structure
 
-```json
+```json dg-parse dg-level=fast
 {
   "tenant_id": 1,
   "namespace_id": 1,
@@ -160,7 +160,7 @@ The context is provided by Decision Gate and is available to providers for deter
 
 ## EvidenceResult Structure
 
-```json
+```json dg-skip dg-reason="non-json-example" dg-expires=2026-06-30
 {
   "value": { "kind": "json|bytes", "value": "any" } | null,
   "lane": "verified|asserted",

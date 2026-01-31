@@ -117,12 +117,15 @@ fn scenario_next_contract() -> ToolContract {
         ToolName::ScenarioNext,
         "Evaluate gates in response to an agent-driven next request.",
         scenario_next_input_schema(),
-        schemas::next_result_schema(),
+        schemas::scenario_next_result_schema(),
         tool_examples(ToolName::ScenarioNext),
         vec![
             "Idempotent by trigger_id; repeated calls return the same decision.".to_string(),
             "Records decision, evidence, and packet disclosures in run state.".to_string(),
             "Requires an active run; completed or failed runs do not advance.".to_string(),
+            "Optional feedback can include gate trace or evidence when permitted by server \
+             feedback policy."
+                .to_string(),
         ],
     )
 }
@@ -645,26 +648,53 @@ fn scenario_status_examples() -> Vec<ToolExample> {
 
 /// Returns example payloads for `scenario_next`.
 fn scenario_next_examples() -> Vec<ToolExample> {
-    vec![ToolExample {
-        description: String::from("Evaluate the next agent-driven step for a run."),
-        input: json!({
-            "scenario_id": EXAMPLE_SCENARIO_ID,
-            "request": {
-                "tenant_id": EXAMPLE_TENANT_ID,
-                "namespace_id": EXAMPLE_NAMESPACE_ID,
-                "run_id": EXAMPLE_RUN_ID,
-                "trigger_id": EXAMPLE_TRIGGER_ID,
-                "agent_id": EXAMPLE_AGENT_ID,
-                "time": example_timestamp(),
-                "correlation_id": null
-            }
-        }),
-        output: json!({
-            "decision": example_decision_record(),
-            "packets": [],
-            "status": "completed"
-        }),
-    }]
+    vec![
+        ToolExample {
+            description: String::from("Evaluate the next agent-driven step for a run."),
+            input: json!({
+                "scenario_id": EXAMPLE_SCENARIO_ID,
+                "request": {
+                    "tenant_id": EXAMPLE_TENANT_ID,
+                    "namespace_id": EXAMPLE_NAMESPACE_ID,
+                    "run_id": EXAMPLE_RUN_ID,
+                    "trigger_id": EXAMPLE_TRIGGER_ID,
+                    "agent_id": EXAMPLE_AGENT_ID,
+                    "time": example_timestamp(),
+                    "correlation_id": null
+                }
+            }),
+            output: json!({
+                "decision": example_decision_record(),
+                "packets": [],
+                "status": "completed"
+            }),
+        },
+        ToolExample {
+            description: String::from("Evaluate a run and request trace feedback."),
+            input: json!({
+                "scenario_id": EXAMPLE_SCENARIO_ID,
+                "request": {
+                    "tenant_id": EXAMPLE_TENANT_ID,
+                    "namespace_id": EXAMPLE_NAMESPACE_ID,
+                    "run_id": EXAMPLE_RUN_ID,
+                    "trigger_id": EXAMPLE_TRIGGER_ID,
+                    "agent_id": EXAMPLE_AGENT_ID,
+                    "time": example_timestamp(),
+                    "correlation_id": null
+                },
+                "feedback": "trace"
+            }),
+            output: json!({
+                "decision": example_decision_record(),
+                "packets": [],
+                "status": "completed",
+                "feedback": {
+                    "level": "trace",
+                    "gate_evaluations": []
+                }
+            }),
+        },
+    ]
 }
 
 /// Returns example payloads for `scenario_submit`.
@@ -1202,7 +1232,13 @@ fn scenario_next_input_schema() -> Value {
     tool_input_schema(
         &json!({
             "scenario_id": schema_identifier("Scenario identifier."),
-            "request": describe_schema(schemas::next_request_schema(), "Next request payload from an agent.")
+            "request": describe_schema(schemas::next_request_schema(), "Next request payload from an agent."),
+            "feedback": describe_schema(json!({
+                "oneOf": [
+                    { "type": "null" },
+                    schemas::feedback_level_schema()
+                ]
+            }), "Optional feedback level override for scenario_next.")
         }),
         &["scenario_id", "request"],
     )

@@ -26,7 +26,7 @@ Dependencies:
 
 A condition is an evidence check:
 
-```json
+```json dg-parse dg-level=fast
 {
   "condition_id": "tests_ok",
   "query": {
@@ -165,12 +165,12 @@ To minimize `unknown` outcomes:
 
 ## Evidence Disclosure
 
-Evidence values are **not** returned by `scenario_next`. To inspect evidence:
+Evidence values are **not** returned by `scenario_next` by default. Use `feedback: "evidence"` if permitted, or inspect evidence via:
 - Use `evidence_query` (subject to disclosure policy), or
 - Export a runpack with `runpack_export`.
 
 Disclosure policy is configured in `decision-gate.toml`:
-```toml
+```toml dg-parse dg-level=fast
 [evidence]
 allow_raw_values = false
 require_provider_opt_in = true

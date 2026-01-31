@@ -189,6 +189,7 @@ fn build_sections() -> Vec<SectionSpec> {
                 "auth",
                 "tls",
                 "audit",
+                "feedback",
             ],
             include_required: false,
             default_overrides: &[
@@ -225,6 +226,44 @@ fn build_sections() -> Vec<SectionSpec> {
             include_required: false,
             default_overrides: &[FieldOverride { field: "path", default_value: "null" }],
             extra: None,
+        },
+        SectionSpec {
+            heading: "[server.feedback]",
+            description: "Feedback disclosure controls for tool responses.",
+            path: &[SchemaPath::Property("server"), SchemaPath::Property("feedback")],
+            fields: &["scenario_next"],
+            include_required: false,
+            default_overrides: &[FieldOverride { field: "scenario_next", default_value: "{ default = \"summary\", local_only_default = \"trace\", max = \"trace\" }" }],
+            extra: Some(
+                "Feedback levels: `summary` (unmet gates only), `trace` (gate + condition status), `evidence` (includes evidence records, subject to disclosure policy).",
+            ),
+        },
+        SectionSpec {
+            heading: "[server.feedback.scenario_next]",
+            description: "Feedback policy for scenario_next responses.",
+            path: &[
+                SchemaPath::Property("server"),
+                SchemaPath::Property("feedback"),
+                SchemaPath::Property("scenario_next"),
+            ],
+            fields: &[
+                "default",
+                "local_only_default",
+                "max",
+                "trace_subjects",
+                "trace_roles",
+                "evidence_subjects",
+                "evidence_roles",
+            ],
+            include_required: false,
+            default_overrides: &[
+                FieldOverride { field: "trace_roles", default_value: "[]" },
+                FieldOverride { field: "evidence_subjects", default_value: "[]" },
+                FieldOverride { field: "evidence_roles", default_value: "[]" },
+            ],
+            extra: Some(
+                "Local-only defaults apply to loopback/stdio. Subjects and roles are resolved from `server.auth.principals`.",
+            ),
         },
         SectionSpec {
             heading: "[server.limits]",
@@ -518,11 +557,11 @@ fn build_sections() -> Vec<SectionSpec> {
             heading: "[schema_registry.acl]",
             description: "Schema registry ACL configuration.",
             path: &[SchemaPath::Property("schema_registry"), SchemaPath::Property("acl")],
-            fields: &["mode", "default", "require_signing", "rules"],
+            fields: &["mode", "default", "allow_local_only", "require_signing", "rules"],
             include_required: false,
             default_overrides: &[FieldOverride { field: "rules", default_value: "[]" }],
             extra: Some(
-                "Built-in ACL relies on `server.auth.principals` for role and policy_class resolution. Without principals, registry access defaults to deny.\n\nCustom ACL example:\n\n```toml\n[schema_registry.acl]\nmode = \"custom\"\ndefault = \"deny\"\n\n[[schema_registry.acl.rules]]\neffect = \"allow\"\nactions = [\"register\", \"list\", \"get\"]\ntenants = [1]\nnamespaces = [1]\nroles = [\"TenantAdmin\", \"NamespaceAdmin\"]\n```",
+                "Built-in ACL relies on `server.auth.principals` for role and policy_class resolution. Without principals, registry access defaults to deny unless `allow_local_only` is enabled (loopback/stdio only).\n\nCustom ACL example:\n\n```toml\n[schema_registry.acl]\nmode = \"custom\"\ndefault = \"deny\"\n\n[[schema_registry.acl.rules]]\neffect = \"allow\"\nactions = [\"register\", \"list\", \"get\"]\ntenants = [1]\nnamespaces = [1]\nroles = [\"TenantAdmin\", \"NamespaceAdmin\"]\n```",
             ),
         },
         SectionSpec {

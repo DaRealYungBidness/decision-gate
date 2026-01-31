@@ -55,13 +55,13 @@ const CATALOG_ITEMS: &[(&str, &str)] = &[
     ("main.version", "decision-gate {version}"),
     (
         "serve.warn.local_only_auth",
-        "Warning: server.auth.mode=local_only. Only stdio and loopback HTTP/SSE are safe in this \
-         mode.",
+        "Info: running in local-only mode (stdio + loopback HTTP/SSE only). Configure server.auth \
+         for bearer_token or mtls when exposing beyond localhost.",
     ),
     (
         "serve.warn.loopback_only_transport",
-        "Note: HTTP/SSE is bound to loopback. Use --allow-non-loopback or {env}=1 with TLS + auth \
-         to expose it.",
+        "Info: HTTP/SSE is bound to loopback only. Use --allow-non-loopback or {env}=1 with TLS + \
+         auth to expose it.",
     ),
     ("output.stream.stdout", "stdout"),
     ("output.stream.stderr", "stderr"),

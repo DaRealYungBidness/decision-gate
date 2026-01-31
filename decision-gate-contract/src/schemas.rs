@@ -731,6 +731,30 @@ pub fn next_result_schema() -> Value {
     })
 }
 
+/// Returns the JSON schema for `scenario_next` results (with optional feedback).
+#[must_use]
+pub fn scenario_next_result_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": ["decision", "packets", "status"],
+        "properties": {
+            "decision": decision_record_schema(),
+            "packets": {
+                "type": "array",
+                "items": packet_record_schema()
+            },
+            "status": run_status_schema(),
+            "feedback": {
+                "oneOf": [
+                    { "type": "null" },
+                    scenario_next_feedback_schema()
+                ]
+            }
+        },
+        "additionalProperties": false
+    })
+}
+
 /// Returns the JSON schema for `SubmitResult`.
 #[must_use]
 pub fn submit_result_schema() -> Value {
@@ -1738,6 +1762,53 @@ fn gate_eval_record_schema() -> Value {
             "evidence": {
                 "type": "array",
                 "items": evidence_record_schema()
+            }
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for feedback level values.
+#[must_use]
+pub fn feedback_level_schema() -> Value {
+    json!({
+        "type": "string",
+        "enum": ["summary", "trace", "evidence"],
+        "description": "Feedback disclosure level."
+    })
+}
+
+/// Returns the JSON schema for `scenario_next` feedback payloads.
+#[must_use]
+fn scenario_next_feedback_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": ["level"],
+        "properties": {
+            "level": feedback_level_schema(),
+            "denied_reason": {
+                "oneOf": [
+                    { "type": "null" },
+                    schema_for_string("Optional denial reason for requested feedback.")
+                ]
+            },
+            "gate_evaluations": {
+                "oneOf": [
+                    { "type": "null" },
+                    {
+                        "type": "array",
+                        "items": gate_evaluation_schema()
+                    }
+                ]
+            },
+            "gate_records": {
+                "oneOf": [
+                    { "type": "null" },
+                    {
+                        "type": "array",
+                        "items": gate_eval_record_schema()
+                    }
+                ]
             }
         },
         "additionalProperties": false

@@ -226,6 +226,7 @@ fn sample_router(config: &DecisionGateConfig) -> ToolRouter {
         precheck_audit_payloads: config.server.audit.log_precheck_payloads,
         registry_acl,
         principal_resolver,
+        scenario_next_feedback: config.server.feedback.scenario_next.clone(),
         allow_default_namespace: config.allow_default_namespace(),
         default_namespace_tenants,
         namespace_authority: Arc::new(NoopNamespaceAuthority),

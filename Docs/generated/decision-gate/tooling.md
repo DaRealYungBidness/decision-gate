@@ -316,12 +316,14 @@ Evaluate gates in response to an agent-driven next request.
 
 ### Inputs
 
+- `feedback` (optional, nullable): Optional feedback level override for scenario_next.
 - `request` (required): Next request payload from an agent.
 - `scenario_id` (required): Scenario identifier.
 
 ### Outputs
 
 - `decision` (required): Type: object.
+- `feedback` (optional, nullable): One of: null, object.
 - `packets` (required): Type: array.
 - `status` (required): Type: string.
 
@@ -330,10 +332,11 @@ Evaluate gates in response to an agent-driven next request.
 - Idempotent by trigger_id; repeated calls return the same decision.
 - Records decision, evidence, and packet disclosures in run state.
 - Requires an active run; completed or failed runs do not advance.
+- Optional feedback can include gate trace or evidence when permitted by server feedback policy.
 
 ### Example
 
-Evaluate the next agent-driven step for a run.
+Example 1: Evaluate the next agent-driven step for a run.
 
 Input:
 ```json
@@ -370,6 +373,53 @@ Output:
     "seq": 0,
     "stage_id": "main",
     "trigger_id": "trigger-0001"
+  },
+  "packets": [],
+  "status": "completed"
+}
+```
+Example 2: Evaluate a run and request trace feedback.
+
+Input:
+```json
+{
+  "feedback": "trace",
+  "request": {
+    "agent_id": "agent-alpha",
+    "correlation_id": null,
+    "namespace_id": 1,
+    "run_id": "run-0001",
+    "tenant_id": 1,
+    "time": {
+      "kind": "unix_millis",
+      "value": 1710000000000
+    },
+    "trigger_id": "trigger-0001"
+  },
+  "scenario_id": "example-scenario"
+}
+```
+Output:
+```json
+{
+  "decision": {
+    "correlation_id": null,
+    "decided_at": {
+      "kind": "unix_millis",
+      "value": 1710000000000
+    },
+    "decision_id": "decision-0001",
+    "outcome": {
+      "kind": "complete",
+      "stage_id": "main"
+    },
+    "seq": 0,
+    "stage_id": "main",
+    "trigger_id": "trigger-0001"
+  },
+  "feedback": {
+    "gate_evaluations": [],
+    "level": "trace"
   },
   "packets": [],
   "status": "completed"

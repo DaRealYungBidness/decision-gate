@@ -38,7 +38,7 @@ Security controls applied (in order):
 ### Tool Access (MCP API)
 Tool access is controlled by `[server.auth]`.
 
-```toml
+```toml dg-parse dg-level=fast
 [server.auth]
 mode = "bearer_token"
 bearer_tokens = ["token-1", "token-2"]
@@ -67,7 +67,7 @@ Evidence is classified into lanes:
 - **Asserted**: precheck payloads
 
 Minimum lane is enforced by:
-```toml
+```toml dg-parse dg-level=fast
 [trust]
 min_lane = "verified"   # or "asserted"
 ```
@@ -76,7 +76,7 @@ If evidence lane is below the minimum, the condition becomes `unknown` and a `tr
 
 ### Dev-Permissive Mode
 
-```toml
+```toml dg-parse dg-level=fast
 [dev]
 permissive = true
 ```
@@ -92,7 +92,7 @@ Effects:
 
 Configured with `trust.default_policy`:
 
-```toml
+```toml dg-parse dg-level=fast
 [trust]
 # Require Ed25519 signatures from these public key files.
 default_policy = { require_signature = { keys = ["/etc/decision-gate/keys/provider.pub"] } }
@@ -111,7 +111,7 @@ If a signature check fails, the provider call fails and the condition becomes `u
 
 Anchors are configured via **server config**, not the scenario:
 
-```toml
+```toml dg-parse dg-level=fast
 [anchors]
 [[anchors.providers]]
 provider_id = "assetcore_read"
@@ -133,7 +133,7 @@ Violations produce `anchor_invalid` and the condition becomes `unknown`.
 
 `evidence_query` can return raw values, but disclosure is policy-controlled:
 
-```toml
+```toml dg-parse dg-level=fast
 [evidence]
 allow_raw_values = false
 require_provider_opt_in = true
@@ -152,7 +152,7 @@ Behavior:
 
 ## Secure Production Configuration
 
-```toml
+```toml dg-parse dg-level=fast
 [server]
 transport = "http"
 bind = "0.0.0.0:4000"

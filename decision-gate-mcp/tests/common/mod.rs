@@ -284,6 +284,7 @@ pub fn router_with_authorizer_usage_and_runpack_storage(
         precheck_audit_payloads,
         registry_acl,
         principal_resolver,
+        scenario_next_feedback: config.server.feedback.scenario_next.clone(),
         allow_default_namespace,
         default_namespace_tenants,
         namespace_authority: Arc::new(NoopNamespaceAuthority),

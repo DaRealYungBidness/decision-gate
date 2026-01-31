@@ -57,6 +57,7 @@ use decision_gate_core::EvidenceProviderError;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::EvidenceResult;
 use decision_gate_core::EvidenceValue;
+use decision_gate_core::GateEvalRecord;
 use decision_gate_core::GateEvaluation;
 use decision_gate_core::HashAlgorithm;
 use decision_gate_core::NamespaceId;
@@ -122,8 +123,10 @@ use crate::capabilities::CapabilityError;
 use crate::capabilities::CapabilityRegistry;
 use crate::capabilities::ProviderContractSource;
 use crate::config::EvidencePolicyConfig;
+use crate::config::FeedbackLevel;
 use crate::config::ProviderDiscoveryConfig;
 use crate::config::RegistryAclAction;
+use crate::config::ScenarioNextFeedbackConfig;
 use crate::config::ValidationConfig;
 use crate::evidence::FederatedEvidenceProvider;
 use crate::namespace_authority::NamespaceAuthority;
@@ -212,6 +215,8 @@ pub struct ToolRouter {
     registry_acl: RegistryAcl,
     /// Principal resolver for registry ACL.
     principal_resolver: PrincipalResolver,
+    /// Feedback policy for scenario_next responses.
+    scenario_next_feedback: ScenarioNextFeedbackPolicy,
     /// Whether to log raw precheck request/response payloads.
     precheck_audit_payloads: bool,
     /// Allow default namespace usage.
@@ -270,6 +275,8 @@ pub struct ToolRouterConfig {
     pub registry_acl: RegistryAcl,
     /// Principal resolver for registry ACL.
     pub principal_resolver: PrincipalResolver,
+    /// Feedback policy configuration for scenario_next.
+    pub scenario_next_feedback: ScenarioNextFeedbackConfig,
     /// Whether to log raw precheck request/response payloads.
     pub precheck_audit_payloads: bool,
     /// Allow default namespace usage.
@@ -310,6 +317,7 @@ impl ToolRouter {
             precheck_audit_payloads: config.precheck_audit_payloads,
             registry_acl: config.registry_acl,
             principal_resolver: config.principal_resolver,
+            scenario_next_feedback: ScenarioNextFeedbackPolicy::new(config.scenario_next_feedback),
             allow_default_namespace: config.allow_default_namespace,
             default_namespace_tenants: config.default_namespace_tenants,
             namespace_authority: config.namespace_authority,
@@ -546,12 +554,12 @@ impl ToolRouter {
         let context = context.clone();
         let context_for_next = context.clone();
         let request_for_next = request.clone();
-        let response =
-            tokio::task::spawn_blocking(move || router.next(&context_for_next, &request_for_next))
-                .await
-                .map_err(|err| {
-                    ToolError::Internal(format!("scenario next join failed: {err}"))
-                })??;
+        let auth_ctx_for_next = auth_ctx.clone();
+        let response = tokio::task::spawn_blocking(move || {
+            router.next(&context_for_next, &auth_ctx_for_next, &request_for_next)
+        })
+        .await
+        .map_err(|err| ToolError::Internal(format!("scenario next join failed: {err}")))??;
         self.record_tool_call_usage(
             &context,
             auth_ctx,
@@ -1205,6 +1213,36 @@ pub struct ScenarioNextRequest {
     pub scenario_id: ScenarioId,
     /// Core next request.
     pub request: NextRequest,
+    /// Optional feedback level override.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub feedback: Option<FeedbackLevel>,
+}
+
+/// Scenario next response wrapper with optional feedback.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScenarioNextResponse {
+    /// Core next result payload.
+    #[serde(flatten)]
+    pub result: NextResult,
+    /// Optional feedback payload.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub feedback: Option<ScenarioNextFeedback>,
+}
+
+/// Feedback payload for `scenario_next` responses.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScenarioNextFeedback {
+    /// Feedback level emitted.
+    pub level: FeedbackLevel,
+    /// Optional denial reason when requested feedback is not permitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub denied_reason: Option<String>,
+    /// Gate-level evaluations (trace).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gate_evaluations: Option<Vec<GateEvaluation>>,
+    /// Gate evaluation records with evidence (evidence level).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gate_records: Option<Vec<GateEvalRecord>>,
 }
 
 /// Scenario submit request wrapper.
@@ -1520,6 +1558,95 @@ struct RouterState {
     scenarios: BTreeMap<String, Arc<ScenarioRuntime>>,
 }
 
+/// Feedback policy evaluator for `scenario_next`.
+#[derive(Debug, Clone)]
+struct ScenarioNextFeedbackPolicy {
+    config: ScenarioNextFeedbackConfig,
+}
+
+impl ScenarioNextFeedbackPolicy {
+    fn new(config: ScenarioNextFeedbackConfig) -> Self {
+        Self {
+            config,
+        }
+    }
+
+    fn resolve_level(
+        &self,
+        requested: Option<FeedbackLevel>,
+        auth_ctx: &AuthContext,
+        principal: &crate::registry_acl::RegistryPrincipal,
+        tenant_id: &TenantId,
+        namespace_id: &NamespaceId,
+    ) -> ScenarioNextFeedbackDecision {
+        let default_level = if auth_ctx.method == crate::auth::AuthMethod::Local {
+            self.config.local_only_default
+        } else {
+            self.config.default
+        };
+        let requested_level = requested.unwrap_or(default_level);
+        let capped = min_feedback_level(requested_level, self.config.max);
+        let allowed = match capped {
+            FeedbackLevel::Summary => FeedbackLevel::Summary,
+            FeedbackLevel::Trace => {
+                if self.trace_allowed(principal, tenant_id, namespace_id) {
+                    FeedbackLevel::Trace
+                } else {
+                    FeedbackLevel::Summary
+                }
+            }
+            FeedbackLevel::Evidence => {
+                if self.evidence_allowed(principal, tenant_id, namespace_id) {
+                    FeedbackLevel::Evidence
+                } else if self.trace_allowed(principal, tenant_id, namespace_id) {
+                    FeedbackLevel::Trace
+                } else {
+                    FeedbackLevel::Summary
+                }
+            }
+        };
+        let denied_reason = if feedback_level_rank(allowed) < feedback_level_rank(requested_level) {
+            Some(format!(
+                "feedback level denied (requested={requested}, allowed={allowed})",
+                requested = feedback_level_label(requested_level),
+                allowed = feedback_level_label(allowed)
+            ))
+        } else {
+            None
+        };
+        ScenarioNextFeedbackDecision {
+            level: allowed,
+            denied_reason,
+        }
+    }
+
+    fn trace_allowed(
+        &self,
+        principal: &crate::registry_acl::RegistryPrincipal,
+        tenant_id: &TenantId,
+        namespace_id: &NamespaceId,
+    ) -> bool {
+        subject_allowed(principal, &self.config.trace_subjects)
+            || role_allowed(principal, tenant_id, namespace_id, &self.config.trace_roles)
+    }
+
+    fn evidence_allowed(
+        &self,
+        principal: &crate::registry_acl::RegistryPrincipal,
+        tenant_id: &TenantId,
+        namespace_id: &NamespaceId,
+    ) -> bool {
+        subject_allowed(principal, &self.config.evidence_subjects)
+            || role_allowed(principal, tenant_id, namespace_id, &self.config.evidence_roles)
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ScenarioNextFeedbackDecision {
+    level: FeedbackLevel,
+    denied_reason: Option<String>,
+}
+
 /// Scenario runtime bundle for tool routing.
 struct ScenarioRuntime {
     /// Scenario specification.
@@ -1649,13 +1776,144 @@ impl ToolRouter {
     /// Advances a scenario evaluation.
     fn next(
         &self,
-        _context: &RequestContext,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
         request: &ScenarioNextRequest,
-    ) -> Result<NextResult, ToolError> {
+    ) -> Result<ScenarioNextResponse, ToolError> {
         let runtime = self.runtime_for(&request.scenario_id)?;
         let result =
             runtime.control.scenario_next(&request.request).map_err(ToolError::ControlPlane)?;
-        Ok(result)
+        let feedback = self.build_scenario_next_feedback(
+            context,
+            auth_ctx,
+            runtime.as_ref(),
+            request,
+            &result,
+        )?;
+        Ok(ScenarioNextResponse {
+            result,
+            feedback,
+        })
+    }
+
+    fn build_scenario_next_feedback(
+        &self,
+        _context: &RequestContext,
+        auth_ctx: &AuthContext,
+        runtime: &ScenarioRuntime,
+        request: &ScenarioNextRequest,
+        _result: &NextResult,
+    ) -> Result<Option<ScenarioNextFeedback>, ToolError> {
+        let principal = self.principal_resolver.resolve(auth_ctx);
+        let decision = self.scenario_next_feedback.resolve_level(
+            request.feedback,
+            auth_ctx,
+            &principal,
+            &request.request.tenant_id,
+            &request.request.namespace_id,
+        );
+        let should_emit = decision.level != FeedbackLevel::Summary
+            || request.feedback.is_some()
+            || decision.denied_reason.is_some();
+        if !should_emit {
+            return Ok(None);
+        }
+        if decision.level == FeedbackLevel::Summary {
+            return Ok(Some(ScenarioNextFeedback {
+                level: decision.level,
+                denied_reason: decision.denied_reason,
+                gate_evaluations: None,
+                gate_records: None,
+            }));
+        }
+
+        let state = runtime
+            .store
+            .load(
+                &request.request.tenant_id,
+                &request.request.namespace_id,
+                &request.request.run_id,
+            )
+            .map_err(|err| {
+                ToolError::Internal(format!("scenario next feedback load failed: {err}"))
+            })?
+            .ok_or_else(|| {
+                ToolError::Internal("scenario next feedback missing run state".to_string())
+            })?;
+        let gate_records: Vec<GateEvalRecord> = state
+            .gate_evals
+            .iter()
+            .filter(|record| record.trigger_id == request.request.trigger_id)
+            .cloned()
+            .collect();
+
+        match decision.level {
+            FeedbackLevel::Trace => Ok(Some(ScenarioNextFeedback {
+                level: decision.level,
+                denied_reason: decision.denied_reason,
+                gate_evaluations: Some(
+                    gate_records.iter().map(|record| record.evaluation.clone()).collect(),
+                ),
+                gate_records: None,
+            })),
+            FeedbackLevel::Evidence => {
+                let redacted = self.redact_gate_eval_records(runtime, gate_records);
+                Ok(Some(ScenarioNextFeedback {
+                    level: decision.level,
+                    denied_reason: decision.denied_reason,
+                    gate_evaluations: None,
+                    gate_records: Some(redacted),
+                }))
+            }
+            FeedbackLevel::Summary => Ok(Some(ScenarioNextFeedback {
+                level: decision.level,
+                denied_reason: decision.denied_reason,
+                gate_evaluations: None,
+                gate_records: None,
+            })),
+        }
+    }
+
+    fn redact_gate_eval_records(
+        &self,
+        runtime: &ScenarioRuntime,
+        records: Vec<GateEvalRecord>,
+    ) -> Vec<GateEvalRecord> {
+        let mut provider_by_condition = BTreeMap::new();
+        for condition in &runtime.spec.conditions {
+            provider_by_condition
+                .insert(condition.condition_id.clone(), condition.query.provider_id.clone());
+        }
+        records
+            .into_iter()
+            .map(|mut record| {
+                record.evidence = record
+                    .evidence
+                    .into_iter()
+                    .map(|mut evidence| {
+                        let provider_id = provider_by_condition
+                            .get(&evidence.condition_id)
+                            .map(|provider| provider.as_str());
+                        if evidence.result.error.is_some() {
+                            evidence.result.value = None;
+                            evidence.result.content_type = None;
+                            evidence.result.evidence_hash = None;
+                        }
+                        let allow_raw = self.evidence_policy.allow_raw_values
+                            && (!self.evidence_policy.require_provider_opt_in
+                                || provider_id.is_some_and(|provider| {
+                                    self.evidence.provider_allows_raw(provider)
+                                }));
+                        if !allow_raw {
+                            evidence.result.value = None;
+                            evidence.result.content_type = None;
+                        }
+                        evidence
+                    })
+                    .collect();
+                record
+            })
+            .collect()
     }
 
     /// Submits external artifacts to a scenario run.
@@ -2297,7 +2555,11 @@ impl ToolRouter {
         if decision.allowed {
             Ok(())
         } else {
-            Err(ToolError::Unauthorized("schema registry access denied".to_string()))
+            Err(ToolError::Unauthorized(format!(
+                "schema registry access denied ({reason}); configure server.auth.principals or \
+                 schema_registry.acl",
+                reason = decision.reason
+            )))
         }
     }
 
@@ -2789,4 +3051,58 @@ const fn asserted_evidence(value: Value) -> EvidenceResult {
         signature: None,
         content_type: None,
     }
+}
+
+const fn feedback_level_rank(level: FeedbackLevel) -> u8 {
+    match level {
+        FeedbackLevel::Summary => 0,
+        FeedbackLevel::Trace => 1,
+        FeedbackLevel::Evidence => 2,
+    }
+}
+
+const fn feedback_level_label(level: FeedbackLevel) -> &'static str {
+    match level {
+        FeedbackLevel::Summary => "summary",
+        FeedbackLevel::Trace => "trace",
+        FeedbackLevel::Evidence => "evidence",
+    }
+}
+
+const fn min_feedback_level(left: FeedbackLevel, right: FeedbackLevel) -> FeedbackLevel {
+    if feedback_level_rank(left) <= feedback_level_rank(right) { left } else { right }
+}
+
+fn subject_allowed(
+    principal: &crate::registry_acl::RegistryPrincipal,
+    subjects: &[String],
+) -> bool {
+    subjects.iter().any(|subject| subject == &principal.principal_id)
+}
+
+fn role_allowed(
+    principal: &crate::registry_acl::RegistryPrincipal,
+    tenant_id: &TenantId,
+    namespace_id: &NamespaceId,
+    roles: &[String],
+) -> bool {
+    if roles.is_empty() {
+        return false;
+    }
+    principal.roles.iter().any(|role| {
+        if !roles.iter().any(|candidate| candidate == &role.name) {
+            return false;
+        }
+        if let Some(role_tenant) = role.tenant_id {
+            if role_tenant != *tenant_id {
+                return false;
+            }
+        }
+        if let Some(role_namespace) = role.namespace_id {
+            if role_namespace != *namespace_id {
+                return false;
+            }
+        }
+        true
+    })
 }

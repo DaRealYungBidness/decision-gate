@@ -23,7 +23,7 @@ Dependencies:
 
 Decision Gate evaluates **gates** using **conditions** (evidence checks). The lifecycle is:
 
-```
+```dg-skip dg-reason="output-only" dg-expires=2026-06-30
 1. scenario_define  -> registers a ScenarioSpec
 2. scenario_start   -> creates a RunState (new run)
 3. scenario_next    -> evaluates current stage and returns a DecisionRecord
@@ -55,7 +55,7 @@ Providers can be:
 
 Create `decision-gate.toml` in your working directory:
 
-```toml
+```toml dg-validate=config dg-level=fast
 [server]
 transport = "http"
 bind = "127.0.0.1:4000"
@@ -97,10 +97,11 @@ type = "builtin"
 Notes:
 - Default namespace id `1` is **blocked** unless `namespace.allow_default = true` **and** the tenant id is listed in `namespace.default_tenants`.
 - For non-loopback HTTP/SSE binds, Decision Gate requires `--allow-non-loopback` plus TLS and non-local auth. See [security_guide.md](security_guide.md).
+- **Windows tip:** PowerShell/CMD do not support bash-style multiline `curl`. Use a single-line command or PowerShell's `@'... '@` here-string.
 
 ### Step 2: Start the MCP Server
 
-```bash
+```bash dg-run dg-level=manual dg-requires=mcp
 decision-gate serve --config decision-gate.toml
 ```
 
@@ -108,7 +109,7 @@ decision-gate serve --config decision-gate.toml
 
 This scenario gates on a time check: `time.after(timestamp)`.
 
-```bash
+```bash dg-run dg-level=manual dg-requires=mcp
 curl -s http://127.0.0.1:4000/rpc \
   -H 'Content-Type: application/json' \
   -d '{
@@ -161,22 +162,29 @@ curl -s http://127.0.0.1:4000/rpc \
 
 **Time semantics:** `time.after` returns `true` **only if** `trigger_time > timestamp` (strictly greater). Equality returns `false`.
 
-**Response:**
+**Response (MCP-wrapped):**
 
-```json
+```json dg-parse dg-level=fast
 {
   "jsonrpc": "2.0",
   "id": 1,
   "result": {
-    "scenario_id": "quickstart",
-    "spec_hash": { "algorithm": "sha256", "value": "<hex>" }
+    "content": [
+      {
+        "type": "json",
+        "json": {
+          "scenario_id": "quickstart",
+          "spec_hash": { "algorithm": "sha256", "value": "<hex>" }
+        }
+      }
+    ]
   }
 }
 ```
 
 ### Step 4: Start a Run
 
-```bash
+```bash dg-run dg-level=manual dg-requires=mcp
 curl -s http://127.0.0.1:4000/rpc \
   -H 'Content-Type: application/json' \
   -d '{
@@ -202,35 +210,42 @@ curl -s http://127.0.0.1:4000/rpc \
   }'
 ```
 
-**Response:** `scenario_start` returns the full `RunState`. Example (with empty logs):
+**Response (MCP-wrapped):** `scenario_start` returns the full `RunState` inside `result.content[0].json`.
 
-```json
+```json dg-parse dg-level=fast
 {
   "jsonrpc": "2.0",
   "id": 2,
   "result": {
-    "tenant_id": 1,
-    "namespace_id": 1,
-    "run_id": "run-1",
-    "scenario_id": "quickstart",
-    "spec_hash": { "algorithm": "sha256", "value": "<hex>" },
-    "current_stage_id": "main",
-    "stage_entered_at": { "kind": "unix_millis", "value": 1710000000000 },
-    "status": "active",
-    "dispatch_targets": [],
-    "triggers": [],
-    "gate_evals": [],
-    "decisions": [],
-    "packets": [],
-    "submissions": [],
-    "tool_calls": []
+    "content": [
+      {
+        "type": "json",
+        "json": {
+          "tenant_id": 1,
+          "namespace_id": 1,
+          "run_id": "run-1",
+          "scenario_id": "quickstart",
+          "spec_hash": { "algorithm": "sha256", "value": "<hex>" },
+          "current_stage_id": "main",
+          "stage_entered_at": { "kind": "unix_millis", "value": 1710000000000 },
+          "status": "active",
+          "dispatch_targets": [],
+          "triggers": [],
+          "gate_evals": [],
+          "decisions": [],
+          "packets": [],
+          "submissions": [],
+          "tool_calls": []
+        }
+      }
+    ]
   }
 }
 ```
 
 ### Step 5: Trigger Gate Evaluation
 
-```bash
+```bash dg-run dg-level=manual dg-requires=mcp
 curl -s http://127.0.0.1:4000/rpc \
   -H 'Content-Type: application/json' \
   -d '{
@@ -257,24 +272,33 @@ curl -s http://127.0.0.1:4000/rpc \
 
 With `time.after` and `timestamp = 1700000000000`, the check returns `true` because `1710000000000 > 1700000000000`.
 
-**Response (`NextResult`):**
+Optional: add `"feedback": "trace"` inside `arguments` to get gate/condition status when permitted by server feedback policy.
 
-```json
+**Response (MCP-wrapped):**
+
+```json dg-parse dg-level=fast
 {
   "jsonrpc": "2.0",
   "id": 3,
   "result": {
-    "decision": {
-      "decision_id": "decision-1",
-      "seq": 1,
-      "trigger_id": "trigger-1",
-      "stage_id": "main",
-      "decided_at": { "kind": "unix_millis", "value": 1710000000000 },
-      "outcome": { "kind": "complete", "stage_id": "main" },
-      "correlation_id": null
-    },
-    "packets": [],
-    "status": "completed"
+    "content": [
+      {
+        "type": "json",
+        "json": {
+          "decision": {
+            "decision_id": "decision-1",
+            "seq": 1,
+            "trigger_id": "trigger-1",
+            "stage_id": "main",
+            "decided_at": { "kind": "unix_millis", "value": 1710000000000 },
+            "outcome": { "kind": "complete", "stage_id": "main" },
+            "correlation_id": null
+          },
+          "packets": [],
+          "status": "completed"
+        }
+      }
+    ]
   }
 }
 ```
@@ -285,20 +309,29 @@ With `time.after` and `timestamp = 1700000000000`, the check returns `true` beca
 
 ### Gate Outcome is `hold`
 
-If a gate cannot be proven `true` or `false`, the decision outcome will be `hold` and the response will include a `SafeSummary`:
+If a gate cannot be proven `true` or `false`, the decision outcome will be `hold` and the response will include a `SafeSummary`. By default, `scenario_next` returns summary-only feedback; for gate/condition status use `feedback: "trace"` (if allowed) or `precheck` for fast iteration.
 
-```json
+```json dg-parse dg-level=fast
 {
-  "decision": {
-    "outcome": {
-      "kind": "hold",
-      "summary": {
-        "status": "hold",
-        "unmet_gates": ["after-time"],
-        "retry_hint": "await_evidence",
-        "policy_tags": []
+  "result": {
+    "content": [
+      {
+        "type": "json",
+        "json": {
+          "decision": {
+            "outcome": {
+              "kind": "hold",
+              "summary": {
+                "status": "hold",
+                "unmet_gates": ["after-time"],
+                "retry_hint": "await_evidence",
+                "policy_tags": []
+              }
+            }
+          }
+        }
       }
-    }
+    ]
   }
 }
 ```
@@ -311,7 +344,7 @@ If a gate cannot be proven `true` or `false`, the decision outcome will be `hold
 
 If you configure `[server.auth]`, include the appropriate auth header:
 
-```bash
+```bash dg-run dg-level=manual dg-requires=mcp
 curl -s http://127.0.0.1:4000/rpc \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer YOUR_TOKEN' \

@@ -217,7 +217,7 @@ impl AuthContext {
 }
 
 /// Authentication method used for the request.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthMethod {
     /// Local-only loopback or stdio access.
     Local,

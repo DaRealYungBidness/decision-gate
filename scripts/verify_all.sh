@@ -15,6 +15,7 @@ SYSTEM_TESTS="none"
 PACKAGE_DRY_RUN="none"
 ADAPTER_TESTS="none"
 AGENTIC_HARNESS="none"
+DOCS_RUN="none"
 
 print_usage() {
     cat <<EOF
@@ -35,6 +36,8 @@ Options:
   --adapter-tests=LIST     Run adapter tests for a comma-separated list
                            (langchain,crewai,autogen,openai_agents).
   --agentic-harness        Run the agentic flow harness (deterministic mode).
+  --docs-run               Execute runnable documentation blocks (fast level).
+  --docs-run=all            Execute all runnable documentation blocks (fast + slow).
   -h, --help               Show this help message.
 EOF
 }
@@ -67,6 +70,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --agentic-harness)
             AGENTIC_HARNESS="deterministic"
+            shift
+            ;;
+        --docs-run)
+            DOCS_RUN="fast"
+            shift
+            ;;
+        --docs-run=*)
+            DOCS_RUN="${1#*=}"
             shift
             ;;
         -h|--help)
@@ -104,15 +115,17 @@ resolve_python() {
 
 cd "$REPO_ROOT"
 
+PYTHON=()
+if ! resolve_python; then
+    echo "ERROR: Python 3 interpreter not found for docs verification." >&2
+    exit 1
+fi
+
 run "$SCRIPT_DIR/generate_all.sh" --check
 run cargo test --workspace --exclude system-tests
+run "${PYTHON[@]}" "$SCRIPT_DIR/../scripts/docs_verify.py"
 
 if [[ "$SYSTEM_TESTS" != "none" ]]; then
-    PYTHON=()
-    if ! resolve_python; then
-        echo "ERROR: Python 3 interpreter not found for system-tests runner." >&2
-        exit 1
-    fi
     case "$SYSTEM_TESTS" in
         p0)
             run "${PYTHON[@]}" scripts/test_runner.py --priority P0
@@ -129,6 +142,22 @@ if [[ "$SYSTEM_TESTS" != "none" ]]; then
             ;;
         *)
             echo "Unknown system-tests mode: $SYSTEM_TESTS" >&2
+            print_usage
+            exit 1
+            ;;
+    esac
+fi
+
+if [[ "$DOCS_RUN" != "none" ]]; then
+    case "$DOCS_RUN" in
+        fast)
+            run "${PYTHON[@]}" "$SCRIPT_DIR/../scripts/docs_verify.py" --run --level=fast
+            ;;
+        all)
+            run "${PYTHON[@]}" "$SCRIPT_DIR/../scripts/docs_verify.py" --run --level=all
+            ;;
+        *)
+            echo "Unknown docs run mode: $DOCS_RUN" >&2
             print_usage
             exit 1
             ;;

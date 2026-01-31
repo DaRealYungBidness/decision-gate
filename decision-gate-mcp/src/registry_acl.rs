@@ -163,6 +163,8 @@ pub struct RegistryAcl {
     rules: Vec<RegistryAclRule>,
     /// Whether schema signing metadata is required.
     require_signing: bool,
+    /// Allow local-only subjects when using built-in ACL.
+    allow_local_only: bool,
 }
 
 impl RegistryAcl {
@@ -174,6 +176,7 @@ impl RegistryAcl {
             default_effect: config.default,
             rules: config.rules.clone(),
             require_signing: config.require_signing,
+            allow_local_only: config.allow_local_only,
         }
     }
 
@@ -193,9 +196,13 @@ impl RegistryAcl {
         namespace_id: &NamespaceId,
     ) -> RegistryAclDecision {
         match self.mode {
-            RegistryAclMode::Builtin => {
-                builtin_decision(principal, action, *tenant_id, *namespace_id)
-            }
+            RegistryAclMode::Builtin => builtin_decision(
+                principal,
+                action,
+                *tenant_id,
+                *namespace_id,
+                self.allow_local_only,
+            ),
             RegistryAclMode::Custom => custom_decision(
                 principal,
                 action,
@@ -214,7 +221,14 @@ fn builtin_decision(
     action: RegistryAclAction,
     tenant_id: TenantId,
     namespace_id: NamespaceId,
+    allow_local_only: bool,
 ) -> RegistryAclDecision {
+    if allow_local_only && principal.auth_method == AuthMethod::Local {
+        return RegistryAclDecision {
+            allowed: true,
+            reason: "builtin_allow_local_only".to_string(),
+        };
+    }
     let policy_class = principal.policy_class.as_deref().unwrap_or("prod").to_ascii_lowercase();
     let is_prod = policy_class == "prod";
 

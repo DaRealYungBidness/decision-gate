@@ -14,7 +14,7 @@ Dependencies:
   - decision-gate-config/src/config.rs
   - decision-gate-store-sqlite/src/store.rs
 ============================================================================
-Last Updated: 2026-01-26 (UTC)
+Last Updated: 2026-01-30 (UTC)
 ============================================================================
 -->
 
@@ -92,6 +92,12 @@ Subsequent tools operate on the cached runtime and persisted run state:
 - `scenario_trigger` injects an external trigger event
 
 [F:decision-gate-mcp/src/tools.rs L786-L856]
+
+`scenario_next` can optionally include feedback (summary/trace/evidence) in the
+tool response when permitted by server feedback policy. Trace feedback reuses
+stored gate evaluations; evidence feedback can surface gate evaluation records
+with disclosure policy applied.
+[F:decision-gate-mcp/src/tools.rs L520-L620][F:decision-gate-core/src/core/state.rs L312-L345]
 
 ---
 

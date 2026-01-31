@@ -340,6 +340,9 @@ pub struct ServerConfig {
     /// Audit logging configuration.
     #[serde(default)]
     pub audit: ServerAuditConfig,
+    /// Feedback disclosure configuration for tool responses.
+    #[serde(default)]
+    pub feedback: ServerFeedbackConfig,
 }
 
 impl Default for ServerConfig {
@@ -353,6 +356,7 @@ impl Default for ServerConfig {
             auth: None,
             tls: None,
             audit: ServerAuditConfig::default(),
+            feedback: ServerFeedbackConfig::default(),
         }
     }
 }
@@ -373,6 +377,7 @@ impl ServerConfig {
             tls.validate()?;
         }
         self.audit.validate()?;
+        self.feedback.validate()?;
         let auth_mode = self.auth.as_ref().map_or(ServerAuthMode::LocalOnly, |auth| auth.mode);
         match self.transport {
             ServerTransport::Http | ServerTransport::Sse => {
@@ -403,6 +408,115 @@ impl ServerConfig {
                     ));
                 }
             }
+        }
+        Ok(())
+    }
+}
+
+/// Feedback levels for tool responses.
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum FeedbackLevel {
+    /// Summary-only feedback.
+    Summary,
+    /// Gate-level trace feedback without evidence values.
+    Trace,
+    /// Evidence-inclusive feedback (subject to disclosure policy).
+    Evidence,
+}
+
+impl Default for FeedbackLevel {
+    fn default() -> Self {
+        FeedbackLevel::Summary
+    }
+}
+
+impl FeedbackLevel {
+    /// Returns a ranking for ordering feedback levels.
+    const fn rank(self) -> u8 {
+        match self {
+            FeedbackLevel::Summary => 0,
+            FeedbackLevel::Trace => 1,
+            FeedbackLevel::Evidence => 2,
+        }
+    }
+}
+
+/// Feedback configuration for MCP tools.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ServerFeedbackConfig {
+    /// Feedback policy for `scenario_next`.
+    #[serde(default)]
+    pub scenario_next: ScenarioNextFeedbackConfig,
+}
+
+impl Default for ServerFeedbackConfig {
+    fn default() -> Self {
+        Self {
+            scenario_next: ScenarioNextFeedbackConfig::default(),
+        }
+    }
+}
+
+impl ServerFeedbackConfig {
+    /// Validates feedback configuration.
+    fn validate(&self) -> Result<(), ConfigError> {
+        self.scenario_next.validate()
+    }
+}
+
+/// Feedback policy for `scenario_next` responses.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ScenarioNextFeedbackConfig {
+    /// Default feedback level for non-local requests.
+    #[serde(default = "default_scenario_next_feedback_default")]
+    pub default: FeedbackLevel,
+    /// Default feedback level for local-only requests.
+    #[serde(default = "default_scenario_next_feedback_local_only")]
+    pub local_only_default: FeedbackLevel,
+    /// Maximum feedback level permitted.
+    #[serde(default = "default_scenario_next_feedback_max")]
+    pub max: FeedbackLevel,
+    /// Subjects allowed to request trace feedback.
+    #[serde(default = "default_scenario_next_trace_subjects")]
+    pub trace_subjects: Vec<String>,
+    /// Roles allowed to request trace feedback.
+    #[serde(default)]
+    pub trace_roles: Vec<String>,
+    /// Subjects allowed to request evidence feedback.
+    #[serde(default)]
+    pub evidence_subjects: Vec<String>,
+    /// Roles allowed to request evidence feedback.
+    #[serde(default)]
+    pub evidence_roles: Vec<String>,
+}
+
+impl Default for ScenarioNextFeedbackConfig {
+    fn default() -> Self {
+        Self {
+            default: default_scenario_next_feedback_default(),
+            local_only_default: default_scenario_next_feedback_local_only(),
+            max: default_scenario_next_feedback_max(),
+            trace_subjects: default_scenario_next_trace_subjects(),
+            trace_roles: Vec::new(),
+            evidence_subjects: Vec::new(),
+            evidence_roles: Vec::new(),
+        }
+    }
+}
+
+impl ScenarioNextFeedbackConfig {
+    /// Validates scenario_next feedback configuration.
+    fn validate(&self) -> Result<(), ConfigError> {
+        if self.default.rank() > self.max.rank() {
+            return Err(ConfigError::Invalid(
+                "server.feedback.scenario_next.default exceeds max".to_string(),
+            ));
+        }
+        if self.local_only_default.rank() > self.max.rank() {
+            return Err(ConfigError::Invalid(
+                "server.feedback.scenario_next.local_only_default exceeds max".to_string(),
+            ));
         }
         Ok(())
     }
@@ -1478,7 +1592,7 @@ impl RegistryAclRule {
 }
 
 /// Registry ACL configuration.
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct RegistryAclConfig {
     /// ACL mode selection.
     #[serde(default)]
@@ -1486,6 +1600,9 @@ pub struct RegistryAclConfig {
     /// Default effect when no rules match.
     #[serde(default)]
     pub default: RegistryAclDefault,
+    /// Allow local-only subjects to access the registry when using built-in ACL.
+    #[serde(default = "default_registry_acl_allow_local_only")]
+    pub allow_local_only: bool,
     /// Require schema signing metadata.
     #[serde(default)]
     pub require_signing: bool,
@@ -1506,6 +1623,18 @@ impl RegistryAclConfig {
             rule.validate()?;
         }
         Ok(())
+    }
+}
+
+impl Default for RegistryAclConfig {
+    fn default() -> Self {
+        Self {
+            mode: RegistryAclMode::default(),
+            default: RegistryAclDefault::default(),
+            allow_local_only: default_registry_acl_allow_local_only(),
+            require_signing: false,
+            rules: Vec::new(),
+        }
     }
 }
 
@@ -1826,6 +1955,22 @@ pub(crate) const fn default_max_body_bytes() -> usize {
     1024 * 1024
 }
 
+pub(crate) const fn default_scenario_next_feedback_default() -> FeedbackLevel {
+    FeedbackLevel::Summary
+}
+
+pub(crate) const fn default_scenario_next_feedback_local_only() -> FeedbackLevel {
+    FeedbackLevel::Trace
+}
+
+pub(crate) const fn default_scenario_next_feedback_max() -> FeedbackLevel {
+    FeedbackLevel::Trace
+}
+
+pub(crate) fn default_scenario_next_trace_subjects() -> Vec<String> {
+    vec!["loopback".to_string(), "stdio".to_string()]
+}
+
 /// Default maximum inflight requests.
 pub(crate) const fn default_max_inflight() -> usize {
     DEFAULT_MAX_INFLIGHT
@@ -1884,6 +2029,11 @@ pub(crate) const fn default_store_busy_timeout_ms() -> u64 {
 /// Default max schema size for registry payloads.
 pub(crate) const fn default_schema_max_bytes() -> usize {
     DEFAULT_SCHEMA_MAX_BYTES
+}
+
+/// Default allow-local-only registry ACL behavior.
+pub(crate) const fn default_registry_acl_allow_local_only() -> bool {
+    true
 }
 
 /// Default trust policy for providers.

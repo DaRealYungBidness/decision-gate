@@ -148,6 +148,7 @@ fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
         precheck_audit_payloads,
         registry_acl,
         principal_resolver,
+        scenario_next_feedback: config.server.feedback.scenario_next.clone(),
         allow_default_namespace,
         default_namespace_tenants,
         namespace_authority: std::sync::Arc::new(NoopNamespaceAuthority),

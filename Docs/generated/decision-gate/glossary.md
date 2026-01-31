@@ -464,7 +464,7 @@ Labels applied to runs, conditions, or disclosures for policy routing. Tags enab
 
 ## `precheck`
 
-Evaluates a scenario against asserted data without mutating run state. Validates asserted data against a registered shape and returns the decision result for simulation.
+Evaluates a scenario against asserted data without mutating run state. Validates asserted data against a registered shape and returns the decision result for simulation. Use this as the fast iteration loop for agents before running audited scenario_next.
 
 ## `provider_check_schema_get`
 
@@ -560,7 +560,7 @@ Scenario identifiers allowed by the rule.
 
 ## `scenario_next`
 
-Evaluates gates for the current stage and advances or holds the run. This is the primary driver for agent-controlled workflows. All gates must be true to advance; otherwise the run holds. Branch stages use gate outcomes to select the next_stage_id once gates pass. Timeout policies may synthesize outcomes for alternate_branch routing. Returns the decision and new stage.
+Evaluates gates for the current stage and advances or holds the run. This is the primary driver for agent-controlled workflows. All gates must be true to advance; otherwise the run holds. Branch stages use gate outcomes to select the next_stage_id once gates pass. Timeout policies may synthesize outcomes for alternate_branch routing. Returns the decision and new stage, with optional feedback levels (summary, trace, evidence) when permitted by server feedback policy.
 
 ## `scenario_start`
 

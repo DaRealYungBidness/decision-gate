@@ -67,7 +67,8 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          driver for agent-controlled workflows. All gates must be true to advance; otherwise the \
          run holds. Branch stages use gate outcomes to select the next_stage_id once gates pass. \
          Timeout policies may synthesize outcomes for alternate_branch routing. Returns the \
-         decision and new stage.",
+         decision and new stage, with optional feedback levels (summary, trace, evidence) when \
+         permitted by server feedback policy.",
     ),
     (
         "scenario_submit",
@@ -146,7 +147,8 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     (
         "precheck",
         "Evaluates a scenario against asserted data without mutating run state. Validates \
-         asserted data against a registered shape and returns the decision result for simulation.",
+         asserted data against a registered shape and returns the decision result for simulation. \
+         Use this as the fast iteration loop for agents before running audited scenario_next.",
     ),
     // =====================================================================
     // CORE TYPES - Scenario & Stage Specifications

@@ -34,7 +34,7 @@ DG is **data-first**:
 - DG evaluates that evidence deterministically.
 
 ### Core evaluation pipeline
-```
+```dg-skip dg-reason="output-only" dg-expires=2026-06-30
 EvidenceQuery -> Provider -> EvidenceResult -> Comparator -> Tri-state
                -> RET -> Gate outcome
 ```
@@ -81,7 +81,7 @@ Providers implement a single MCP tool named `evidence_query` and return an
 `EvidenceResult` inside the tool response.
 
 ### EvidenceQuery shape
-```json
+```json dg-parse dg-level=fast
 {
   "provider_id": "string",
   "check_id": "string",
@@ -93,7 +93,7 @@ Providers implement a single MCP tool named `evidence_query` and return an
 - Most built-in providers require `params` to be a JSON object.
 
 ### EvidenceResult shape (value is what your contract describes)
-```json
+```json dg-skip dg-reason="non-json-example" dg-expires=2026-06-30
 {
   "value": { "kind": "json|bytes", "value": "any" } | null,
   "lane": "verified|asserted",
@@ -246,7 +246,7 @@ Keep schemas **precise** and **minimal**.
 ### Bytes results (special case)
 If the provider returns `EvidenceValue::Bytes`, the evidence value is compared
 as bytes. Recommended schema:
-```json
+```json dg-parse dg-level=fast
 {
   "type": "array",
   "items": { "type": "integer", "minimum": 0, "maximum": 255 }
@@ -258,7 +258,7 @@ Constrain `allowed_comparators` accordingly.
 ### Dynamic results (escape hatch)
 If a check can return arbitrary JSON shapes that cannot be expressed, mark
 the result schema as dynamic:
-```json
+```json dg-parse dg-level=fast
 {
   "description": "Dynamic JSON result",
   "x-decision-gate": { "dynamic_type": true }
@@ -381,7 +381,7 @@ for non-dynamic schemas and require two steps:
    - `validation.enable_deep_equals = true`
 
 2. **Declare opt-ins in the result schema** (for non-dynamic schemas):
-```json
+```json dg-skip dg-reason="non-json-example" dg-expires=2026-06-30
 "result_schema": {
   "type": "string",
   "x-decision-gate": {
@@ -468,7 +468,7 @@ You should have all of the following for each provider check:
 
 Copy/paste and fill this out before authoring the contract:
 
-```
+```dg-skip dg-reason="output-only" dg-expires=2026-06-30
 Provider
 - provider_id:
 - name:
@@ -503,7 +503,7 @@ Use this prompt **verbatim** with an LLM, along with the completed worksheet
 and any OpenAPI or type definitions. This prompt is designed to prevent
 hallucination and force explicit questions when information is missing.
 
-```
+```dg-skip dg-reason="output-only" dg-expires=2026-06-30
 You are generating a Decision Gate provider contract JSON.
 
 Rules:

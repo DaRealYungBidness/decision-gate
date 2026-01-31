@@ -82,6 +82,7 @@ TOOL_NOTES: Mapping[str, Sequence[str]] = {
         "Idempotent by trigger_id; repeated calls return the same decision.",
         "Records decision, evidence, and packet disclosures in run state.",
         "Requires an active run; completed or failed runs do not advance.",
+        "Optional feedback can include gate trace or evidence when permitted by server feedback policy.",
     ],
     "scenario_submit": [
         "Payload is hashed and stored as a submission record.",
@@ -2710,6 +2711,8 @@ ScenarioStatus_OUTPUT_SCHEMA = _json.loads(r"""
 
 class ScenarioNextRequest(TypedDict):
     """Schema for ScenarioNextRequest."""
+    #: Optional feedback level override for scenario_next.
+    feedback: NotRequired[Union[Literal["summary", "trace", "evidence"], None]]
     #: Next request payload from an agent.
     request: Dict[str, JsonValue]
     #: Scenario identifier.
@@ -2718,6 +2721,7 @@ class ScenarioNextRequest(TypedDict):
 class ScenarioNextResponse(TypedDict):
     """Schema for ScenarioNextResponse."""
     decision: Dict[str, JsonValue]
+    feedback: NotRequired[Union[Dict[str, JsonValue], None]]
     packets: List[Dict[str, JsonValue]]
     #: Constraints: Allowed values: "active", "completed", "failed".
     status: Literal["active", "completed", "failed"]
@@ -2727,6 +2731,23 @@ ScenarioNext_INPUT_SCHEMA = _json.loads(r"""
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "feedback": {
+      "description": "Optional feedback level override for scenario_next.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "description": "Feedback disclosure level.",
+          "enum": [
+            "summary",
+            "trace",
+            "evidence"
+          ],
+          "type": "string"
+        }
+      ]
+    },
     "request": {
       "additionalProperties": false,
       "description": "Next request payload from an agent.",
@@ -3042,6 +3063,450 @@ ScenarioNext_OUTPUT_SCHEMA = _json.loads(r"""
         "correlation_id"
       ],
       "type": "object"
+    },
+    "feedback": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "denied_reason": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "description": "Optional denial reason for requested feedback.",
+                  "type": "string"
+                }
+              ]
+            },
+            "gate_evaluations": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "gate_id": {
+                        "description": "Gate identifier.",
+                        "type": "string"
+                      },
+                      "status": {
+                        "description": "Tri-state evaluation result.",
+                        "enum": [
+                          "True",
+                          "False",
+                          "Unknown"
+                        ],
+                        "type": "string"
+                      },
+                      "trace": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "condition_id": {
+                              "description": "Condition identifier.",
+                              "type": "string"
+                            },
+                            "status": {
+                              "description": "Tri-state evaluation result.",
+                              "enum": [
+                                "True",
+                                "False",
+                                "Unknown"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "condition_id",
+                            "status"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "gate_id",
+                      "status",
+                      "trace"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              ]
+            },
+            "gate_records": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "evaluation": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "gate_id": {
+                            "description": "Gate identifier.",
+                            "type": "string"
+                          },
+                          "status": {
+                            "description": "Tri-state evaluation result.",
+                            "enum": [
+                              "True",
+                              "False",
+                              "Unknown"
+                            ],
+                            "type": "string"
+                          },
+                          "trace": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "condition_id": {
+                                  "description": "Condition identifier.",
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "description": "Tri-state evaluation result.",
+                                  "enum": [
+                                    "True",
+                                    "False",
+                                    "Unknown"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "condition_id",
+                                "status"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "gate_id",
+                          "status",
+                          "trace"
+                        ],
+                        "type": "object"
+                      },
+                      "evidence": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "condition_id": {
+                              "description": "Condition identifier.",
+                              "type": "string"
+                            },
+                            "result": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "content_type": {
+                                  "oneOf": [
+                                    {
+                                      "type": "null"
+                                    },
+                                    {
+                                      "description": "Evidence content type.",
+                                      "type": "string"
+                                    }
+                                  ]
+                                },
+                                "error": {
+                                  "oneOf": [
+                                    {
+                                      "type": "null"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "code": {
+                                          "description": "Stable error code.",
+                                          "type": "string"
+                                        },
+                                        "details": {
+                                          "oneOf": [
+                                            {
+                                              "type": "null"
+                                            },
+                                            {
+                                              "description": "Optional structured error details.",
+                                              "type": [
+                                                "null",
+                                                "boolean",
+                                                "number",
+                                                "string",
+                                                "array",
+                                                "object"
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        "message": {
+                                          "description": "Error message.",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "code",
+                                        "message",
+                                        "details"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  ]
+                                },
+                                "evidence_anchor": {
+                                  "oneOf": [
+                                    {
+                                      "type": "null"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "anchor_type": {
+                                          "description": "Anchor type identifier.",
+                                          "type": "string"
+                                        },
+                                        "anchor_value": {
+                                          "description": "Anchor value.",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "anchor_type",
+                                        "anchor_value"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  ]
+                                },
+                                "evidence_hash": {
+                                  "oneOf": [
+                                    {
+                                      "type": "null"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "algorithm": {
+                                          "enum": [
+                                            "sha256"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "value": {
+                                          "description": "Lowercase hex digest.",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "algorithm",
+                                        "value"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  ]
+                                },
+                                "evidence_ref": {
+                                  "oneOf": [
+                                    {
+                                      "type": "null"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "uri": {
+                                          "description": "Evidence reference URI.",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "uri"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  ]
+                                },
+                                "lane": {
+                                  "description": "Trust lane classification for evidence.",
+                                  "enum": [
+                                    "verified",
+                                    "asserted"
+                                  ],
+                                  "type": "string"
+                                },
+                                "signature": {
+                                  "oneOf": [
+                                    {
+                                      "type": "null"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "key_id": {
+                                          "description": "Signing key identifier.",
+                                          "type": "string"
+                                        },
+                                        "scheme": {
+                                          "description": "Signature scheme identifier.",
+                                          "type": "string"
+                                        },
+                                        "signature": {
+                                          "items": {
+                                            "maximum": 255,
+                                            "minimum": 0,
+                                            "type": "integer"
+                                          },
+                                          "type": "array"
+                                        }
+                                      },
+                                      "required": [
+                                        "scheme",
+                                        "key_id",
+                                        "signature"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  ]
+                                },
+                                "value": {
+                                  "oneOf": [
+                                    {
+                                      "type": "null"
+                                    },
+                                    {
+                                      "oneOf": [
+                                        {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "kind": {
+                                              "const": "json"
+                                            },
+                                            "value": {
+                                              "description": "Evidence JSON value.",
+                                              "type": [
+                                                "null",
+                                                "boolean",
+                                                "number",
+                                                "string",
+                                                "array",
+                                                "object"
+                                              ]
+                                            }
+                                          },
+                                          "required": [
+                                            "kind",
+                                            "value"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "kind": {
+                                              "const": "bytes"
+                                            },
+                                            "value": {
+                                              "items": {
+                                                "maximum": 255,
+                                                "minimum": 0,
+                                                "type": "integer"
+                                              },
+                                              "type": "array"
+                                            }
+                                          },
+                                          "required": [
+                                            "kind",
+                                            "value"
+                                          ],
+                                          "type": "object"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "value",
+                                "lane",
+                                "error",
+                                "evidence_hash",
+                                "evidence_ref",
+                                "evidence_anchor",
+                                "signature",
+                                "content_type"
+                              ],
+                              "type": "object"
+                            },
+                            "status": {
+                              "description": "Tri-state evaluation result.",
+                              "enum": [
+                                "True",
+                                "False",
+                                "Unknown"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "condition_id",
+                            "status",
+                            "result"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
+                      "stage_id": {
+                        "description": "Stage identifier.",
+                        "type": "string"
+                      },
+                      "trigger_id": {
+                        "description": "Trigger identifier.",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "trigger_id",
+                      "stage_id",
+                      "evaluation",
+                      "evidence"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              ]
+            },
+            "level": {
+              "description": "Feedback disclosure level.",
+              "enum": [
+                "summary",
+                "trace",
+                "evidence"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "level"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "packets": {
       "items": {
@@ -7745,6 +8210,7 @@ class GeneratedDecisionGateClient:
         - Idempotent by trigger_id; repeated calls return the same decision.
         - Records decision, evidence, and packet disclosures in run state.
         - Requires an active run; completed or failed runs do not advance.
+        - Optional feedback can include gate trace or evidence when permitted by server feedback policy.
 
         Examples:
         - Evaluate the next agent-driven step for a run.
@@ -7780,6 +8246,48 @@ class GeneratedDecisionGateClient:
                 "seq": 0,
                 "stage_id": "main",
                 "trigger_id": "trigger-0001"
+              },
+              "packets": [],
+              "status": "completed"
+            }
+        - Evaluate a run and request trace feedback.
+          Input:
+            {
+              "feedback": "trace",
+              "request": {
+                "agent_id": "agent-alpha",
+                "correlation_id": null,
+                "namespace_id": 1,
+                "run_id": "run-0001",
+                "tenant_id": 1,
+                "time": {
+                  "kind": "unix_millis",
+                  "value": 1710000000000
+                },
+                "trigger_id": "trigger-0001"
+              },
+              "scenario_id": "example-scenario"
+            }
+          Output:
+            {
+              "decision": {
+                "correlation_id": null,
+                "decided_at": {
+                  "kind": "unix_millis",
+                  "value": 1710000000000
+                },
+                "decision_id": "decision-0001",
+                "outcome": {
+                  "kind": "complete",
+                  "stage_id": "main"
+                },
+                "seq": 0,
+                "stage_id": "main",
+                "trigger_id": "trigger-0001"
+              },
+              "feedback": {
+                "gate_evaluations": [],
+                "level": "trace"
               },
               "packets": [],
               "status": "completed"

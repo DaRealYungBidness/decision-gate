@@ -24,7 +24,7 @@ Dependencies:
 
 A provider is an MCP server that implements **one tool**: `evidence_query`.
 
-```
+```dg-skip dg-reason="output-only" dg-expires=2026-06-30
 Provider
   - Provider Contract (JSON)
     - provider_id, name, description
@@ -75,7 +75,7 @@ Your handler must return an **EvidenceResult** object (not a JSON-RPC error) for
 
 Example (pseudocode):
 
-```python
+```python dg-skip dg-reason="pseudocode" dg-expires=2026-06-30
 def handle_evidence_query(query, context):
     if query["check_id"] != "file_exists":
         return {
@@ -130,7 +130,7 @@ def handle_evidence_query(query, context):
 
 All fields below are **required** by the contract schema.
 
-```json
+```json dg-parse dg-level=fast
 {
   "provider_id": "file-provider",
   "name": "File Provider",
@@ -179,7 +179,7 @@ All fields below are **required** by the contract schema.
 
 ### Step 4: Configure Decision Gate
 
-```toml
+```toml dg-parse dg-level=fast
 [[providers]]
 name = "file-provider"
 type = "mcp"
@@ -193,7 +193,7 @@ capabilities_path = "contracts/file-provider.json"
 
 Decision Gate only applies HTTP timeouts to **HTTP MCP** providers:
 
-```toml
+```toml dg-parse dg-level=fast
 [[providers]]
 name = "cloud"
 type = "mcp"
@@ -210,7 +210,7 @@ There is **no** Decision Gate timeout for stdio MCP providers; keep their handle
 
 When `trust.default_policy = { require_signature = { keys = [...] } }`, providers must include signatures:
 
-```json
+```json dg-skip dg-reason="non-json-example" dg-expires=2026-06-30
 "signature": {
   "scheme": "ed25519",
   "key_id": "/etc/decision-gate/keys/provider.pub",

@@ -49,7 +49,6 @@ use decision_gate_core::TriggerId;
 use decision_gate_core::TriggerKind;
 use decision_gate_core::TrustLane;
 use decision_gate_core::runtime::NextRequest;
-use decision_gate_core::runtime::NextResult;
 use decision_gate_core::runtime::ScenarioStatus;
 use decision_gate_core::runtime::StatusRequest;
 use decision_gate_core::runtime::SubmitRequest;
@@ -61,6 +60,7 @@ use decision_gate_mcp::RunpackStorage;
 use decision_gate_mcp::RunpackStorageError;
 use decision_gate_mcp::RunpackStorageKey;
 use decision_gate_mcp::SchemaRegistryConfig;
+use decision_gate_mcp::config::FeedbackLevel;
 use decision_gate_mcp::config::PrincipalConfig;
 use decision_gate_mcp::config::PrincipalRoleConfig;
 use decision_gate_mcp::config::ServerAuthConfig;
@@ -83,6 +83,7 @@ use decision_gate_mcp::tools::RunpackExportResponse;
 use decision_gate_mcp::tools::ScenarioDefineRequest;
 use decision_gate_mcp::tools::ScenarioDefineResponse;
 use decision_gate_mcp::tools::ScenarioNextRequest;
+use decision_gate_mcp::tools::ScenarioNextResponse;
 use decision_gate_mcp::tools::ScenarioStartRequest;
 use decision_gate_mcp::tools::ScenarioStatusRequest;
 use decision_gate_mcp::tools::ScenarioSubmitRequest;
@@ -341,6 +342,7 @@ fn namespace_authority_denies_tool_call() {
         precheck_audit_payloads,
         registry_acl,
         principal_resolver,
+        scenario_next_feedback: config.server.feedback.scenario_next.clone(),
         allow_default_namespace,
         default_namespace_tenants,
         namespace_authority: std::sync::Arc::new(DenyNamespaceAuthority),
@@ -544,6 +546,7 @@ fn scenario_next_advances_evaluation() {
             time: Timestamp::Logical(2),
             correlation_id: None,
         },
+        feedback: None,
     };
     let result = router
         .handle_tool_call_sync(
@@ -552,10 +555,74 @@ fn scenario_next_advances_evaluation() {
             serde_json::to_value(&request).unwrap(),
         )
         .unwrap();
-    let next_result: NextResult = serde_json::from_value(result).unwrap();
+    let next_result: ScenarioNextResponse = serde_json::from_value(result).unwrap();
 
     // Should have evaluated (decision recorded with the trigger id)
-    assert_eq!(next_result.decision.trigger_id, TriggerId::new("trigger-1"));
+    assert_eq!(next_result.result.decision.trigger_id, TriggerId::new("trigger-1"));
+}
+
+/// Verifies `scenario_next` can return trace feedback when requested.
+#[test]
+fn scenario_next_trace_feedback_returns_gate_evaluations() {
+    let (router, scenario_id, run_id) = setup_scenario_with_run();
+
+    let request = ScenarioNextRequest {
+        scenario_id,
+        request: NextRequest {
+            run_id,
+            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            trigger_id: TriggerId::new("trigger-trace"),
+            agent_id: "test-agent".to_string(),
+            time: Timestamp::Logical(2),
+            correlation_id: None,
+        },
+        feedback: Some(FeedbackLevel::Trace),
+    };
+    let result = router
+        .handle_tool_call_sync(
+            &local_request_context(),
+            "scenario_next",
+            serde_json::to_value(&request).unwrap(),
+        )
+        .unwrap();
+    let next_result: ScenarioNextResponse = serde_json::from_value(result).unwrap();
+
+    let feedback = next_result.feedback.expect("expected feedback");
+    assert_eq!(feedback.level, FeedbackLevel::Trace);
+    assert!(feedback.gate_evaluations.unwrap_or_default().len() >= 1);
+}
+
+/// Verifies evidence feedback requests are downgraded without authorization.
+#[test]
+fn scenario_next_evidence_feedback_denied_defaults_to_trace() {
+    let (router, scenario_id, run_id) = setup_scenario_with_run();
+
+    let request = ScenarioNextRequest {
+        scenario_id,
+        request: NextRequest {
+            run_id,
+            tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+            namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            trigger_id: TriggerId::new("trigger-evidence"),
+            agent_id: "test-agent".to_string(),
+            time: Timestamp::Logical(2),
+            correlation_id: None,
+        },
+        feedback: Some(FeedbackLevel::Evidence),
+    };
+    let result = router
+        .handle_tool_call_sync(
+            &local_request_context(),
+            "scenario_next",
+            serde_json::to_value(&request).unwrap(),
+        )
+        .unwrap();
+    let next_result: ScenarioNextResponse = serde_json::from_value(result).unwrap();
+
+    let feedback = next_result.feedback.expect("expected feedback");
+    assert_eq!(feedback.level, FeedbackLevel::Trace);
+    assert!(feedback.denied_reason.is_some());
 }
 
 /// Verifies next for undefined scenario fails.
@@ -574,6 +641,7 @@ fn scenario_next_undefined_scenario_fails() {
             time: Timestamp::Logical(1),
             correlation_id: None,
         },
+        feedback: None,
     };
     let result = router.handle_tool_call_sync(
         &local_request_context(),
@@ -993,6 +1061,7 @@ fn scenario_next_idempotent_same_trigger() {
             time: Timestamp::Logical(2),
             correlation_id: None,
         },
+        feedback: None,
     };
 
     let result1 = router
@@ -1010,11 +1079,11 @@ fn scenario_next_idempotent_same_trigger() {
         )
         .unwrap();
 
-    let next1: NextResult = serde_json::from_value(result1).unwrap();
-    let next2: NextResult = serde_json::from_value(result2).unwrap();
+    let next1: ScenarioNextResponse = serde_json::from_value(result1).unwrap();
+    let next2: ScenarioNextResponse = serde_json::from_value(result2).unwrap();
 
     // Same trigger should produce same decision
-    assert_eq!(next1.decision, next2.decision);
+    assert_eq!(next1.result.decision, next2.result.decision);
 }
 
 // ============================================================================
@@ -1059,6 +1128,7 @@ fn schemas_register_and_get_roundtrip() {
 fn schemas_register_denied_without_registry_roles() {
     let mut config = sample_config();
     config.server.auth = None;
+    config.schema_registry.acl.allow_local_only = false;
     let router = router_with_config(&config);
     let record = sample_shape_record("asserted-deny", "v1");
     let request = SchemasRegisterRequest {

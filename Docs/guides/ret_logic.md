@@ -38,7 +38,7 @@ Dependencies:
 - Hard to verify offline (can't replay without re-executing code)
 
 **With RET:** You express the logic as a tree structure:
-```json
+```json dg-parse dg-level=fast
 {
   "requirement": {
     "And": [
@@ -74,7 +74,7 @@ Dependencies:
 
 Here's how a requirement tree is evaluated:
 
-```
+```dg-skip dg-reason="output-only" dg-expires=2026-06-30
 RET EVALUATION TREE (simplified)
 
 Gate Requirement (tree structure)
@@ -110,7 +110,7 @@ RET uses **tri-state logic** (not just true/false):
 Gates **fail closed**: a gate only passes when the requirement evaluates to `true`. `unknown` outcomes prevent gates from passing until evidence is complete.
 
 **Example:**
-```
+```dg-skip dg-reason="output-only" dg-expires=2026-06-30
 Gate: And(tests_ok, coverage_ok)
 Conditions:
 - tests_ok: true (tests passed)
@@ -138,7 +138,7 @@ Outcome: unknown (gate holds until coverage is available)
 | unknown | unknown | unknown |
 
 **Example:**
-```json
+```json dg-parse dg-level=fast
 {
   "requirement": {
     "And": [
@@ -172,7 +172,7 @@ Outcome: unknown (gate holds until coverage is available)
 | unknown | unknown | unknown |
 
 **Example:**
-```json
+```json dg-parse dg-level=fast
 {
   "requirement": {
     "Or": [
@@ -204,7 +204,7 @@ Outcome: unknown (gate holds until coverage is available)
 | unknown | unknown |
 
 **Example:**
-```json
+```json dg-parse dg-level=fast
 {
   "requirement": {
     "And": [
@@ -233,7 +233,7 @@ Outcome: unknown (gate holds until coverage is available)
 - `reqs`: Array of child requirements
 
 **Example:**
-```json
+```json dg-parse dg-level=fast
 {
   "requirement": {
     "RequireGroup": {
@@ -274,7 +274,7 @@ Outcome: unknown (gate holds until coverage is available)
 **Semantics:** Reference a condition by key
 
 **Example:**
-```json
+```json dg-parse dg-level=fast
 {
   "requirement": { "Condition": "tests_ok" }
 }
@@ -345,7 +345,7 @@ How `unknown` outcomes propagate through operators:
 
 **Scenario:** Deploy if tests passed AND coverage is above 85%
 
-```json
+```json dg-parse dg-level=fast
 {
   "gate_id": "quality_gate",
   "requirement": {
@@ -363,7 +363,7 @@ How `unknown` outcomes propagate through operators:
 
 **Scenario:** Merge PR if at least 2 of 3 reviewers approved
 
-```json
+```json dg-parse dg-level=fast
 {
   "gate_id": "review_gate",
   "requirement": {
@@ -385,7 +385,7 @@ How `unknown` outcomes propagate through operators:
 
 **Scenario:** Deploy if NOT blocklisted
 
-```json
+```json dg-parse dg-level=fast
 {
   "gate_id": "blocklist_gate",
   "requirement": {
@@ -400,7 +400,7 @@ How `unknown` outcomes propagate through operators:
 
 **Scenario:** Deploy if (tests passed AND coverage OK) OR manual override
 
-```json
+```json dg-parse dg-level=fast
 {
   "gate_id": "deploy_gate",
   "requirement": {
@@ -423,7 +423,7 @@ How `unknown` outcomes propagate through operators:
 
 You can route to different stages based on gate outcomes using `advance_to.branch`:
 
-```json
+```json dg-parse dg-level=fast
 {
   "advance_to": {
     "kind": "branch",
@@ -512,7 +512,7 @@ RequireGroup always returns `false` or `unknown`
 3. Ensure at least `min` conditions can be `true` simultaneously
 
 **Example:**
-```json
+```json dg-skip dg-reason="non-json-example" dg-expires=2026-06-30
 // BAD: min is 3, but only 2 conditions
 {
   "RequireGroup": {
@@ -550,7 +550,7 @@ Gate evaluation error: "No matching branch"
 1. Add branches for all possible outcomes (true/false/unknown)
 2. OR set `default` to a fallback stage
 3. Example:
-```json
+```json dg-skip dg-reason="non-json-example" dg-expires=2026-06-30
 {
   "branches": [
     { "gate_id": "gate1", "outcome": "true", "next_stage_id": "ship" },
