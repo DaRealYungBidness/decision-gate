@@ -16,5 +16,7 @@ mod cli_workflows;
 mod mcp_hardening;
 #[path = "suites/operations.rs"]
 mod operations;
+#[path = "suites/presets.rs"]
+mod presets;
 #[path = "suites/sdk_gen_cli.rs"]
 mod sdk_gen_cli;

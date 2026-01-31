@@ -198,6 +198,36 @@ estimated_runtime_sec = 8
 # =============================================================================
 
 [[tests]]
+name = "preset_quickstart_dev_http"
+category = "operations"
+priority = "P1"
+description = "Quickstart-Dev preset runs the scenario lifecycle over HTTP."
+files = ["system-tests/tests/suites/presets.rs", "configs/presets/quickstart-dev.toml"]
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact presets::preset_quickstart_dev_http"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 10
+
+[[tests]]
+name = "preset_default_recommended_http"
+category = "operations"
+priority = "P1"
+description = "Default-Recommended preset runs scenario lifecycle and registry writes."
+files = ["system-tests/tests/suites/presets.rs", "configs/presets/default-recommended.toml"]
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact presets::preset_default_recommended_http"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 10
+
+[[tests]]
+name = "preset_hardened_http"
+category = "operations"
+priority = "P1"
+description = "Hardened preset enforces bearer auth and schema signing requirements."
+files = ["system-tests/tests/suites/presets.rs", "configs/presets/hardened.toml"]
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact presets::preset_hardened_http"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 10
+
+[[tests]]
 name = "python_sdk_http_scenario_lifecycle"
 category = "functional"
 priority = "P1"

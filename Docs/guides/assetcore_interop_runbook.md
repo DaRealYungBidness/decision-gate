@@ -87,7 +87,7 @@ starter-pack/scripts/load_images.sh --bundle starter-pack/docker-images
 
 ### Step 2: Start AssetCore Stack
 
-```bash dg-run dg-level=manual dg-requires=docker
+```bash dg-run dg-level=manual dg-requires=assetcore,docker
 docker compose \
   --env-file starter-pack/docker/images.env \
   -f starter-pack/docker/docker-compose.yml \
@@ -96,7 +96,7 @@ docker compose \
 
 ### Step 3: Start Decision Gate MCP Server
 
-```bash dg-run dg-level=manual dg-requires=docker
+```bash dg-run dg-level=manual dg-requires=assetcore,docker
 cargo run -p decision-gate-cli -- \
   serve \
   --config system-tests/tests/fixtures/assetcore/decision-gate.toml
@@ -119,7 +119,7 @@ capabilities_path = "system-tests/tests/fixtures/assetcore/providers/assetcore_r
 
 ### Step 4: Run Interop Evaluation
 
-```bash dg-run dg-level=manual dg-requires=docker
+```bash dg-run dg-level=manual dg-requires=assetcore,docker
 cargo run -p decision-gate-cli -- \
   interop eval \
   --mcp-url http://127.0.0.1:8088/rpc \
@@ -130,7 +130,7 @@ cargo run -p decision-gate-cli -- \
 
 ### Step 5: Tear Down AssetCore Stack
 
-```bash dg-run dg-level=manual dg-requires=docker
+```bash dg-run dg-level=manual dg-requires=assetcore,docker
 docker compose \
   --env-file starter-pack/docker/images.env \
   -f starter-pack/docker/docker-compose.yml \

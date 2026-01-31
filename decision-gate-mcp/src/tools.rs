@@ -215,7 +215,7 @@ pub struct ToolRouter {
     registry_acl: RegistryAcl,
     /// Principal resolver for registry ACL.
     principal_resolver: PrincipalResolver,
-    /// Feedback policy for scenario_next responses.
+    /// Feedback policy for `scenario_next` responses.
     scenario_next_feedback: ScenarioNextFeedbackPolicy,
     /// Whether to log raw precheck request/response payloads.
     precheck_audit_payloads: bool,
@@ -275,7 +275,7 @@ pub struct ToolRouterConfig {
     pub registry_acl: RegistryAcl,
     /// Principal resolver for registry ACL.
     pub principal_resolver: PrincipalResolver,
-    /// Feedback policy configuration for scenario_next.
+    /// Feedback policy configuration for `scenario_next`.
     pub scenario_next_feedback: ScenarioNextFeedbackConfig,
     /// Whether to log raw precheck request/response payloads.
     pub precheck_audit_payloads: bool,
@@ -1561,23 +1561,26 @@ struct RouterState {
 /// Feedback policy evaluator for `scenario_next`.
 #[derive(Debug, Clone)]
 struct ScenarioNextFeedbackPolicy {
+    /// Feedback config for policy evaluation.
     config: ScenarioNextFeedbackConfig,
 }
 
 impl ScenarioNextFeedbackPolicy {
-    fn new(config: ScenarioNextFeedbackConfig) -> Self {
+    /// Builds a feedback policy from config.
+    const fn new(config: ScenarioNextFeedbackConfig) -> Self {
         Self {
             config,
         }
     }
 
+    /// Resolves the effective feedback level for a request.
     fn resolve_level(
         &self,
         requested: Option<FeedbackLevel>,
         auth_ctx: &AuthContext,
         principal: &crate::registry_acl::RegistryPrincipal,
-        tenant_id: &TenantId,
-        namespace_id: &NamespaceId,
+        tenant_id: TenantId,
+        namespace_id: NamespaceId,
     ) -> ScenarioNextFeedbackDecision {
         let default_level = if auth_ctx.method == crate::auth::AuthMethod::Local {
             self.config.local_only_default
@@ -1620,30 +1623,35 @@ impl ScenarioNextFeedbackPolicy {
         }
     }
 
+    /// Returns true when trace feedback is allowed for the principal.
     fn trace_allowed(
         &self,
         principal: &crate::registry_acl::RegistryPrincipal,
-        tenant_id: &TenantId,
-        namespace_id: &NamespaceId,
+        tenant_id: TenantId,
+        namespace_id: NamespaceId,
     ) -> bool {
         subject_allowed(principal, &self.config.trace_subjects)
             || role_allowed(principal, tenant_id, namespace_id, &self.config.trace_roles)
     }
 
+    /// Returns true when evidence feedback is allowed for the principal.
     fn evidence_allowed(
         &self,
         principal: &crate::registry_acl::RegistryPrincipal,
-        tenant_id: &TenantId,
-        namespace_id: &NamespaceId,
+        tenant_id: TenantId,
+        namespace_id: NamespaceId,
     ) -> bool {
         subject_allowed(principal, &self.config.evidence_subjects)
             || role_allowed(principal, tenant_id, namespace_id, &self.config.evidence_roles)
     }
 }
 
+/// Decision outcome for `scenario_next` feedback evaluation.
 #[derive(Debug, Clone)]
 struct ScenarioNextFeedbackDecision {
+    /// Effective feedback level.
     level: FeedbackLevel,
+    /// Optional reason when the requested level is denied.
     denied_reason: Option<String>,
 }
 
@@ -1796,6 +1804,7 @@ impl ToolRouter {
         })
     }
 
+    /// Builds feedback payload for `scenario_next` responses.
     fn build_scenario_next_feedback(
         &self,
         _context: &RequestContext,
@@ -1809,8 +1818,8 @@ impl ToolRouter {
             request.feedback,
             auth_ctx,
             &principal,
-            &request.request.tenant_id,
-            &request.request.namespace_id,
+            request.request.tenant_id,
+            request.request.namespace_id,
         );
         let should_emit = decision.level != FeedbackLevel::Summary
             || request.feedback.is_some()
@@ -1874,6 +1883,7 @@ impl ToolRouter {
         }
     }
 
+    /// Redacts evidence values and payloads from gate evaluation records.
     fn redact_gate_eval_records(
         &self,
         runtime: &ScenarioRuntime,
@@ -1893,7 +1903,7 @@ impl ToolRouter {
                     .map(|mut evidence| {
                         let provider_id = provider_by_condition
                             .get(&evidence.condition_id)
-                            .map(|provider| provider.as_str());
+                            .map(decision_gate_core::ProviderId::as_str);
                         if evidence.result.error.is_some() {
                             evidence.result.value = None;
                             evidence.result.content_type = None;
@@ -3053,6 +3063,7 @@ const fn asserted_evidence(value: Value) -> EvidenceResult {
     }
 }
 
+/// Returns the ordering rank for a feedback level.
 const fn feedback_level_rank(level: FeedbackLevel) -> u8 {
     match level {
         FeedbackLevel::Summary => 0,
@@ -3061,6 +3072,7 @@ const fn feedback_level_rank(level: FeedbackLevel) -> u8 {
     }
 }
 
+/// Returns the string label for a feedback level.
 const fn feedback_level_label(level: FeedbackLevel) -> &'static str {
     match level {
         FeedbackLevel::Summary => "summary",
@@ -3069,10 +3081,12 @@ const fn feedback_level_label(level: FeedbackLevel) -> &'static str {
     }
 }
 
+/// Returns the lower of two feedback levels.
 const fn min_feedback_level(left: FeedbackLevel, right: FeedbackLevel) -> FeedbackLevel {
     if feedback_level_rank(left) <= feedback_level_rank(right) { left } else { right }
 }
 
+/// Returns true when the principal is in the allowed subject list.
 fn subject_allowed(
     principal: &crate::registry_acl::RegistryPrincipal,
     subjects: &[String],
@@ -3080,10 +3094,11 @@ fn subject_allowed(
     subjects.iter().any(|subject| subject == &principal.principal_id)
 }
 
+/// Returns true when the principal has an allowed role within scope.
 fn role_allowed(
     principal: &crate::registry_acl::RegistryPrincipal,
-    tenant_id: &TenantId,
-    namespace_id: &NamespaceId,
+    tenant_id: TenantId,
+    namespace_id: NamespaceId,
     roles: &[String],
 ) -> bool {
     if roles.is_empty() {
@@ -3093,15 +3108,15 @@ fn role_allowed(
         if !roles.iter().any(|candidate| candidate == &role.name) {
             return false;
         }
-        if let Some(role_tenant) = role.tenant_id {
-            if role_tenant != *tenant_id {
-                return false;
-            }
+        if let Some(role_tenant) = role.tenant_id
+            && role_tenant != tenant_id
+        {
+            return false;
         }
-        if let Some(role_namespace) = role.namespace_id {
-            if role_namespace != *namespace_id {
-                return false;
-            }
+        if let Some(role_namespace) = role.namespace_id
+            && role_namespace != namespace_id
+        {
+            return false;
         }
         true
     })

@@ -167,7 +167,7 @@ fn build_router(mut config: DecisionGateConfig, audit: Arc<TestAuditSink>) -> To
         precheck_audit_payloads,
         registry_acl,
         principal_resolver,
-        scenario_next_feedback: config.server.feedback.scenario_next.clone(),
+        scenario_next_feedback: config.server.feedback.scenario_next,
         allow_default_namespace,
         default_namespace_tenants,
         namespace_authority: Arc::new(NoopNamespaceAuthority),

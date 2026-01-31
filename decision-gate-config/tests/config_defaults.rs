@@ -41,6 +41,15 @@ fn default_config_validates() -> TestResult {
 }
 
 #[test]
+fn registry_acl_allow_local_only_defaults_to_false() -> TestResult {
+    let config = common::minimal_config().map_err(|err| err.to_string())?;
+    if config.schema_registry.acl.allow_local_only {
+        return Err("schema_registry.acl.allow_local_only should default to false".to_string());
+    }
+    Ok(())
+}
+
+#[test]
 fn validation_strict_requires_allow_permissive() -> TestResult {
     let mut config = common::minimal_config().map_err(|err| err.to_string())?;
     config.validation.strict = false;

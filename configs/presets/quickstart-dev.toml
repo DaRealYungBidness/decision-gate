@@ -1,0 +1,61 @@
+# Decision Gate preset: Quickstart-Dev
+# Lowest-friction local setup for first-time users.
+# NOT for shared machines or production.
+
+[server]
+transport = "http"
+bind = "127.0.0.1:4000"
+mode = "strict"
+
+[server.auth]
+mode = "local_only"
+
+[dev]
+permissive = true
+permissive_warn = true
+
+[namespace]
+allow_default = true
+default_tenants = [1]
+
+[trust]
+# Audit mode (no signature enforcement).
+default_policy = "audit"
+min_lane = "verified"
+
+[evidence]
+allow_raw_values = false
+require_provider_opt_in = true
+
+[schema_registry]
+type = "sqlite"
+path = "decision-gate-registry.db"
+
+[schema_registry.acl]
+# Allow local-only registry access without explicit principal mappings.
+allow_local_only = true
+require_signing = false
+
+[run_state_store]
+# Use SQLite for local durability.
+type = "sqlite"
+path = "decision-gate.db"
+journal_mode = "wal"
+sync_mode = "full"
+busy_timeout_ms = 5000
+
+[[providers]]
+name = "time"
+type = "builtin"
+
+[[providers]]
+name = "env"
+type = "builtin"
+
+[[providers]]
+name = "json"
+type = "builtin"
+
+[[providers]]
+name = "http"
+type = "builtin"

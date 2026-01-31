@@ -414,10 +414,11 @@ impl ServerConfig {
 }
 
 /// Feedback levels for tool responses.
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum FeedbackLevel {
     /// Summary-only feedback.
+    #[default]
     Summary,
     /// Gate-level trace feedback without evidence values.
     Trace,
@@ -425,37 +426,23 @@ pub enum FeedbackLevel {
     Evidence,
 }
 
-impl Default for FeedbackLevel {
-    fn default() -> Self {
-        FeedbackLevel::Summary
-    }
-}
-
 impl FeedbackLevel {
     /// Returns a ranking for ordering feedback levels.
     const fn rank(self) -> u8 {
         match self {
-            FeedbackLevel::Summary => 0,
-            FeedbackLevel::Trace => 1,
-            FeedbackLevel::Evidence => 2,
+            Self::Summary => 0,
+            Self::Trace => 1,
+            Self::Evidence => 2,
         }
     }
 }
 
 /// Feedback configuration for MCP tools.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct ServerFeedbackConfig {
     /// Feedback policy for `scenario_next`.
     #[serde(default)]
     pub scenario_next: ScenarioNextFeedbackConfig,
-}
-
-impl Default for ServerFeedbackConfig {
-    fn default() -> Self {
-        Self {
-            scenario_next: ScenarioNextFeedbackConfig::default(),
-        }
-    }
 }
 
 impl ServerFeedbackConfig {
@@ -506,7 +493,7 @@ impl Default for ScenarioNextFeedbackConfig {
 }
 
 impl ScenarioNextFeedbackConfig {
-    /// Validates scenario_next feedback configuration.
+    /// Validates `scenario_next` feedback configuration.
     fn validate(&self) -> Result<(), ConfigError> {
         if self.default.rank() > self.max.rank() {
             return Err(ConfigError::Invalid(
@@ -1955,18 +1942,22 @@ pub(crate) const fn default_max_body_bytes() -> usize {
     1024 * 1024
 }
 
+/// Default feedback level for non-local requests.
 pub(crate) const fn default_scenario_next_feedback_default() -> FeedbackLevel {
     FeedbackLevel::Summary
 }
 
+/// Default feedback level for local-only requests.
 pub(crate) const fn default_scenario_next_feedback_local_only() -> FeedbackLevel {
     FeedbackLevel::Trace
 }
 
+/// Maximum feedback level allowed by default.
 pub(crate) const fn default_scenario_next_feedback_max() -> FeedbackLevel {
     FeedbackLevel::Trace
 }
 
+/// Default subjects permitted to request trace feedback.
 pub(crate) fn default_scenario_next_trace_subjects() -> Vec<String> {
     vec!["loopback".to_string(), "stdio".to_string()]
 }
@@ -2033,7 +2024,7 @@ pub(crate) const fn default_schema_max_bytes() -> usize {
 
 /// Default allow-local-only registry ACL behavior.
 pub(crate) const fn default_registry_acl_allow_local_only() -> bool {
-    true
+    false
 }
 
 /// Default trust policy for providers.

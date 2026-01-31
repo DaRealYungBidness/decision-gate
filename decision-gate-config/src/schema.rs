@@ -165,7 +165,7 @@ fn server_feedback_schema() -> Value {
     })
 }
 
-/// Schema for scenario_next feedback policy.
+/// Schema for `scenario_next` feedback policy.
 fn scenario_next_feedback_schema() -> Value {
     json!({
         "type": "object",
@@ -212,6 +212,7 @@ fn scenario_next_feedback_schema() -> Value {
     })
 }
 
+/// Builds a feedback level schema entry with a default value.
 fn feedback_level_schema_with_default(description: &str, default_value: &str) -> Value {
     json!({
         "type": "string",

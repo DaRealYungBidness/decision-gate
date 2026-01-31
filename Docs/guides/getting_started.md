@@ -38,10 +38,14 @@ Key API outputs:
 
 A **scenario** is a workflow definition composed of:
 
-- **Stages**: Ordered steps in the workflow.
-- **Gates**: Decision points inside a stage.
-- **Conditions**: Evidence checks used by gates.
-- **Providers**: Evidence sources (builtin or MCP).
+- **Stages**: Ordered steps in the workflow. Think of stages as the top-level
+  sequence you move through as a run progresses.
+- **Gates**: Decision points inside a stage. A stage can include one or more
+  gates that must pass to move forward.
+- **Conditions**: Evidence checks used by gates. Each gate evaluates one or more
+  conditions to decide whether it passes.
+- **Providers**: Evidence sources (builtin or MCP). Conditions don't fetch data
+  themselves; they ask providers for evidence to evaluate.
 
 Providers can be:
 - **Built-in**: `time`, `env`, `json`, `http`
@@ -51,47 +55,20 @@ Providers can be:
 
 ## Quick Start
 
-### Step 1: Create a Local Config
+### Step 1: Choose a Preset
 
-Create `decision-gate.toml` in your working directory:
+Pick a preset configuration from `configs/presets/` (details in
+[preset_configs.md](preset_configs.md)). For this guide, use **Quickstart-Dev**
+to keep the first run frictionless.
 
-```toml dg-validate=config dg-level=fast
-[server]
-transport = "http"
-bind = "127.0.0.1:4000"
-mode = "strict"
+Other presets:
+- **Default-Recommended:** local-only + explicit principal mapping.
+- **Hardened:** bearer auth + schema signing required.
 
-[namespace]
-# Enable the default namespace id = 1 for tenant 1 (local-only convenience).
-allow_default = true
-default_tenants = [1]
+If you want to edit settings, copy the preset first:
 
-[trust]
-# Audit mode (no signature enforcement).
-# For production, use require_signature with key files.
-default_policy = "audit"
-min_lane = "verified"
-
-[evidence]
-# Do not return raw values via evidence_query unless explicitly allowed.
-allow_raw_values = false
-require_provider_opt_in = true
-
-[run_state_store]
-# Use SQLite for local durability.
-type = "sqlite"
-path = "decision-gate.db"
-journal_mode = "wal"
-sync_mode = "full"
-busy_timeout_ms = 5000
-
-[[providers]]
-name = "time"
-type = "builtin"
-
-[[providers]]
-name = "env"
-type = "builtin"
+```bash dg-run dg-level=manual
+cp configs/presets/quickstart-dev.toml decision-gate.toml
 ```
 
 Notes:
@@ -102,12 +79,14 @@ Notes:
 ### Step 2: Start the MCP Server
 
 ```bash dg-run dg-level=manual dg-requires=mcp
-decision-gate serve --config decision-gate.toml
+decision-gate serve --config configs/presets/quickstart-dev.toml
 ```
 
 ### Step 3: Define a Scenario
 
 This scenario gates on a time check: `time.after(timestamp)`.
+
+**If you use the Hardened preset:** add `-H 'Authorization: Bearer <token>'` to every `curl`, and switch to a non-default namespace (e.g., `namespace_id: 2`) because `allow_default = false`.
 
 ```bash dg-run dg-level=manual dg-requires=mcp
 curl -s http://127.0.0.1:4000/rpc \

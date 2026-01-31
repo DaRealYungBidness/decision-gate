@@ -429,11 +429,11 @@ Schema registry ACL configuration.
 | --- | --- | --- | --- |
 | `mode` | "builtin" \| "custom" | builtin | Built-in role rules or custom ACL rules. |
 | `default` | "deny" \| "allow" | deny | Default decision when no rules match (custom only). |
-| `allow_local_only` | bool | true | Allow local-only subjects to access the registry when using the built-in ACL. |
+| `allow_local_only` | bool | false | Allow local-only subjects to access the registry when using the built-in ACL. |
 | `require_signing` | bool | false | Require schema signing metadata on writes. |
 | `rules` | array | [] | Custom ACL rules (mode = custom). |
 
-Built-in ACL relies on `server.auth.principals` for role and policy_class resolution. Without principals, registry access defaults to deny unless `allow_local_only` is enabled (loopback/stdio only).
+Built-in ACL relies on `server.auth.principals` for role and policy_class resolution. Without principals, registry access defaults to deny unless `allow_local_only` is enabled (loopback/stdio only). Enable `allow_local_only` for dev-only convenience; it bypasses principal mapping for local-only callers.
 
 Custom ACL example:
 

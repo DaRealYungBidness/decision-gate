@@ -31,6 +31,9 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | Test | Category | Purpose |
 | --- | --- | --- |
 | `agentic_flow_harness_deterministic` | agentic | Canonical agentic scenarios across projections (raw MCP + SDKs/adapters). |
+| `preset_quickstart_dev_http` | operations | Quickstart-Dev preset runs scenario lifecycle over HTTP. |
+| `preset_default_recommended_http` | operations | Default-Recommended preset runs scenario + registry write. |
+| `preset_hardened_http` | operations | Hardened preset enforces bearer auth + signing requirement. |
 | `python_sdk_http_scenario_lifecycle` | functional | Python SDK executes scenario lifecycle over MCP HTTP. |
 | `python_sdk_bearer_auth_enforced` | security | Python SDK succeeds with bearer token and fails without. |
 | `typescript_sdk_http_scenario_lifecycle` | functional | TypeScript SDK executes scenario lifecycle over MCP HTTP. |

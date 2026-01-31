@@ -561,7 +561,7 @@ fn build_sections() -> Vec<SectionSpec> {
             include_required: false,
             default_overrides: &[FieldOverride { field: "rules", default_value: "[]" }],
             extra: Some(
-                "Built-in ACL relies on `server.auth.principals` for role and policy_class resolution. Without principals, registry access defaults to deny unless `allow_local_only` is enabled (loopback/stdio only).\n\nCustom ACL example:\n\n```toml\n[schema_registry.acl]\nmode = \"custom\"\ndefault = \"deny\"\n\n[[schema_registry.acl.rules]]\neffect = \"allow\"\nactions = [\"register\", \"list\", \"get\"]\ntenants = [1]\nnamespaces = [1]\nroles = [\"TenantAdmin\", \"NamespaceAdmin\"]\n```",
+                "Built-in ACL relies on `server.auth.principals` for role and policy_class resolution. Without principals, registry access defaults to deny unless `allow_local_only` is enabled (loopback/stdio only). Enable `allow_local_only` for dev-only convenience; it bypasses principal mapping for local-only callers.\n\nCustom ACL example:\n\n```toml\n[schema_registry.acl]\nmode = \"custom\"\ndefault = \"deny\"\n\n[[schema_registry.acl.rules]]\neffect = \"allow\"\nactions = [\"register\", \"list\", \"get\"]\ntenants = [1]\nnamespaces = [1]\nroles = [\"TenantAdmin\", \"NamespaceAdmin\"]\n```",
             ),
         },
         SectionSpec {

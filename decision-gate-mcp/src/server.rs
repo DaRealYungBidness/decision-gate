@@ -288,7 +288,10 @@ impl McpServer {
             default_namespace_tenants,
             namespace_authority,
         });
+        emit_security_posture_summary(&config);
         emit_local_only_warning(&config.server);
+        emit_registry_acl_warning(&config);
+        emit_validation_warning(&config);
         emit_dev_permissive_warning(&config);
         emit_security_audit(&audit, &config);
         let auth_mode =
@@ -1465,6 +1468,30 @@ fn record_correlation_rejection(
     state.audit.record_security(&event);
 }
 
+/// Emits a concise security posture summary on startup.
+fn emit_security_posture_summary(config: &DecisionGateConfig) {
+    let auth_mode = config.server.auth.as_ref().map_or(ServerAuthMode::LocalOnly, |auth| auth.mode);
+    let transport = config.server.transport;
+    let allow_default = config.allow_default_namespace();
+    let dev_permissive = config.is_dev_permissive();
+    let registry_allow_local_only = config.schema_registry.acl.allow_local_only;
+    let registry_require_signing = config.schema_registry.acl.require_signing;
+    let validation_strict = config.validation.strict;
+    let _ = writeln!(
+        std::io::stderr(),
+        "decision-gate-mcp: INFO: security posture: transport={}, auth={}, \
+         allow_default_namespace={}, dev_permissive={}, registry.allow_local_only={}, \
+         registry.require_signing={}, validation.strict={}",
+        transport_label(transport),
+        auth_mode_label(auth_mode),
+        allow_default,
+        dev_permissive,
+        registry_allow_local_only,
+        registry_require_signing,
+        validation_strict
+    );
+}
+
 /// Emits a warning when running without explicit auth policy.
 fn emit_local_only_warning(server: &crate::config::ServerConfig) {
     let auth_mode = server.auth.as_ref().map_or(ServerAuthMode::LocalOnly, |auth| auth.mode);
@@ -1473,6 +1500,28 @@ fn emit_local_only_warning(server: &crate::config::ServerConfig) {
             std::io::stderr(),
             "decision-gate-mcp: INFO: running in local-only mode; configure server.auth to enable \
              bearer_token or mtls for network exposure"
+        );
+    }
+}
+
+/// Emits a warning when registry ACL bypass is enabled for local-only requests.
+fn emit_registry_acl_warning(config: &DecisionGateConfig) {
+    if config.schema_registry.acl.allow_local_only {
+        let _ = writeln!(
+            std::io::stderr(),
+            "decision-gate-mcp: WARNING: schema_registry.acl.allow_local_only=true; local-only \
+             callers bypass principal mapping for registry access"
+        );
+    }
+}
+
+/// Emits a warning when permissive validation is enabled.
+fn emit_validation_warning(config: &DecisionGateConfig) {
+    if !config.validation.strict {
+        let _ = writeln!(
+            std::io::stderr(),
+            "decision-gate-mcp: WARNING: validation.strict=false; strict comparator/type \
+             validation disabled (allow_permissive must be true)"
         );
     }
 }
@@ -1503,6 +1552,24 @@ fn emit_dev_permissive_warning(config: &DecisionGateConfig) {
         "decision-gate-mcp: WARNING: dev-permissive enabled via {source}; asserted evidence \
          allowed for non-exempt providers only; namespace defaults remain strict{ttl_note}"
     );
+}
+
+/// Returns a stable label for server transport.
+const fn transport_label(transport: ServerTransport) -> &'static str {
+    match transport {
+        ServerTransport::Stdio => "stdio",
+        ServerTransport::Http => "http",
+        ServerTransport::Sse => "sse",
+    }
+}
+
+/// Returns a stable label for auth mode.
+const fn auth_mode_label(mode: ServerAuthMode) -> &'static str {
+    match mode {
+        ServerAuthMode::LocalOnly => "local_only",
+        ServerAuthMode::BearerToken => "bearer_token",
+        ServerAuthMode::Mtls => "mtls",
+    }
 }
 
 /// Emits a security posture audit record on startup.

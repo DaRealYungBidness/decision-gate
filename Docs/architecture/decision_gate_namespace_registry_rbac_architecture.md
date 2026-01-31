@@ -20,7 +20,7 @@ Dependencies:
   - Docs/configuration/decision-gate.toml.md
   - Docs/architecture/decision_gate_assetcore_integration_contract.md
 ============================================================================
-Last Updated: 2026-01-30 (UTC)
+Last Updated: 2026-01-31 (UTC)
 ============================================================================
 -->
 
@@ -308,9 +308,9 @@ References:
 4. **Registry ACL is authoritative:** Tool allowlists do not bypass registry
    ACL; registry access is enforced and audited for every registry action.
    [F:decision-gate-mcp/src/tools.rs L1296-L1366]
-5. **Local-only registry access is explicit:** Built-in ACL can allow loopback/
-   stdio subjects when `schema_registry.acl.allow_local_only` is enabled; this
-   does not apply to custom ACL rules.
+5. **Local-only registry access is explicit:** `schema_registry.acl.allow_local_only`
+   defaults to `false`. When enabled, the built-in ACL can allow loopback/stdio
+   subjects to bypass principal mapping; this does not apply to custom ACL rules.
    [F:decision-gate-config/src/config.rs L1478-L1506][F:decision-gate-mcp/src/registry_acl.rs L168-L230]
 6. **Schema signing enforcement is explicit:** When enabled, signing metadata
    is mandatory for registry writes.

@@ -21,6 +21,20 @@ Dependencies:
 
 ---
 
+## Preset Postures
+
+Decision Gate ships three presets (see [preset_configs.md](preset_configs.md)):
+
+- **Quickstart-Dev:** local-only auth, registry local-only bypass, dev-permissive enabled.
+- **Default-Recommended:** local-only auth with explicit principal mappings; registry bypass off.
+- **Hardened:** bearer auth, default namespace disabled, schema signing required.
+
+These presets are intentionally explicit. If you change the posture (auth mode,
+namespace defaults, registry ACL, trust lanes), update the preset and re-run
+system-tests.
+
+---
+
 ## Fail-Closed Architecture
 
 Decision Gate **fails closed**: missing or invalid evidence produces `unknown`, which holds gates.
@@ -49,6 +63,9 @@ Modes:
 - `local_only` (default): loopback + stdio only
 - `bearer_token`: HTTP `Authorization: Bearer <token>` required
 - `mtls`: uses the `x-decision-gate-client-subject` header from a trusted TLS-terminating proxy
+
+Registry note:
+- `schema_registry.acl.allow_local_only = true` bypasses principal mapping for local-only callers. Use only for dev/local onboarding.
 
 ### Non-Loopback Binding
 Binding HTTP/SSE to non-loopback requires **all** of:

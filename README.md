@@ -77,13 +77,15 @@ explicit requirements are satisfied.
   - `cargo run -p decision-gate-example-ci-gate`
   - `cargo run -p decision-gate-example-data-disclosure`
 - Run the CLI:
-  - `cargo run -p decision-gate-cli -- serve --config decision-gate.toml`
+  - `cargo run -p decision-gate-cli -- serve --config configs/presets/quickstart-dev.toml`
+- Preset configs: `configs/presets/` (see `Docs/guides/preset_configs.md`)
 - Durable run state: configure `run_state_store` in `decision-gate.toml` to use
   the SQLite backend (see `Docs/configuration/decision-gate.toml.md`).
 
 ## Docs
 
 - Getting started: `Docs/guides/getting_started.md`
+- Preset configs: `Docs/guides/preset_configs.md`
 - Configuration: `Docs/configuration/decision-gate.toml.md`
 - Provider development: `Docs/guides/provider_development.md`
 - Security guide: `Docs/guides/security_guide.md`

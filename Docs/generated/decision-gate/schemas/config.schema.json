@@ -904,7 +904,7 @@
           "description": "Schema registry ACL configuration.",
           "properties": {
             "allow_local_only": {
-              "default": true,
+              "default": false,
               "description": "Allow local-only subjects to access the registry when using the built-in ACL.",
               "type": "boolean"
             },

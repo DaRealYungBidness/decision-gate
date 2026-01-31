@@ -39,6 +39,7 @@ Path B: Live Run (audited, verified)
 ## Quick Start: Precheck
 
 **Windows tip:** PowerShell/CMD do not support bash-style multiline `curl`. Use a single-line command or PowerShell here-strings.
+**Preset tip:** Start with `configs/presets/quickstart-dev.toml` for zero-friction local runs. If you use the Hardened preset, add `Authorization: Bearer <token>` to every request and use a non-default namespace (e.g., `2`).
 
 ### Step 1: Define a Scenario
 
@@ -127,7 +128,7 @@ curl -s http://127.0.0.1:4000/rpc \
   }'
 ```
 
-**Note:** Schema registration is governed by the registry ACL. Local-only loopback can be allowed by default; in other modes, configure `server.auth.principals` or `schema_registry.acl` rules if you see `unauthorized`.
+**Note:** Schema registration is governed by the registry ACL. Local-only bypass is **disabled by default**; configure `server.auth.principals` (recommended) or set `schema_registry.acl.allow_local_only = true` for dev-only onboarding if you see `unauthorized`.
 
 ### Step 3: Precheck with Inline Payload
 

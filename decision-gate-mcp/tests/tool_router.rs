@@ -342,7 +342,7 @@ fn namespace_authority_denies_tool_call() {
         precheck_audit_payloads,
         registry_acl,
         principal_resolver,
-        scenario_next_feedback: config.server.feedback.scenario_next.clone(),
+        scenario_next_feedback: config.server.feedback.scenario_next,
         allow_default_namespace,
         default_namespace_tenants,
         namespace_authority: std::sync::Arc::new(DenyNamespaceAuthority),
@@ -590,7 +590,7 @@ fn scenario_next_trace_feedback_returns_gate_evaluations() {
 
     let feedback = next_result.feedback.expect("expected feedback");
     assert_eq!(feedback.level, FeedbackLevel::Trace);
-    assert!(feedback.gate_evaluations.unwrap_or_default().len() >= 1);
+    assert!(!feedback.gate_evaluations.unwrap_or_default().is_empty());
 }
 
 /// Verifies evidence feedback requests are downgraded without authorization.

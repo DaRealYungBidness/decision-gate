@@ -41,6 +41,14 @@ proofs = [
   { kind = "doc-runner" }
 ]
 
+[guides."preset_configs.md"]
+proofs = [
+  { kind = "system-test", name = "preset_quickstart_dev_http" },
+  { kind = "system-test", name = "preset_default_recommended_http" },
+  { kind = "system-test", name = "preset_hardened_http" },
+  { kind = "doc-runner" }
+]
+
 [guides."provider_development.md"]
 proofs = [{ kind = "doc-runner" }]
 

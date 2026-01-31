@@ -1,0 +1,65 @@
+# Decision Gate preset: Default-Recommended
+# Safe-by-default local configuration with explicit principal mapping.
+
+[server]
+transport = "http"
+bind = "127.0.0.1:4000"
+mode = "strict"
+
+[server.auth]
+mode = "local_only"
+
+[[server.auth.principals]]
+subject = "loopback"
+policy_class = "prod"
+
+[[server.auth.principals.roles]]
+name = "TenantAdmin"
+tenant_id = 1
+namespace_id = 1
+
+[namespace]
+allow_default = true
+default_tenants = [1]
+
+[trust]
+# Audit mode (no signature enforcement).
+default_policy = "audit"
+min_lane = "verified"
+
+[evidence]
+allow_raw_values = false
+require_provider_opt_in = true
+
+[schema_registry]
+type = "sqlite"
+path = "decision-gate-registry.db"
+
+[schema_registry.acl]
+# Enforce principal mapping even for local-only requests.
+allow_local_only = false
+require_signing = false
+
+[run_state_store]
+# Use SQLite for local durability.
+type = "sqlite"
+path = "decision-gate.db"
+journal_mode = "wal"
+sync_mode = "full"
+busy_timeout_ms = 5000
+
+[[providers]]
+name = "time"
+type = "builtin"
+
+[[providers]]
+name = "env"
+type = "builtin"
+
+[[providers]]
+name = "json"
+type = "builtin"
+
+[[providers]]
+name = "http"
+type = "builtin"
