@@ -178,6 +178,10 @@ Allowed MIME content types for evidence values or policy rule checks. Used in pr
 
 Identifier linking related requests and decisions across systems. Pass a correlation_id with triggers to trace decision flows through logs, metrics, and external services. Propagated in EvidenceContext for provider logging.
 
+## `decision_gate_docs_search`
+
+Searches Decision Gate documentation for guidance and best practices. Returns ranked sections with headings, role metadata, and suggested follow-ups. Use this to answer product or policy questions without leaving the MCP session.
+
 ## `decision_id`
 
 Unique identifier for a recorded decision. Generated when a trigger evaluation produces an outcome and linked to the decision sequence, trigger_id, and stage_id. Decision IDs enable audit trails and debugging.

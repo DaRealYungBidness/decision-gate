@@ -23,6 +23,7 @@ export const TOOL_NAMES = [
   "schemas_get",
   "scenarios_list",
   "precheck",
+  "decision_gate_docs_search",
 ] as const;
 
 export const TOOL_DESCRIPTIONS: Record<string, string> = {
@@ -43,6 +44,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
   "schemas_get": "Fetch a specific data shape by identifier and version.",
   "scenarios_list": "List registered scenarios for a tenant and namespace.",
   "precheck": "Evaluate a scenario against asserted data without mutating state.",
+  "decision_gate_docs_search": "Search Decision Gate documentation for runtime guidance.",
 };
 
 export const TOOL_NOTES: Record<string, string[]> = {
@@ -127,6 +129,11 @@ export const TOOL_NOTES: Record<string, string[]> = {
   "precheck": [
     "Validates asserted data against a registered shape.",
     "Does not mutate run state; intended for simulation.",
+  ],
+  "decision_gate_docs_search": [
+    "Use for quick lookups on evidence flow, comparators, and provider semantics.",
+    "Returns ranked sections with role tags and suggested follow-ups.",
+    "Search is deterministic and scoped to the configured doc catalog.",
   ],
 };
 
@@ -7904,6 +7911,141 @@ export const Precheck_OUTPUT_SCHEMA = {
   "type": "object"
 } as const;
 
+export interface DecisionGateDocsSearchRequest {
+  /** Maximum number of sections to return (default 3, hard cap 10). Constraints: Minimum: 1; Maximum: */
+  /** 10. */
+  max_sections?: number;
+  /** Search query for documentation sections. */
+  query: string;
+}
+
+export interface DecisionGateDocsSearchResponse {
+  docs_covered: Array<Record<string, JsonValue>>;
+  sections: Array<Record<string, JsonValue>>;
+  /** Role-aware follow-up prompts. */
+  suggested_followups: Array<string>;
+}
+
+export const DecisionGateDocsSearch_INPUT_SCHEMA = {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "max_sections": {
+      "description": "Maximum number of sections to return (default 3, hard cap 10).",
+      "maximum": 10,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "query": {
+      "description": "Search query for documentation sections.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "query"
+  ],
+  "type": "object"
+} as const;
+
+export const DecisionGateDocsSearch_OUTPUT_SCHEMA = {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "docs_covered": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "doc_id": {
+            "description": "Document identifier.",
+            "type": "string"
+          },
+          "doc_role": {
+            "description": "Documentation role for search weighting and display.",
+            "enum": [
+              "reasoning",
+              "decision",
+              "ontology",
+              "pattern"
+            ],
+            "type": "string"
+          },
+          "doc_title": {
+            "description": "Document title.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "doc_id",
+          "doc_title",
+          "doc_role"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "sections": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "description": "Section content (raw Markdown).",
+            "type": "string"
+          },
+          "doc_id": {
+            "description": "Document identifier.",
+            "type": "string"
+          },
+          "doc_role": {
+            "description": "Documentation role for search weighting and display.",
+            "enum": [
+              "reasoning",
+              "decision",
+              "ontology",
+              "pattern"
+            ],
+            "type": "string"
+          },
+          "doc_title": {
+            "description": "Document title.",
+            "type": "string"
+          },
+          "heading": {
+            "description": "Section heading.",
+            "type": "string"
+          },
+          "rank": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rank",
+          "doc_id",
+          "doc_title",
+          "doc_role",
+          "heading",
+          "content"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "suggested_followups": {
+      "description": "Role-aware follow-up prompts.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "sections",
+    "docs_covered",
+    "suggested_followups"
+  ],
+  "type": "object"
+} as const;
+
 export abstract class GeneratedDecisionGateClient {
   protected abstract callTool<T>(name: string, arguments_: object): Promise<T>;
 
@@ -8945,6 +9087,53 @@ export abstract class GeneratedDecisionGateClient {
     return this.callTool<PrecheckResponse>("precheck", request);
   }
 
+  /**
+   * Search Decision Gate documentation for runtime guidance.
+   *
+   * Notes:
+   * - Use for quick lookups on evidence flow, comparators, and provider semantics.
+   * - Returns ranked sections with role tags and suggested follow-ups.
+   * - Search is deterministic and scoped to the configured doc catalog.
+   *
+   * Examples:
+   * - Search for evidence flow and trust lane guidance.
+   *   Input:
+   *   ```json
+   *   {
+   *     "max_sections": 2,
+   *     "query": "precheck vs live run trust lanes"
+   *   }
+   *   ```
+   *   Output:
+   *   ```json
+   *   {
+   *     "docs_covered": [
+   *       {
+   *         "doc_id": "evidence_flow_and_execution_model",
+   *         "doc_role": "reasoning",
+   *         "doc_title": "Evidence Flow + Execution Model"
+   *       }
+   *     ],
+   *     "sections": [
+   *       {
+   *         "content": "...",
+   *         "doc_id": "evidence_flow_and_execution_model",
+   *         "doc_role": "reasoning",
+   *         "doc_title": "Evidence Flow + Execution Model",
+   *         "heading": "Core Data Flow",
+   *         "rank": 0
+   *       }
+   *     ],
+   *     "suggested_followups": [
+   *       "Refine the query with comparator or provider keywords for targeted guidance."
+   *     ]
+   *   }
+   *   ```
+   */
+  public decision_gate_docs_search(request: DecisionGateDocsSearchRequest): Promise<DecisionGateDocsSearchResponse> {
+    return this.callTool<DecisionGateDocsSearchResponse>("decision_gate_docs_search", request);
+  }
+
 }
 export type SchemaValidator = (schema: unknown, payload: unknown) => void;
 
@@ -9247,5 +9436,21 @@ export async function validatePrecheckRequestWithAjv(payload: PrecheckRequest): 
 
 export async function validatePrecheckResponseWithAjv(payload: PrecheckResponse): Promise<void> {
   return validateSchemaWithAjv(Precheck_OUTPUT_SCHEMA, payload);
+}
+
+export function validateDecisionGateDocsSearchRequest(payload: DecisionGateDocsSearchRequest, validator: SchemaValidator): void {
+  validateSchemaWith(validator, DecisionGateDocsSearch_INPUT_SCHEMA, payload);
+}
+
+export function validateDecisionGateDocsSearchResponse(payload: DecisionGateDocsSearchResponse, validator: SchemaValidator): void {
+  validateSchemaWith(validator, DecisionGateDocsSearch_OUTPUT_SCHEMA, payload);
+}
+
+export async function validateDecisionGateDocsSearchRequestWithAjv(payload: DecisionGateDocsSearchRequest): Promise<void> {
+  return validateSchemaWithAjv(DecisionGateDocsSearch_INPUT_SCHEMA, payload);
+}
+
+export async function validateDecisionGateDocsSearchResponseWithAjv(payload: DecisionGateDocsSearchResponse): Promise<void> {
+  return validateSchemaWithAjv(DecisionGateDocsSearch_OUTPUT_SCHEMA, payload);
 }
 

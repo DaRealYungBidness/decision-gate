@@ -1903,6 +1903,8 @@ export declare const ScenarioStatus_OUTPUT_SCHEMA: {
     readonly type: "object";
 };
 export interface ScenarioNextRequest {
+    /** Optional feedback level override for scenario_next. */
+    feedback?: "summary" | "trace" | "evidence" | null;
     /** Next request payload from an agent. */
     request: Record<string, JsonValue>;
     /** Scenario identifier. */
@@ -1910,6 +1912,7 @@ export interface ScenarioNextRequest {
 }
 export interface ScenarioNextResponse {
     decision: Record<string, JsonValue>;
+    feedback?: Record<string, JsonValue> | null;
     packets: Array<Record<string, JsonValue>>;
     /** Constraints: Allowed values: "active", "completed", "failed". */
     status: "active" | "completed" | "failed";
@@ -1918,6 +1921,16 @@ export declare const ScenarioNext_INPUT_SCHEMA: {
     readonly $schema: "https://json-schema.org/draft/2020-12/schema";
     readonly additionalProperties: false;
     readonly properties: {
+        readonly feedback: {
+            readonly description: "Optional feedback level override for scenario_next.";
+            readonly oneOf: readonly [{
+                readonly type: "null";
+            }, {
+                readonly description: "Feedback disclosure level.";
+                readonly enum: readonly ["summary", "trace", "evidence"];
+                readonly type: "string";
+            }];
+        };
         readonly request: {
             readonly additionalProperties: false;
             readonly description: "Next request payload from an agent.";
@@ -2157,6 +2170,312 @@ export declare const ScenarioNext_OUTPUT_SCHEMA: {
             };
             readonly required: readonly ["decision_id", "seq", "trigger_id", "stage_id", "decided_at", "outcome", "correlation_id"];
             readonly type: "object";
+        };
+        readonly feedback: {
+            readonly oneOf: readonly [{
+                readonly type: "null";
+            }, {
+                readonly additionalProperties: false;
+                readonly properties: {
+                    readonly denied_reason: {
+                        readonly oneOf: readonly [{
+                            readonly type: "null";
+                        }, {
+                            readonly description: "Optional denial reason for requested feedback.";
+                            readonly type: "string";
+                        }];
+                    };
+                    readonly gate_evaluations: {
+                        readonly oneOf: readonly [{
+                            readonly type: "null";
+                        }, {
+                            readonly items: {
+                                readonly additionalProperties: false;
+                                readonly properties: {
+                                    readonly gate_id: {
+                                        readonly description: "Gate identifier.";
+                                        readonly type: "string";
+                                    };
+                                    readonly status: {
+                                        readonly description: "Tri-state evaluation result.";
+                                        readonly enum: readonly ["True", "False", "Unknown"];
+                                        readonly type: "string";
+                                    };
+                                    readonly trace: {
+                                        readonly items: {
+                                            readonly additionalProperties: false;
+                                            readonly properties: {
+                                                readonly condition_id: {
+                                                    readonly description: "Condition identifier.";
+                                                    readonly type: "string";
+                                                };
+                                                readonly status: {
+                                                    readonly description: "Tri-state evaluation result.";
+                                                    readonly enum: readonly ["True", "False", "Unknown"];
+                                                    readonly type: "string";
+                                                };
+                                            };
+                                            readonly required: readonly ["condition_id", "status"];
+                                            readonly type: "object";
+                                        };
+                                        readonly type: "array";
+                                    };
+                                };
+                                readonly required: readonly ["gate_id", "status", "trace"];
+                                readonly type: "object";
+                            };
+                            readonly type: "array";
+                        }];
+                    };
+                    readonly gate_records: {
+                        readonly oneOf: readonly [{
+                            readonly type: "null";
+                        }, {
+                            readonly items: {
+                                readonly additionalProperties: false;
+                                readonly properties: {
+                                    readonly evaluation: {
+                                        readonly additionalProperties: false;
+                                        readonly properties: {
+                                            readonly gate_id: {
+                                                readonly description: "Gate identifier.";
+                                                readonly type: "string";
+                                            };
+                                            readonly status: {
+                                                readonly description: "Tri-state evaluation result.";
+                                                readonly enum: readonly ["True", "False", "Unknown"];
+                                                readonly type: "string";
+                                            };
+                                            readonly trace: {
+                                                readonly items: {
+                                                    readonly additionalProperties: false;
+                                                    readonly properties: {
+                                                        readonly condition_id: {
+                                                            readonly description: "Condition identifier.";
+                                                            readonly type: "string";
+                                                        };
+                                                        readonly status: {
+                                                            readonly description: "Tri-state evaluation result.";
+                                                            readonly enum: readonly ["True", "False", "Unknown"];
+                                                            readonly type: "string";
+                                                        };
+                                                    };
+                                                    readonly required: readonly ["condition_id", "status"];
+                                                    readonly type: "object";
+                                                };
+                                                readonly type: "array";
+                                            };
+                                        };
+                                        readonly required: readonly ["gate_id", "status", "trace"];
+                                        readonly type: "object";
+                                    };
+                                    readonly evidence: {
+                                        readonly items: {
+                                            readonly additionalProperties: false;
+                                            readonly properties: {
+                                                readonly condition_id: {
+                                                    readonly description: "Condition identifier.";
+                                                    readonly type: "string";
+                                                };
+                                                readonly result: {
+                                                    readonly additionalProperties: false;
+                                                    readonly properties: {
+                                                        readonly content_type: {
+                                                            readonly oneOf: readonly [{
+                                                                readonly type: "null";
+                                                            }, {
+                                                                readonly description: "Evidence content type.";
+                                                                readonly type: "string";
+                                                            }];
+                                                        };
+                                                        readonly error: {
+                                                            readonly oneOf: readonly [{
+                                                                readonly type: "null";
+                                                            }, {
+                                                                readonly additionalProperties: false;
+                                                                readonly properties: {
+                                                                    readonly code: {
+                                                                        readonly description: "Stable error code.";
+                                                                        readonly type: "string";
+                                                                    };
+                                                                    readonly details: {
+                                                                        readonly oneOf: readonly [{
+                                                                            readonly type: "null";
+                                                                        }, {
+                                                                            readonly description: "Optional structured error details.";
+                                                                            readonly type: readonly ["null", "boolean", "number", "string", "array", "object"];
+                                                                        }];
+                                                                    };
+                                                                    readonly message: {
+                                                                        readonly description: "Error message.";
+                                                                        readonly type: "string";
+                                                                    };
+                                                                };
+                                                                readonly required: readonly ["code", "message", "details"];
+                                                                readonly type: "object";
+                                                            }];
+                                                        };
+                                                        readonly evidence_anchor: {
+                                                            readonly oneOf: readonly [{
+                                                                readonly type: "null";
+                                                            }, {
+                                                                readonly additionalProperties: false;
+                                                                readonly properties: {
+                                                                    readonly anchor_type: {
+                                                                        readonly description: "Anchor type identifier.";
+                                                                        readonly type: "string";
+                                                                    };
+                                                                    readonly anchor_value: {
+                                                                        readonly description: "Anchor value.";
+                                                                        readonly type: "string";
+                                                                    };
+                                                                };
+                                                                readonly required: readonly ["anchor_type", "anchor_value"];
+                                                                readonly type: "object";
+                                                            }];
+                                                        };
+                                                        readonly evidence_hash: {
+                                                            readonly oneOf: readonly [{
+                                                                readonly type: "null";
+                                                            }, {
+                                                                readonly additionalProperties: false;
+                                                                readonly properties: {
+                                                                    readonly algorithm: {
+                                                                        readonly enum: readonly ["sha256"];
+                                                                        readonly type: "string";
+                                                                    };
+                                                                    readonly value: {
+                                                                        readonly description: "Lowercase hex digest.";
+                                                                        readonly type: "string";
+                                                                    };
+                                                                };
+                                                                readonly required: readonly ["algorithm", "value"];
+                                                                readonly type: "object";
+                                                            }];
+                                                        };
+                                                        readonly evidence_ref: {
+                                                            readonly oneOf: readonly [{
+                                                                readonly type: "null";
+                                                            }, {
+                                                                readonly additionalProperties: false;
+                                                                readonly properties: {
+                                                                    readonly uri: {
+                                                                        readonly description: "Evidence reference URI.";
+                                                                        readonly type: "string";
+                                                                    };
+                                                                };
+                                                                readonly required: readonly ["uri"];
+                                                                readonly type: "object";
+                                                            }];
+                                                        };
+                                                        readonly lane: {
+                                                            readonly description: "Trust lane classification for evidence.";
+                                                            readonly enum: readonly ["verified", "asserted"];
+                                                            readonly type: "string";
+                                                        };
+                                                        readonly signature: {
+                                                            readonly oneOf: readonly [{
+                                                                readonly type: "null";
+                                                            }, {
+                                                                readonly additionalProperties: false;
+                                                                readonly properties: {
+                                                                    readonly key_id: {
+                                                                        readonly description: "Signing key identifier.";
+                                                                        readonly type: "string";
+                                                                    };
+                                                                    readonly scheme: {
+                                                                        readonly description: "Signature scheme identifier.";
+                                                                        readonly type: "string";
+                                                                    };
+                                                                    readonly signature: {
+                                                                        readonly items: {
+                                                                            readonly maximum: 255;
+                                                                            readonly minimum: 0;
+                                                                            readonly type: "integer";
+                                                                        };
+                                                                        readonly type: "array";
+                                                                    };
+                                                                };
+                                                                readonly required: readonly ["scheme", "key_id", "signature"];
+                                                                readonly type: "object";
+                                                            }];
+                                                        };
+                                                        readonly value: {
+                                                            readonly oneOf: readonly [{
+                                                                readonly type: "null";
+                                                            }, {
+                                                                readonly oneOf: readonly [{
+                                                                    readonly additionalProperties: false;
+                                                                    readonly properties: {
+                                                                        readonly kind: {
+                                                                            readonly const: "json";
+                                                                        };
+                                                                        readonly value: {
+                                                                            readonly description: "Evidence JSON value.";
+                                                                            readonly type: readonly ["null", "boolean", "number", "string", "array", "object"];
+                                                                        };
+                                                                    };
+                                                                    readonly required: readonly ["kind", "value"];
+                                                                    readonly type: "object";
+                                                                }, {
+                                                                    readonly additionalProperties: false;
+                                                                    readonly properties: {
+                                                                        readonly kind: {
+                                                                            readonly const: "bytes";
+                                                                        };
+                                                                        readonly value: {
+                                                                            readonly items: {
+                                                                                readonly maximum: 255;
+                                                                                readonly minimum: 0;
+                                                                                readonly type: "integer";
+                                                                            };
+                                                                            readonly type: "array";
+                                                                        };
+                                                                    };
+                                                                    readonly required: readonly ["kind", "value"];
+                                                                    readonly type: "object";
+                                                                }];
+                                                            }];
+                                                        };
+                                                    };
+                                                    readonly required: readonly ["value", "lane", "error", "evidence_hash", "evidence_ref", "evidence_anchor", "signature", "content_type"];
+                                                    readonly type: "object";
+                                                };
+                                                readonly status: {
+                                                    readonly description: "Tri-state evaluation result.";
+                                                    readonly enum: readonly ["True", "False", "Unknown"];
+                                                    readonly type: "string";
+                                                };
+                                            };
+                                            readonly required: readonly ["condition_id", "status", "result"];
+                                            readonly type: "object";
+                                        };
+                                        readonly type: "array";
+                                    };
+                                    readonly stage_id: {
+                                        readonly description: "Stage identifier.";
+                                        readonly type: "string";
+                                    };
+                                    readonly trigger_id: {
+                                        readonly description: "Trigger identifier.";
+                                        readonly type: "string";
+                                    };
+                                };
+                                readonly required: readonly ["trigger_id", "stage_id", "evaluation", "evidence"];
+                                readonly type: "object";
+                            };
+                            readonly type: "array";
+                        }];
+                    };
+                    readonly level: {
+                        readonly description: "Feedback disclosure level.";
+                        readonly enum: readonly ["summary", "trace", "evidence"];
+                        readonly type: "string";
+                    };
+                };
+                readonly required: readonly ["level"];
+                readonly type: "object";
+            }];
         };
         readonly packets: {
             readonly items: {
@@ -5599,6 +5918,7 @@ export declare abstract class GeneratedDecisionGateClient {
      * - Idempotent by trigger_id; repeated calls return the same decision.
      * - Records decision, evidence, and packet disclosures in run state.
      * - Requires an active run; completed or failed runs do not advance.
+     * - Optional feedback can include gate trace or evidence when permitted by server feedback policy.
      *
      * Examples:
      * - Evaluate the next agent-driven step for a run.
@@ -5637,6 +5957,52 @@ export declare abstract class GeneratedDecisionGateClient {
      *       "seq": 0,
      *       "stage_id": "main",
      *       "trigger_id": "trigger-0001"
+     *     },
+     *     "packets": [],
+     *     "status": "completed"
+     *   }
+     *   ```
+     * - Evaluate a run and request trace feedback.
+     *   Input:
+     *   ```json
+     *   {
+     *     "feedback": "trace",
+     *     "request": {
+     *       "agent_id": "agent-alpha",
+     *       "correlation_id": null,
+     *       "namespace_id": 1,
+     *       "run_id": "run-0001",
+     *       "tenant_id": 1,
+     *       "time": {
+     *         "kind": "unix_millis",
+     *         "value": 1710000000000
+     *       },
+     *       "trigger_id": "trigger-0001"
+     *     },
+     *     "scenario_id": "example-scenario"
+     *   }
+     *   ```
+     *   Output:
+     *   ```json
+     *   {
+     *     "decision": {
+     *       "correlation_id": null,
+     *       "decided_at": {
+     *         "kind": "unix_millis",
+     *         "value": 1710000000000
+     *       },
+     *       "decision_id": "decision-0001",
+     *       "outcome": {
+     *         "kind": "complete",
+     *         "stage_id": "main"
+     *       },
+     *       "seq": 0,
+     *       "stage_id": "main",
+     *       "trigger_id": "trigger-0001"
+     *     },
+     *     "feedback": {
+     *       "gate_evaluations": [],
+     *       "level": "trace"
      *     },
      *     "packets": [],
      *     "status": "completed"

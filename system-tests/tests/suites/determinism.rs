@@ -8,7 +8,6 @@
 
 //! Determinism tests for Decision Gate system-tests.
 
-
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;

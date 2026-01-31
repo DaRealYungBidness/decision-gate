@@ -8,7 +8,6 @@
 
 //! `SQLite` run state persistence tests.
 
-
 use decision_gate_core::RunState;
 use decision_gate_core::Timestamp;
 use decision_gate_core::runtime::StatusRequest;

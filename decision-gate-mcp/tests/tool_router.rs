@@ -66,6 +66,7 @@ use decision_gate_mcp::config::PrincipalRoleConfig;
 use decision_gate_mcp::config::ServerAuthConfig;
 use decision_gate_mcp::config::ServerAuthMode;
 use decision_gate_mcp::config::ServerMode;
+use decision_gate_mcp::docs::DocsCatalog;
 use decision_gate_mcp::namespace_authority::NamespaceAuthority;
 use decision_gate_mcp::namespace_authority::NamespaceAuthorityError;
 use decision_gate_mcp::tools::EvidenceQueryRequest;
@@ -153,7 +154,7 @@ fn sample_shape_record(schema_id: &str, version: &str) -> DataShapeRecord {
 
 /// Verifies all expected tools are listed.
 #[test]
-fn list_tools_returns_all_seventeen_tools() {
+fn list_tools_returns_all_eighteen_tools() {
     let router = sample_router();
     let tools = router.list_tools_sync(&local_request_context()).unwrap();
 
@@ -175,7 +176,8 @@ fn list_tools_returns_all_seventeen_tools() {
     assert!(names.contains(&"schemas_get"));
     assert!(names.contains(&"scenarios_list"));
     assert!(names.contains(&"precheck"));
-    assert_eq!(tools.len(), 17);
+    assert!(names.contains(&"decision_gate_docs_search"));
+    assert_eq!(tools.len(), 18);
 }
 
 // ============================================================================
@@ -317,6 +319,7 @@ fn namespace_authority_denies_tool_call() {
     let registry_acl =
         decision_gate_mcp::registry_acl::RegistryAcl::new(&config.schema_registry.acl);
     let audit = std::sync::Arc::new(decision_gate_mcp::auth::NoopAuditSink);
+    let docs_catalog = DocsCatalog::from_config(&config.docs).expect("docs catalog");
     let router = decision_gate_mcp::ToolRouter::new(decision_gate_mcp::tools::ToolRouterConfig {
         evidence,
         evidence_policy,
@@ -343,6 +346,11 @@ fn namespace_authority_denies_tool_call() {
         registry_acl,
         principal_resolver,
         scenario_next_feedback: config.server.feedback.scenario_next,
+        docs_config: config.docs.clone(),
+        docs_catalog,
+        tools: config.server.tools,
+        docs_provider: None,
+        tool_visibility_resolver: None,
         allow_default_namespace,
         default_namespace_tenants,
         namespace_authority: std::sync::Arc::new(DenyNamespaceAuthority),

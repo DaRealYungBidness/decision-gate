@@ -56,6 +56,7 @@ pub fn tool_contracts() -> Vec<ToolContract> {
         schemas_get_contract(),
         scenarios_list_contract(),
         precheck_contract(),
+        decision_gate_docs_search_contract(),
     ]
 }
 
@@ -334,6 +335,23 @@ fn precheck_contract() -> ToolContract {
     )
 }
 
+/// Builds the tool contract for `decision_gate_docs_search`.
+fn decision_gate_docs_search_contract() -> ToolContract {
+    build_tool_contract(
+        ToolName::DecisionGateDocsSearch,
+        "Search Decision Gate documentation for runtime guidance.",
+        decision_gate_docs_search_input_schema(),
+        decision_gate_docs_search_output_schema(),
+        tool_examples(ToolName::DecisionGateDocsSearch),
+        vec![
+            "Use for quick lookups on evidence flow, comparators, and provider semantics."
+                .to_string(),
+            "Returns ranked sections with role tags and suggested follow-ups.".to_string(),
+            "Search is deterministic and scoped to the configured doc catalog.".to_string(),
+        ],
+    )
+}
+
 /// Returns the MCP tool definitions for tool listing.
 #[must_use]
 pub fn tool_definitions() -> Vec<ToolDefinition> {
@@ -557,6 +575,7 @@ fn tool_examples(tool_name: ToolName) -> Vec<ToolExample> {
         ToolName::SchemasGet => schemas_get_examples(),
         ToolName::ScenariosList => scenarios_list_examples(),
         ToolName::Precheck => precheck_examples(),
+        ToolName::DecisionGateDocsSearch => decision_gate_docs_search_examples(),
     }
 }
 
@@ -1006,6 +1025,39 @@ fn precheck_examples() -> Vec<ToolExample> {
                 }
             },
             "gate_evaluations": []
+        }),
+    }]
+}
+
+/// Returns example payloads for `decision_gate_docs_search`.
+fn decision_gate_docs_search_examples() -> Vec<ToolExample> {
+    vec![ToolExample {
+        description: String::from("Search for evidence flow and trust lane guidance."),
+        input: json!({
+            "query": "precheck vs live run trust lanes",
+            "max_sections": 2
+        }),
+        output: json!({
+            "sections": [
+                {
+                    "rank": 0,
+                    "doc_id": "evidence_flow_and_execution_model",
+                    "doc_title": "Evidence Flow + Execution Model",
+                    "doc_role": "reasoning",
+                    "heading": "Core Data Flow",
+                    "content": "..."
+                }
+            ],
+            "docs_covered": [
+                {
+                    "doc_id": "evidence_flow_and_execution_model",
+                    "doc_title": "Evidence Flow + Execution Model",
+                    "doc_role": "reasoning"
+                }
+            ],
+            "suggested_followups": [
+                "Refine the query with comparator or provider keywords for targeted guidance."
+            ]
         }),
     }]
 }
@@ -1669,6 +1721,63 @@ fn precheck_output_schema() -> Value {
     )
 }
 
+/// Builds the input schema for `decision_gate_docs_search`.
+#[must_use]
+fn decision_gate_docs_search_input_schema() -> Value {
+    tool_input_schema(
+        &json!({
+            "query": schema_for_string("Search query for documentation sections."),
+            "max_sections": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10,
+                "description": "Maximum number of sections to return (default 3, hard cap 10)."
+            }
+        }),
+        &["query"],
+    )
+}
+
+/// Builds the output schema for `decision_gate_docs_search`.
+#[must_use]
+fn decision_gate_docs_search_output_schema() -> Value {
+    tool_output_schema(
+        &json!({
+            "sections": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["rank", "doc_id", "doc_title", "doc_role", "heading", "content"],
+                    "properties": {
+                        "rank": { "type": "integer", "minimum": 0 },
+                        "doc_id": schema_identifier("Document identifier."),
+                        "doc_title": schema_for_string("Document title."),
+                        "doc_role": doc_role_schema(),
+                        "heading": schema_for_string("Section heading."),
+                        "content": schema_for_string("Section content (raw Markdown).")
+                    },
+                    "additionalProperties": false
+                }
+            },
+            "docs_covered": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["doc_id", "doc_title", "doc_role"],
+                    "properties": {
+                        "doc_id": schema_identifier("Document identifier."),
+                        "doc_title": schema_for_string("Document title."),
+                        "doc_role": doc_role_schema()
+                    },
+                    "additionalProperties": false
+                }
+            },
+            "suggested_followups": schema_for_string_array("Role-aware follow-up prompts.")
+        }),
+        &["sections", "docs_covered", "suggested_followups"],
+    )
+}
+
 /// Returns the JSON schema for provider summaries.
 #[must_use]
 fn provider_summary_schema() -> Value {
@@ -1703,6 +1812,16 @@ fn scenario_summary_schema() -> Value {
             "spec_hash": schemas::hash_digest_schema()
         },
         "additionalProperties": false
+    })
+}
+
+/// Returns the JSON schema for documentation roles.
+#[must_use]
+fn doc_role_schema() -> Value {
+    json!({
+        "type": "string",
+        "enum": ["reasoning", "decision", "ontology", "pattern"],
+        "description": "Documentation role for search weighting and display."
     })
 }
 

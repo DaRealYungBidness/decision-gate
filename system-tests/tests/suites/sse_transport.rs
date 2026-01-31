@@ -10,12 +10,18 @@
 
 use std::time::Duration;
 
+use decision_gate_contract::ToolName;
+use decision_gate_contract::tooling::ToolDefinition;
 use decision_gate_core::Timestamp;
+use decision_gate_mcp::docs::RESOURCE_URI_PREFIX;
 use decision_gate_mcp::tools::ScenarioDefineRequest;
 use decision_gate_mcp::tools::ScenarioStartRequest;
 use decision_gate_mcp::tools::ScenarioStatusRequest;
 use decision_gate_mcp::tools::ScenarioTriggerRequest;
 use helpers::artifacts::TestReporter;
+use helpers::docs::ResourceContent;
+use helpers::docs::ResourceMetadata;
+use helpers::docs::SearchResult;
 use helpers::harness::allocate_bind_addr;
 use helpers::harness::base_sse_config;
 use helpers::harness::base_sse_config_with_bearer;
@@ -37,6 +43,21 @@ struct JsonRpcResponse {
 #[derive(Debug, Deserialize, Serialize)]
 struct JsonRpcError {
     message: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ToolListResult {
+    tools: Vec<ToolDefinition>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ResourceListResult {
+    resources: Vec<ResourceMetadata>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ResourceReadResult {
+    contents: Vec<ResourceContent>,
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -152,6 +173,220 @@ async fn sse_transport_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
     reporter.finish(
         "pass",
         vec!["sse transport executed tools/list and tools/call".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+        ],
+    )?;
+    server.shutdown().await;
+    drop(reporter);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn docs_search_sse_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("docs_search_sse_end_to_end")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let config = base_sse_config(&bind);
+    let server = spawn_mcp_server(config).await?;
+    let base_url = server.base_url().to_string();
+
+    let tools_request = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/list"
+    });
+
+    wait_for_ready(
+        || async { send_sse_request(&base_url, &tools_request, None, None).await.map(|_| ()) },
+        Duration::from_secs(5),
+        "sse server",
+    )
+    .await?;
+
+    let (tools_response, _headers) =
+        send_sse_request(&base_url, &tools_request, None, None).await?;
+    let tools_result =
+        tools_response.result.clone().ok_or_else(|| "missing result for tools/list".to_string())?;
+    let tools: ToolListResult =
+        serde_json::from_value(tools_result).map_err(|err| format!("invalid tools/list: {err}"))?;
+    if !tools.tools.iter().any(|tool| tool.name == ToolName::DecisionGateDocsSearch) {
+        return Err("tools/list missing decision_gate_docs_search".into());
+    }
+
+    let docs_request = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/call",
+        "params": {
+            "name": "decision_gate_docs_search",
+            "arguments": {
+                "query": "trust lanes",
+                "max_sections": 3
+            }
+        }
+    });
+    let (docs_response, _headers) = send_sse_request(&base_url, &docs_request, None, None).await?;
+    if let Some(error) = docs_response.error {
+        return Err(format!("docs search error: {}", error.message).into());
+    }
+    let docs_result =
+        docs_response.result.clone().ok_or_else(|| "missing result for docs search".to_string())?;
+    let content = docs_result
+        .get("content")
+        .and_then(|value| value.as_array())
+        .and_then(|items| items.first())
+        .and_then(|value| value.get("json"))
+        .cloned()
+        .ok_or_else(|| "missing docs search content".to_string())?;
+    let search: SearchResult =
+        serde_json::from_value(content).map_err(|err| format!("invalid docs search: {err}"))?;
+    if !search.docs_covered.iter().any(|doc| doc.doc_id == "evidence_flow_and_execution_model") {
+        return Err("docs search missing evidence flow doc".into());
+    }
+
+    let transcript = vec![
+        helpers::mcp_client::TranscriptEntry {
+            sequence: 1,
+            method: "tools/list".to_string(),
+            request: tools_request,
+            response: serde_json::to_value(&tools_response)?,
+            error: tools_response.error.as_ref().map(|err| err.message.clone()),
+        },
+        helpers::mcp_client::TranscriptEntry {
+            sequence: 2,
+            method: "tools/call".to_string(),
+            request: docs_request,
+            response: serde_json::to_value(&docs_response)?,
+            error: docs_response.error.as_ref().map(|err| err.message.clone()),
+        },
+    ];
+    reporter.artifacts().write_json("tool_transcript.json", &transcript)?;
+    reporter.finish(
+        "pass",
+        vec!["sse docs search returned expected sections".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+        ],
+    )?;
+    server.shutdown().await;
+    drop(reporter);
+    Ok(())
+}
+
+#[allow(clippy::too_many_lines, reason = "SSE resources flow is validated end-to-end in one test.")]
+#[tokio::test(flavor = "multi_thread")]
+async fn docs_resources_sse_list_read() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("docs_resources_sse_list_read")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let config = base_sse_config_with_bearer(&bind, "docs-token");
+    let server = spawn_mcp_server(config).await?;
+    let base_url = server.base_url().to_string();
+
+    let list_request = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "resources/list"
+    });
+
+    wait_for_ready(
+        || async {
+            send_sse_request(&base_url, &list_request, Some("docs-token".to_string()), None)
+                .await
+                .map(|_| ())
+        },
+        Duration::from_secs(5),
+        "sse server",
+    )
+    .await?;
+
+    let (unauthorized, _) = send_sse_request(&base_url, &list_request, None, None).await?;
+    let error =
+        unauthorized.error.as_ref().ok_or_else(|| "missing unauthenticated error".to_string())?;
+    if !error.message.contains("unauthenticated") {
+        return Err(format!("unexpected unauthenticated error: {}", error.message).into());
+    }
+
+    let (list_response, _headers) =
+        send_sse_request(&base_url, &list_request, Some("docs-token".to_string()), None).await?;
+    if let Some(error) = list_response.error {
+        return Err(format!("resources/list error: {}", error.message).into());
+    }
+    let list_result = list_response
+        .result
+        .clone()
+        .ok_or_else(|| "missing result for resources/list".to_string())?;
+    let list: ResourceListResult = serde_json::from_value(list_result)
+        .map_err(|err| format!("invalid resources/list: {err}"))?;
+    if list.resources.is_empty() {
+        return Err("resources/list returned empty list".into());
+    }
+    let evidence = list
+        .resources
+        .iter()
+        .find(|entry| entry.uri == "decision-gate://docs/evidence-flow")
+        .ok_or_else(|| "missing evidence-flow resource".to_string())?;
+    if !evidence.uri.starts_with(RESOURCE_URI_PREFIX) {
+        return Err("resource uri missing decision-gate://docs/ prefix".into());
+    }
+
+    let read_request = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "resources/read",
+        "params": {
+            "uri": evidence.uri
+        }
+    });
+    let (read_response, _headers) =
+        send_sse_request(&base_url, &read_request, Some("docs-token".to_string()), None).await?;
+    if let Some(error) = read_response.error {
+        return Err(format!("resources/read error: {}", error.message).into());
+    }
+    let read_result = read_response
+        .result
+        .clone()
+        .ok_or_else(|| "missing result for resources/read".to_string())?;
+    let read: ResourceReadResult = serde_json::from_value(read_result)
+        .map_err(|err| format!("invalid resources/read: {err}"))?;
+    let content = read
+        .contents
+        .first()
+        .ok_or_else(|| "resources/read returned empty contents".to_string())?;
+    if !content.text.contains("# Evidence Flow + Execution Model") {
+        return Err("resource body missing expected heading".into());
+    }
+
+    let transcript = vec![
+        helpers::mcp_client::TranscriptEntry {
+            sequence: 1,
+            method: "resources/list".to_string(),
+            request: list_request.clone(),
+            response: serde_json::to_value(&unauthorized)?,
+            error: unauthorized.error.as_ref().map(|err| err.message.clone()),
+        },
+        helpers::mcp_client::TranscriptEntry {
+            sequence: 2,
+            method: "resources/list".to_string(),
+            request: list_request,
+            response: serde_json::to_value(&list_response)?,
+            error: list_response.error.as_ref().map(|err| err.message.clone()),
+        },
+        helpers::mcp_client::TranscriptEntry {
+            sequence: 3,
+            method: "resources/read".to_string(),
+            request: read_request,
+            response: serde_json::to_value(&read_response)?,
+            error: read_response.error.as_ref().map(|err| err.message.clone()),
+        },
+    ];
+    reporter.artifacts().write_json("tool_transcript.json", &transcript)?;
+    reporter.finish(
+        "pass",
+        vec!["sse resources list/read succeeded with auth".to_string()],
         vec![
             "summary.json".to_string(),
             "summary.md".to_string(),

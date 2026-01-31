@@ -53,6 +53,8 @@ pub enum ToolName {
     ScenariosList,
     /// Precheck a scenario with asserted data.
     Precheck,
+    /// Search Decision Gate documentation for runtime guidance.
+    DecisionGateDocsSearch,
 }
 
 impl ToolName {
@@ -77,6 +79,7 @@ impl ToolName {
             Self::SchemasGet => "schemas_get",
             Self::ScenariosList => "scenarios_list",
             Self::Precheck => "precheck",
+            Self::DecisionGateDocsSearch => "decision_gate_docs_search",
         }
     }
 
@@ -101,6 +104,7 @@ impl ToolName {
             Self::SchemasGet,
             Self::ScenariosList,
             Self::Precheck,
+            Self::DecisionGateDocsSearch,
         ]
     }
 
@@ -125,6 +129,7 @@ impl ToolName {
             "schemas_get" => Some(Self::SchemasGet),
             "scenarios_list" => Some(Self::ScenariosList),
             "precheck" => Some(Self::Precheck),
+            "decision_gate_docs_search" => Some(Self::DecisionGateDocsSearch),
             _ => None,
         }
     }

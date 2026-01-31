@@ -8,7 +8,6 @@
 
 //! Provider contract discovery system tests.
 
-
 use std::path::PathBuf;
 use std::time::Duration;
 

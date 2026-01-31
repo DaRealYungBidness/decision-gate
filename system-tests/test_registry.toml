@@ -1158,6 +1158,76 @@ run_command = "cargo test -p system-tests --features system-tests --test reliabi
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runpack/"]
 estimated_runtime_sec = 25
 
+[[tests]]
+name = "docs_search_http_end_to_end"
+category = "functional"
+priority = "P1"
+description = "Docs search tool returns deterministic sections and overview over HTTP."
+files = ["system-tests/tests/suites/docs_search.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test functional -- --exact docs_search::docs_search_http_end_to_end"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 10
+
+[[tests]]
+name = "docs_search_sse_end_to_end"
+category = "mcp_transport"
+priority = "P1"
+description = "Docs search tool works end-to-end over SSE."
+files = ["system-tests/tests/suites/sse_transport.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test mcp_transport -- --exact sse_transport::docs_search_sse_end_to_end"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 12
+
+[[tests]]
+name = "docs_resources_http_list_read"
+category = "mcp_transport"
+priority = "P1"
+description = "Resources list/read returns embedded docs over HTTP with auth."
+files = ["system-tests/tests/suites/mcp_transport.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test mcp_transport -- --exact mcp_transport::docs_resources_http_list_read"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 10
+
+[[tests]]
+name = "docs_resources_sse_list_read"
+category = "mcp_transport"
+priority = "P1"
+description = "Resources list/read returns embedded docs over SSE with auth."
+files = ["system-tests/tests/suites/sse_transport.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test mcp_transport -- --exact sse_transport::docs_resources_sse_list_read"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 12
+
+[[tests]]
+name = "docs_config_toggles"
+category = "operations"
+priority = "P1"
+description = "Docs enable/disable toggles enforce tool visibility and method availability."
+files = ["system-tests/tests/suites/docs_config.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact docs_config::docs_config_toggles"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 15
+
+[[tests]]
+name = "server_tools_visibility_filtering"
+category = "security"
+priority = "P1"
+description = "Tool visibility allowlist/denylist filters tools/list and hides tool calls."
+files = ["system-tests/tests/suites/tool_visibility.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact tool_visibility::server_tools_visibility_filtering"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "server_tools_visibility_defaults_and_auth_separation"
+category = "security"
+priority = "P1"
+description = "Visibility defaults do not hide tools; auth allowlist does not affect tools/list."
+files = ["system-tests/tests/suites/tool_visibility.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact tool_visibility::server_tools_visibility_defaults_and_auth_separation"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 10
+
 # =============================================================================
 # P2: Non-Gated / Extended Coverage
 # =============================================================================
@@ -1211,6 +1281,16 @@ files = ["system-tests/tests/suites/provider_discovery.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test contract -- --exact provider_discovery::provider_discovery_denylist_and_size_limits"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
+
+[[tests]]
+name = "docs_extra_paths_ingestion_limits"
+category = "operations"
+priority = "P2"
+description = "Docs extra_paths ingestion honors size and count limits."
+files = ["system-tests/tests/suites/docs_config.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact docs_config::docs_extra_paths_ingestion_limits"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 18
 
 [[tests]]
 name = "sse_transport_bearer_rejects_missing_token"

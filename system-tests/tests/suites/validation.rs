@@ -8,7 +8,6 @@
 
 //! System tests for strict comparator validation behavior.
 
-
 use std::num::NonZeroU64;
 use std::path::PathBuf;
 

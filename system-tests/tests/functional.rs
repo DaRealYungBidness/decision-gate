@@ -10,6 +10,8 @@
 
 mod helpers;
 
+#[path = "suites/docs_search.rs"]
+mod docs_search;
 #[path = "suites/json_evidence.rs"]
 mod json_evidence;
 #[path = "suites/precheck.rs"]

@@ -8,7 +8,6 @@
 
 //! Registry + security audit system tests.
 
-
 use std::fs;
 use std::num::NonZeroU64;
 use std::time::Duration;

@@ -8366,5 +8366,163 @@
       ],
       "type": "object"
     }
+  },
+  {
+    "description": "Search Decision Gate documentation for runtime guidance.",
+    "examples": [
+      {
+        "description": "Search for evidence flow and trust lane guidance.",
+        "input": {
+          "max_sections": 2,
+          "query": "precheck vs live run trust lanes"
+        },
+        "output": {
+          "docs_covered": [
+            {
+              "doc_id": "evidence_flow_and_execution_model",
+              "doc_role": "reasoning",
+              "doc_title": "Evidence Flow + Execution Model"
+            }
+          ],
+          "sections": [
+            {
+              "content": "...",
+              "doc_id": "evidence_flow_and_execution_model",
+              "doc_role": "reasoning",
+              "doc_title": "Evidence Flow + Execution Model",
+              "heading": "Core Data Flow",
+              "rank": 0
+            }
+          ],
+          "suggested_followups": [
+            "Refine the query with comparator or provider keywords for targeted guidance."
+          ]
+        }
+      }
+    ],
+    "input_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "max_sections": {
+          "description": "Maximum number of sections to return (default 3, hard cap 10).",
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "query": {
+          "description": "Search query for documentation sections.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    },
+    "name": "decision_gate_docs_search",
+    "notes": [
+      "Use for quick lookups on evidence flow, comparators, and provider semantics.",
+      "Returns ranked sections with role tags and suggested follow-ups.",
+      "Search is deterministic and scoped to the configured doc catalog."
+    ],
+    "output_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "docs_covered": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "doc_id": {
+                "description": "Document identifier.",
+                "type": "string"
+              },
+              "doc_role": {
+                "description": "Documentation role for search weighting and display.",
+                "enum": [
+                  "reasoning",
+                  "decision",
+                  "ontology",
+                  "pattern"
+                ],
+                "type": "string"
+              },
+              "doc_title": {
+                "description": "Document title.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "doc_id",
+              "doc_title",
+              "doc_role"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "sections": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "content": {
+                "description": "Section content (raw Markdown).",
+                "type": "string"
+              },
+              "doc_id": {
+                "description": "Document identifier.",
+                "type": "string"
+              },
+              "doc_role": {
+                "description": "Documentation role for search weighting and display.",
+                "enum": [
+                  "reasoning",
+                  "decision",
+                  "ontology",
+                  "pattern"
+                ],
+                "type": "string"
+              },
+              "doc_title": {
+                "description": "Document title.",
+                "type": "string"
+              },
+              "heading": {
+                "description": "Section heading.",
+                "type": "string"
+              },
+              "rank": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "rank",
+              "doc_id",
+              "doc_title",
+              "doc_role",
+              "heading",
+              "content"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "suggested_followups": {
+          "description": "Role-aware follow-up prompts.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "sections",
+        "docs_covered",
+        "suggested_followups"
+      ],
+      "type": "object"
+    }
   }
 ]

@@ -190,6 +190,7 @@ fn build_sections() -> Vec<SectionSpec> {
                 "tls",
                 "audit",
                 "feedback",
+                "tools",
             ],
             include_required: false,
             default_overrides: &[
@@ -197,6 +198,10 @@ fn build_sections() -> Vec<SectionSpec> {
                 FieldOverride { field: "auth", default_value: "null" },
                 FieldOverride { field: "tls", default_value: "null" },
                 FieldOverride { field: "audit", default_value: "{ enabled = true }" },
+                FieldOverride {
+                    field: "tools",
+                    default_value: "{ mode = \"filter\", allowlist = [], denylist = [] }",
+                },
             ],
             extra: Some(
                 "HTTP/SSE require `bind`; non-loopback requires explicit CLI opt-in plus TLS + non-local auth.",
@@ -233,7 +238,10 @@ fn build_sections() -> Vec<SectionSpec> {
             path: &[SchemaPath::Property("server"), SchemaPath::Property("feedback")],
             fields: &["scenario_next"],
             include_required: false,
-            default_overrides: &[FieldOverride { field: "scenario_next", default_value: "{ default = \"summary\", local_only_default = \"trace\", max = \"trace\" }" }],
+            default_overrides: &[FieldOverride {
+                field: "scenario_next",
+                default_value: "{ default = \"summary\", local_only_default = \"trace\", max = \"trace\" }",
+            }],
             extra: Some(
                 "Feedback levels: `summary` (unmet gates only), `trace` (gate + condition status), `evidence` (includes evidence records, subject to disclosure policy).",
             ),
@@ -263,6 +271,20 @@ fn build_sections() -> Vec<SectionSpec> {
             ],
             extra: Some(
                 "Local-only defaults apply to loopback/stdio. Subjects and roles are resolved from `server.auth.principals`.",
+            ),
+        },
+        SectionSpec {
+            heading: "[server.tools]",
+            description: "Tool visibility configuration for tools/list output.",
+            path: &[SchemaPath::Property("server"), SchemaPath::Property("tools")],
+            fields: &["mode", "allowlist", "denylist"],
+            include_required: false,
+            default_overrides: &[
+                FieldOverride { field: "allowlist", default_value: "[]" },
+                FieldOverride { field: "denylist", default_value: "[]" },
+            ],
+            extra: Some(
+                "Visibility is separate from auth: hidden tools are omitted from tools/list and treated as unknown when called.",
             ),
         },
         SectionSpec {
@@ -592,6 +614,27 @@ fn build_sections() -> Vec<SectionSpec> {
                 FieldOverride { field: "policy_classes", default_value: "[]" },
             ],
             extra: None,
+        },
+        SectionSpec {
+            heading: "[docs]",
+            description: "Documentation search and resources configuration.",
+            path: &[SchemaPath::Property("docs")],
+            fields: &[
+                "enabled",
+                "enable_search",
+                "enable_resources",
+                "include_default_docs",
+                "extra_paths",
+                "max_doc_bytes",
+                "max_total_bytes",
+                "max_docs",
+                "max_sections",
+            ],
+            include_required: false,
+            default_overrides: &[FieldOverride { field: "extra_paths", default_value: "[]" }],
+            extra: Some(
+                "Docs search and resources are deterministic and local-only by default. Use extra_paths to ingest local markdown files or directories.",
+            ),
         },
         SectionSpec {
             heading: "[[providers]]",

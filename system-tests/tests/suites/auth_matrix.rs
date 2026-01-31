@@ -8,7 +8,6 @@
 
 //! Auth mapping matrix tests for DG + ASC alignment.
 
-
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::time::Duration;

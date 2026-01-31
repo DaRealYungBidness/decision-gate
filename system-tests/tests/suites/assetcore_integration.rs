@@ -8,7 +8,6 @@
 
 //! `AssetCore` alignment tests for Decision Gate system-tests.
 
-
 use std::num::NonZeroU64;
 use std::sync::LazyLock;
 use std::time::Duration;

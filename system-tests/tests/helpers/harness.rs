@@ -23,6 +23,7 @@ use decision_gate_core::core::hashing::hash_bytes;
 use decision_gate_mcp::McpServer;
 use decision_gate_mcp::config::AnchorPolicyConfig;
 use decision_gate_mcp::config::DecisionGateConfig;
+use decision_gate_mcp::config::DocsConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::config::NamespaceConfig;
 use decision_gate_mcp::config::PolicyConfig;
@@ -41,6 +42,7 @@ use decision_gate_mcp::config::ServerFeedbackConfig;
 use decision_gate_mcp::config::ServerLimitsConfig;
 use decision_gate_mcp::config::ServerMode;
 use decision_gate_mcp::config::ServerTlsConfig;
+use decision_gate_mcp::config::ServerToolsConfig;
 use decision_gate_mcp::config::ServerTransport;
 use decision_gate_mcp::config::TrustConfig;
 use decision_gate_mcp::config::ValidationConfig;
@@ -142,6 +144,7 @@ pub fn base_http_config(bind: &str) -> DecisionGateConfig {
             tls: None,
             audit: ServerAuditConfig::default(),
             feedback: ServerFeedbackConfig::default(),
+            tools: ServerToolsConfig::default(),
         },
         namespace: NamespaceConfig {
             allow_default: true,
@@ -158,6 +161,7 @@ pub fn base_http_config(bind: &str) -> DecisionGateConfig {
         schema_registry: SchemaRegistryConfig::default(),
         providers: builtin_providers(),
         dev: decision_gate_mcp::config::DevConfig::default(),
+        docs: DocsConfig::default(),
         runpack_storage: None,
 
         source_modified_at: None,
@@ -246,6 +250,7 @@ pub fn base_sse_config(bind: &str) -> DecisionGateConfig {
             tls: None,
             audit: ServerAuditConfig::default(),
             feedback: ServerFeedbackConfig::default(),
+            tools: ServerToolsConfig::default(),
         },
         namespace: NamespaceConfig {
             allow_default: true,
@@ -262,6 +267,7 @@ pub fn base_sse_config(bind: &str) -> DecisionGateConfig {
         schema_registry: SchemaRegistryConfig::default(),
         providers: builtin_providers(),
         dev: decision_gate_mcp::config::DevConfig::default(),
+        docs: DocsConfig::default(),
         runpack_storage: None,
 
         source_modified_at: None,

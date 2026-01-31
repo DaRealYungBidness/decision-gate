@@ -8,7 +8,6 @@
 
 //! Registry ACL system tests.
 
-
 use std::num::NonZeroU64;
 use std::time::Duration;
 

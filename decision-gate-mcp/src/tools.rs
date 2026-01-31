@@ -122,12 +122,18 @@ use crate::auth::ToolAuthz;
 use crate::capabilities::CapabilityError;
 use crate::capabilities::CapabilityRegistry;
 use crate::capabilities::ProviderContractSource;
+use crate::config::DocsConfig;
 use crate::config::EvidencePolicyConfig;
 use crate::config::FeedbackLevel;
 use crate::config::ProviderDiscoveryConfig;
 use crate::config::RegistryAclAction;
 use crate::config::ScenarioNextFeedbackConfig;
+use crate::config::ServerToolsConfig;
+use crate::config::ToolVisibilityMode;
 use crate::config::ValidationConfig;
+use crate::docs::DocEntry;
+use crate::docs::DocsCatalog;
+use crate::docs::DocsSearchRequest;
 use crate::evidence::FederatedEvidenceProvider;
 use crate::namespace_authority::NamespaceAuthority;
 use crate::namespace_authority::NamespaceAuthorityError;
@@ -159,6 +165,68 @@ const DEFAULT_LIST_LIMIT: usize = 50;
 const MAX_LIST_LIMIT: usize = 1000;
 /// Reserved default namespace identifier.
 const DEFAULT_NAMESPACE_ID: u64 = 1;
+
+// ============================================================================
+// SECTION: Docs + Visibility Providers
+// ============================================================================
+
+/// Documentation provider interface for search and resources.
+pub trait DocsProvider: Send + Sync {
+    /// Returns true when docs search is enabled for the caller.
+    fn is_search_enabled(&self, context: &RequestContext, auth: &AuthContext) -> bool;
+    /// Returns true when docs resources are enabled for the caller.
+    fn is_resources_enabled(&self, context: &RequestContext, auth: &AuthContext) -> bool;
+    /// Executes a docs search request.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ToolError`] when docs search is disabled or request validation fails.
+    fn search(
+        &self,
+        context: &RequestContext,
+        auth: &AuthContext,
+        request: DocsSearchRequest,
+    ) -> Result<crate::docs::SearchResult, ToolError>;
+    /// Lists available docs resources.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ToolError`] when docs resources are disabled.
+    fn list_resources(
+        &self,
+        context: &RequestContext,
+        auth: &AuthContext,
+    ) -> Result<Vec<crate::docs::ResourceMetadata>, ToolError>;
+    /// Reads a docs resource by URI.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ToolError`] when docs resources are disabled or URI is unknown.
+    fn read_resource(
+        &self,
+        context: &RequestContext,
+        auth: &AuthContext,
+        uri: &str,
+    ) -> Result<crate::docs::ResourceContent, ToolError>;
+}
+
+/// Tool visibility resolver for list/call decisions.
+pub trait ToolVisibilityResolver: Send + Sync {
+    /// Returns true when a tool should be visible in `tools/list`.
+    fn is_visible_for_list(
+        &self,
+        context: &RequestContext,
+        auth: &AuthContext,
+        tool: ToolName,
+    ) -> bool;
+    /// Returns true when a tool call should be allowed.
+    fn is_allowed_for_call(
+        &self,
+        context: &RequestContext,
+        auth: &AuthContext,
+        tool: ToolName,
+    ) -> bool;
+}
 
 // ============================================================================
 // SECTION: Tool Router
@@ -217,6 +285,14 @@ pub struct ToolRouter {
     principal_resolver: PrincipalResolver,
     /// Feedback policy for `scenario_next` responses.
     scenario_next_feedback: ScenarioNextFeedbackPolicy,
+    /// Documentation configuration.
+    docs_config: DocsConfig,
+    /// Documentation catalog.
+    docs_catalog: DocsCatalog,
+    /// Docs provider.
+    docs_provider: Arc<dyn DocsProvider>,
+    /// Tool visibility resolver.
+    tool_visibility: Arc<dyn ToolVisibilityResolver>,
     /// Whether to log raw precheck request/response payloads.
     precheck_audit_payloads: bool,
     /// Allow default namespace usage.
@@ -277,6 +353,16 @@ pub struct ToolRouterConfig {
     pub principal_resolver: PrincipalResolver,
     /// Feedback policy configuration for `scenario_next`.
     pub scenario_next_feedback: ScenarioNextFeedbackConfig,
+    /// Documentation configuration.
+    pub docs_config: DocsConfig,
+    /// Documentation catalog.
+    pub docs_catalog: DocsCatalog,
+    /// Optional docs provider override.
+    pub docs_provider: Option<Arc<dyn DocsProvider>>,
+    /// Tool visibility configuration.
+    pub tools: ServerToolsConfig,
+    /// Optional tool visibility resolver override.
+    pub tool_visibility_resolver: Option<Arc<dyn ToolVisibilityResolver>>,
     /// Whether to log raw precheck request/response payloads.
     pub precheck_audit_payloads: bool,
     /// Allow default namespace usage.
@@ -287,10 +373,162 @@ pub struct ToolRouterConfig {
     pub namespace_authority: Arc<dyn NamespaceAuthority>,
 }
 
+/// Tool visibility policy derived from configuration.
+#[derive(Debug, Clone)]
+struct ToolVisibilityPolicy {
+    /// Visibility mode for tools/list.
+    mode: ToolVisibilityMode,
+    /// Allowlist of tools to expose when non-empty.
+    allowlist: BTreeSet<ToolName>,
+    /// Denylist of tools to always hide.
+    denylist: BTreeSet<ToolName>,
+}
+
+impl ToolVisibilityPolicy {
+    /// Builds a policy from server tool visibility config.
+    fn from_config(config: &ServerToolsConfig) -> Self {
+        let allowlist = config.allowlist.iter().filter_map(|name| ToolName::parse(name)).collect();
+        let denylist = config.denylist.iter().filter_map(|name| ToolName::parse(name)).collect();
+        Self {
+            mode: config.mode,
+            allowlist,
+            denylist,
+        }
+    }
+
+    /// Returns true when the tool is permitted by allow/deny lists.
+    fn is_allowed(&self, tool: ToolName) -> bool {
+        if self.denylist.contains(&tool) {
+            return false;
+        }
+        if self.allowlist.is_empty() {
+            return true;
+        }
+        self.allowlist.contains(&tool)
+    }
+}
+
+/// Static tool visibility resolver derived from configuration.
+#[derive(Debug, Clone)]
+struct StaticToolVisibilityResolver {
+    /// Static policy derived from configuration.
+    policy: ToolVisibilityPolicy,
+}
+
+impl StaticToolVisibilityResolver {
+    /// Builds a static resolver from config.
+    fn from_config(config: &ServerToolsConfig) -> Self {
+        Self {
+            policy: ToolVisibilityPolicy::from_config(config),
+        }
+    }
+}
+
+impl ToolVisibilityResolver for StaticToolVisibilityResolver {
+    fn is_visible_for_list(
+        &self,
+        _context: &RequestContext,
+        _auth: &AuthContext,
+        tool: ToolName,
+    ) -> bool {
+        match self.policy.mode {
+            ToolVisibilityMode::Filter => self.policy.is_allowed(tool),
+            ToolVisibilityMode::Passthrough => true,
+        }
+    }
+
+    fn is_allowed_for_call(
+        &self,
+        _context: &RequestContext,
+        _auth: &AuthContext,
+        tool: ToolName,
+    ) -> bool {
+        self.policy.is_allowed(tool)
+    }
+}
+
+/// Default docs provider backed by the static docs catalog.
+#[derive(Debug, Clone)]
+struct StaticDocsProvider {
+    /// Docs configuration toggles.
+    docs_config: DocsConfig,
+    /// Embedded docs catalog.
+    docs_catalog: DocsCatalog,
+}
+
+impl StaticDocsProvider {
+    /// Builds a docs provider from the embedded catalog.
+    const fn new(docs_config: DocsConfig, docs_catalog: DocsCatalog) -> Self {
+        Self {
+            docs_config,
+            docs_catalog,
+        }
+    }
+}
+
+impl DocsProvider for StaticDocsProvider {
+    fn is_search_enabled(&self, _context: &RequestContext, _auth: &AuthContext) -> bool {
+        self.docs_config.enabled && self.docs_config.enable_search
+    }
+
+    fn is_resources_enabled(&self, _context: &RequestContext, _auth: &AuthContext) -> bool {
+        self.docs_config.enabled && self.docs_config.enable_resources
+    }
+
+    fn search(
+        &self,
+        context: &RequestContext,
+        auth: &AuthContext,
+        request: DocsSearchRequest,
+    ) -> Result<crate::docs::SearchResult, ToolError> {
+        if !self.is_search_enabled(context, auth) {
+            return Err(ToolError::UnknownTool);
+        }
+        Ok(self.docs_catalog.search(&request))
+    }
+
+    fn list_resources(
+        &self,
+        context: &RequestContext,
+        auth: &AuthContext,
+    ) -> Result<Vec<crate::docs::ResourceMetadata>, ToolError> {
+        if !self.is_resources_enabled(context, auth) {
+            return Err(ToolError::UnknownTool);
+        }
+        Ok(self.docs_catalog.docs().iter().map(DocEntry::metadata).collect())
+    }
+
+    fn read_resource(
+        &self,
+        context: &RequestContext,
+        auth: &AuthContext,
+        uri: &str,
+    ) -> Result<crate::docs::ResourceContent, ToolError> {
+        if !self.is_resources_enabled(context, auth) {
+            return Err(ToolError::UnknownTool);
+        }
+        self.docs_catalog
+            .docs()
+            .iter()
+            .find(|doc| doc.resource_uri == uri)
+            .map(DocEntry::content)
+            .ok_or_else(|| ToolError::InvalidParams(format!("unknown resource uri: {uri}")))
+    }
+}
+
 impl ToolRouter {
     /// Creates a new tool router.
     #[must_use]
     pub fn new(config: ToolRouterConfig) -> Self {
+        let docs_provider = config.docs_provider.unwrap_or_else(|| {
+            Arc::new(StaticDocsProvider::new(
+                config.docs_config.clone(),
+                config.docs_catalog.clone(),
+            ))
+        });
+        let tool_visibility = config
+            .tool_visibility_resolver
+            .unwrap_or_else(|| Arc::new(StaticToolVisibilityResolver::from_config(&config.tools)));
         Self {
             state: Arc::new(Mutex::new(RouterState::default())),
             evidence: config.evidence,
@@ -318,6 +556,10 @@ impl ToolRouter {
             registry_acl: config.registry_acl,
             principal_resolver: config.principal_resolver,
             scenario_next_feedback: ScenarioNextFeedbackPolicy::new(config.scenario_next_feedback),
+            docs_config: config.docs_config,
+            docs_catalog: config.docs_catalog,
+            docs_provider,
+            tool_visibility,
             allow_default_namespace: config.allow_default_namespace,
             default_namespace_tenants: config.default_namespace_tenants,
             namespace_authority: config.namespace_authority,
@@ -333,8 +575,85 @@ impl ToolRouter {
         &self,
         context: &RequestContext,
     ) -> Result<Vec<ToolDefinition>, ToolError> {
-        let _ = self.authorize(context, AuthAction::ListTools).await?;
-        Ok(decision_gate_contract::tooling::tool_definitions())
+        let auth_ctx = self.authorize(context, AuthAction::ListTools).await?;
+        let mut definitions = decision_gate_contract::tooling::tool_definitions();
+        definitions.retain(|tool| self.is_tool_visible_for_list(context, &auth_ctx, tool.name));
+        Ok(definitions)
+    }
+
+    /// Lists MCP documentation resources.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ToolError`] when authorization fails.
+    pub async fn list_resources(
+        &self,
+        context: &RequestContext,
+    ) -> Result<Vec<crate::docs::ResourceMetadata>, ToolError> {
+        let auth_ctx = self.authorize(context, AuthAction::ListTools).await?;
+        if !self.docs_provider.is_resources_enabled(context, &auth_ctx) {
+            return Err(ToolError::UnknownTool);
+        }
+        self.docs_provider.list_resources(context, &auth_ctx)
+    }
+
+    /// Reads a documentation resource by URI.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ToolError`] when authorization fails or the resource is missing.
+    pub async fn read_resource(
+        &self,
+        context: &RequestContext,
+        uri: &str,
+    ) -> Result<crate::docs::ResourceContent, ToolError> {
+        let auth_ctx = self.authorize(context, AuthAction::ListTools).await?;
+        if !self.docs_provider.is_resources_enabled(context, &auth_ctx) {
+            return Err(ToolError::UnknownTool);
+        }
+        self.docs_provider.read_resource(context, &auth_ctx, uri)
+    }
+
+    /// Returns true when a tool is enabled for listing.
+    fn is_tool_visible_for_list(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        tool: ToolName,
+    ) -> bool {
+        if tool == ToolName::DecisionGateDocsSearch
+            && !self.docs_provider.is_search_enabled(context, auth_ctx)
+        {
+            return false;
+        }
+        self.tool_visibility.is_visible_for_list(context, auth_ctx, tool)
+    }
+
+    /// Returns true when a tool is callable under visibility rules.
+    fn is_tool_call_allowed(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        tool: ToolName,
+    ) -> bool {
+        if tool == ToolName::DecisionGateDocsSearch
+            && !self.docs_provider.is_search_enabled(context, auth_ctx)
+        {
+            return false;
+        }
+        self.tool_visibility.is_allowed_for_call(context, auth_ctx, tool)
+    }
+
+    /// Returns true when resources/list + resources/read are enabled.
+    #[must_use]
+    pub const fn resources_enabled(&self) -> bool {
+        self.docs_config.enabled && self.docs_config.enable_resources
+    }
+
+    /// Returns the documentation catalog.
+    #[must_use]
+    pub const fn docs_catalog(&self) -> &DocsCatalog {
+        &self.docs_catalog
     }
 
     /// Handles a tool call by name with JSON payload.
@@ -350,6 +669,9 @@ impl ToolRouter {
     ) -> Result<Value, ToolError> {
         let tool = ToolName::parse(name).ok_or(ToolError::UnknownTool)?;
         let auth_ctx = self.authorize(context, AuthAction::CallTool(&tool)).await?;
+        if !self.is_tool_call_allowed(context, &auth_ctx, tool) {
+            return Err(ToolError::UnknownTool);
+        }
         match tool {
             ToolName::ScenarioDefine => {
                 self.handle_scenario_define(context, &auth_ctx, payload).await
@@ -390,6 +712,9 @@ impl ToolRouter {
                 self.handle_scenarios_list(context, &auth_ctx, payload).await
             }
             ToolName::Precheck => self.handle_precheck(context, &auth_ctx, payload).await,
+            ToolName::DecisionGateDocsSearch => {
+                self.handle_docs_search(context, &auth_ctx, payload)
+            }
         }
     }
 
@@ -1093,6 +1418,18 @@ impl ToolRouter {
             Some(&namespace_id),
         );
         serde_json::to_value(response).map_err(|_| ToolError::Serialization)
+    }
+
+    /// Handles docs search tool requests.
+    fn handle_docs_search(
+        &self,
+        context: &RequestContext,
+        auth_ctx: &AuthContext,
+        payload: Value,
+    ) -> Result<Value, ToolError> {
+        let request = decode::<DocsSearchRequest>(payload)?;
+        let result = self.docs_provider.search(context, auth_ctx, request)?;
+        serde_json::to_value(result).map_err(|_| ToolError::Serialization)
     }
 
     /// Enforces tenant access and tool call usage limits.
@@ -2923,6 +3260,14 @@ pub enum ToolError {
     /// Tool response exceeds size limits.
     #[error("response too large: {0}")]
     ResponseTooLarge(String),
+    /// Tool request rate-limited.
+    #[error("rate limited: {message}")]
+    RateLimited {
+        /// Rate-limit message.
+        message: String,
+        /// Optional retry delay (milliseconds).
+        retry_after_ms: Option<u64>,
+    },
     /// Capability registry validation error.
     #[error("capability violation: {code}: {message}")]
     CapabilityViolation {

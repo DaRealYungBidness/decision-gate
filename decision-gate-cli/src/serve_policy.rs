@@ -109,26 +109,40 @@ impl std::fmt::Display for ServePolicyError {
         let message = match self {
             Self::InvalidEnv {
                 value,
-            } => t!("serve.bind.allow_env_invalid", env = ALLOW_NON_LOOPBACK_ENV, value = value),
+            } => {
+                t!("serve.bind.allow_env_invalid", env = ALLOW_NON_LOOPBACK_ENV, value = value)
+            }
             Self::InvalidBind {
                 bind,
                 error,
-            } => t!("serve.bind.parse_failed", bind = bind, error = error),
+            } => {
+                t!("serve.bind.parse_failed", bind = bind, error = error)
+            }
             Self::NonLoopbackOptInRequired {
                 bind,
-            } => t!("serve.bind.non_loopback_opt_in", bind = bind, env = ALLOW_NON_LOOPBACK_ENV),
+            } => {
+                t!("serve.bind.non_loopback_opt_in", bind = bind, env = ALLOW_NON_LOOPBACK_ENV)
+            }
             Self::NonLoopbackAuthRequired {
                 bind,
-            } => t!("serve.bind.non_loopback_auth_required", bind = bind),
+            } => {
+                t!("serve.bind.non_loopback_auth_required", bind = bind)
+            }
             Self::NonLoopbackTlsRequired {
                 bind,
-            } => t!("serve.bind.non_loopback_tls_required", bind = bind),
+            } => {
+                t!("serve.bind.non_loopback_tls_required", bind = bind)
+            }
             Self::NonLoopbackMtlsClientCaRequired {
                 bind,
-            } => t!("serve.bind.non_loopback_mtls_client_ca_required", bind = bind),
+            } => {
+                t!("serve.bind.non_loopback_mtls_client_ca_required", bind = bind)
+            }
             Self::NonLoopbackMtlsClientCertRequired {
                 bind,
-            } => t!("serve.bind.non_loopback_mtls_client_cert_required", bind = bind),
+            } => {
+                t!("serve.bind.non_loopback_mtls_client_cert_required", bind = bind)
+            }
         };
         write!(f, "{message}")
     }
@@ -295,7 +309,6 @@ mod tests {
         let _ = fs::remove_file(path);
         config
     }
-
 
     #[test]
     fn non_loopback_requires_opt_in() {

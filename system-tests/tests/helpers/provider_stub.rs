@@ -31,7 +31,6 @@ use tokio::runtime::Builder;
 use tokio::sync::oneshot;
 use tokio::time::sleep;
 
-
 #[derive(Clone)]
 struct ProviderState {
     response: ProviderResponse,

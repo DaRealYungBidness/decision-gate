@@ -98,6 +98,70 @@
       },
       "type": "object"
     },
+    "docs": {
+      "additionalProperties": false,
+      "description": "Documentation search and resources configuration.",
+      "properties": {
+        "enable_resources": {
+          "default": true,
+          "description": "Enable MCP resources list/read.",
+          "type": "boolean"
+        },
+        "enable_search": {
+          "default": true,
+          "description": "Enable docs search tool.",
+          "type": "boolean"
+        },
+        "enabled": {
+          "default": true,
+          "description": "Enable docs surfaces globally.",
+          "type": "boolean"
+        },
+        "extra_paths": {
+          "default": [],
+          "description": "Extra doc paths to ingest (files or directories).",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "include_default_docs": {
+          "default": true,
+          "description": "Include the embedded default docs set.",
+          "type": "boolean"
+        },
+        "max_doc_bytes": {
+          "default": 262144,
+          "description": "Maximum size for a single doc entry in bytes.",
+          "maximum": 1048576,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_docs": {
+          "default": 32,
+          "description": "Maximum number of docs in the catalog.",
+          "maximum": 256,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_sections": {
+          "default": 10,
+          "description": "Maximum sections returned by docs search.",
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_total_bytes": {
+          "default": 1048576,
+          "description": "Maximum total docs bytes for the catalog.",
+          "maximum": 8388608,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "evidence": {
       "additionalProperties": false,
       "description": "Evidence disclosure policy defaults.",
@@ -1214,7 +1278,8 @@
                       "schemas_list",
                       "schemas_get",
                       "scenarios_list",
-                      "precheck"
+                      "precheck",
+                      "decision_gate_docs_search"
                     ],
                     "type": "string"
                   },
@@ -1545,6 +1610,78 @@
               "type": "object"
             }
           ]
+        },
+        "tools": {
+          "additionalProperties": false,
+          "description": "Tool visibility configuration for MCP tool listings.",
+          "properties": {
+            "allowlist": {
+              "default": [],
+              "items": {
+                "enum": [
+                  "scenario_define",
+                  "scenario_start",
+                  "scenario_status",
+                  "scenario_next",
+                  "scenario_submit",
+                  "scenario_trigger",
+                  "evidence_query",
+                  "runpack_export",
+                  "runpack_verify",
+                  "providers_list",
+                  "provider_contract_get",
+                  "provider_check_schema_get",
+                  "schemas_register",
+                  "schemas_list",
+                  "schemas_get",
+                  "scenarios_list",
+                  "precheck",
+                  "decision_gate_docs_search"
+                ],
+                "type": "string"
+              },
+              "maxItems": 128,
+              "type": "array"
+            },
+            "denylist": {
+              "default": [],
+              "items": {
+                "enum": [
+                  "scenario_define",
+                  "scenario_start",
+                  "scenario_status",
+                  "scenario_next",
+                  "scenario_submit",
+                  "scenario_trigger",
+                  "evidence_query",
+                  "runpack_export",
+                  "runpack_verify",
+                  "providers_list",
+                  "provider_contract_get",
+                  "provider_check_schema_get",
+                  "schemas_register",
+                  "schemas_list",
+                  "schemas_get",
+                  "scenarios_list",
+                  "precheck",
+                  "decision_gate_docs_search"
+                ],
+                "type": "string"
+              },
+              "maxItems": 128,
+              "type": "array"
+            },
+            "mode": {
+              "default": "filter",
+              "description": "Visibility mode for tools/list output.",
+              "enum": [
+                "filter",
+                "passthrough"
+              ],
+              "type": "string"
+            }
+          },
+          "type": "object"
         },
         "transport": {
           "default": "stdio",

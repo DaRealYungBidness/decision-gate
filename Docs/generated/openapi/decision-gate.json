@@ -1,6 +1,163 @@
 {
   "components": {
     "schemas": {
+      "DecisionGateDocsSearchToolCallParams": {
+        "additionalProperties": false,
+        "properties": {
+          "arguments": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+              "max_sections": {
+                "description": "Maximum number of sections to return (default 3, hard cap 10).",
+                "maximum": 10,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "query": {
+                "description": "Search query for documentation sections.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "type": "object"
+          },
+          "name": {
+            "const": "decision_gate_docs_search"
+          }
+        },
+        "required": [
+          "name",
+          "arguments"
+        ],
+        "type": "object"
+      },
+      "DecisionGateDocsSearchToolCallResult": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "json": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "properties": {
+                    "docs_covered": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "doc_id": {
+                            "description": "Document identifier.",
+                            "type": "string"
+                          },
+                          "doc_role": {
+                            "description": "Documentation role for search weighting and display.",
+                            "enum": [
+                              "reasoning",
+                              "decision",
+                              "ontology",
+                              "pattern"
+                            ],
+                            "type": "string"
+                          },
+                          "doc_title": {
+                            "description": "Document title.",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "doc_id",
+                          "doc_title",
+                          "doc_role"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "sections": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "content": {
+                            "description": "Section content (raw Markdown).",
+                            "type": "string"
+                          },
+                          "doc_id": {
+                            "description": "Document identifier.",
+                            "type": "string"
+                          },
+                          "doc_role": {
+                            "description": "Documentation role for search weighting and display.",
+                            "enum": [
+                              "reasoning",
+                              "decision",
+                              "ontology",
+                              "pattern"
+                            ],
+                            "type": "string"
+                          },
+                          "doc_title": {
+                            "description": "Document title.",
+                            "type": "string"
+                          },
+                          "heading": {
+                            "description": "Section heading.",
+                            "type": "string"
+                          },
+                          "rank": {
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "rank",
+                          "doc_id",
+                          "doc_title",
+                          "doc_role",
+                          "heading",
+                          "content"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "suggested_followups": {
+                      "description": "Role-aware follow-up prompts.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "sections",
+                    "docs_covered",
+                    "suggested_followups"
+                  ],
+                  "type": "object"
+                },
+                "type": {
+                  "const": "json"
+                }
+              },
+              "required": [
+                "type",
+                "json"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "type": "object"
+      },
       "EvidenceQueryToolCallParams": {
         "additionalProperties": false,
         "properties": {
@@ -8210,6 +8367,9 @@
           },
           {
             "$ref": "#/components/schemas/PrecheckToolCallParams"
+          },
+          {
+            "$ref": "#/components/schemas/DecisionGateDocsSearchToolCallParams"
           }
         ]
       },
@@ -8331,6 +8491,9 @@
           },
           {
             "$ref": "#/components/schemas/PrecheckToolCallResult"
+          },
+          {
+            "$ref": "#/components/schemas/DecisionGateDocsSearchToolCallResult"
           }
         ]
       }

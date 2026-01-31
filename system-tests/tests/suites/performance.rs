@@ -8,7 +8,6 @@
 
 //! Performance smoke tests for Decision Gate system-tests.
 
-
 use std::time::Instant;
 
 use decision_gate_core::Timestamp;

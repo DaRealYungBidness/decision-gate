@@ -8,17 +8,18 @@
 
 //! MCP transport tests for Decision Gate.
 
-
 use std::path::PathBuf;
 use std::time::Duration;
 
 use decision_gate_contract::ToolName;
+use decision_gate_mcp::docs::RESOURCE_URI_PREFIX;
 use decision_gate_mcp::tools::ScenarioDefineRequest;
 use decision_gate_mcp::tools::ScenarioDefineResponse;
 use decision_gate_mcp::tools::ScenarioStartRequest;
 use helpers::artifacts::TestReporter;
 use helpers::harness::allocate_bind_addr;
 use helpers::harness::base_http_config;
+use helpers::harness::base_http_config_with_bearer;
 use helpers::harness::spawn_mcp_server;
 use helpers::readiness::wait_for_server_ready;
 use helpers::readiness::wait_for_stdio_ready;
@@ -131,6 +132,71 @@ type = "builtin"
             "mcp.stderr.log".to_string(),
         ],
     )?;
+    drop(reporter);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn docs_resources_http_list_read() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("docs_resources_http_list_read")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let config = base_http_config_with_bearer(&bind, "docs-token");
+    let server = spawn_mcp_server(config).await?;
+
+    let unauthorized = server.client(Duration::from_secs(5))?;
+    let client = server.client(Duration::from_secs(5))?.with_bearer_token("docs-token".to_string());
+    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+
+    let Err(err) = unauthorized.list_resources().await else {
+        return Err("expected unauthenticated error for resources/list".into());
+    };
+    if !err.contains("unauthenticated") {
+        return Err(format!("unexpected unauthenticated error: {err}").into());
+    }
+
+    let resources = client.list_resources().await?;
+    if resources.is_empty() {
+        return Err("resources/list returned empty list".into());
+    }
+    let evidence = resources
+        .iter()
+        .find(|entry| entry.uri == "decision-gate://docs/evidence-flow")
+        .ok_or_else(|| "missing evidence-flow resource".to_string())?;
+    if !evidence.uri.starts_with(RESOURCE_URI_PREFIX) {
+        return Err("resource uri missing decision-gate://docs/ prefix".into());
+    }
+    if evidence.name.trim().is_empty() || evidence.description.trim().is_empty() {
+        return Err("resource metadata missing name or description".into());
+    }
+    if evidence.mime_type != "text/markdown" {
+        return Err(format!("unexpected resource mime type: {}", evidence.mime_type).into());
+    }
+
+    let content = client.read_resource(&evidence.uri).await?;
+    if !content.text.contains("# Evidence Flow + Execution Model") {
+        return Err("resource body missing expected heading".into());
+    }
+
+    let Err(err) = client.read_resource("decision-gate://docs/missing").await else {
+        return Err("expected error for missing resource".into());
+    };
+    if !err.contains("unknown resource uri") {
+        return Err(format!("unexpected missing resource error: {err}").into());
+    }
+
+    let mut transcript = unauthorized.transcript();
+    transcript.extend(client.transcript());
+    reporter.artifacts().write_json("tool_transcript.json", &transcript)?;
+    reporter.finish(
+        "pass",
+        vec!["resources/list and resources/read succeed with auth".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+        ],
+    )?;
+    server.shutdown().await;
     drop(reporter);
     Ok(())
 }

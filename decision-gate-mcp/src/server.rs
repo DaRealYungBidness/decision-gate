@@ -93,6 +93,7 @@ use crate::correlation::CLIENT_CORRELATION_HEADER;
 use crate::correlation::CorrelationIdGenerator;
 use crate::correlation::CorrelationIdRejection;
 use crate::correlation::SERVER_CORRELATION_HEADER;
+use crate::docs;
 use crate::evidence::FederatedEvidenceProvider;
 use crate::namespace_authority::AssetCoreNamespaceAuthority;
 use crate::namespace_authority::NamespaceAuthority;
@@ -109,12 +110,14 @@ use crate::telemetry::McpOutcome;
 use crate::telemetry::NoopMetrics;
 use crate::tenant_authz::NoopTenantAuthorizer;
 use crate::tenant_authz::TenantAuthorizer;
+use crate::tools::DocsProvider;
 use crate::tools::ProviderTransport;
 use crate::tools::SchemaRegistryLimits;
 use crate::tools::ToolDefinition;
 use crate::tools::ToolError;
 use crate::tools::ToolRouter;
 use crate::tools::ToolRouterConfig;
+use crate::tools::ToolVisibilityResolver;
 use crate::usage::NoopUsageMeter;
 use crate::usage::UsageMeter;
 
@@ -155,6 +158,10 @@ pub struct ServerOverrides {
     pub run_state_store: Option<SharedRunStateStore>,
     /// Schema registry override.
     pub schema_registry: Option<SharedDataShapeRegistry>,
+    /// Docs provider override.
+    pub docs_provider: Option<Arc<dyn DocsProvider>>,
+    /// Tool visibility resolver override.
+    pub tool_visibility_resolver: Option<Arc<dyn ToolVisibilityResolver>>,
 }
 
 impl McpServer {
@@ -203,6 +210,10 @@ impl McpServer {
     /// # Errors
     ///
     /// Returns [`McpServerError`] when initialization fails.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "Startup wiring is kept in one place for auditing and readability."
+    )]
     pub fn from_config_with_observability_and_overrides(
         mut config: DecisionGateConfig,
         metrics: Arc<dyn McpMetrics>,
@@ -223,6 +234,8 @@ impl McpServer {
             runpack_storage,
             run_state_store,
             schema_registry,
+            docs_provider,
+            tool_visibility_resolver,
         } = overrides;
         let store = match run_state_store {
             Some(store) => store,
@@ -258,6 +271,9 @@ impl McpServer {
         let usage_meter = usage_meter.unwrap_or_else(|| Arc::new(NoopUsageMeter));
         let runpack_object_store =
             if runpack_storage.is_some() { None } else { build_runpack_object_store(&config)? };
+        let docs_catalog = docs::DocsCatalog::from_config(&config.docs)
+            .map_err(|err| McpServerError::Config(err.to_string()))?;
+        emit_docs_warnings(&docs_catalog);
         let router = ToolRouter::new(ToolRouterConfig {
             evidence,
             evidence_policy: config.evidence.clone(),
@@ -284,6 +300,11 @@ impl McpServer {
             registry_acl,
             principal_resolver,
             scenario_next_feedback: config.server.feedback.scenario_next.clone(),
+            docs_config: config.docs.clone(),
+            docs_catalog,
+            tools: config.server.tools.clone(),
+            docs_provider,
+            tool_visibility_resolver,
             allow_default_namespace: config.allow_default_namespace(),
             default_namespace_tenants,
             namespace_authority,
@@ -994,11 +1015,25 @@ struct ToolListResult {
     tools: Vec<ToolDefinition>,
 }
 
+/// Resource list response payload.
+#[derive(Debug, Serialize)]
+struct ResourceListResult {
+    /// Available documentation resources.
+    resources: Vec<docs::ResourceMetadata>,
+}
+
 /// Tool call response payload.
 #[derive(Debug, Serialize)]
 struct ToolCallResult {
     /// Tool output content.
     content: Vec<ToolContent>,
+}
+
+/// Resource read response payload.
+#[derive(Debug, Serialize)]
+struct ResourceReadResult {
+    /// Returned resource contents.
+    contents: Vec<docs::ResourceContent>,
 }
 
 /// Tool output payloads for JSON-RPC responses.
@@ -1033,6 +1068,20 @@ async fn handle_request(
     match request.method.as_str() {
         "tools/list" => handle_tools_list(router, &context, request.id).await,
         "tools/call" => handle_tools_call(router, &context, request.id, request.params).await,
+        "resources/list" => {
+            if router.resources_enabled() {
+                handle_resources_list(router, &context, request.id).await
+            } else {
+                method_not_found_response(&request)
+            }
+        }
+        "resources/read" => {
+            if router.resources_enabled() {
+                handle_resources_read(router, &context, request.id, request.params).await
+            } else {
+                method_not_found_response(&request)
+            }
+        }
         _ => method_not_found_response(&request),
     }
 }
@@ -1116,6 +1165,89 @@ async fn handle_tools_list(
     }
 }
 
+/// Handles `resources/list` requests and serializes the response.
+async fn handle_resources_list(
+    router: &ToolRouter,
+    context: &RequestContext,
+    id: Value,
+) -> (StatusCode, JsonRpcResponse, McpRequestInfo) {
+    let info = McpRequestInfo {
+        method: McpMethod::ResourcesList,
+        tool: None,
+    };
+    match router.list_resources(context).await {
+        Ok(resources) => {
+            if let Ok(value) = serde_json::to_value(ResourceListResult {
+                resources,
+            }) {
+                (
+                    StatusCode::OK,
+                    JsonRpcResponse {
+                        jsonrpc: "2.0",
+                        id,
+                        result: Some(value),
+                        error: None,
+                    },
+                    info,
+                )
+            } else {
+                let response = jsonrpc_error(id, ToolError::Serialization);
+                (response.0, response.1, info)
+            }
+        }
+        Err(err) => {
+            let response = jsonrpc_error(id, err);
+            (response.0, response.1, info)
+        }
+    }
+}
+
+/// Handles `resources/read` requests and serializes the response.
+async fn handle_resources_read(
+    router: &ToolRouter,
+    context: &RequestContext,
+    id: Value,
+    params: Option<Value>,
+) -> (StatusCode, JsonRpcResponse, McpRequestInfo) {
+    let info = McpRequestInfo {
+        method: McpMethod::ResourcesRead,
+        tool: None,
+    };
+    let params = params.unwrap_or(Value::Null);
+    let uri = match parse_resource_uri(&params) {
+        Ok(uri) => uri,
+        Err(err) => {
+            let response = jsonrpc_error(id, err);
+            return (response.0, response.1, info);
+        }
+    };
+    match router.read_resource(context, &uri).await {
+        Ok(resource) => {
+            if let Ok(value) = serde_json::to_value(ResourceReadResult {
+                contents: vec![resource],
+            }) {
+                (
+                    StatusCode::OK,
+                    JsonRpcResponse {
+                        jsonrpc: "2.0",
+                        id,
+                        result: Some(value),
+                        error: None,
+                    },
+                    info,
+                )
+            } else {
+                let response = jsonrpc_error(id, ToolError::Serialization);
+                (response.0, response.1, info)
+            }
+        }
+        Err(err) => {
+            let response = jsonrpc_error(id, err);
+            (response.0, response.1, info)
+        }
+    }
+}
+
 /// Handles `tools/call` requests and serializes the response.
 async fn handle_tools_call(
     router: &ToolRouter,
@@ -1161,6 +1293,27 @@ async fn handle_tools_call(
         }
         Err(_) => invalid_tool_params_response(id),
     }
+}
+
+/// Parses a resource URI from JSON-RPC params.
+fn parse_resource_uri(params: &Value) -> Result<String, ToolError> {
+    let uri = params
+        .get("uri")
+        .and_then(|value| value.as_str())
+        .or_else(|| {
+            params
+                .get("arguments")
+                .and_then(|args| args.get("uri"))
+                .and_then(|value| value.as_str())
+        })
+        .ok_or_else(|| ToolError::InvalidParams("resources.read requires uri".to_string()))?;
+    if !uri.starts_with(docs::RESOURCE_URI_PREFIX) {
+        return Err(ToolError::InvalidParams(format!(
+            "resource uri must start with {}",
+            docs::RESOURCE_URI_PREFIX
+        )));
+    }
+    Ok(uri.to_string())
 }
 
 /// Builds the response for invalid tool call parameters.
@@ -1554,6 +1707,13 @@ fn emit_dev_permissive_warning(config: &DecisionGateConfig) {
     );
 }
 
+/// Emits warnings captured during docs catalog construction.
+fn emit_docs_warnings(catalog: &docs::DocsCatalog) {
+    for warning in catalog.warnings() {
+        let _ = writeln!(std::io::stderr(), "decision-gate-mcp: WARNING: {warning}");
+    }
+}
+
 /// Returns a stable label for server transport.
 const fn transport_label(transport: ServerTransport) -> &'static str {
     match transport {
@@ -1684,28 +1844,38 @@ const fn error_kind_for_code(code: i64) -> Option<&'static str> {
 
 /// Builds a JSON-RPC error response for a tool failure.
 fn jsonrpc_error(id: Value, error: ToolError) -> (StatusCode, JsonRpcResponse) {
-    let (status, code, message) = match error {
-        ToolError::UnknownTool => (StatusCode::BAD_REQUEST, -32601, "unknown tool".to_string()),
-        ToolError::Unauthenticated(_) => {
-            (StatusCode::UNAUTHORIZED, -32001, "unauthenticated".to_string())
+    let (status, code, message, retry_after_ms) = match error {
+        ToolError::UnknownTool => {
+            (StatusCode::BAD_REQUEST, -32601, "unknown tool".to_string(), None)
         }
-        ToolError::Unauthorized(_) => (StatusCode::FORBIDDEN, -32003, "unauthorized".to_string()),
-        ToolError::InvalidParams(message) => (StatusCode::BAD_REQUEST, -32602, message),
-        ToolError::ResponseTooLarge(message) => (StatusCode::OK, -32070, message),
+        ToolError::Unauthenticated(_) => {
+            (StatusCode::UNAUTHORIZED, -32001, "unauthenticated".to_string(), None)
+        }
+        ToolError::Unauthorized(_) => {
+            (StatusCode::FORBIDDEN, -32003, "unauthorized".to_string(), None)
+        }
+        ToolError::InvalidParams(message) => (StatusCode::BAD_REQUEST, -32602, message, None),
+        ToolError::ResponseTooLarge(message) => (StatusCode::OK, -32070, message, None),
+        ToolError::RateLimited {
+            message,
+            retry_after_ms,
+        } => (StatusCode::OK, -32071, message, retry_after_ms),
         ToolError::CapabilityViolation {
             code,
             message,
-        } => (StatusCode::BAD_REQUEST, -32602, format!("{code}: {message}")),
-        ToolError::NotFound(message) => (StatusCode::OK, -32004, message),
-        ToolError::Conflict(message) => (StatusCode::OK, -32009, message),
-        ToolError::Evidence(message) => (StatusCode::OK, -32020, message),
-        ToolError::ControlPlane(err) => (StatusCode::OK, -32030, err.to_string()),
-        ToolError::Runpack(message) => (StatusCode::OK, -32040, message),
-        ToolError::Internal(message) => (StatusCode::OK, -32050, message),
-        ToolError::Serialization => (StatusCode::OK, -32060, "serialization failed".to_string()),
+        } => (StatusCode::BAD_REQUEST, -32602, format!("{code}: {message}"), None),
+        ToolError::NotFound(message) => (StatusCode::OK, -32004, message, None),
+        ToolError::Conflict(message) => (StatusCode::OK, -32009, message, None),
+        ToolError::Evidence(message) => (StatusCode::OK, -32020, message, None),
+        ToolError::ControlPlane(err) => (StatusCode::OK, -32030, err.to_string(), None),
+        ToolError::Runpack(message) => (StatusCode::OK, -32040, message, None),
+        ToolError::Internal(message) => (StatusCode::OK, -32050, message, None),
+        ToolError::Serialization => {
+            (StatusCode::OK, -32060, "serialization failed".to_string(), None)
+        }
     };
     let request_id = Some(id.to_string());
-    (status, jsonrpc_error_response(id, code, message, request_id, None))
+    (status, jsonrpc_error_response(id, code, message, request_id, retry_after_ms))
 }
 
 /// Builds a JSON-RPC error response with structured metadata.

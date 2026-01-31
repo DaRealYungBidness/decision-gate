@@ -8,7 +8,6 @@
 
 //! Golden runpack determinism tests for Decision Gate system-tests.
 
-
 use std::collections::BTreeSet;
 use std::env;
 use std::fs;

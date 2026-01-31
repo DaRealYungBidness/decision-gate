@@ -30,3 +30,5 @@ mod registry_acl;
 mod schema_registry_fuzz;
 #[path = "suites/security.rs"]
 mod security;
+#[path = "suites/tool_visibility.rs"]
+mod tool_visibility;

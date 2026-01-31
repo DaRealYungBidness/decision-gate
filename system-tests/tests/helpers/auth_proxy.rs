@@ -25,7 +25,6 @@ use serde_json::Value;
 use tokio::runtime::Builder;
 use tokio::sync::oneshot;
 
-
 pub const ROLE_HEADER: &str = "x-asc-roles";
 pub const POLICY_CLASS_HEADER: &str = "x-asc-policy-class";
 

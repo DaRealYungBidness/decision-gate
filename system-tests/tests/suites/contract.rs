@@ -8,7 +8,6 @@
 
 //! Contract schema conformance tests for Decision Gate.
 
-
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::io;

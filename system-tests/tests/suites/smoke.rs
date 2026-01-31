@@ -8,7 +8,6 @@
 
 //! Smoke tests for the Decision Gate MCP HTTP surface.
 
-
 use decision_gate_core::DataShapeId;
 use decision_gate_core::DataShapeRecord;
 use decision_gate_core::DataShapeRef;

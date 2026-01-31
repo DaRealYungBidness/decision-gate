@@ -35,7 +35,6 @@ fn entry(term: &str, description: &str) -> TooltipEntry {
     }
 }
 
-
 /// Canonical tooltip term/description pairs.
 const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     // =====================================================================
@@ -149,6 +148,12 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
         "Evaluates a scenario against asserted data without mutating run state. Validates \
          asserted data against a registered shape and returns the decision result for simulation. \
          Use this as the fast iteration loop for agents before running audited scenario_next.",
+    ),
+    (
+        "decision_gate_docs_search",
+        "Searches Decision Gate documentation for guidance and best practices. Returns ranked \
+         sections with headings, role metadata, and suggested follow-ups. Use this to answer \
+         product or policy questions without leaving the MCP session.",
     ),
     // =====================================================================
     // CORE TYPES - Scenario & Stage Specifications

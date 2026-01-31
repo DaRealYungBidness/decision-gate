@@ -65,6 +65,8 @@ pub(crate) const MAX_AUTH_TOOL_RULES: usize = 128;
 pub(crate) const MAX_AUTH_SUBJECT_LENGTH: usize = 512;
 /// Maximum number of principal role bindings.
 pub(crate) const MAX_PRINCIPAL_ROLES: usize = 128;
+/// Maximum number of tool visibility entries.
+pub(crate) const MAX_TOOL_VISIBILITY_RULES: usize = 128;
 /// Maximum number of registry ACL rules.
 pub(crate) const MAX_REGISTRY_ACL_RULES: usize = 256;
 /// Default maximum inflight requests for MCP servers.
@@ -109,6 +111,24 @@ pub(crate) const MIN_NAMESPACE_AUTH_REQUEST_TIMEOUT_MS: u64 = 500;
 pub(crate) const MAX_NAMESPACE_AUTH_REQUEST_TIMEOUT_MS: u64 = 30_000;
 /// Default maximum provider discovery response size in bytes.
 pub(crate) const DEFAULT_PROVIDER_DISCOVERY_MAX_BYTES: usize = 1024 * 1024;
+/// Default maximum size for a single docs entry in bytes.
+pub(crate) const DEFAULT_DOC_MAX_BYTES: usize = 256 * 1024;
+/// Default maximum total docs bytes for the catalog.
+pub(crate) const DEFAULT_DOC_MAX_TOTAL_BYTES: usize = 1024 * 1024;
+/// Default maximum number of docs in the catalog.
+pub(crate) const DEFAULT_DOC_MAX_DOCS: usize = 32;
+/// Default maximum sections returned by docs search.
+pub(crate) const DEFAULT_DOC_MAX_SECTIONS: u32 = 10;
+/// Maximum allowed size for a single docs entry in bytes.
+pub(crate) const MAX_DOC_MAX_BYTES: usize = 1024 * 1024;
+/// Maximum allowed total docs bytes for the catalog.
+pub(crate) const MAX_DOC_MAX_TOTAL_BYTES: usize = 8 * 1024 * 1024;
+/// Maximum allowed number of docs in the catalog.
+pub(crate) const MAX_DOC_MAX_DOCS: usize = 256;
+/// Maximum allowed docs search sections.
+pub(crate) const MAX_DOC_MAX_SECTIONS: u32 = 10;
+/// Maximum number of extra docs paths.
+pub(crate) const MAX_DOC_EXTRA_PATHS: usize = 64;
 
 // ============================================================================
 // SECTION: Configuration Types
@@ -153,6 +173,9 @@ pub struct DecisionGateConfig {
     /// Evidence provider configuration entries.
     #[serde(default)]
     pub providers: Vec<ProviderConfig>,
+    /// Documentation search and resources configuration.
+    #[serde(default)]
+    pub docs: DocsConfig,
     /// Optional runpack storage configuration.
     #[serde(default)]
     pub runpack_storage: Option<RunpackStorageConfig>,
@@ -198,6 +221,7 @@ impl DecisionGateConfig {
         self.schema_registry.validate()?;
         self.anchors.validate()?;
         self.provider_discovery.validate()?;
+        self.docs.validate()?;
         if let Some(storage) = &self.runpack_storage {
             storage.validate()?;
         }
@@ -343,6 +367,9 @@ pub struct ServerConfig {
     /// Feedback disclosure configuration for tool responses.
     #[serde(default)]
     pub feedback: ServerFeedbackConfig,
+    /// Tool visibility configuration for MCP tool listings.
+    #[serde(default)]
+    pub tools: ServerToolsConfig,
 }
 
 impl Default for ServerConfig {
@@ -357,6 +384,7 @@ impl Default for ServerConfig {
             tls: None,
             audit: ServerAuditConfig::default(),
             feedback: ServerFeedbackConfig::default(),
+            tools: ServerToolsConfig::default(),
         }
     }
 }
@@ -378,6 +406,7 @@ impl ServerConfig {
         }
         self.audit.validate()?;
         self.feedback.validate()?;
+        self.tools.validate()?;
         let auth_mode = self.auth.as_ref().map_or(ServerAuthMode::LocalOnly, |auth| auth.mode);
         match self.transport {
             ServerTransport::Http | ServerTransport::Sse => {
@@ -772,6 +801,56 @@ pub struct ServerAuthConfig {
     pub principals: Vec<PrincipalConfig>,
 }
 
+/// Tool visibility configuration for MCP tool listings.
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct ServerToolsConfig {
+    /// Visibility mode for tools/list.
+    #[serde(default)]
+    pub mode: ToolVisibilityMode,
+    /// Optional allowlist of visible tools.
+    #[serde(default)]
+    pub allowlist: Vec<String>,
+    /// Optional denylist of visible tools.
+    #[serde(default)]
+    pub denylist: Vec<String>,
+}
+
+impl ServerToolsConfig {
+    /// Validates tool visibility configuration.
+    fn validate(&self) -> Result<(), ConfigError> {
+        if self.allowlist.len() > MAX_TOOL_VISIBILITY_RULES {
+            return Err(ConfigError::Invalid("too many tool allowlist entries".to_string()));
+        }
+        if self.denylist.len() > MAX_TOOL_VISIBILITY_RULES {
+            return Err(ConfigError::Invalid("too many tool denylist entries".to_string()));
+        }
+        for tool_name in self.allowlist.iter().chain(self.denylist.iter()) {
+            if tool_name.trim().is_empty() {
+                return Err(ConfigError::Invalid(
+                    "server.tools allowlist/denylist entries must be non-empty".to_string(),
+                ));
+            }
+            if ToolName::parse(tool_name).is_none() {
+                return Err(ConfigError::Invalid(format!(
+                    "unknown tool in server.tools list: {tool_name}"
+                )));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Tool visibility modes for MCP tool listing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolVisibilityMode {
+    /// Filter tools/list output by allowlist/denylist.
+    #[default]
+    Filter,
+    /// Do not filter tools/list output (legacy compatibility).
+    Passthrough,
+}
+
 impl ServerAuthConfig {
     /// Validates auth configuration.
     fn validate(&self) -> Result<(), ConfigError> {
@@ -1135,6 +1214,83 @@ pub struct EvidencePolicyConfig {
     /// Require provider opt-in for raw value disclosure.
     #[serde(default = "default_require_provider_opt_in")]
     pub require_provider_opt_in: bool,
+}
+
+/// Documentation search and resources configuration.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "Explicit toggles improve configuration clarity for docs surfaces."
+)]
+#[derive(Debug, Clone, Deserialize)]
+pub struct DocsConfig {
+    /// Enable docs surfaces globally.
+    #[serde(default = "default_docs_enabled")]
+    pub enabled: bool,
+    /// Enable docs search tool.
+    #[serde(default = "default_docs_enable_search")]
+    pub enable_search: bool,
+    /// Enable MCP resources list/read.
+    #[serde(default = "default_docs_enable_resources")]
+    pub enable_resources: bool,
+    /// Include the embedded default docs set.
+    #[serde(default = "default_docs_include_default")]
+    pub include_default_docs: bool,
+    /// Extra doc paths to ingest (files or directories).
+    #[serde(default)]
+    pub extra_paths: Vec<String>,
+    /// Maximum size for a single doc entry in bytes.
+    #[serde(default = "default_doc_max_bytes")]
+    pub max_doc_bytes: usize,
+    /// Maximum total docs bytes for the catalog.
+    #[serde(default = "default_doc_max_total_bytes")]
+    pub max_total_bytes: usize,
+    /// Maximum number of docs in the catalog.
+    #[serde(default = "default_doc_max_docs")]
+    pub max_docs: usize,
+    /// Maximum sections returned by docs search.
+    #[serde(default = "default_doc_max_sections")]
+    pub max_sections: u32,
+}
+
+impl Default for DocsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_docs_enabled(),
+            enable_search: default_docs_enable_search(),
+            enable_resources: default_docs_enable_resources(),
+            include_default_docs: default_docs_include_default(),
+            extra_paths: Vec::new(),
+            max_doc_bytes: default_doc_max_bytes(),
+            max_total_bytes: default_doc_max_total_bytes(),
+            max_docs: default_doc_max_docs(),
+            max_sections: default_doc_max_sections(),
+        }
+    }
+}
+
+impl DocsConfig {
+    /// Validates docs configuration.
+    fn validate(&self) -> Result<(), ConfigError> {
+        if self.max_doc_bytes == 0 || self.max_doc_bytes > MAX_DOC_MAX_BYTES {
+            return Err(ConfigError::Invalid("docs.max_doc_bytes out of range".to_string()));
+        }
+        if self.max_total_bytes == 0 || self.max_total_bytes > MAX_DOC_MAX_TOTAL_BYTES {
+            return Err(ConfigError::Invalid("docs.max_total_bytes out of range".to_string()));
+        }
+        if self.max_docs == 0 || self.max_docs > MAX_DOC_MAX_DOCS {
+            return Err(ConfigError::Invalid("docs.max_docs out of range".to_string()));
+        }
+        if self.max_sections == 0 || self.max_sections > MAX_DOC_MAX_SECTIONS {
+            return Err(ConfigError::Invalid("docs.max_sections out of range".to_string()));
+        }
+        if self.extra_paths.len() > MAX_DOC_EXTRA_PATHS {
+            return Err(ConfigError::Invalid("docs.extra_paths too many entries".to_string()));
+        }
+        for path in &self.extra_paths {
+            validate_path_string("docs.extra_paths", path)?;
+        }
+        Ok(())
+    }
 }
 
 impl Default for EvidencePolicyConfig {
@@ -2012,6 +2168,46 @@ pub(crate) const fn default_provider_discovery_max_bytes() -> usize {
     DEFAULT_PROVIDER_DISCOVERY_MAX_BYTES
 }
 
+/// Default to enabling docs surfaces.
+pub(crate) const fn default_docs_enabled() -> bool {
+    true
+}
+
+/// Default to enabling docs search.
+pub(crate) const fn default_docs_enable_search() -> bool {
+    true
+}
+
+/// Default to enabling resources/list and resources/read.
+pub(crate) const fn default_docs_enable_resources() -> bool {
+    true
+}
+
+/// Default to including the embedded docs corpus.
+pub(crate) const fn default_docs_include_default() -> bool {
+    true
+}
+
+/// Default maximum size for a single doc entry.
+pub(crate) const fn default_doc_max_bytes() -> usize {
+    DEFAULT_DOC_MAX_BYTES
+}
+
+/// Default maximum total docs size.
+pub(crate) const fn default_doc_max_total_bytes() -> usize {
+    DEFAULT_DOC_MAX_TOTAL_BYTES
+}
+
+/// Default maximum docs count.
+pub(crate) const fn default_doc_max_docs() -> usize {
+    DEFAULT_DOC_MAX_DOCS
+}
+
+/// Default maximum sections returned by docs search.
+pub(crate) const fn default_doc_max_sections() -> u32 {
+    DEFAULT_DOC_MAX_SECTIONS
+}
+
 /// Default busy timeout for the `SQLite` store (ms).
 pub(crate) const fn default_store_busy_timeout_ms() -> u64 {
     5_000
@@ -2104,4 +2300,992 @@ fn validate_store_path(path: &Path) -> Result<(), ConfigError> {
         }
     }
     Ok(())
+}
+
+// ============================================================================
+// SECTION: Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    #![allow(
+        clippy::panic,
+        clippy::unwrap_used,
+        clippy::expect_used,
+        reason = "Test fixtures use explicit asserts and unwraps for clarity."
+    )]
+
+    use super::*;
+
+    // ============================================================================
+    // SECTION: DocsConfig::validate() Tests (24 tests)
+    // ============================================================================
+
+    #[test]
+    fn docs_config_validate_accepts_default() {
+        let config = DocsConfig::default();
+        assert!(config.validate().is_ok(), "default DocsConfig should pass validation");
+    }
+
+    #[test]
+    fn docs_config_validate_accepts_disabled() {
+        let config = DocsConfig {
+            enabled: false,
+            ..DocsConfig::default()
+        };
+        assert!(config.validate().is_ok(), "disabled DocsConfig should pass validation");
+    }
+
+    #[test]
+    fn docs_config_validate_accepts_custom_limits() {
+        let config = DocsConfig {
+            max_doc_bytes: 128 * 1024,
+            max_total_bytes: 512 * 1024,
+            max_docs: 16,
+            max_sections: 5,
+            ..DocsConfig::default()
+        };
+        assert!(config.validate().is_ok(), "custom limits within bounds should pass");
+    }
+
+    // max_doc_bytes boundary tests
+    #[test]
+    fn docs_config_validate_rejects_max_doc_bytes_zero() {
+        let config = DocsConfig {
+            max_doc_bytes: 0,
+            ..DocsConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err(), "max_doc_bytes=0 should fail validation");
+        assert!(result.unwrap_err().to_string().contains("max_doc_bytes"));
+    }
+
+    #[test]
+    fn docs_config_validate_rejects_max_doc_bytes_too_large() {
+        let config = DocsConfig {
+            max_doc_bytes: MAX_DOC_MAX_BYTES + 1,
+            ..DocsConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err(), "max_doc_bytes exceeding limit should fail");
+        assert!(result.unwrap_err().to_string().contains("max_doc_bytes"));
+    }
+
+    #[test]
+    fn docs_config_validate_accepts_max_doc_bytes_at_max() {
+        let config = DocsConfig {
+            max_doc_bytes: MAX_DOC_MAX_BYTES,
+            ..DocsConfig::default()
+        };
+        assert!(config.validate().is_ok(), "max_doc_bytes at maximum should pass");
+    }
+
+    #[test]
+    fn docs_config_validate_accepts_max_doc_bytes_at_min() {
+        let config = DocsConfig {
+            max_doc_bytes: 1,
+            ..DocsConfig::default()
+        };
+        assert!(config.validate().is_ok(), "max_doc_bytes=1 should pass");
+    }
+
+    // max_total_bytes boundary tests
+    #[test]
+    fn docs_config_validate_rejects_max_total_bytes_zero() {
+        let config = DocsConfig {
+            max_total_bytes: 0,
+            ..DocsConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err(), "max_total_bytes=0 should fail validation");
+        assert!(result.unwrap_err().to_string().contains("max_total_bytes"));
+    }
+
+    #[test]
+    fn docs_config_validate_rejects_max_total_bytes_too_large() {
+        let config = DocsConfig {
+            max_total_bytes: MAX_DOC_MAX_TOTAL_BYTES + 1,
+            ..DocsConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err(), "max_total_bytes exceeding limit should fail");
+        assert!(result.unwrap_err().to_string().contains("max_total_bytes"));
+    }
+
+    #[test]
+    fn docs_config_validate_accepts_max_total_bytes_at_max() {
+        let config = DocsConfig {
+            max_total_bytes: MAX_DOC_MAX_TOTAL_BYTES,
+            ..DocsConfig::default()
+        };
+        assert!(config.validate().is_ok(), "max_total_bytes at maximum should pass");
+    }
+
+    #[test]
+    fn docs_config_validate_accepts_max_total_bytes_at_min() {
+        let config = DocsConfig {
+            max_total_bytes: 1,
+            ..DocsConfig::default()
+        };
+        assert!(config.validate().is_ok(), "max_total_bytes=1 should pass");
+    }
+
+    // max_docs boundary tests
+    #[test]
+    fn docs_config_validate_rejects_max_docs_zero() {
+        let config = DocsConfig {
+            max_docs: 0,
+            ..DocsConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err(), "max_docs=0 should fail validation");
+        assert!(result.unwrap_err().to_string().contains("max_docs"));
+    }
+
+    #[test]
+    fn docs_config_validate_rejects_max_docs_too_large() {
+        let config = DocsConfig {
+            max_docs: MAX_DOC_MAX_DOCS + 1,
+            ..DocsConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err(), "max_docs exceeding limit should fail");
+        assert!(result.unwrap_err().to_string().contains("max_docs"));
+    }
+
+    #[test]
+    fn docs_config_validate_accepts_max_docs_at_max() {
+        let config = DocsConfig {
+            max_docs: MAX_DOC_MAX_DOCS,
+            ..DocsConfig::default()
+        };
+        assert!(config.validate().is_ok(), "max_docs at maximum should pass");
+    }
+
+    #[test]
+    fn docs_config_validate_accepts_max_docs_at_min() {
+        let config = DocsConfig {
+            max_docs: 1,
+            ..DocsConfig::default()
+        };
+        assert!(config.validate().is_ok(), "max_docs=1 should pass");
+    }
+
+    // max_sections boundary tests
+    #[test]
+    fn docs_config_validate_rejects_max_sections_zero() {
+        let config = DocsConfig {
+            max_sections: 0,
+            ..DocsConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err(), "max_sections=0 should fail validation");
+        assert!(result.unwrap_err().to_string().contains("max_sections"));
+    }
+
+    #[test]
+    fn docs_config_validate_rejects_max_sections_too_large() {
+        let config = DocsConfig {
+            max_sections: MAX_DOC_MAX_SECTIONS + 1,
+            ..DocsConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err(), "max_sections exceeding limit should fail");
+        assert!(result.unwrap_err().to_string().contains("max_sections"));
+    }
+
+    #[test]
+    fn docs_config_validate_accepts_max_sections_at_max() {
+        let config = DocsConfig {
+            max_sections: MAX_DOC_MAX_SECTIONS,
+            ..DocsConfig::default()
+        };
+        assert!(config.validate().is_ok(), "max_sections at maximum should pass");
+    }
+
+    #[test]
+    fn docs_config_validate_accepts_max_sections_at_min() {
+        let config = DocsConfig {
+            max_sections: 1,
+            ..DocsConfig::default()
+        };
+        assert!(config.validate().is_ok(), "max_sections=1 should pass");
+    }
+
+    // extra_paths validation tests
+    #[test]
+    fn docs_config_validate_rejects_too_many_extra_paths() {
+        let config = DocsConfig {
+            extra_paths: vec!["path".to_string(); MAX_DOC_EXTRA_PATHS + 1],
+            ..DocsConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err(), "extra_paths exceeding limit should fail");
+        assert!(result.unwrap_err().to_string().contains("extra_paths"));
+    }
+
+    #[test]
+    fn docs_config_validate_accepts_max_extra_paths() {
+        let config = DocsConfig {
+            extra_paths: vec!["./docs".to_string(); MAX_DOC_EXTRA_PATHS],
+            ..DocsConfig::default()
+        };
+        assert!(config.validate().is_ok(), "extra_paths at maximum should pass");
+    }
+
+    #[test]
+    fn docs_config_validate_accepts_empty_extra_paths() {
+        let config = DocsConfig {
+            extra_paths: Vec::new(),
+            ..DocsConfig::default()
+        };
+        assert!(config.validate().is_ok(), "empty extra_paths should pass");
+    }
+
+    #[test]
+    fn docs_config_validate_rejects_empty_path_in_extra_paths() {
+        let config = DocsConfig {
+            extra_paths: vec![String::new()],
+            ..DocsConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err(), "empty path in extra_paths should fail");
+    }
+
+    #[test]
+    fn docs_config_validate_rejects_whitespace_only_path() {
+        let config = DocsConfig {
+            extra_paths: vec!["   ".to_string()],
+            ..DocsConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err(), "whitespace-only path should fail");
+    }
+
+    // ============================================================================
+    // SECTION: ServerToolsConfig::validate() Tests (16 tests)
+    // ============================================================================
+
+    #[test]
+    fn server_tools_validate_accepts_default() {
+        let config = ServerToolsConfig::default();
+        assert!(config.validate().is_ok(), "default ServerToolsConfig should pass");
+    }
+
+    #[test]
+    fn server_tools_validate_accepts_filter_mode() {
+        let config = ServerToolsConfig {
+            mode: ToolVisibilityMode::Filter,
+            allowlist: vec!["scenario_define".to_string()],
+            ..ServerToolsConfig::default()
+        };
+        assert!(config.validate().is_ok(), "filter mode with allowlist should pass");
+    }
+
+    #[test]
+    fn server_tools_validate_accepts_passthrough_mode() {
+        let config = ServerToolsConfig {
+            mode: ToolVisibilityMode::Passthrough,
+            ..ServerToolsConfig::default()
+        };
+        assert!(config.validate().is_ok(), "passthrough mode should pass");
+    }
+
+    // Allowlist validation tests
+    #[test]
+    fn server_tools_validate_rejects_too_many_allowlist() {
+        let config = ServerToolsConfig {
+            allowlist: vec!["scenario_define".to_string(); MAX_TOOL_VISIBILITY_RULES + 1],
+            ..ServerToolsConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err(), "too many allowlist entries should fail");
+        assert!(result.unwrap_err().to_string().contains("allowlist"));
+    }
+
+    #[test]
+    fn server_tools_validate_accepts_max_allowlist() {
+        let config = ServerToolsConfig {
+            allowlist: vec!["scenario_define".to_string(); MAX_TOOL_VISIBILITY_RULES],
+            ..ServerToolsConfig::default()
+        };
+        assert!(config.validate().is_ok(), "allowlist at max should pass");
+    }
+
+    #[test]
+    fn server_tools_validate_rejects_empty_tool_name_allowlist() {
+        let config = ServerToolsConfig {
+            allowlist: vec![String::new()],
+            ..ServerToolsConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err(), "empty tool name should fail");
+        assert!(result.unwrap_err().to_string().contains("non-empty"));
+    }
+
+    #[test]
+    fn server_tools_validate_rejects_invalid_tool_name_allowlist() {
+        let config = ServerToolsConfig {
+            allowlist: vec!["invalid_tool_name".to_string()],
+            ..ServerToolsConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err(), "invalid tool name should fail");
+        assert!(result.unwrap_err().to_string().contains("unknown tool"));
+    }
+
+    #[test]
+    fn server_tools_validate_accepts_valid_tool_names_allowlist() {
+        let config = ServerToolsConfig {
+            allowlist: vec!["scenario_define".to_string(), "scenario_start".to_string()],
+            ..ServerToolsConfig::default()
+        };
+        assert!(config.validate().is_ok(), "valid tool names should pass");
+    }
+
+    // Denylist validation tests
+    #[test]
+    fn server_tools_validate_rejects_too_many_denylist() {
+        let config = ServerToolsConfig {
+            denylist: vec!["scenario_define".to_string(); MAX_TOOL_VISIBILITY_RULES + 1],
+            ..ServerToolsConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err(), "too many denylist entries should fail");
+        assert!(result.unwrap_err().to_string().contains("denylist"));
+    }
+
+    #[test]
+    fn server_tools_validate_accepts_max_denylist() {
+        let config = ServerToolsConfig {
+            denylist: vec!["scenario_define".to_string(); MAX_TOOL_VISIBILITY_RULES],
+            ..ServerToolsConfig::default()
+        };
+        assert!(config.validate().is_ok(), "denylist at max should pass");
+    }
+
+    #[test]
+    fn server_tools_validate_rejects_empty_tool_name_denylist() {
+        let config = ServerToolsConfig {
+            denylist: vec![String::new()],
+            ..ServerToolsConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err(), "empty tool name in denylist should fail");
+    }
+
+    #[test]
+    fn server_tools_validate_rejects_invalid_tool_name_denylist() {
+        let config = ServerToolsConfig {
+            denylist: vec!["not_a_real_tool".to_string()],
+            ..ServerToolsConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err(), "invalid tool name in denylist should fail");
+        assert!(result.unwrap_err().to_string().contains("unknown tool"));
+    }
+
+    #[test]
+    fn server_tools_validate_accepts_valid_tool_names_denylist() {
+        let config = ServerToolsConfig {
+            denylist: vec!["scenario_define".to_string()],
+            ..ServerToolsConfig::default()
+        };
+        assert!(config.validate().is_ok(), "valid tool name in denylist should pass");
+    }
+
+    // Combined validation tests
+    #[test]
+    fn server_tools_validate_accepts_both_lists_populated() {
+        let config = ServerToolsConfig {
+            allowlist: vec!["scenario_define".to_string()],
+            denylist: vec!["scenario_start".to_string()],
+            ..ServerToolsConfig::default()
+        };
+        assert!(config.validate().is_ok(), "both lists populated with valid tools should pass");
+    }
+
+    #[test]
+    fn server_tools_validate_accepts_tool_in_both_lists() {
+        let config = ServerToolsConfig {
+            allowlist: vec!["scenario_define".to_string()],
+            denylist: vec!["scenario_define".to_string()],
+            ..ServerToolsConfig::default()
+        };
+        // Validation allows this - denylist takes precedence at runtime
+        assert!(config.validate().is_ok(), "tool in both lists should pass validation");
+    }
+
+    #[test]
+    fn server_tools_validate_whitespace_only_tool_name() {
+        let config = ServerToolsConfig {
+            allowlist: vec!["   ".to_string()],
+            ..ServerToolsConfig::default()
+        };
+        let result = config.validate();
+        assert!(result.is_err(), "whitespace-only tool name should fail");
+    }
+
+    // ============================================================================
+    // SECTION: validate_timeout_range() Tests (18 tests)
+    // ============================================================================
+
+    #[test]
+    fn validate_timeout_range_accepts_minimum() {
+        let result = validate_timeout_range(
+            "test_timeout",
+            MIN_PROVIDER_CONNECT_TIMEOUT_MS,
+            MIN_PROVIDER_CONNECT_TIMEOUT_MS,
+            MAX_PROVIDER_CONNECT_TIMEOUT_MS,
+        );
+        assert!(result.is_ok(), "minimum value should pass");
+    }
+
+    #[test]
+    fn validate_timeout_range_accepts_maximum() {
+        let result = validate_timeout_range(
+            "test_timeout",
+            MAX_PROVIDER_CONNECT_TIMEOUT_MS,
+            MIN_PROVIDER_CONNECT_TIMEOUT_MS,
+            MAX_PROVIDER_CONNECT_TIMEOUT_MS,
+        );
+        assert!(result.is_ok(), "maximum value should pass");
+    }
+
+    #[test]
+    fn validate_timeout_range_accepts_midpoint() {
+        let mid = u64::midpoint(MIN_PROVIDER_CONNECT_TIMEOUT_MS, MAX_PROVIDER_CONNECT_TIMEOUT_MS);
+        let result = validate_timeout_range(
+            "test_timeout",
+            mid,
+            MIN_PROVIDER_CONNECT_TIMEOUT_MS,
+            MAX_PROVIDER_CONNECT_TIMEOUT_MS,
+        );
+        assert!(result.is_ok(), "midpoint value should pass");
+    }
+
+    #[test]
+    fn validate_timeout_range_rejects_below_minimum() {
+        let result = validate_timeout_range(
+            "test_timeout",
+            MIN_PROVIDER_CONNECT_TIMEOUT_MS - 1,
+            MIN_PROVIDER_CONNECT_TIMEOUT_MS,
+            MAX_PROVIDER_CONNECT_TIMEOUT_MS,
+        );
+        assert!(result.is_err(), "value below minimum should fail");
+    }
+
+    #[test]
+    fn validate_timeout_range_rejects_above_maximum() {
+        let result = validate_timeout_range(
+            "test_timeout",
+            MAX_PROVIDER_CONNECT_TIMEOUT_MS + 1,
+            MIN_PROVIDER_CONNECT_TIMEOUT_MS,
+            MAX_PROVIDER_CONNECT_TIMEOUT_MS,
+        );
+        assert!(result.is_err(), "value above maximum should fail");
+    }
+
+    #[test]
+    fn validate_timeout_range_rejects_zero_when_min_nonzero() {
+        let result = validate_timeout_range(
+            "test_timeout",
+            0,
+            MIN_PROVIDER_CONNECT_TIMEOUT_MS,
+            MAX_PROVIDER_CONNECT_TIMEOUT_MS,
+        );
+        assert!(result.is_err(), "zero should fail when minimum is non-zero");
+    }
+
+    #[test]
+    fn validate_timeout_range_min_equals_max_valid() {
+        let result = validate_timeout_range("test_timeout", 1000, 1000, 1000);
+        assert!(result.is_ok(), "value should pass when min=max=value");
+    }
+
+    #[test]
+    fn validate_timeout_range_error_includes_field_name() {
+        let result = validate_timeout_range(
+            "my_custom_field",
+            0,
+            MIN_PROVIDER_CONNECT_TIMEOUT_MS,
+            MAX_PROVIDER_CONNECT_TIMEOUT_MS,
+        );
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("my_custom_field"), "error should include field name");
+    }
+
+    #[test]
+    fn validate_timeout_range_error_includes_min_max() {
+        let result = validate_timeout_range(
+            "test_timeout",
+            0,
+            MIN_PROVIDER_CONNECT_TIMEOUT_MS,
+            MAX_PROVIDER_CONNECT_TIMEOUT_MS,
+        );
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains(&MIN_PROVIDER_CONNECT_TIMEOUT_MS.to_string()));
+        assert!(err_msg.contains(&MAX_PROVIDER_CONNECT_TIMEOUT_MS.to_string()));
+    }
+
+    // Test all specific timeout fields
+    #[test]
+    fn validate_provider_connect_timeout_accepts_valid_range() {
+        for timeout_ms in [MIN_PROVIDER_CONNECT_TIMEOUT_MS, 1000, MAX_PROVIDER_CONNECT_TIMEOUT_MS] {
+            let result = validate_timeout_range(
+                "provider.connect_timeout_ms",
+                timeout_ms,
+                MIN_PROVIDER_CONNECT_TIMEOUT_MS,
+                MAX_PROVIDER_CONNECT_TIMEOUT_MS,
+            );
+            assert!(result.is_ok(), "provider connect timeout {timeout_ms} should be valid");
+        }
+    }
+
+    #[test]
+    fn validate_provider_request_timeout_accepts_valid_range() {
+        for timeout_ms in [MIN_PROVIDER_REQUEST_TIMEOUT_MS, 5000, MAX_PROVIDER_REQUEST_TIMEOUT_MS] {
+            let result = validate_timeout_range(
+                "provider.request_timeout_ms",
+                timeout_ms,
+                MIN_PROVIDER_REQUEST_TIMEOUT_MS,
+                MAX_PROVIDER_REQUEST_TIMEOUT_MS,
+            );
+            assert!(result.is_ok(), "provider request timeout {timeout_ms} should be valid");
+        }
+    }
+
+    #[test]
+    fn validate_namespace_auth_connect_timeout_accepts_valid_range() {
+        for timeout_ms in
+            [MIN_NAMESPACE_AUTH_CONNECT_TIMEOUT_MS, 1000, MAX_NAMESPACE_AUTH_CONNECT_TIMEOUT_MS]
+        {
+            let result = validate_timeout_range(
+                "namespace_auth.connect_timeout_ms",
+                timeout_ms,
+                MIN_NAMESPACE_AUTH_CONNECT_TIMEOUT_MS,
+                MAX_NAMESPACE_AUTH_CONNECT_TIMEOUT_MS,
+            );
+            assert!(result.is_ok(), "namespace auth connect timeout {timeout_ms} should be valid");
+        }
+    }
+
+    #[test]
+    fn validate_namespace_auth_request_timeout_accepts_valid_range() {
+        for timeout_ms in
+            [MIN_NAMESPACE_AUTH_REQUEST_TIMEOUT_MS, 5000, MAX_NAMESPACE_AUTH_REQUEST_TIMEOUT_MS]
+        {
+            let result = validate_timeout_range(
+                "namespace_auth.request_timeout_ms",
+                timeout_ms,
+                MIN_NAMESPACE_AUTH_REQUEST_TIMEOUT_MS,
+                MAX_NAMESPACE_AUTH_REQUEST_TIMEOUT_MS,
+            );
+            assert!(result.is_ok(), "namespace auth request timeout {timeout_ms} should be valid");
+        }
+    }
+
+    #[test]
+    fn validate_provider_connect_timeout_rejects_too_small() {
+        let result = validate_timeout_range(
+            "provider.connect_timeout_ms",
+            MIN_PROVIDER_CONNECT_TIMEOUT_MS - 1,
+            MIN_PROVIDER_CONNECT_TIMEOUT_MS,
+            MAX_PROVIDER_CONNECT_TIMEOUT_MS,
+        );
+        assert!(result.is_err(), "too small connect timeout should fail");
+    }
+
+    #[test]
+    fn validate_provider_request_timeout_rejects_too_large() {
+        let result = validate_timeout_range(
+            "provider.request_timeout_ms",
+            MAX_PROVIDER_REQUEST_TIMEOUT_MS + 1,
+            MIN_PROVIDER_REQUEST_TIMEOUT_MS,
+            MAX_PROVIDER_REQUEST_TIMEOUT_MS,
+        );
+        assert!(result.is_err(), "too large request timeout should fail");
+    }
+
+    #[test]
+    fn validate_timeout_accepts_exact_boundaries() {
+        // Test exact minimum
+        assert!(validate_timeout_range("test", 100, 100, 1000).is_ok());
+        // Test exact maximum
+        assert!(validate_timeout_range("test", 1000, 100, 1000).is_ok());
+        // Test one below min fails
+        assert!(validate_timeout_range("test", 99, 100, 1000).is_err());
+        // Test one above max fails
+        assert!(validate_timeout_range("test", 1001, 100, 1000).is_err());
+    }
+
+    #[test]
+    fn validate_rate_limit_window_accepts_valid_range() {
+        for window_ms in [MIN_RATE_LIMIT_WINDOW_MS, 1000, MAX_RATE_LIMIT_WINDOW_MS] {
+            let result = validate_timeout_range(
+                "rate_limit.window_ms",
+                window_ms,
+                MIN_RATE_LIMIT_WINDOW_MS,
+                MAX_RATE_LIMIT_WINDOW_MS,
+            );
+            assert!(result.is_ok(), "rate limit window {window_ms} should be valid");
+        }
+    }
+
+    // ============================================================================
+    // SECTION: Path Validation Tests (14 tests)
+    // ============================================================================
+
+    #[test]
+    fn validate_path_string_accepts_valid_path() {
+        let result = validate_path_string("test_path", "./docs/config");
+        assert!(result.is_ok(), "valid path should pass");
+    }
+
+    #[test]
+    fn validate_path_string_rejects_empty_string() {
+        let result = validate_path_string("test_path", "");
+        assert!(result.is_err(), "empty path should fail");
+        assert!(result.unwrap_err().to_string().contains("non-empty"));
+    }
+
+    #[test]
+    fn validate_path_string_rejects_whitespace_only() {
+        let result = validate_path_string("test_path", "   ");
+        assert!(result.is_err(), "whitespace-only path should fail");
+    }
+
+    #[test]
+    fn validate_path_string_rejects_exceeds_max_length() {
+        let long_path = "a".repeat(MAX_TOTAL_PATH_LENGTH + 1);
+        let result = validate_path_string("test_path", &long_path);
+        assert!(result.is_err(), "path exceeding max length should fail");
+        assert!(result.unwrap_err().to_string().contains("max length"));
+    }
+
+    #[test]
+    fn validate_path_string_accepts_at_max_length() {
+        // Create a path at max length with multiple valid components
+        let component = "a".repeat(MAX_PATH_COMPONENT_LENGTH);
+        let mut path_parts = Vec::new();
+        let mut current_len = 0;
+
+        while current_len + component.len() < MAX_TOTAL_PATH_LENGTH {
+            path_parts.push(component.clone());
+            current_len += component.len() + 1; // +1 for the separator
+        }
+
+        // Add final component to reach exactly max length
+        if current_len < MAX_TOTAL_PATH_LENGTH {
+            let remaining = MAX_TOTAL_PATH_LENGTH - current_len - 1;
+            if remaining > 0 {
+                path_parts.push("a".repeat(remaining));
+            }
+        }
+
+        let max_path = path_parts.join("/");
+        let result = validate_path_string("test_path", &max_path);
+        assert!(result.is_ok(), "path at max length should pass (len={})", max_path.len());
+    }
+
+    #[test]
+    fn validate_path_string_rejects_component_too_long() {
+        let long_component = "a".repeat(MAX_PATH_COMPONENT_LENGTH + 1);
+        let path = format!("./{long_component}");
+        let result = validate_path_string("test_path", &path);
+        assert!(result.is_err(), "path with too-long component should fail");
+        assert!(result.unwrap_err().to_string().contains("component too long"));
+    }
+
+    #[test]
+    fn validate_path_string_accepts_component_at_max() {
+        let max_component = "a".repeat(MAX_PATH_COMPONENT_LENGTH);
+        let path = format!("./{max_component}");
+        let result = validate_path_string("test_path", &path);
+        assert!(result.is_ok(), "path with max-length component should pass");
+    }
+
+    #[test]
+    fn validate_path_string_accepts_multiple_components() {
+        let result = validate_path_string("test_path", "./foo/bar/baz/config.toml");
+        assert!(result.is_ok(), "multi-component path should pass");
+    }
+
+    #[test]
+    fn validate_path_string_trims_before_validation() {
+        let result = validate_path_string("test_path", "  ./docs/config  ");
+        assert!(result.is_ok(), "trimmed valid path should pass");
+    }
+
+    #[test]
+    fn validate_path_string_error_includes_field_name() {
+        let result = validate_path_string("my_custom_path", "");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("my_custom_path"));
+    }
+
+    #[test]
+    fn validate_object_store_prefix_accepts_valid_prefix() {
+        let result = validate_object_store_prefix("runpacks/prod");
+        assert!(result.is_ok(), "valid prefix should pass");
+    }
+
+    #[test]
+    fn validate_object_store_prefix_rejects_backslash() {
+        let result = validate_object_store_prefix("runpacks\\prod");
+        assert!(result.is_err(), "prefix with backslash should fail");
+        assert!(result.unwrap_err().to_string().contains("backslash"));
+    }
+
+    #[test]
+    fn validate_object_store_prefix_rejects_absolute_path() {
+        let result = validate_object_store_prefix("/runpacks/prod");
+        assert!(result.is_err(), "absolute path should fail");
+    }
+
+    #[test]
+    fn validate_object_store_prefix_rejects_parent_traversal() {
+        let result = validate_object_store_prefix("../runpacks");
+        assert!(result.is_err(), "parent traversal should fail");
+    }
+
+    // ============================================================================
+    // SECTION: ProviderDiscoveryConfig::is_allowed() Tests (12 tests)
+    // ============================================================================
+
+    #[test]
+    fn is_allowed_returns_true_when_allowlist_empty_and_not_denied() {
+        let config = ProviderDiscoveryConfig::default();
+        assert!(config.is_allowed("test_provider"), "should allow when no lists configured");
+    }
+
+    #[test]
+    fn is_allowed_returns_true_when_in_allowlist() {
+        let config = ProviderDiscoveryConfig {
+            allowlist: vec!["allowed_provider".to_string()],
+            ..ProviderDiscoveryConfig::default()
+        };
+        assert!(config.is_allowed("allowed_provider"), "should allow when in allowlist");
+    }
+
+    #[test]
+    fn is_allowed_returns_false_when_in_denylist() {
+        let config = ProviderDiscoveryConfig {
+            denylist: vec!["denied_provider".to_string()],
+            ..ProviderDiscoveryConfig::default()
+        };
+        assert!(!config.is_allowed("denied_provider"), "should deny when in denylist");
+    }
+
+    #[test]
+    fn is_allowed_denylist_takes_precedence_over_allowlist() {
+        let config = ProviderDiscoveryConfig {
+            allowlist: vec!["provider1".to_string()],
+            denylist: vec!["provider1".to_string()],
+            ..ProviderDiscoveryConfig::default()
+        };
+        assert!(!config.is_allowed("provider1"), "denylist should take precedence");
+    }
+
+    #[test]
+    fn is_allowed_case_sensitive_match() {
+        let config = ProviderDiscoveryConfig {
+            allowlist: vec!["MyProvider".to_string()],
+            ..ProviderDiscoveryConfig::default()
+        };
+        assert!(config.is_allowed("MyProvider"), "exact case should match");
+        assert!(!config.is_allowed("myprovider"), "different case should not match");
+    }
+
+    #[test]
+    fn is_allowed_empty_provider_id() {
+        let config = ProviderDiscoveryConfig::default();
+        assert!(config.is_allowed(""), "empty id allowed when no restrictions");
+    }
+
+    #[test]
+    fn is_allowed_both_lists_empty() {
+        let config = ProviderDiscoveryConfig {
+            allowlist: Vec::new(),
+            denylist: Vec::new(),
+            ..ProviderDiscoveryConfig::default()
+        };
+        assert!(config.is_allowed("anything"), "should allow all when both lists empty");
+    }
+
+    #[test]
+    fn is_allowed_allowlist_only_with_match() {
+        let config = ProviderDiscoveryConfig {
+            allowlist: vec!["provider1".to_string(), "provider2".to_string()],
+            ..ProviderDiscoveryConfig::default()
+        };
+        assert!(config.is_allowed("provider1"), "should allow when in allowlist");
+    }
+
+    #[test]
+    fn is_allowed_allowlist_only_without_match() {
+        let config = ProviderDiscoveryConfig {
+            allowlist: vec!["provider1".to_string()],
+            ..ProviderDiscoveryConfig::default()
+        };
+        assert!(!config.is_allowed("provider2"), "should deny when not in allowlist");
+    }
+
+    #[test]
+    fn is_allowed_denylist_only_with_match() {
+        let config = ProviderDiscoveryConfig {
+            denylist: vec!["provider1".to_string()],
+            ..ProviderDiscoveryConfig::default()
+        };
+        assert!(!config.is_allowed("provider1"), "should deny when in denylist");
+    }
+
+    #[test]
+    fn is_allowed_denylist_only_without_match() {
+        let config = ProviderDiscoveryConfig {
+            denylist: vec!["provider1".to_string()],
+            ..ProviderDiscoveryConfig::default()
+        };
+        assert!(config.is_allowed("provider2"), "should allow when not in denylist");
+    }
+
+    #[test]
+    fn is_allowed_fails_closed_on_allowlist() {
+        let config = ProviderDiscoveryConfig {
+            allowlist: vec!["provider1".to_string()],
+            denylist: Vec::new(),
+            ..ProviderDiscoveryConfig::default()
+        };
+        assert!(!config.is_allowed("provider2"), "should fail-closed with allowlist");
+    }
+
+    // ============================================================================
+    // SECTION: Default Trait Implementation Tests (10 tests)
+    // ============================================================================
+
+    #[test]
+    fn docs_config_default_passes_validation() {
+        let config = DocsConfig::default();
+        assert!(config.validate().is_ok(), "DocsConfig::default() should pass validation");
+    }
+
+    #[test]
+    fn server_tools_config_default_passes_validation() {
+        let config = ServerToolsConfig::default();
+        assert!(config.validate().is_ok(), "ServerToolsConfig::default() should pass validation");
+    }
+
+    #[test]
+    fn docs_config_default_has_correct_values() {
+        let config = DocsConfig::default();
+        assert!(config.enabled, "docs should be enabled by default");
+        assert!(config.enable_search, "docs search should be enabled by default");
+        assert!(config.enable_resources, "docs resources should be enabled by default");
+        assert!(config.include_default_docs, "should include default docs by default");
+        assert_eq!(config.max_doc_bytes, DEFAULT_DOC_MAX_BYTES);
+        assert_eq!(config.max_total_bytes, DEFAULT_DOC_MAX_TOTAL_BYTES);
+        assert_eq!(config.max_docs, DEFAULT_DOC_MAX_DOCS);
+        assert_eq!(config.max_sections, DEFAULT_DOC_MAX_SECTIONS);
+        assert!(config.extra_paths.is_empty(), "should have no extra paths by default");
+    }
+
+    #[test]
+    fn server_tools_config_default_has_correct_values() {
+        let config = ServerToolsConfig::default();
+        assert_eq!(config.mode, ToolVisibilityMode::Filter);
+        assert!(config.allowlist.is_empty());
+        assert!(config.denylist.is_empty());
+    }
+
+    #[test]
+    fn tool_visibility_mode_default_is_filter() {
+        let mode = ToolVisibilityMode::default();
+        assert_eq!(mode, ToolVisibilityMode::Filter);
+    }
+
+    #[test]
+    fn provider_discovery_config_default_passes_validation() {
+        let config = ProviderDiscoveryConfig::default();
+        assert!(config.validate().is_ok(), "ProviderDiscoveryConfig::default() should pass");
+    }
+
+    #[test]
+    fn provider_discovery_config_default_has_empty_lists() {
+        let config = ProviderDiscoveryConfig::default();
+        assert!(config.allowlist.is_empty());
+        assert!(config.denylist.is_empty());
+        assert_eq!(config.max_response_bytes, DEFAULT_PROVIDER_DISCOVERY_MAX_BYTES);
+    }
+
+    #[test]
+    fn decision_gate_config_has_valid_docs_config() {
+        // DecisionGateConfig doesn't have Default, so construct with defaults for each field
+        let mut config = DecisionGateConfig {
+            server: ServerConfig::default(),
+            namespace: NamespaceConfig::default(),
+            dev: DevConfig::default(),
+            trust: TrustConfig::default(),
+            evidence: EvidencePolicyConfig::default(),
+            anchors: AnchorPolicyConfig::default(),
+            provider_discovery: ProviderDiscoveryConfig::default(),
+            validation: ValidationConfig::default(),
+            policy: PolicyConfig::default(),
+            run_state_store: RunStateStoreConfig::default(),
+            schema_registry: SchemaRegistryConfig::default(),
+            providers: Vec::new(),
+            docs: DocsConfig::default(),
+            runpack_storage: None,
+            source_modified_at: None,
+        };
+        assert!(config.docs.validate().is_ok(), "default docs config should be valid");
+        assert!(config.validate().is_ok(), "constructed config should pass validation");
+    }
+
+    #[test]
+    fn decision_gate_config_has_valid_server_tools() {
+        let config = DecisionGateConfig {
+            server: ServerConfig::default(),
+            namespace: NamespaceConfig::default(),
+            dev: DevConfig::default(),
+            trust: TrustConfig::default(),
+            evidence: EvidencePolicyConfig::default(),
+            anchors: AnchorPolicyConfig::default(),
+            provider_discovery: ProviderDiscoveryConfig::default(),
+            validation: ValidationConfig::default(),
+            policy: PolicyConfig::default(),
+            run_state_store: RunStateStoreConfig::default(),
+            schema_registry: SchemaRegistryConfig::default(),
+            providers: Vec::new(),
+            docs: DocsConfig::default(),
+            runpack_storage: None,
+            source_modified_at: None,
+        };
+        assert!(config.server.tools.validate().is_ok(), "default server.tools should be valid");
+    }
+
+    #[test]
+    fn all_defaults_are_fail_closed() {
+        // Verify that defaults are secure by default
+        let config = DecisionGateConfig {
+            server: ServerConfig::default(),
+            namespace: NamespaceConfig::default(),
+            dev: DevConfig::default(),
+            trust: TrustConfig::default(),
+            evidence: EvidencePolicyConfig::default(),
+            anchors: AnchorPolicyConfig::default(),
+            provider_discovery: ProviderDiscoveryConfig::default(),
+            validation: ValidationConfig::default(),
+            policy: PolicyConfig::default(),
+            run_state_store: RunStateStoreConfig::default(),
+            schema_registry: SchemaRegistryConfig::default(),
+            providers: Vec::new(),
+            docs: DocsConfig::default(),
+            runpack_storage: None,
+            source_modified_at: None,
+        };
+        assert!(!config.is_dev_permissive(), "should not be dev-permissive by default");
+        assert!(!config.allow_default_namespace(), "should not allow default namespace by default");
+    }
 }

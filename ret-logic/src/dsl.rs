@@ -136,7 +136,9 @@ impl fmt::Display for DslError {
             Self::InputTooLarge {
                 max_bytes,
                 actual_bytes,
-            } => write!(f, "input exceeds size limit: {actual_bytes} bytes (max {max_bytes})"),
+            } => {
+                write!(f, "input exceeds size limit: {actual_bytes} bytes (max {max_bytes})")
+            }
             Self::NestingTooDeep {
                 max_depth,
                 actual_depth,

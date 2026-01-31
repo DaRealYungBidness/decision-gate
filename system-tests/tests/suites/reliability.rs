@@ -8,7 +8,6 @@
 
 //! Reliability tests for Decision Gate system-tests.
 
-
 use decision_gate_core::DecisionOutcome;
 use decision_gate_core::PacketPayload;
 use decision_gate_core::RunStatus;

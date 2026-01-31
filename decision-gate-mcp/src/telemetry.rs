@@ -40,6 +40,10 @@ pub enum McpMethod {
     ToolsList,
     /// JSON-RPC tools/call.
     ToolsCall,
+    /// JSON-RPC resources/list.
+    ResourcesList,
+    /// JSON-RPC resources/read.
+    ResourcesRead,
     /// Invalid or malformed JSON-RPC request.
     Invalid,
     /// Unsupported JSON-RPC method.
@@ -53,6 +57,8 @@ impl McpMethod {
         match self {
             Self::ToolsList => "tools/list",
             Self::ToolsCall => "tools/call",
+            Self::ResourcesList => "resources/list",
+            Self::ResourcesRead => "resources/read",
             Self::Invalid => "invalid",
             Self::Other => "other",
         }

@@ -8,7 +8,6 @@
 
 //! MCP hardening system tests.
 
-
 use std::fs;
 use std::time::Duration;
 

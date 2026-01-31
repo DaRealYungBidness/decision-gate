@@ -18,6 +18,9 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
 
+use super::docs::ResourceContent;
+use super::docs::ResourceMetadata;
+
 #[derive(Debug, Clone, Serialize)]
 pub struct TranscriptEntry {
     pub sequence: u64,
@@ -47,8 +50,18 @@ struct ToolListResult {
 }
 
 #[derive(Debug, Deserialize)]
+struct ResourceListResult {
+    resources: Vec<ResourceMetadata>,
+}
+
+#[derive(Debug, Deserialize)]
 struct ToolCallResult {
     content: Vec<ToolContent>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ResourceReadResult {
+    contents: Vec<ResourceContent>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -195,6 +208,45 @@ impl McpHttpClient {
     ) -> Result<T, String> {
         let json = self.call_tool(name, arguments).await?;
         serde_json::from_value(json).map_err(|err| format!("decode {name} response: {err}"))
+    }
+
+    /// Issues a resources/list request.
+    pub async fn list_resources(&self) -> Result<Vec<ResourceMetadata>, String> {
+        let request = JsonRpcRequest {
+            jsonrpc: "2.0",
+            id: 1,
+            method: "resources/list".to_string(),
+            params: None,
+        };
+        let response = self.send_request(&request).await?;
+        let result = response
+            .result
+            .ok_or_else(|| "missing result in resources/list response".to_string())?;
+        let parsed: ResourceListResult = serde_json::from_value(result)
+            .map_err(|err| format!("invalid resources/list payload: {err}"))?;
+        Ok(parsed.resources)
+    }
+
+    /// Issues a resources/read request.
+    pub async fn read_resource(&self, uri: &str) -> Result<ResourceContent, String> {
+        let params = serde_json::json!({
+            "uri": uri,
+        });
+        let request = JsonRpcRequest {
+            jsonrpc: "2.0",
+            id: 1,
+            method: "resources/read".to_string(),
+            params: Some(params),
+        };
+        let response = self.send_request(&request).await?;
+        let result = response.result.ok_or_else(|| format!("missing result for resource {uri}"))?;
+        let parsed: ResourceReadResult = serde_json::from_value(result)
+            .map_err(|err| format!("invalid resources/read payload: {err}"))?;
+        parsed
+            .contents
+            .into_iter()
+            .next()
+            .ok_or_else(|| format!("resource {uri} returned no content"))
     }
 
     async fn send_request(&self, request: &JsonRpcRequest) -> Result<JsonRpcResponse, String> {

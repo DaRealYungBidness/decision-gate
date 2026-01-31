@@ -22,6 +22,11 @@ use crate::config::MAX_AUTH_SUBJECT_LENGTH;
 use crate::config::MAX_AUTH_TOKEN_LENGTH;
 use crate::config::MAX_AUTH_TOKENS;
 use crate::config::MAX_AUTH_TOOL_RULES;
+use crate::config::MAX_DOC_EXTRA_PATHS;
+use crate::config::MAX_DOC_MAX_BYTES;
+use crate::config::MAX_DOC_MAX_DOCS;
+use crate::config::MAX_DOC_MAX_SECTIONS;
+use crate::config::MAX_DOC_MAX_TOTAL_BYTES;
 use crate::config::MAX_NAMESPACE_AUTH_CONNECT_TIMEOUT_MS;
 use crate::config::MAX_NAMESPACE_AUTH_REQUEST_TIMEOUT_MS;
 use crate::config::MAX_PRINCIPAL_ROLES;
@@ -32,6 +37,7 @@ use crate::config::MAX_RATE_LIMIT_REQUESTS;
 use crate::config::MAX_RATE_LIMIT_WINDOW_MS;
 use crate::config::MAX_REGISTRY_ACL_RULES;
 use crate::config::MAX_SCHEMA_MAX_BYTES;
+use crate::config::MAX_TOOL_VISIBILITY_RULES;
 use crate::config::MIN_NAMESPACE_AUTH_CONNECT_TIMEOUT_MS;
 use crate::config::MIN_NAMESPACE_AUTH_REQUEST_TIMEOUT_MS;
 use crate::config::MIN_PROVIDER_CONNECT_TIMEOUT_MS;
@@ -40,6 +46,14 @@ use crate::config::MIN_RATE_LIMIT_WINDOW_MS;
 use crate::config::default_audit_enabled;
 use crate::config::default_dev_permissive_exempt_providers;
 use crate::config::default_dev_permissive_warn;
+use crate::config::default_doc_max_bytes;
+use crate::config::default_doc_max_docs;
+use crate::config::default_doc_max_sections;
+use crate::config::default_doc_max_total_bytes;
+use crate::config::default_docs_enable_resources;
+use crate::config::default_docs_enable_search;
+use crate::config::default_docs_enabled;
+use crate::config::default_docs_include_default;
 use crate::config::default_max_body_bytes;
 use crate::config::default_max_inflight;
 use crate::config::default_provider_connect_timeout_ms;
@@ -77,6 +91,7 @@ pub fn config_schema() -> Value {
             "policy": policy_config_schema(),
             "run_state_store": run_state_store_schema(),
             "schema_registry": schema_registry_config_schema(),
+            "docs": docs_config_schema(),
             "providers": {
                 "type": "array",
                 "items": provider_config_schema(),
@@ -132,7 +147,8 @@ fn server_config_schema() -> Value {
             "auth": nullable_schema(&server_auth_schema()),
             "tls": nullable_schema(&server_tls_schema()),
             "audit": server_audit_schema(),
-            "feedback": server_feedback_schema()
+            "feedback": server_feedback_schema(),
+            "tools": server_tools_schema()
         },
         "allOf": [
             {
@@ -160,6 +176,35 @@ fn server_feedback_schema() -> Value {
         "description": "Feedback disclosure configuration for tool responses.",
         "properties": {
             "scenario_next": scenario_next_feedback_schema()
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Schema for server tool visibility settings.
+fn server_tools_schema() -> Value {
+    json!({
+        "type": "object",
+        "description": "Tool visibility configuration for MCP tool listings.",
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["filter", "passthrough"],
+                "default": "filter",
+                "description": "Visibility mode for tools/list output."
+            },
+            "allowlist": {
+                "type": "array",
+                "items": tool_name_schema(),
+                "default": [],
+                "maxItems": MAX_TOOL_VISIBILITY_RULES
+            },
+            "denylist": {
+                "type": "array",
+                "items": tool_name_schema(),
+                "default": [],
+                "maxItems": MAX_TOOL_VISIBILITY_RULES
+            }
         },
         "additionalProperties": false
     })
@@ -990,6 +1035,72 @@ fn schema_registry_config_schema() -> Value {
                 "description": "Optional max schemas per tenant + namespace."
             },
             "acl": schema_registry_acl_schema()
+        },
+        "additionalProperties": false
+    })
+}
+
+/// Schema for documentation search/resources configuration.
+fn docs_config_schema() -> Value {
+    json!({
+        "type": "object",
+        "description": "Documentation search and resources configuration.",
+        "properties": {
+            "enabled": {
+                "type": "boolean",
+                "default": default_docs_enabled(),
+                "description": "Enable docs surfaces globally."
+            },
+            "enable_search": {
+                "type": "boolean",
+                "default": default_docs_enable_search(),
+                "description": "Enable docs search tool."
+            },
+            "enable_resources": {
+                "type": "boolean",
+                "default": default_docs_enable_resources(),
+                "description": "Enable MCP resources list/read."
+            },
+            "include_default_docs": {
+                "type": "boolean",
+                "default": default_docs_include_default(),
+                "description": "Include the embedded default docs set."
+            },
+            "extra_paths": {
+                "type": "array",
+                "items": { "type": "string" },
+                "default": [],
+                "maxItems": MAX_DOC_EXTRA_PATHS,
+                "description": "Extra doc paths to ingest (files or directories)."
+            },
+            "max_doc_bytes": {
+                "type": "integer",
+                "default": default_doc_max_bytes(),
+                "minimum": 1,
+                "maximum": MAX_DOC_MAX_BYTES,
+                "description": "Maximum size for a single doc entry in bytes."
+            },
+            "max_total_bytes": {
+                "type": "integer",
+                "default": default_doc_max_total_bytes(),
+                "minimum": 1,
+                "maximum": MAX_DOC_MAX_TOTAL_BYTES,
+                "description": "Maximum total docs bytes for the catalog."
+            },
+            "max_docs": {
+                "type": "integer",
+                "default": default_doc_max_docs(),
+                "minimum": 1,
+                "maximum": MAX_DOC_MAX_DOCS,
+                "description": "Maximum number of docs in the catalog."
+            },
+            "max_sections": {
+                "type": "integer",
+                "default": default_doc_max_sections(),
+                "minimum": 1,
+                "maximum": MAX_DOC_MAX_SECTIONS,
+                "description": "Maximum sections returned by docs search."
+            }
         },
         "additionalProperties": false
     })

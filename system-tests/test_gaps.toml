@@ -171,3 +171,48 @@ category = "contract"
 status = "closed"
 acceptance_criteria = "System-tests configure provider_discovery denylist and max_response_bytes, verify provider_contract_get/provider_check_schema_get are denied for blocked providers, and assert over-limit responses are rejected deterministically."
 notes = "Implemented in system-tests/tests/suites/provider_discovery.rs (provider_discovery_denylist_and_size_limits)."
+
+[[gaps]]
+id = "docs-search-e2e"
+title = "Docs search tool end-to-end coverage (HTTP/SSE)"
+priority = "P1"
+category = "functional"
+status = "closed"
+acceptance_criteria = "System-tests call decision_gate_docs_search over HTTP (and SSE), assert deterministic ordering across repeated calls, max_sections clamping to config + hard cap, empty query returns role overview, and results include expected default docs; tools/list includes the tool when docs.enabled + enable_search."
+notes = "Implemented in system-tests/tests/suites/docs_search.rs (docs_search_http_end_to_end) and system-tests/tests/suites/sse_transport.rs (docs_search_sse_end_to_end)."
+
+[[gaps]]
+id = "docs-resources-e2e"
+title = "MCP resources list/read docs coverage"
+priority = "P1"
+category = "mcp_transport"
+status = "closed"
+acceptance_criteria = "System-tests call resources/list and resources/read over HTTP and SSE, verify URIs use decision-gate://docs/ prefix, resource bodies match embedded docs (contain known headings), and unknown URIs fail closed with invalid params. Verify bearer/mTLS auth applies."
+notes = "Implemented in system-tests/tests/suites/mcp_transport.rs (docs_resources_http_list_read) and system-tests/tests/suites/sse_transport.rs (docs_resources_sse_list_read)."
+
+[[gaps]]
+id = "docs-config-toggles-system"
+title = "Docs search/resources toggle behavior (system-tests)"
+priority = "P1"
+category = "operations"
+status = "closed"
+acceptance_criteria = "With docs.enabled=false, decision_gate_docs_search is hidden from tools/list and tools/call returns unknown; resources/list and resources/read return method not found. With docs.enabled=true and enable_search=false, tools/list hides docs search but resources remain available. With enable_resources=false, resources methods are unavailable while docs search still works."
+notes = "Implemented in system-tests/tests/suites/docs_config.rs (docs_config_toggles)."
+
+[[gaps]]
+id = "server-tools-visibility-system"
+title = "Server tool visibility allowlist/denylist enforcement"
+priority = "P1"
+category = "security"
+status = "closed"
+acceptance_criteria = "When server.tools.mode=filter, tools/list returns only allowlisted tools minus denylisted tools; tool calls to hidden tools return unknown tool errors (no existence leak). Allowlist empty defaults to all; denylist always removes. Validate that server.auth.allowed_tools does not affect tools/list but still blocks tool calls."
+notes = "Implemented in system-tests/tests/suites/tool_visibility.rs (server_tools_visibility_filtering, server_tools_visibility_defaults_and_auth_separation)."
+
+[[gaps]]
+id = "docs-extra-paths-limits-system"
+title = "Docs extra_paths ingestion + size limits"
+priority = "P2"
+category = "operations"
+status = "closed"
+acceptance_criteria = "System-tests start server with docs.extra_paths pointing to files/directories, verify markdown files are indexed and discoverable via docs search/resources, non-markdown files ignored, and missing paths fail server start. Oversized docs or exceeding max_doc_bytes/max_total_bytes/max_docs are skipped with warnings and do not appear in search/resources."
+notes = "Implemented in system-tests/tests/suites/docs_config.rs (docs_extra_paths_ingestion_limits)."

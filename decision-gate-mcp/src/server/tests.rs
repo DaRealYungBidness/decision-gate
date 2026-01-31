@@ -66,6 +66,7 @@ use crate::auth::NoopAuditSink;
 use crate::auth::RequestContext;
 use crate::capabilities::CapabilityRegistry;
 use crate::config::DecisionGateConfig;
+use crate::config::DocsConfig;
 use crate::config::EvidencePolicyConfig;
 use crate::config::PolicyConfig;
 use crate::config::PrincipalConfig;
@@ -79,9 +80,12 @@ use crate::config::SchemaRegistryConfig;
 use crate::config::ServerAuthConfig;
 use crate::config::ServerAuthMode;
 use crate::config::ServerConfig;
+use crate::config::ServerToolsConfig;
 use crate::config::ServerTransport;
 use crate::config::TrustConfig;
 use crate::config::ValidationConfig;
+use crate::docs::DocsCatalog;
+use crate::docs::RESOURCE_URI_PREFIX;
 use crate::evidence::FederatedEvidenceProvider;
 use crate::namespace_authority::NoopNamespaceAuthority;
 use crate::telemetry::McpMethod;
@@ -89,8 +93,11 @@ use crate::telemetry::McpMetricEvent;
 use crate::telemetry::McpMetrics;
 use crate::telemetry::McpOutcome;
 use crate::tenant_authz::NoopTenantAuthorizer;
+use crate::tools::DocsProvider;
+use crate::tools::ToolError;
 use crate::tools::ToolRouter;
 use crate::tools::ToolRouterConfig;
+use crate::tools::ToolVisibilityResolver;
 use crate::usage::NoopUsageMeter;
 
 // ============================================================================
@@ -142,6 +149,7 @@ fn sample_config() -> DecisionGateConfig {
                     }],
                 }],
             }),
+            tools: ServerToolsConfig::default(),
             ..ServerConfig::default()
         },
         namespace: crate::config::NamespaceConfig {
@@ -159,6 +167,7 @@ fn sample_config() -> DecisionGateConfig {
         schema_registry: SchemaRegistryConfig::default(),
         providers: builtin_providers(),
         dev: crate::config::DevConfig::default(),
+        docs: DocsConfig::default(),
         runpack_storage: None,
 
         source_modified_at: None,
@@ -166,6 +175,14 @@ fn sample_config() -> DecisionGateConfig {
 }
 
 fn sample_router(config: &DecisionGateConfig) -> ToolRouter {
+    sample_router_with_overrides(config, None, None)
+}
+
+fn sample_router_with_overrides(
+    config: &DecisionGateConfig,
+    docs_provider: Option<Arc<dyn DocsProvider>>,
+    tool_visibility_resolver: Option<Arc<dyn ToolVisibilityResolver>>,
+) -> ToolRouter {
     let evidence = FederatedEvidenceProvider::from_config(config).expect("evidence provider");
     let capabilities = CapabilityRegistry::from_config(config).expect("capabilities");
     let store = SharedRunStateStore::from_store(InMemoryRunStateStore::new());
@@ -180,6 +197,7 @@ fn sample_router(config: &DecisionGateConfig) -> ToolRouter {
     let audit = Arc::new(NoopAuditSink);
     let default_namespace_tenants =
         config.namespace.default_tenants.iter().copied().collect::<std::collections::BTreeSet<_>>();
+    let docs_catalog = DocsCatalog::from_config(&config.docs).expect("docs catalog");
     let provider_trust_overrides = if config.is_dev_permissive() {
         config
             .dev
@@ -227,10 +245,66 @@ fn sample_router(config: &DecisionGateConfig) -> ToolRouter {
         registry_acl,
         principal_resolver,
         scenario_next_feedback: config.server.feedback.scenario_next.clone(),
+        docs_config: config.docs.clone(),
+        docs_catalog,
+        tools: config.server.tools.clone(),
+        docs_provider,
+        tool_visibility_resolver,
         allow_default_namespace: config.allow_default_namespace(),
         default_namespace_tenants,
         namespace_authority: Arc::new(NoopNamespaceAuthority),
     })
+}
+
+struct RateLimitedDocsProvider {
+    retry_after_ms: u64,
+}
+
+impl DocsProvider for RateLimitedDocsProvider {
+    fn is_search_enabled(
+        &self,
+        _context: &RequestContext,
+        _auth: &crate::auth::AuthContext,
+    ) -> bool {
+        true
+    }
+
+    fn is_resources_enabled(
+        &self,
+        _context: &RequestContext,
+        _auth: &crate::auth::AuthContext,
+    ) -> bool {
+        false
+    }
+
+    fn search(
+        &self,
+        _context: &RequestContext,
+        _auth: &crate::auth::AuthContext,
+        _request: crate::docs::DocsSearchRequest,
+    ) -> Result<crate::docs::SearchResult, ToolError> {
+        Err(ToolError::RateLimited {
+            message: "rate limited".to_string(),
+            retry_after_ms: Some(self.retry_after_ms),
+        })
+    }
+
+    fn list_resources(
+        &self,
+        _context: &RequestContext,
+        _auth: &crate::auth::AuthContext,
+    ) -> Result<Vec<crate::docs::ResourceMetadata>, ToolError> {
+        Ok(Vec::new())
+    }
+
+    fn read_resource(
+        &self,
+        _context: &RequestContext,
+        _auth: &crate::auth::AuthContext,
+        _uri: &str,
+    ) -> Result<crate::docs::ResourceContent, ToolError> {
+        Err(ToolError::UnknownTool)
+    }
 }
 
 fn builtin_providers() -> Vec<ProviderConfig> {
@@ -323,6 +397,109 @@ fn metrics_recorded_for_tools_list() {
     assert_eq!(latencies.len(), 1);
     assert_eq!(latencies[0].0.method, McpMethod::ToolsList);
     drop(latencies);
+}
+
+// ============================================================================
+// SECTION: Resources Endpoints
+// ============================================================================
+
+#[test]
+fn resources_list_returns_embedded_docs() {
+    let config = sample_config();
+    let metrics = Arc::new(TestMetrics::default());
+    let audit = Arc::new(TestAudit::default());
+    let state = build_server_state(sample_router(&config), &config.server, metrics, audit, None);
+    let context = RequestContext::stdio();
+    let payload = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "resources/list",
+    });
+    let bytes = Bytes::from(serde_json::to_vec(&payload).expect("payload bytes"));
+    let response = parse_request_sync(&state, &context, &bytes);
+    assert_eq!(response.0, StatusCode::OK);
+    let result = response.1.result.expect("result");
+    let resources =
+        result.get("resources").and_then(|value| value.as_array()).expect("resources array");
+    assert!(!resources.is_empty());
+    let uri = resources[0].get("uri").and_then(|value| value.as_str()).expect("uri");
+    assert!(uri.starts_with(RESOURCE_URI_PREFIX));
+}
+
+#[test]
+fn resources_read_returns_markdown() {
+    let config = sample_config();
+    let metrics = Arc::new(TestMetrics::default());
+    let audit = Arc::new(TestAudit::default());
+    let state = build_server_state(sample_router(&config), &config.server, metrics, audit, None);
+    let context = RequestContext::stdio();
+    let list_payload = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "resources/list",
+    });
+    let list_bytes = Bytes::from(serde_json::to_vec(&list_payload).expect("payload bytes"));
+    let list_response = parse_request_sync(&state, &context, &list_bytes);
+    assert_eq!(list_response.0, StatusCode::OK);
+    let list_result = list_response.1.result.expect("result");
+    let resources =
+        list_result.get("resources").and_then(|value| value.as_array()).expect("resources array");
+    let uri = resources[0].get("uri").and_then(|value| value.as_str()).expect("uri");
+
+    let read_payload = json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "resources/read",
+        "params": { "uri": uri },
+    });
+    let read_bytes = Bytes::from(serde_json::to_vec(&read_payload).expect("payload bytes"));
+    let read_response = parse_request_sync(&state, &context, &read_bytes);
+    assert_eq!(read_response.0, StatusCode::OK);
+    let read_result = read_response.1.result.expect("result");
+    let contents =
+        read_result.get("contents").and_then(|value| value.as_array()).expect("contents array");
+    assert!(!contents.is_empty());
+    let resource = &contents[0];
+    assert_eq!(resource.get("uri").and_then(|value| value.as_str()), Some(uri));
+    let text = resource.get("text").and_then(|value| value.as_str()).unwrap_or_default();
+    assert!(!text.is_empty());
+}
+
+// ============================================================================
+// SECTION: Error Mapping
+// ============================================================================
+
+#[test]
+fn rate_limited_error_maps_to_json_rpc() {
+    let config = sample_config();
+    let metrics = Arc::new(TestMetrics::default());
+    let audit = Arc::new(TestAudit::default());
+    let docs_provider = Arc::new(RateLimitedDocsProvider {
+        retry_after_ms: 1500,
+    });
+    let router = sample_router_with_overrides(&config, Some(docs_provider), None);
+    let state = build_server_state(router, &config.server, metrics, audit, None);
+    let context = RequestContext::stdio();
+    let payload = json!({
+        "jsonrpc": "2.0",
+        "id": 42,
+        "method": "tools/call",
+        "params": {
+            "name": "decision_gate_docs_search",
+            "arguments": {
+                "query": "rate limit",
+                "max_sections": 1
+            }
+        }
+    });
+    let bytes = Bytes::from(serde_json::to_vec(&payload).expect("payload bytes"));
+    let response = parse_request_sync(&state, &context, &bytes);
+    assert_eq!(response.0, StatusCode::OK);
+    let error = response.1.error.expect("error");
+    assert_eq!(error.code, -32071);
+    let data = error.data.expect("error data");
+    assert!(data.retryable);
+    assert_eq!(data.retry_after_ms, Some(1500));
 }
 
 #[test]

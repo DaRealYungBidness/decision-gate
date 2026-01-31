@@ -241,6 +241,40 @@ auditable.
 
 ---
 
+## Locked Decisions (No-Backcompat, 2026-01-31)
+
+These decisions are fixed for the OSS upgrade and should be treated as
+authoritative by future implementation agents.
+
+1. **Config shape (OSS)**:
+   - Use `[docs]` with `enabled`, `enable_search`, `enable_resources`,
+     `include_default_docs`, `extra_paths`, and `max_*` limits.
+   - Use `[server.tools]` with `mode = "filter" | "passthrough"`,
+     `allowlist`, and `denylist`.
+
+2. **Visibility vs auth separation**:
+   - Tool visibility is controlled by `[server.tools]`.
+   - Auth/authorization remains in `[server.auth]`.
+   - Hidden tools must be omitted from `tools/list` and treated as unknown
+     when called.
+
+3. **Threat model deltas (OSS)**:
+   - New untrusted inputs: docs search queries and resource URIs.
+   - New local ingestion surface: `docs.extra_paths`.
+   - Mitigations: strict size limits, path validation, fail-closed toggles.
+
+4. **Test expectations (OSS)**:
+   - Deterministic search ranking and ordering.
+   - Limits enforced (doc size, totals, max_sections).
+   - Tool visibility changes reflected in `tools/list` and `tools/call`.
+   - Resource bodies must match the docs search registry.
+
+5. **Contract + artifacts**:
+   - `decision_gate_docs_search` must be added to
+     `decision-gate-contract/src/tooling.rs`.
+   - Regenerate `Docs/generated/decision-gate/tooling.json`,
+     `tooling.md`, and `tooltips.json`.
+
 ## AssetCore Reference Implementation (Copy Map)
 
 These are the **exact** AssetCore files that implement the mature version of
@@ -343,7 +377,7 @@ this system. Use them as the reference for structure, ordering, and tests.
 
 ### Tool List Filtering Tests
 
-- `tools/list` respects `[server.tools.allowed_tools]`.
+- `tools/list` respects `[server.tools.allowlist]` and `[server.tools.denylist]`.
 - `tools/list` hides docs search when disabled.
 - `tools/call` for hidden tool returns generic error.
 

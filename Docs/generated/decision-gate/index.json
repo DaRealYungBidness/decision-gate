@@ -44,7 +44,7 @@
       "content_type": "text/markdown",
       "digest": {
         "algorithm": "sha256",
-        "value": "4f2fabb6c2e6bc4ed8b30ead444619a35b06c432846e9b24da6b67afaf202e0c"
+        "value": "9a559af3018caef81bd9b7523fa525acfc41905a36eb4bfdc6d5ada755d8f4b0"
       },
       "path": "glossary.md"
     },
@@ -68,7 +68,7 @@
       "content_type": "application/json",
       "digest": {
         "algorithm": "sha256",
-        "value": "080e525de2159086712bf36cc4d9af837b96b5dc6c6c8ad22b4766aabf165f00"
+        "value": "33551024451cac741cf30a30f9e34500f8bfbbc6dbbc8d7c4188a1d6d564a57a"
       },
       "path": "schemas/config.schema.json"
     },
@@ -84,7 +84,7 @@
       "content_type": "application/json",
       "digest": {
         "algorithm": "sha256",
-        "value": "f73306572e7e14252c8dccf562f329755b48df9e5c8ec901aff799c9a35350cc"
+        "value": "d03814e1b346072e64b5456992fd1bb00947d1f5df4670cbe84c69fb2b7ad012"
       },
       "path": "tooling.json"
     },
@@ -92,7 +92,7 @@
       "content_type": "text/markdown",
       "digest": {
         "algorithm": "sha256",
-        "value": "d47332e509b436f6e346c20efec2a6401586348169fe0a7c5c780ffbe774d3a9"
+        "value": "1b740df752d4bf76be30d2fa2a9630f203fb327f5fccefa1da9c19af7f49cf38"
       },
       "path": "tooling.md"
     },
@@ -100,7 +100,7 @@
       "content_type": "application/json",
       "digest": {
         "algorithm": "sha256",
-        "value": "ee8532cbfa4054600d3be3ce0e935414b539de429e3b1a4f3c7bcd97508f094e"
+        "value": "58c0886f82d702e0e88bf98afd17271054fd6a544dbb4a4cf4555ab3bd69286c"
       },
       "path": "tooltips.json"
     }

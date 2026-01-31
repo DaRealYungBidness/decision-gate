@@ -37,6 +37,7 @@ use decision_gate_mcp::capabilities::CapabilityError;
 use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::AnchorPolicyConfig;
 use decision_gate_mcp::config::DecisionGateConfig;
+use decision_gate_mcp::config::DocsConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::config::PolicyConfig;
 use decision_gate_mcp::config::ProviderConfig;
@@ -68,6 +69,7 @@ fn base_config() -> DecisionGateConfig {
         schema_registry: SchemaRegistryConfig::default(),
         providers: Vec::new(),
         dev: decision_gate_mcp::config::DevConfig::default(),
+        docs: DocsConfig::default(),
         runpack_storage: None,
 
         source_modified_at: None,

@@ -8,7 +8,6 @@
 
 //! Anchor fuzz tests for Decision Gate system-tests.
 
-
 use std::fs;
 use std::num::NonZeroU64;
 use std::time::Duration;

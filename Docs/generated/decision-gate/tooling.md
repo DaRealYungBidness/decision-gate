@@ -38,6 +38,7 @@ This document summarizes the MCP tool surface and expected usage. Full schemas a
 | schemas_get | Fetch a specific data shape by identifier and version. |
 | scenarios_list | List registered scenarios for a tenant and namespace. |
 | precheck | Evaluate a scenario against asserted data without mutating state. |
+| decision_gate_docs_search | Search Decision Gate documentation for runtime guidance. |
 
 ## scenario_define
 
@@ -1274,5 +1275,62 @@ Output:
     }
   },
   "gate_evaluations": []
+}
+```
+## decision_gate_docs_search
+
+Search Decision Gate documentation for runtime guidance.
+
+### Inputs
+
+- `max_sections` (optional): Maximum number of sections to return (default 3, hard cap 10).
+- `query` (required): Search query for documentation sections.
+
+### Outputs
+
+- `docs_covered` (required): Type: array.
+- `sections` (required): Type: array.
+- `suggested_followups` (required): Role-aware follow-up prompts.
+
+### Notes
+
+- Use for quick lookups on evidence flow, comparators, and provider semantics.
+- Returns ranked sections with role tags and suggested follow-ups.
+- Search is deterministic and scoped to the configured doc catalog.
+
+### Example
+
+Search for evidence flow and trust lane guidance.
+
+Input:
+```json
+{
+  "max_sections": 2,
+  "query": "precheck vs live run trust lanes"
+}
+```
+Output:
+```json
+{
+  "docs_covered": [
+    {
+      "doc_id": "evidence_flow_and_execution_model",
+      "doc_role": "reasoning",
+      "doc_title": "Evidence Flow + Execution Model"
+    }
+  ],
+  "sections": [
+    {
+      "content": "...",
+      "doc_id": "evidence_flow_and_execution_model",
+      "doc_role": "reasoning",
+      "doc_title": "Evidence Flow + Execution Model",
+      "heading": "Core Data Flow",
+      "rank": 0
+    }
+  ],
+  "suggested_followups": [
+    "Refine the query with comparator or provider keywords for targeted guidance."
+  ]
 }
 ```

@@ -42,6 +42,10 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `typescript_examples_runnable` | functional | TypeScript repository examples execute end-to-end over MCP HTTP. |
 | `http_transport_end_to_end` | mcp_transport | HTTP JSON-RPC transport works end-to-end. |
 | `sse_transport_end_to_end` | mcp_transport | SSE transport supports tools/list and tools/call end-to-end. |
+| `docs_search_http_end_to_end` | functional | Docs search returns deterministic sections and overview over HTTP. |
+| `docs_search_sse_end_to_end` | mcp_transport | Docs search works end-to-end over SSE. |
+| `docs_resources_http_list_read` | mcp_transport | Resources list/read return embedded docs over HTTP with auth. |
+| `docs_resources_sse_list_read` | mcp_transport | Resources list/read return embedded docs over SSE with auth. |
 | `federated_provider_echo` | providers | External MCP provider integration works. |
 | `provider_template_python` | providers | Python provider template handles tools/list/tools/call and wiring. |
 | `provider_template_go` | providers | Go provider template handles tools/list/tools/call and wiring. |
@@ -113,6 +117,9 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `schema_registry_cursor_rejects_invalid_inputs` | security | Malformed registry cursors/limits are rejected. |
 | `schema_registry_invalid_schema_and_precheck_rejected` | security | Invalid schemas and precheck payloads fail closed. |
 | `sqlite_registry_and_runpack_persist_across_restart` | reliability | SQLite registry + run state persist across restarts with runpack export. |
+| `docs_config_toggles` | operations | Docs enable/disable toggles enforce visibility and availability. |
+| `server_tools_visibility_filtering` | security | Tool visibility allowlist/denylist filtering hides tool calls. |
+| `server_tools_visibility_defaults_and_auth_separation` | security | Auth allowlist does not alter tools/list visibility. |
 
 ## P2 (Non-Gated / Extended Coverage)
 | Test | Category | Purpose |
@@ -131,3 +138,4 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `stress_precheck_request_storm` | reliability | Precheck request storms fail closed and remain stable. |
 | `sdk_gen_cli_generate_and_check` | operations | SDK generator CLI generate/check and drift detection. |
 | `provider_discovery_denylist_and_size_limits` | contract | Provider discovery denylist and size limits enforced. |
+| `docs_extra_paths_ingestion_limits` | operations | Docs extra_paths ingestion honors size and count limits. |

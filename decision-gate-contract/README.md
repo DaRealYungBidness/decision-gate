@@ -51,7 +51,7 @@ flowchart TB
 
 Artifacts live under `Docs/generated/decision-gate/`:
 
-- `tooling.json` - array of MCP tool definitions (17 tools).
+- `tooling.json` - array of MCP tool definitions (18 tools).
 - `providers.json` - array of provider contracts (built-ins + metadata).
 - `schemas/` - JSON schemas for scenario specs and runtime types.
 - `examples/` - validated example payloads.

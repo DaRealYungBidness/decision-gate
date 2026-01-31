@@ -8,7 +8,6 @@
 
 //! Configuration validation system tests.
 
-
 use decision_gate_mcp::config::AssetCoreNamespaceAuthorityConfig;
 use decision_gate_mcp::config::NamespaceAuthorityMode;
 use decision_gate_mcp::config::ServerAuditConfig;

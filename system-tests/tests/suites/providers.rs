@@ -8,7 +8,6 @@
 
 //! Provider integration tests for Decision Gate system-tests.
 
-
 use std::fs;
 use std::io;
 use std::num::NonZeroU64;

@@ -23,7 +23,6 @@ use serde::Serialize;
 use tokio::runtime::Builder;
 use tokio::sync::oneshot;
 
-
 #[derive(Clone)]
 struct AuthorityState {
     allowed: Arc<BTreeSet<u64>>,

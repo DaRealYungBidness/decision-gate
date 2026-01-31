@@ -55,7 +55,6 @@ const HTTP_PLACEHOLDER: &str = "{{HTTP_BASE_URL}}";
 
 type DynError = Box<dyn std::error::Error + Send + Sync>;
 
-
 #[derive(Debug, Deserialize)]
 struct ScenarioRegistry {
     scenarios: Vec<ScenarioEntry>,

@@ -38,6 +38,7 @@ TOOL_NAMES: Sequence[str] = (
     "schemas_get",
     "scenarios_list",
     "precheck",
+    "decision_gate_docs_search",
 )
 
 TOOL_DESCRIPTIONS: Mapping[str, str] = {
@@ -58,6 +59,7 @@ TOOL_DESCRIPTIONS: Mapping[str, str] = {
     "schemas_get": "Fetch a specific data shape by identifier and version.",
     "scenarios_list": "List registered scenarios for a tenant and namespace.",
     "precheck": "Evaluate a scenario against asserted data without mutating state.",
+    "decision_gate_docs_search": "Search Decision Gate documentation for runtime guidance.",
 }
 
 TOOL_NOTES: Mapping[str, Sequence[str]] = {
@@ -142,6 +144,11 @@ TOOL_NOTES: Mapping[str, Sequence[str]] = {
     "precheck": [
         "Validates asserted data against a registered shape.",
         "Does not mutate run state; intended for simulation.",
+    ],
+    "decision_gate_docs_search": [
+        "Use for quick lookups on evidence flow, comparators, and provider semantics.",
+        "Returns ranked sections with role tags and suggested follow-ups.",
+        "Search is deterministic and scoped to the configured doc catalog.",
     ],
 }
 
@@ -7987,6 +7994,145 @@ Precheck_OUTPUT_SCHEMA = _json.loads(r"""
 }
 """)
 
+class DecisionGateDocsSearchRequest(TypedDict):
+    """Schema for DecisionGateDocsSearchRequest."""
+    #: Maximum number of sections to return (default 3, hard cap 10). Constraints: Minimum: 1;
+    #: Maximum: 10.
+    max_sections: NotRequired[int]
+    #: Search query for documentation sections.
+    query: str
+
+class DecisionGateDocsSearchResponse(TypedDict):
+    """Schema for DecisionGateDocsSearchResponse."""
+    docs_covered: List[Dict[str, JsonValue]]
+    sections: List[Dict[str, JsonValue]]
+    #: Role-aware follow-up prompts.
+    suggested_followups: List[str]
+
+DecisionGateDocsSearch_INPUT_SCHEMA = _json.loads(r"""
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "max_sections": {
+      "description": "Maximum number of sections to return (default 3, hard cap 10).",
+      "maximum": 10,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "query": {
+      "description": "Search query for documentation sections.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "query"
+  ],
+  "type": "object"
+}
+""")
+
+DecisionGateDocsSearch_OUTPUT_SCHEMA = _json.loads(r"""
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "docs_covered": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "doc_id": {
+            "description": "Document identifier.",
+            "type": "string"
+          },
+          "doc_role": {
+            "description": "Documentation role for search weighting and display.",
+            "enum": [
+              "reasoning",
+              "decision",
+              "ontology",
+              "pattern"
+            ],
+            "type": "string"
+          },
+          "doc_title": {
+            "description": "Document title.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "doc_id",
+          "doc_title",
+          "doc_role"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "sections": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "description": "Section content (raw Markdown).",
+            "type": "string"
+          },
+          "doc_id": {
+            "description": "Document identifier.",
+            "type": "string"
+          },
+          "doc_role": {
+            "description": "Documentation role for search weighting and display.",
+            "enum": [
+              "reasoning",
+              "decision",
+              "ontology",
+              "pattern"
+            ],
+            "type": "string"
+          },
+          "doc_title": {
+            "description": "Document title.",
+            "type": "string"
+          },
+          "heading": {
+            "description": "Section heading.",
+            "type": "string"
+          },
+          "rank": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rank",
+          "doc_id",
+          "doc_title",
+          "doc_role",
+          "heading",
+          "content"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "suggested_followups": {
+      "description": "Role-aware follow-up prompts.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "sections",
+    "docs_covered",
+    "suggested_followups"
+  ],
+  "type": "object"
+}
+""")
+
 class GeneratedDecisionGateClient:
     """Generated Decision Gate client methods. Implement `_call_tool`."""
 
@@ -8942,6 +9088,48 @@ class GeneratedDecisionGateClient:
         """
         return cast(PrecheckResponse, self._call_tool("precheck", request))
 
+    def decision_gate_docs_search(self, request: DecisionGateDocsSearchRequest) -> DecisionGateDocsSearchResponse:
+        """
+        Search Decision Gate documentation for runtime guidance.
+
+        Notes:
+        - Use for quick lookups on evidence flow, comparators, and provider semantics.
+        - Returns ranked sections with role tags and suggested follow-ups.
+        - Search is deterministic and scoped to the configured doc catalog.
+
+        Examples:
+        - Search for evidence flow and trust lane guidance.
+          Input:
+            {
+              "max_sections": 2,
+              "query": "precheck vs live run trust lanes"
+            }
+          Output:
+            {
+              "docs_covered": [
+                {
+                  "doc_id": "evidence_flow_and_execution_model",
+                  "doc_role": "reasoning",
+                  "doc_title": "Evidence Flow + Execution Model"
+                }
+              ],
+              "sections": [
+                {
+                  "content": "...",
+                  "doc_id": "evidence_flow_and_execution_model",
+                  "doc_role": "reasoning",
+                  "doc_title": "Evidence Flow + Execution Model",
+                  "heading": "Core Data Flow",
+                  "rank": 0
+                }
+              ],
+              "suggested_followups": [
+                "Refine the query with comparator or provider keywords for targeted guidance."
+              ]
+            }
+        """
+        return cast(DecisionGateDocsSearchResponse, self._call_tool("decision_gate_docs_search", request))
+
 class SchemaValidationError(ValueError):
     """Raised when payloads fail schema validation."""
 
@@ -9099,6 +9287,14 @@ def validate_precheck_response(response: PrecheckResponse) -> None:
     """Validate the response payload against the output schema."""
     validate_schema(response, Precheck_OUTPUT_SCHEMA)
 
+def validate_decision_gate_docs_search_request(request: DecisionGateDocsSearchRequest) -> None:
+    """Validate the request payload against the input schema."""
+    validate_schema(request, DecisionGateDocsSearch_INPUT_SCHEMA)
+
+def validate_decision_gate_docs_search_response(response: DecisionGateDocsSearchResponse) -> None:
+    """Validate the response payload against the output schema."""
+    validate_schema(response, DecisionGateDocsSearch_OUTPUT_SCHEMA)
+
 __all__ = [
     "JsonPrimitive",
     "JsonValue",
@@ -9210,5 +9406,11 @@ __all__ = [
     "Precheck_OUTPUT_SCHEMA",
     "validate_precheck_request",
     "validate_precheck_response",
+    "DecisionGateDocsSearchRequest",
+    "DecisionGateDocsSearchResponse",
+    "DecisionGateDocsSearch_INPUT_SCHEMA",
+    "DecisionGateDocsSearch_OUTPUT_SCHEMA",
+    "validate_decision_gate_docs_search_request",
+    "validate_decision_gate_docs_search_response",
 ]
 

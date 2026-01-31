@@ -8,7 +8,6 @@
 
 //! Metamorphic determinism tests for Decision Gate system-tests.
 
-
 use std::time::Duration;
 
 use decision_gate_core::RunpackManifest;

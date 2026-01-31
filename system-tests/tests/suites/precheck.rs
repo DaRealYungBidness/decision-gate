@@ -8,7 +8,6 @@
 
 //! Precheck correctness tests for Decision Gate system-tests.
 
-
 use decision_gate_core::DataShapeId;
 use decision_gate_core::DataShapeRecord;
 use decision_gate_core::DataShapeRef;

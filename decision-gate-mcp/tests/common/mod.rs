@@ -64,6 +64,7 @@ use decision_gate_mcp::auth::NoopAuditSink;
 use decision_gate_mcp::auth::RequestContext;
 use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::AnchorPolicyConfig;
+use decision_gate_mcp::config::DocsConfig;
 use decision_gate_mcp::config::EvidencePolicyConfig;
 use decision_gate_mcp::config::NamespaceConfig;
 use decision_gate_mcp::config::PolicyConfig;
@@ -76,8 +77,10 @@ use decision_gate_mcp::config::RunStateStoreConfig;
 use decision_gate_mcp::config::ServerAuthConfig;
 use decision_gate_mcp::config::ServerAuthMode;
 use decision_gate_mcp::config::ServerConfig;
+use decision_gate_mcp::config::ServerToolsConfig;
 use decision_gate_mcp::config::TrustConfig;
 use decision_gate_mcp::config::ValidationConfig;
+use decision_gate_mcp::docs::DocsCatalog;
 use decision_gate_mcp::namespace_authority::NoopNamespaceAuthority;
 use decision_gate_mcp::registry_acl::PrincipalResolver;
 use decision_gate_mcp::registry_acl::RegistryAcl;
@@ -124,6 +127,7 @@ pub fn sample_config() -> DecisionGateConfig {
                     },
                 ],
             }),
+            tools: ServerToolsConfig::default(),
             ..ServerConfig::default()
         },
         namespace: NamespaceConfig {
@@ -147,6 +151,7 @@ pub fn sample_config() -> DecisionGateConfig {
         schema_registry: SchemaRegistryConfig::default(),
         providers: builtin_providers(),
         dev: decision_gate_mcp::config::DevConfig::default(),
+        docs: DocsConfig::default(),
         runpack_storage: None,
 
         source_modified_at: None,
@@ -259,6 +264,7 @@ pub fn router_with_authorizer_usage_and_runpack_storage(
     let registry_acl = RegistryAcl::new(&config.schema_registry.acl);
     let audit = Arc::new(NoopAuditSink);
     let dispatch_policy = config.policy.dispatch_policy().expect("dispatch policy");
+    let docs_catalog = DocsCatalog::from_config(&config.docs).expect("docs catalog");
     ToolRouter::new(ToolRouterConfig {
         evidence,
         evidence_policy,
@@ -285,6 +291,11 @@ pub fn router_with_authorizer_usage_and_runpack_storage(
         registry_acl,
         principal_resolver,
         scenario_next_feedback: config.server.feedback.scenario_next.clone(),
+        docs_config: config.docs.clone(),
+        docs_catalog,
+        tools: config.server.tools.clone(),
+        docs_provider: None,
+        tool_visibility_resolver: None,
         allow_default_namespace,
         default_namespace_tenants,
         namespace_authority: Arc::new(NoopNamespaceAuthority),

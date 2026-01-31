@@ -8,7 +8,6 @@
 
 //! Security posture tests for Decision Gate system-tests.
 
-
 use std::num::NonZeroU64;
 
 use decision_gate_core::AdvanceTo;

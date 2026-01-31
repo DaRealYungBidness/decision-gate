@@ -59,7 +59,9 @@ use decision_gate_core::StageSpec;
 use decision_gate_core::TenantId;
 use decision_gate_core::TimeoutPolicy;
 use decision_gate_core::Timestamp;
+use decision_gate_core::ToolName;
 use ret_logic::Requirement;
+use serde_json::Value;
 use serde_json::json;
 
 use super::*;
@@ -72,6 +74,7 @@ use crate::capabilities::CapabilityRegistry;
 use crate::config::AnchorPolicyConfig;
 use crate::config::DecisionGateConfig;
 use crate::config::DevConfig;
+use crate::config::DocsConfig;
 use crate::config::EvidencePolicyConfig;
 use crate::config::NamespaceConfig;
 use crate::config::PolicyConfig;
@@ -86,8 +89,10 @@ use crate::config::SchemaRegistryConfig;
 use crate::config::ServerAuthConfig;
 use crate::config::ServerAuthMode;
 use crate::config::ServerConfig;
+use crate::config::ServerToolsConfig;
 use crate::config::TrustConfig;
 use crate::config::ValidationConfig;
+use crate::docs::DocsCatalog;
 use crate::evidence::FederatedEvidenceProvider;
 use crate::namespace_authority::NoopNamespaceAuthority;
 use crate::policy::DispatchPolicy;
@@ -212,6 +217,129 @@ impl RunpackStorage for StubRunpackStorage {
     }
 }
 
+struct StubDocsProvider {
+    search_enabled: bool,
+    resources_enabled: bool,
+    resource_uri: String,
+    search_calls: Mutex<usize>,
+    list_calls: Mutex<usize>,
+    read_calls: Mutex<usize>,
+}
+
+impl StubDocsProvider {
+    fn new(search_enabled: bool, resources_enabled: bool) -> Self {
+        Self {
+            search_enabled,
+            resources_enabled,
+            resource_uri: format!("{}/stub-doc", crate::docs::RESOURCE_URI_PREFIX),
+            search_calls: Mutex::new(0),
+            list_calls: Mutex::new(0),
+            read_calls: Mutex::new(0),
+        }
+    }
+
+    fn search_calls(&self) -> usize {
+        *self.search_calls.lock().expect("search calls lock")
+    }
+
+    fn list_calls(&self) -> usize {
+        *self.list_calls.lock().expect("list calls lock")
+    }
+
+    fn read_calls(&self) -> usize {
+        *self.read_calls.lock().expect("read calls lock")
+    }
+}
+
+impl DocsProvider for StubDocsProvider {
+    fn is_search_enabled(&self, _context: &RequestContext, _auth: &AuthContext) -> bool {
+        self.search_enabled
+    }
+
+    fn is_resources_enabled(&self, _context: &RequestContext, _auth: &AuthContext) -> bool {
+        self.resources_enabled
+    }
+
+    fn search(
+        &self,
+        _context: &RequestContext,
+        _auth: &AuthContext,
+        request: DocsSearchRequest,
+    ) -> Result<crate::docs::SearchResult, ToolError> {
+        let mut calls = self.search_calls.lock().expect("search calls lock");
+        *calls += 1;
+        Ok(crate::docs::SearchResult {
+            sections: Vec::new(),
+            docs_covered: Vec::new(),
+            suggested_followups: vec![format!("echo: {}", request.query)],
+        })
+    }
+
+    fn list_resources(
+        &self,
+        _context: &RequestContext,
+        _auth: &AuthContext,
+    ) -> Result<Vec<crate::docs::ResourceMetadata>, ToolError> {
+        let mut calls = self.list_calls.lock().expect("list calls lock");
+        *calls += 1;
+        Ok(vec![crate::docs::ResourceMetadata {
+            uri: self.resource_uri.clone(),
+            name: "Stub Doc".to_string(),
+            description: "Stub docs resource".to_string(),
+            mime_type: "text/markdown",
+        }])
+    }
+
+    fn read_resource(
+        &self,
+        _context: &RequestContext,
+        _auth: &AuthContext,
+        uri: &str,
+    ) -> Result<crate::docs::ResourceContent, ToolError> {
+        let mut calls = self.read_calls.lock().expect("read calls lock");
+        *calls += 1;
+        Ok(crate::docs::ResourceContent {
+            uri: uri.to_string(),
+            mime_type: "text/markdown",
+            text: "stub docs body".to_string(),
+        })
+    }
+}
+
+struct StubToolVisibilityResolver {
+    deny_for_list: BTreeSet<ToolName>,
+    deny_for_call: BTreeSet<ToolName>,
+}
+
+impl StubToolVisibilityResolver {
+    fn new(deny_for_list: BTreeSet<ToolName>, deny_for_call: BTreeSet<ToolName>) -> Self {
+        Self {
+            deny_for_list,
+            deny_for_call,
+        }
+    }
+}
+
+impl ToolVisibilityResolver for StubToolVisibilityResolver {
+    fn is_visible_for_list(
+        &self,
+        _context: &RequestContext,
+        _auth: &AuthContext,
+        tool: ToolName,
+    ) -> bool {
+        !self.deny_for_list.contains(&tool)
+    }
+
+    fn is_allowed_for_call(
+        &self,
+        _context: &RequestContext,
+        _auth: &AuthContext,
+        tool: ToolName,
+    ) -> bool {
+        !self.deny_for_call.contains(&tool)
+    }
+}
+
 fn sample_config() -> DecisionGateConfig {
     DecisionGateConfig {
         server: ServerConfig {
@@ -230,6 +358,7 @@ fn sample_config() -> DecisionGateConfig {
                     }],
                 }],
             }),
+            tools: ServerToolsConfig::default(),
             ..ServerConfig::default()
         },
         namespace: NamespaceConfig {
@@ -247,6 +376,7 @@ fn sample_config() -> DecisionGateConfig {
         schema_registry: SchemaRegistryConfig::default(),
         providers: builtin_providers(),
         dev: DevConfig::default(),
+        docs: DocsConfig::default(),
         runpack_storage: None,
         source_modified_at: None,
     }
@@ -307,11 +437,21 @@ fn sample_spec() -> ScenarioSpec {
     }
 }
 
-fn router_with_backends(
+fn router_with_config_and_backends(
+    config: DecisionGateConfig,
     runpack_storage: Option<Arc<dyn RunpackStorage>>,
     object_store: Option<Arc<ObjectStoreRunpackBackend>>,
 ) -> ToolRouter {
-    let mut config = sample_config();
+    router_with_overrides(config, runpack_storage, object_store, None, None)
+}
+
+fn router_with_overrides(
+    mut config: DecisionGateConfig,
+    runpack_storage: Option<Arc<dyn RunpackStorage>>,
+    object_store: Option<Arc<ObjectStoreRunpackBackend>>,
+    docs_provider: Option<Arc<dyn DocsProvider>>,
+    tool_visibility_resolver: Option<Arc<dyn ToolVisibilityResolver>>,
+) -> ToolRouter {
     config.validate().expect("config");
     let evidence = FederatedEvidenceProvider::from_config(&config).expect("evidence");
     let capabilities = CapabilityRegistry::from_config(&config).expect("capabilities");
@@ -340,6 +480,7 @@ fn router_with_backends(
     let principal_resolver = PrincipalResolver::from_config(config.server.auth.as_ref());
     let default_namespace_tenants =
         config.namespace.default_tenants.iter().copied().collect::<BTreeSet<_>>();
+    let docs_catalog = DocsCatalog::from_config(&config.docs).expect("docs catalog");
     ToolRouter::new(ToolRouterConfig {
         evidence,
         evidence_policy: config.evidence.clone(),
@@ -366,10 +507,22 @@ fn router_with_backends(
         registry_acl,
         principal_resolver,
         scenario_next_feedback: config.server.feedback.scenario_next.clone(),
+        docs_config: config.docs.clone(),
+        docs_catalog,
+        tools: config.server.tools.clone(),
+        docs_provider,
+        tool_visibility_resolver,
         allow_default_namespace: config.allow_default_namespace(),
         default_namespace_tenants,
         namespace_authority: Arc::new(NoopNamespaceAuthority),
     })
+}
+
+fn router_with_backends(
+    runpack_storage: Option<Arc<dyn RunpackStorage>>,
+    object_store: Option<Arc<ObjectStoreRunpackBackend>>,
+) -> ToolRouter {
+    router_with_config_and_backends(sample_config(), runpack_storage, object_store)
 }
 
 fn setup_router_with_run(
@@ -469,4 +622,630 @@ fn runpack_export_prefers_runpack_storage_over_object_store() {
         router.export_runpack(&RequestContext::stdio(), &request).expect("runpack export");
     assert_eq!(runpack_storage.call_count(), 1);
     assert_eq!(response.storage_uri, Some("memory://runpack".to_string()));
+}
+
+// ============================================================================
+// SECTION: Docs + Tool Visibility Tests
+// ============================================================================
+
+#[test]
+fn list_tools_includes_docs_search_by_default() {
+    let router = router_with_backends(None, None);
+    let tools = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+    assert!(tools.iter().any(|tool| tool.name == ToolName::DecisionGateDocsSearch));
+}
+
+#[test]
+fn list_tools_hides_docs_search_when_disabled() {
+    let mut config = sample_config();
+    config.docs.enabled = false;
+    let router = router_with_config_and_backends(config, None, None);
+    let tools = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+    assert!(!tools.iter().any(|tool| tool.name == ToolName::DecisionGateDocsSearch));
+}
+
+#[test]
+fn list_tools_hides_docs_search_when_denied() {
+    let mut config = sample_config();
+    config.server.tools.denylist = vec![ToolName::DecisionGateDocsSearch.as_str().to_string()];
+    let router = router_with_config_and_backends(config, None, None);
+    let tools = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+    assert!(!tools.iter().any(|tool| tool.name == ToolName::DecisionGateDocsSearch));
+}
+
+// ============================================================================
+// SECTION: Tool Visibility Tests (12 tests)
+// ============================================================================
+
+#[test]
+fn tool_visibility_filter_mode_empty_lists_shows_all() {
+    let mut config = sample_config();
+    config.server.tools.mode = ToolVisibilityMode::Filter;
+    config.server.tools.allowlist = Vec::new();
+    config.server.tools.denylist = Vec::new();
+
+    let router = router_with_config_and_backends(config, None, None);
+    let tools = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+
+    // With filter mode and empty lists, all enabled tools should be visible
+    assert!(!tools.is_empty(), "should show tools with empty lists in filter mode");
+}
+
+#[test]
+fn tool_visibility_filter_mode_allowlist_only_filters() {
+    let mut config = sample_config();
+    config.server.tools.mode = ToolVisibilityMode::Filter;
+    config.server.tools.allowlist = vec![
+        ToolName::ScenarioDefine.as_str().to_string(),
+        ToolName::ScenarioStart.as_str().to_string(),
+    ];
+    config.server.tools.denylist = Vec::new();
+
+    let router = router_with_config_and_backends(config, None, None);
+    let tools = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+
+    // Only allowlisted tools should be visible
+    assert!(
+        tools.iter().any(|t| t.name == ToolName::ScenarioDefine),
+        "allowlisted tool should appear"
+    );
+    assert!(
+        tools.iter().any(|t| t.name == ToolName::ScenarioStart),
+        "allowlisted tool should appear"
+    );
+    assert!(
+        tools
+            .iter()
+            .all(|t| t.name == ToolName::ScenarioDefine || t.name == ToolName::ScenarioStart),
+        "only allowlisted tools should appear"
+    );
+}
+
+#[test]
+fn tool_visibility_filter_mode_denylist_only_filters() {
+    let mut config = sample_config();
+    config.server.tools.mode = ToolVisibilityMode::Filter;
+    config.server.tools.allowlist = Vec::new();
+    config.server.tools.denylist = vec![ToolName::ScenarioDefine.as_str().to_string()];
+
+    let router = router_with_config_and_backends(config, None, None);
+    let tools = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+
+    // Denylisted tool should not appear
+    assert!(
+        !tools.iter().any(|t| t.name == ToolName::ScenarioDefine),
+        "denylisted tool should not appear"
+    );
+    assert!(!tools.is_empty(), "other tools should still appear");
+}
+
+#[test]
+fn tool_visibility_filter_mode_denylist_overrides_allowlist() {
+    let mut config = sample_config();
+    config.server.tools.mode = ToolVisibilityMode::Filter;
+    config.server.tools.allowlist = vec![ToolName::ScenarioDefine.as_str().to_string()];
+    config.server.tools.denylist = vec![ToolName::ScenarioDefine.as_str().to_string()];
+
+    let router = router_with_config_and_backends(config, None, None);
+    let tools = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+
+    // Denylist should take precedence - tool should not appear
+    assert!(
+        !tools.iter().any(|t| t.name == ToolName::ScenarioDefine),
+        "denylist should override allowlist"
+    );
+}
+
+#[test]
+fn tool_visibility_passthrough_mode_ignores_allowlist() {
+    let mut config = sample_config();
+    config.server.tools.mode = ToolVisibilityMode::Passthrough;
+    config.server.tools.allowlist = vec![ToolName::ScenarioDefine.as_str().to_string()];
+    config.server.tools.denylist = Vec::new();
+
+    let router = router_with_config_and_backends(config, None, None);
+    let tools = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+
+    // Passthrough mode should ignore allowlist and show all enabled tools
+    assert!(tools.len() > 1, "passthrough mode should show all enabled tools");
+}
+
+#[test]
+fn tool_visibility_passthrough_mode_ignores_denylist() {
+    let mut config = sample_config();
+    config.server.tools.mode = ToolVisibilityMode::Passthrough;
+    config.server.tools.allowlist = Vec::new();
+    config.server.tools.denylist = vec![ToolName::ScenarioDefine.as_str().to_string()];
+
+    let router = router_with_config_and_backends(config, None, None);
+    let tools = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+
+    // Passthrough mode should ignore denylist - tool should appear
+    assert!(
+        tools.iter().any(|t| t.name == ToolName::ScenarioDefine),
+        "passthrough mode should ignore denylist"
+    );
+}
+
+#[test]
+fn tool_visibility_filter_preserves_order() {
+    let mut config = sample_config();
+    config.server.tools.mode = ToolVisibilityMode::Filter;
+    config.server.tools.allowlist = vec![
+        ToolName::ScenarioStart.as_str().to_string(),
+        ToolName::ScenarioDefine.as_str().to_string(),
+    ];
+
+    let router = router_with_config_and_backends(config, None, None);
+    let tools = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+
+    // Tools should maintain their canonical order, not allowlist order
+    let define_idx = tools.iter().position(|t| t.name == ToolName::ScenarioDefine);
+    let start_idx = tools.iter().position(|t| t.name == ToolName::ScenarioStart);
+
+    if let (Some(define_pos), Some(start_pos)) = (define_idx, start_idx) {
+        assert!(define_pos < start_pos, "tools should maintain canonical order");
+    }
+}
+
+#[test]
+fn tool_visibility_empty_allowlist_shows_all_in_filter_mode() {
+    let mut config = sample_config();
+    config.server.tools.mode = ToolVisibilityMode::Filter;
+    config.server.tools.allowlist = Vec::new();
+    config.server.tools.denylist = Vec::new();
+
+    let router = router_with_config_and_backends(config.clone(), None, None);
+    let tools1 = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+
+    // Compare with passthrough mode
+    config.server.tools.mode = ToolVisibilityMode::Passthrough;
+    let router2 = router_with_config_and_backends(config, None, None);
+    let tools2 = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router2.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+
+    // Both should show same tools when lists are empty
+    assert_eq!(tools1.len(), tools2.len(), "empty filter and passthrough should show same tools");
+}
+
+#[test]
+fn tool_visibility_multiple_tools_in_denylist() {
+    let mut config = sample_config();
+    config.server.tools.mode = ToolVisibilityMode::Filter;
+    config.server.tools.denylist = vec![
+        ToolName::ScenarioDefine.as_str().to_string(),
+        ToolName::ScenarioStart.as_str().to_string(),
+        ToolName::ScenarioNext.as_str().to_string(),
+    ];
+
+    let router = router_with_config_and_backends(config, None, None);
+    let tools = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+
+    // All denylisted tools should be hidden
+    assert!(!tools.iter().any(|t| t.name == ToolName::ScenarioDefine));
+    assert!(!tools.iter().any(|t| t.name == ToolName::ScenarioStart));
+    assert!(!tools.iter().any(|t| t.name == ToolName::ScenarioNext));
+}
+
+#[test]
+fn tool_visibility_list_tools_returns_valid_contracts() {
+    let config = sample_config();
+    let router = router_with_config_and_backends(config, None, None);
+    let tools = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+
+    // All returned tools should have valid contracts
+    for tool in tools {
+        assert!(!tool.name.as_str().is_empty(), "tool name should not be empty");
+        assert!(tool.input_schema.is_object(), "input schema should be object");
+    }
+}
+
+#[test]
+fn tool_visibility_disabled_tool_never_appears() {
+    let mut config = sample_config();
+    config.docs.enabled = false; // Disable docs entirely
+
+    // Even with docs in allowlist, it shouldn't appear if disabled
+    config.server.tools.mode = ToolVisibilityMode::Filter;
+    config.server.tools.allowlist = vec![ToolName::DecisionGateDocsSearch.as_str().to_string()];
+
+    let router = router_with_config_and_backends(config, None, None);
+    let tools = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+
+    // Disabled tool should not appear even if allowlisted
+    assert!(
+        !tools.iter().any(|t| t.name == ToolName::DecisionGateDocsSearch),
+        "disabled tool should not appear"
+    );
+}
+
+// ============================================================================
+// SECTION: Docs Search Handler Tests (12 tests)
+// ============================================================================
+
+fn call_docs_search(router: &ToolRouter, request: Value) -> Value {
+    tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.handle_tool_call(
+            &RequestContext::stdio(),
+            ToolName::DecisionGateDocsSearch.as_str(),
+            request,
+        ))
+        .expect("call tool")
+}
+
+#[test]
+fn docs_search_handler_returns_sections() {
+    let config = sample_config();
+    let router = router_with_config_and_backends(config, None, None);
+
+    let request = json!({
+        "query": "provider evidence",
+        "max_sections": 5
+    });
+
+    let response = call_docs_search(&router, request);
+    assert!(response.get("sections").is_some(), "should have sections field");
+    assert!(response["sections"].is_array(), "sections should be array");
+}
+
+#[test]
+fn docs_search_handler_respects_max_sections() {
+    let config = sample_config();
+    let router = router_with_config_and_backends(config, None, None);
+
+    let request = json!({
+        "query": "provider",
+        "max_sections": 2
+    });
+
+    let response = call_docs_search(&router, request);
+    let sections = response["sections"].as_array().expect("sections array");
+    assert!(sections.len() <= 2, "should respect max_sections=2");
+}
+
+#[test]
+fn docs_search_handler_empty_query_returns_overview() {
+    let config = sample_config();
+    let router = router_with_config_and_backends(config, None, None);
+
+    let request = json!({
+        "query": "",
+        "max_sections": 4
+    });
+
+    let response = call_docs_search(&router, request);
+    assert!(response.get("sections").is_some(), "should return overview sections");
+    assert!(response.get("suggested_followups").is_some(), "should suggest followups");
+}
+
+#[test]
+fn docs_search_disabled_when_docs_disabled() {
+    let mut config = sample_config();
+    config.docs.enabled = false;
+
+    let router = router_with_config_and_backends(config, None, None);
+    let tools = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+
+    // Docs search should not appear when docs disabled
+    assert!(
+        !tools.iter().any(|t| t.name == ToolName::DecisionGateDocsSearch),
+        "docs search should be disabled when docs.enabled=false"
+    );
+}
+
+#[test]
+fn docs_search_disabled_when_search_disabled() {
+    let mut config = sample_config();
+    config.docs.enable_search = false;
+
+    let router = router_with_config_and_backends(config, None, None);
+    let tools = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+
+    // Docs search should not appear when enable_search=false
+    assert!(
+        !tools.iter().any(|t| t.name == ToolName::DecisionGateDocsSearch),
+        "docs search should be disabled when docs.enable_search=false"
+    );
+}
+
+#[test]
+fn docs_search_uses_catalog_from_config() {
+    let mut config = sample_config();
+    config.docs.max_sections = 5;
+
+    let router = router_with_config_and_backends(config, None, None);
+    let request = json!({
+        "query": "provider",
+        "max_sections": 10 // Request more than config allows
+    });
+
+    let response = call_docs_search(&router, request);
+    let sections = response["sections"].as_array().expect("sections array");
+
+    // Should be clamped by config.docs.max_sections
+    assert!(sections.len() <= 5, "should respect config max_sections");
+}
+
+#[test]
+fn docs_search_hidden_when_in_denylist() {
+    let mut config = sample_config();
+    config.server.tools.mode = ToolVisibilityMode::Filter;
+    config.server.tools.denylist = vec![ToolName::DecisionGateDocsSearch.as_str().to_string()];
+
+    let router = router_with_config_and_backends(config, None, None);
+    let tools = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+
+    assert!(
+        !tools.iter().any(|t| t.name == ToolName::DecisionGateDocsSearch),
+        "docs search should be hidden when denylisted"
+    );
+}
+
+#[test]
+fn docs_search_shown_when_in_allowlist() {
+    let mut config = sample_config();
+    config.server.tools.mode = ToolVisibilityMode::Filter;
+    config.server.tools.allowlist = vec![ToolName::DecisionGateDocsSearch.as_str().to_string()];
+
+    let router = router_with_config_and_backends(config, None, None);
+    let tools = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+
+    assert!(
+        tools.iter().any(|t| t.name == ToolName::DecisionGateDocsSearch),
+        "docs search should appear when allowlisted"
+    );
+}
+
+#[test]
+fn docs_search_shown_by_default_when_enabled() {
+    let config = sample_config();
+    let router = router_with_config_and_backends(config, None, None);
+    let tools = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+
+    // Should appear by default when docs.enabled=true and docs.enable_search=true
+    assert!(
+        tools.iter().any(|t| t.name == ToolName::DecisionGateDocsSearch),
+        "docs search should appear by default when enabled"
+    );
+}
+
+#[test]
+fn docs_search_returns_docs_covered() {
+    let config = sample_config();
+    let router = router_with_config_and_backends(config, None, None);
+
+    let request = json!({
+        "query": "provider check",
+        "max_sections": 5
+    });
+
+    let response = call_docs_search(&router, request);
+    assert!(response.get("docs_covered").is_some(), "should have docs_covered field");
+    assert!(response["docs_covered"].is_array(), "docs_covered should be array");
+}
+
+#[test]
+fn docs_search_returns_suggested_followups() {
+    let config = sample_config();
+    let router = router_with_config_and_backends(config, None, None);
+
+    let request = json!({
+        "query": "provider",
+        "max_sections": 3
+    });
+
+    let response = call_docs_search(&router, request);
+    assert!(response.get("suggested_followups").is_some(), "should have suggested_followups");
+    assert!(response["suggested_followups"].is_array(), "suggested_followups should be array");
+}
+
+#[test]
+fn docs_search_handles_empty_catalog() {
+    let mut config = sample_config();
+    config.docs.include_default_docs = false; // No docs in catalog
+
+    let router = router_with_config_and_backends(config, None, None);
+    let request = json!({
+        "query": "provider",
+        "max_sections": 5
+    });
+
+    let response = call_docs_search(&router, request);
+    let sections = response["sections"].as_array().expect("sections array");
+    assert!(sections.is_empty(), "empty catalog should return no results");
+}
+
+// ============================================================================
+// SECTION: Docs Provider Overrides (6 tests)
+// ============================================================================
+
+#[test]
+fn docs_provider_disables_search_hides_tool_and_rejects_call() {
+    let config = sample_config();
+    let docs_provider = Arc::new(StubDocsProvider::new(false, true));
+    let docs_provider_trait: Arc<dyn DocsProvider> = docs_provider.clone();
+    let router = router_with_overrides(config, None, None, Some(docs_provider_trait), None);
+    let tools = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+    assert!(
+        !tools.iter().any(|tool| tool.name == ToolName::DecisionGateDocsSearch),
+        "docs search should be hidden when docs provider disables search",
+    );
+
+    let err = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.handle_tool_call(
+            &RequestContext::stdio(),
+            ToolName::DecisionGateDocsSearch.as_str(),
+            json!({ "query": "docs" }),
+        ))
+        .expect_err("docs search should be blocked");
+    assert!(matches!(err, ToolError::UnknownTool));
+}
+
+#[test]
+fn docs_provider_search_is_invoked_for_docs_tool() {
+    let config = sample_config();
+    let docs_provider = Arc::new(StubDocsProvider::new(true, true));
+    let docs_provider_trait: Arc<dyn DocsProvider> = docs_provider.clone();
+    let router = router_with_overrides(config, None, None, Some(docs_provider_trait), None);
+
+    let response = call_docs_search(&router, json!({ "query": "hello docs", "max_sections": 2 }));
+    assert_eq!(docs_provider.search_calls(), 1);
+    let followups = response["suggested_followups"].as_array().expect("followups array");
+    assert!(
+        followups.iter().any(|value| value.as_str() == Some("echo: hello docs")),
+        "docs provider should shape followup content",
+    );
+}
+
+#[test]
+fn docs_provider_disables_resources_blocks_list_and_read() {
+    let config = sample_config();
+    let docs_provider = Arc::new(StubDocsProvider::new(true, false));
+    let docs_provider_trait: Arc<dyn DocsProvider> = docs_provider.clone();
+    let router = router_with_overrides(config, None, None, Some(docs_provider_trait), None);
+
+    let err = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_resources(&RequestContext::stdio()))
+        .expect_err("resources list should be blocked");
+    assert!(matches!(err, ToolError::UnknownTool));
+    assert_eq!(docs_provider.list_calls(), 0);
+
+    let err = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.read_resource(&RequestContext::stdio(), "decision-gate://docs/stub"))
+        .expect_err("resources read should be blocked");
+    assert!(matches!(err, ToolError::UnknownTool));
+    assert_eq!(docs_provider.read_calls(), 0);
+}
+
+#[test]
+fn docs_provider_resources_enabled_lists_and_reads() {
+    let config = sample_config();
+    let docs_provider = Arc::new(StubDocsProvider::new(true, true));
+    let docs_provider_trait: Arc<dyn DocsProvider> = docs_provider.clone();
+    let router = router_with_overrides(config, None, None, Some(docs_provider_trait), None);
+
+    let resources = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_resources(&RequestContext::stdio()))
+        .expect("list resources");
+    assert_eq!(resources.len(), 1);
+    assert_eq!(docs_provider.list_calls(), 1);
+    let uri = resources[0].uri.clone();
+
+    let content = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.read_resource(&RequestContext::stdio(), &uri))
+        .expect("read resource");
+    assert_eq!(content.uri, uri);
+    assert_eq!(content.mime_type, "text/markdown");
+    assert_eq!(docs_provider.read_calls(), 1);
+}
+
+#[test]
+fn tool_visibility_resolver_blocks_list_and_call() {
+    let config = sample_config();
+    let deny_list = vec![ToolName::ScenarioDefine].into_iter().collect();
+    let deny_call = vec![ToolName::ScenarioDefine].into_iter().collect();
+    let resolver = Arc::new(StubToolVisibilityResolver::new(deny_list, deny_call));
+    let router = router_with_overrides(config, None, None, None, Some(resolver));
+
+    let tools = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+    assert!(!tools.iter().any(|tool| tool.name == ToolName::ScenarioDefine));
+
+    let err = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.handle_tool_call(
+            &RequestContext::stdio(),
+            ToolName::ScenarioDefine.as_str(),
+            json!({}),
+        ))
+        .expect_err("call should be blocked");
+    assert!(matches!(err, ToolError::UnknownTool));
+}
+
+#[test]
+fn tool_visibility_resolver_overrides_config_denylist() {
+    let mut config = sample_config();
+    config.server.tools.mode = ToolVisibilityMode::Filter;
+    config.server.tools.denylist = vec![ToolName::ScenarioDefine.as_str().to_string()];
+    let resolver = Arc::new(StubToolVisibilityResolver::new(BTreeSet::new(), BTreeSet::new()));
+    let router = router_with_overrides(config, None, None, None, Some(resolver));
+
+    let tools = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(router.list_tools(&RequestContext::stdio()))
+        .expect("list tools");
+    assert!(
+        tools.iter().any(|tool| tool.name == ToolName::ScenarioDefine),
+        "custom resolver should override config denylist",
+    );
 }

@@ -33,6 +33,7 @@ Server transport, auth, limits, and audit settings.
 | `tls` | table | null | TLS configuration for HTTP/SSE transports. |
 | `audit` | table | { enabled = true } | Structured audit logging configuration. |
 | `feedback` | table | n/a | Feedback disclosure configuration for tool responses. |
+| `tools` | table | { mode = "filter", allowlist = [], denylist = [] } | Tool visibility configuration for MCP tool listings. |
 
 HTTP/SSE require `bind`; non-loopback requires explicit CLI opt-in plus TLS + non-local auth.
 
@@ -117,6 +118,18 @@ Feedback policy for scenario_next responses.
 | `evidence_roles` | array | [] | Role names allowed to request evidence feedback. |
 
 Local-only defaults apply to loopback/stdio. Subjects and roles are resolved from `server.auth.principals`.
+
+### [server.tools]
+
+Tool visibility configuration for tools/list output.
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `mode` | "filter" \| "passthrough" | filter | Visibility mode for tools/list output. |
+| `allowlist` | array | [] |  |
+| `denylist` | array | [] |  |
+
+Visibility is separate from auth: hidden tools are omitted from tools/list and treated as unknown when called.
 
 ### [server.limits]
 
@@ -463,6 +476,24 @@ Custom ACL rule fields.
 | `subjects` | array | [] | Principal subjects in scope. |
 | `roles` | array | [] | Role names in scope. |
 | `policy_classes` | array | [] | Policy class labels in scope. |
+
+### [docs]
+
+Documentation search and resources configuration.
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `enabled` | bool | true | Enable docs surfaces globally. |
+| `enable_search` | bool | true | Enable docs search tool. |
+| `enable_resources` | bool | true | Enable MCP resources list/read. |
+| `include_default_docs` | bool | true | Include the embedded default docs set. |
+| `extra_paths` | array | [] | Extra doc paths to ingest (files or directories). |
+| `max_doc_bytes` | integer | 262144 | Maximum size for a single doc entry in bytes. |
+| `max_total_bytes` | integer | 1048576 | Maximum total docs bytes for the catalog. |
+| `max_docs` | integer | 32 | Maximum number of docs in the catalog. |
+| `max_sections` | integer | 10 | Maximum sections returned by docs search. |
+
+Docs search and resources are deterministic and local-only by default. Use extra_paths to ingest local markdown files or directories.
 
 ### [[providers]]
 

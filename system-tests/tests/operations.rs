@@ -12,6 +12,8 @@ mod helpers;
 
 #[path = "suites/cli_workflows.rs"]
 mod cli_workflows;
+#[path = "suites/docs_config.rs"]
+mod docs_config;
 #[path = "suites/mcp_hardening.rs"]
 mod mcp_hardening;
 #[path = "suites/operations.rs"]

@@ -41,6 +41,7 @@ use decision_gate_mcp::auth::DefaultToolAuthz;
 use decision_gate_mcp::auth::NoopAuditSink;
 use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::EvidencePolicyConfig;
+use decision_gate_mcp::docs::DocsCatalog;
 use decision_gate_mcp::namespace_authority::NoopNamespaceAuthority;
 use decision_gate_mcp::registry_acl::PrincipalResolver;
 use decision_gate_mcp::registry_acl::RegistryAcl;
@@ -57,6 +58,10 @@ use crate::common::sample_context;
 // SECTION: Test Fixtures
 // ============================================================================
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "Test setup keeps config wiring explicit for readability."
+)]
 fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
     let mut config = common::sample_config();
     config.evidence = policy;
@@ -123,6 +128,7 @@ fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
     let principal_resolver = PrincipalResolver::from_config(config.server.auth.as_ref());
     let registry_acl = RegistryAcl::new(&config.schema_registry.acl);
     let audit = std::sync::Arc::new(NoopAuditSink);
+    let docs_catalog = DocsCatalog::from_config(&config.docs).expect("docs catalog");
     ToolRouter::new(ToolRouterConfig {
         evidence,
         evidence_policy,
@@ -149,6 +155,11 @@ fn router_with_policy(policy: EvidencePolicyConfig) -> ToolRouter {
         registry_acl,
         principal_resolver,
         scenario_next_feedback: config.server.feedback.scenario_next,
+        docs_config: config.docs.clone(),
+        docs_catalog,
+        tools: config.server.tools,
+        docs_provider: None,
+        tool_visibility_resolver: None,
         allow_default_namespace,
         default_namespace_tenants,
         namespace_authority: std::sync::Arc::new(NoopNamespaceAuthority),

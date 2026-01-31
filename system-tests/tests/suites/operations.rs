@@ -8,7 +8,6 @@
 
 //! Operational posture tests for Decision Gate system-tests.
 
-
 use std::num::NonZeroU64;
 use std::path::PathBuf;
 use std::time::Duration;

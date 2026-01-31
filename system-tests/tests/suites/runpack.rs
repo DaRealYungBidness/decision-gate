@@ -8,7 +8,6 @@
 
 //! Runpack validation tests for Decision Gate system-tests.
 
-
 use std::sync::LazyLock;
 
 use decision_gate_core::ArtifactReader;
