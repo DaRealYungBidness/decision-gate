@@ -134,6 +134,12 @@ The `runpack_verify` tool parses the manifest, reads artifacts from disk, and
 returns a structured verification report.
 [F:decision-gate-mcp/src/tools.rs L931-L1011](decision-gate-mcp/src/tools.rs#L931-L1011)
 
+**Note on `include_verification`:** `runpack_export` generates the verification
+report before the report artifact is added to the manifest, so
+`report.checked_files` excludes `verifier_report.json`. `runpack_verify`
+validates all manifest file hashes (including the report) and may report
+`checked_files` as +1 compared to the export-time report.
+
 ---
 
 ## Filesystem Sink/Reader Safety

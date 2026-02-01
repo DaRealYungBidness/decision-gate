@@ -94,6 +94,10 @@ curl -s http://127.0.0.1:4000/rpc \
   }'
 ```
 
+**Note:** Precheck does **not** execute provider queries. The asserted payload is
+mapped to condition ids (e.g., `report_ok`) and evaluated directly. The provider
+query is only used during live runs.
+
 ### Step 2: Register a Data Shape (Schema)
 
 ```bash dg-run dg-level=manual dg-requires=mcp

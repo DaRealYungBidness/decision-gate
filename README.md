@@ -69,6 +69,9 @@ explicit requirements are satisfied.
 - Verify all + system tests: `scripts/verify_all.sh --system-tests=p0`
 - Run core tests: `cargo test -p decision-gate-core`
 - Run broker tests: `cargo test -p decision-gate-broker`
+- One-command quickstart smoke test:
+  - Bash/WSL: `scripts/quickstart.sh`
+  - PowerShell: `scripts/quickstart.ps1`
 - Run examples:
   - `cargo run -p decision-gate-example-minimal`
   - `cargo run -p decision-gate-example-file-disclosure`

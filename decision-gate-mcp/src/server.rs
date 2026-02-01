@@ -1667,10 +1667,25 @@ fn emit_local_only_warning(server: &crate::config::ServerConfig) {
 /// Emits a warning when registry ACL bypass is enabled for local-only requests.
 fn emit_registry_acl_warning(config: &DecisionGateConfig) {
     if config.schema_registry.acl.allow_local_only {
+        let auth_mode = config
+            .server
+            .auth
+            .as_ref()
+            .map_or(ServerAuthMode::LocalOnly, |auth| auth.mode);
+        let level = if auth_mode == ServerAuthMode::LocalOnly {
+            "INFO"
+        } else {
+            "WARNING"
+        };
+        let note = if auth_mode == ServerAuthMode::LocalOnly {
+            " (local-only mode)"
+        } else {
+            ""
+        };
         let _ = writeln!(
             std::io::stderr(),
-            "decision-gate-mcp: WARNING: schema_registry.acl.allow_local_only=true; local-only \
-             callers bypass principal mapping for registry access"
+            "decision-gate-mcp: {level}: schema_registry.acl.allow_local_only=true; local-only \
+             callers bypass principal mapping for registry access{note}"
         );
     }
 }
@@ -1697,6 +1712,21 @@ fn emit_dev_permissive_warning(config: &DecisionGateConfig) {
     } else {
         "dev.permissive=true"
     };
+    let auth_mode = config
+        .server
+        .auth
+        .as_ref()
+        .map_or(ServerAuthMode::LocalOnly, |auth| auth.mode);
+    let level = if auth_mode == ServerAuthMode::LocalOnly {
+        "INFO"
+    } else {
+        "WARNING"
+    };
+    let mode_note = if auth_mode == ServerAuthMode::LocalOnly {
+        " (local-only mode)"
+    } else {
+        ""
+    };
     let mut ttl_note = String::new();
     if let (Some(ttl_days), Some(modified_at)) =
         (config.dev.permissive_ttl_days, config.source_modified_at)
@@ -1709,8 +1739,8 @@ fn emit_dev_permissive_warning(config: &DecisionGateConfig) {
     }
     let _ = writeln!(
         std::io::stderr(),
-        "decision-gate-mcp: WARNING: dev-permissive enabled via {source}; asserted evidence \
-         allowed for non-exempt providers only; namespace defaults remain strict{ttl_note}"
+        "decision-gate-mcp: {level}: dev-permissive enabled via {source}; asserted evidence \
+         allowed for non-exempt providers only; namespace defaults remain strict{ttl_note}{mode_note}"
     );
 }
 

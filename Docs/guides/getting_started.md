@@ -55,6 +55,23 @@ Providers can be:
 
 ## Quick Start
 
+### Step 0: Get the CLI
+
+If you installed the CLI, use `decision-gate`. If you are running from source,
+use `cargo run`:
+
+```bash dg-run dg-level=manual
+# Installed binary
+decision-gate --help
+
+# From source (repo checkout)
+cargo run -p decision-gate-cli -- --help
+```
+
+**One-command smoke test:** `scripts/quickstart.sh` (bash/WSL) or
+`scripts/quickstart.ps1` (PowerShell) runs the full define → start → next →
+runpack → precheck flow with unique IDs.
+
 ### Step 1: Choose a Preset
 
 Pick a preset configuration from `configs/presets/` (details in
@@ -79,7 +96,11 @@ Notes:
 ### Step 2: Start the MCP Server
 
 ```bash dg-run dg-level=manual dg-requires=mcp
+# Installed binary:
 decision-gate serve --config configs/presets/quickstart-dev.toml
+
+# From source (repo checkout):
+# cargo run -p decision-gate-cli -- serve --config configs/presets/quickstart-dev.toml
 ```
 
 ### Step 3: Define a Scenario
@@ -189,6 +210,10 @@ curl -s http://127.0.0.1:4000/rpc \
   }'
 ```
 
+**Note:** `run_id` values must be unique. If you re-run this guide, change
+`run_id` (e.g., `run-2`) or delete the local run state store
+(`decision-gate.db` by default).
+
 **Response (MCP-wrapped):** `scenario_start` returns the full `RunState` inside `result.content[0].json`.
 
 ```json dg-parse dg-level=fast
@@ -288,7 +313,7 @@ Optional: add `"feedback": "trace"` inside `arguments` to get gate/condition sta
 
 ### Gate Outcome is `hold`
 
-If a gate cannot be proven `true` or `false`, the decision outcome will be `hold` and the response will include a `SafeSummary`. By default, `scenario_next` returns summary-only feedback; for gate/condition status use `feedback: "trace"` (if allowed) or `precheck` for fast iteration.
+If a gate cannot be proven `true` or `false`, the decision outcome will be `hold` and the response will include a `SafeSummary`. For non-local requests, `scenario_next` defaults to summary-only feedback; in local-only mode the default is `trace`. You can always request `feedback: "trace"` (if allowed) or use `precheck` for fast iteration.
 
 ```json dg-parse dg-level=fast
 {

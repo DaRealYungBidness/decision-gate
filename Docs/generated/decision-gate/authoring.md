@@ -22,6 +22,11 @@ Decision Gate accepts ScenarioSpec authoring input in JSON or RON. JSON is the c
 4. Canonicalize to JSON (RFC 8785).
 5. Compute the canonical spec hash.
 
+## Limits
+
+- Max authoring input size: 16777216 bytes.
+- Max nesting depth: 64.
+
 ## CLI Usage
 
 Validate RON authoring input:

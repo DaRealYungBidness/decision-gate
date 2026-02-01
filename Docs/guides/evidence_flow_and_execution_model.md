@@ -196,7 +196,7 @@ Decision Gate calls external MCP providers with `tools/call` and a single tool: 
 
 - **"DG runs the tools."** -> False. DG evaluates evidence; tools run elsewhere.
 - **"Precheck returns evidence errors."** -> False. It returns `decision` + `gate_evaluations` only.
-- **"scenario_next response includes evidence."** -> False by default. Use `feedback: "trace"`/`"evidence"` (if permitted) or `runpack_export`/`evidence_query`.
+- **"scenario_next response includes evidence."** -> False by default. Local-only requests default to `trace` feedback, but evidence values still require `feedback: "evidence"` (if permitted) or `runpack_export`/`evidence_query`.
 - **"Anchor policy is in the scenario."** -> False. It is configured under `[anchors]`.
 
 ---
