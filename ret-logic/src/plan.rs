@@ -117,7 +117,8 @@ impl std::error::Error for PlanError {}
 
 impl Plan {
     /// Maximum number of constants supported in a plan.
-    const MAX_CONSTANTS: usize = u16::MAX as usize + 1;
+    /// Matches `u16::MAX + 1` to cover the full constant index space.
+    const MAX_CONSTANTS: usize = 65_536;
 
     /// Creates a new empty plan
     #[must_use]
@@ -328,6 +329,30 @@ impl OpCode {
                 | Self::IntLte
                 | Self::IntEq
         )
+    }
+
+    /// Returns the numeric opcode used for dispatch table indexing.
+    #[must_use]
+    pub const fn as_u8(self) -> u8 {
+        match self {
+            Self::AndStart => 0,
+            Self::AndEnd => 1,
+            Self::OrStart => 2,
+            Self::OrEnd => 3,
+            Self::Not => 4,
+            Self::FloatGte => 10,
+            Self::FloatLte => 11,
+            Self::FloatEq => 12,
+            Self::IntGte => 13,
+            Self::IntLte => 14,
+            Self::IntEq => 15,
+            Self::HasAllFlags => 20,
+            Self::HasAnyFlags => 21,
+            Self::HasNoneFlags => 22,
+            Self::InRange => 30,
+            Self::InRegion => 31,
+            Self::DomainStart => 100,
+        }
     }
 }
 

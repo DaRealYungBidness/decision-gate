@@ -36,10 +36,14 @@ use decision_gate_core::DataShapeVersion;
 use decision_gate_core::NamespaceId;
 use decision_gate_core::TenantId;
 use decision_gate_core::Timestamp;
+use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
+use decision_gate_core::hashing::canonical_json_bytes;
+use decision_gate_core::hashing::hash_bytes;
 use decision_gate_store_sqlite::SqliteRunStateStore;
 use decision_gate_store_sqlite::SqliteStoreConfig;
 use decision_gate_store_sqlite::SqliteStoreMode;
 use decision_gate_store_sqlite::SqliteSyncMode;
+use decision_gate_store_sqlite::store::MAX_SCHEMA_BYTES;
 use serde_json::json;
 use tempfile::TempDir;
 
@@ -82,6 +86,54 @@ fn sqlite_fixture() -> SqliteFixture {
         path,
         store,
     }
+}
+
+fn insert_oversized_record(fixture: &SqliteFixture, schema_id: &str) -> DataShapeRecord {
+    let payload = "x".repeat(MAX_SCHEMA_BYTES);
+    let schema = json!({ "payload": payload });
+    let schema_bytes = canonical_json_bytes(&schema).expect("schema bytes");
+    assert!(schema_bytes.len() > MAX_SCHEMA_BYTES, "schema payload must exceed size limit");
+    let hash = hash_bytes(DEFAULT_HASH_ALGORITHM, &schema_bytes);
+    let created_at_json = serde_json::to_string(&Timestamp::Logical(1)).expect("created_at_json");
+    let record = DataShapeRecord {
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        schema_id: DataShapeId::new(schema_id),
+        version: DataShapeVersion::new("v1"),
+        schema,
+        description: None,
+        created_at: Timestamp::Logical(1),
+        signing: None,
+    };
+    let hash_algorithm = match hash.algorithm {
+        decision_gate_core::hashing::HashAlgorithm::Sha256 => "sha256",
+    };
+    let connection = rusqlite::Connection::open(&fixture.path).expect("open registry db");
+    connection
+        .execute(
+            "INSERT INTO data_shapes (
+                tenant_id, namespace_id, schema_id, version,
+                schema_json, schema_hash, hash_algorithm, description,
+                signing_key_id, signing_signature, signing_algorithm,
+                created_at_json
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+            rusqlite::params![
+                record.tenant_id.to_string(),
+                record.namespace_id.to_string(),
+                record.schema_id.as_str(),
+                record.version.as_str(),
+                schema_bytes,
+                hash.value,
+                hash_algorithm,
+                record.description.as_deref(),
+                None::<String>,
+                None::<String>,
+                None::<String>,
+                created_at_json,
+            ],
+        )
+        .expect("insert oversized schema");
+    record
 }
 
 // ============================================================================
@@ -703,4 +755,23 @@ fn sqlite_registry_deeply_nested_schema_persists() {
         .unwrap()
         .expect("record");
     assert_eq!(fetched.schema, nested);
+}
+
+#[test]
+fn sqlite_registry_rejects_oversized_schema_on_get() {
+    let fixture = sqlite_fixture();
+    let record = insert_oversized_record(&fixture, "schema-oversized-get");
+    let err = fixture
+        .store
+        .get(&record.tenant_id, &record.namespace_id, &record.schema_id, &record.version)
+        .unwrap_err();
+    assert!(err.to_string().contains("schema exceeds size limit"));
+}
+
+#[test]
+fn sqlite_registry_rejects_oversized_schema_on_list() {
+    let fixture = sqlite_fixture();
+    let record = insert_oversized_record(&fixture, "schema-oversized-list");
+    let err = fixture.store.list(&record.tenant_id, &record.namespace_id, None, 10).unwrap_err();
+    assert!(err.to_string().contains("schema exceeds size limit"));
 }

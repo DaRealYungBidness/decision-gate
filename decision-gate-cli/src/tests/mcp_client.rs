@@ -18,6 +18,7 @@ use bytes::Bytes;
 use hyper::HeaderMap;
 use hyper::StatusCode;
 
+use crate::mcp_client::MAX_MCP_RESPONSE_BYTES;
 use crate::mcp_client::McpClient;
 use crate::mcp_client::McpClientConfig;
 use crate::mcp_client::McpClientError;
@@ -56,6 +57,15 @@ fn parse_sse_body_errors_without_data() {
 fn parse_sse_body_errors_on_invalid_utf8() {
     let err = parse_sse_body(&[0xff, 0xfe]).expect_err("expected utf8 error");
     assert!(matches!(err, McpClientError::Protocol(_)));
+}
+
+#[test]
+fn read_framed_rejects_oversized_payload() {
+    let oversized = MAX_MCP_RESPONSE_BYTES + 1;
+    let data = format!("Content-Length: {oversized}\r\n\r\n");
+    let mut reader = BufReader::new(Cursor::new(data.into_bytes()));
+    let err = read_framed(&mut reader).expect_err("expected size limit error");
+    assert!(matches!(err, McpClientError::ResponseTooLarge { .. }));
 }
 
 #[test]
@@ -169,7 +179,7 @@ async fn http_redirect_rejected() {
 async fn http_timeout_fails_gracefully() {
     let server = TestHttpServer::start(|_| {
         std::thread::sleep(Duration::from_millis(200));
-        TestResponse::json(&jsonrpc_result(serde_json::json!({ "tools": [] })))
+        TestResponse::json(&jsonrpc_result(&serde_json::json!({ "tools": [] })))
     })
     .await;
     let config = http_client_config(server.url(), Duration::from_millis(50));
@@ -208,7 +218,7 @@ async fn http_response_without_content_type() {
             StatusCode::OK,
             headers,
             Bytes::from(
-                serde_json::to_vec(&jsonrpc_result(serde_json::json!({ "tools": [] })))
+                serde_json::to_vec(&jsonrpc_result(&serde_json::json!({ "tools": [] })))
                     .expect("json"),
             ),
         )
@@ -233,7 +243,7 @@ async fn http_response_without_content_length_handled() {
             StatusCode::OK,
             headers,
             Bytes::from(
-                serde_json::to_vec(&jsonrpc_result(serde_json::json!({ "tools": [] })))
+                serde_json::to_vec(&jsonrpc_result(&serde_json::json!({ "tools": [] })))
                     .expect("json"),
             ),
         )
@@ -313,7 +323,7 @@ async fn jsonrpc_both_result_and_error_handled() {
 async fn request_id_increments_across_requests() {
     let server = TestHttpServer::start(|request| {
         let _ = request;
-        TestResponse::json(&jsonrpc_result(serde_json::json!({ "tools": [] })))
+        TestResponse::json(&jsonrpc_result(&serde_json::json!({ "tools": [] })))
     })
     .await;
     let config = http_client_config(server.url(), Duration::from_millis(2_000));
@@ -325,8 +335,8 @@ async fn request_id_increments_across_requests() {
     let first: serde_json::Value = serde_json::from_slice(&requests[0].body).expect("request json");
     let second: serde_json::Value =
         serde_json::from_slice(&requests[1].body).expect("request json");
-    let first_id = first.get("id").and_then(|id| id.as_u64()).expect("id");
-    let second_id = second.get("id").and_then(|id| id.as_u64()).expect("id");
+    let first_id = first.get("id").and_then(serde_json::Value::as_u64).expect("id");
+    let second_id = second.get("id").and_then(serde_json::Value::as_u64).expect("id");
     assert_eq!(second_id, first_id + 1);
     server.shutdown().await;
 }

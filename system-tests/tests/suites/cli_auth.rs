@@ -8,8 +8,8 @@
 
 //! CLI auth matrix tests.
 
-use std::time::Duration;
 use std::fs;
+use std::time::Duration;
 
 use serde::Serialize;
 use serde_json::Value;

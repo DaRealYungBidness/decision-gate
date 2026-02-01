@@ -51,7 +51,7 @@ fn sse_config(endpoint: String) -> McpClientConfig {
 }
 
 fn jsonrpc_body_with_total_len(target_len: usize) -> Vec<u8> {
-    let base = serde_json::to_vec(&jsonrpc_result(serde_json::json!({
+    let base = serde_json::to_vec(&jsonrpc_result(&serde_json::json!({
         "tools": [],
         "padding": ""
     })))
@@ -59,7 +59,7 @@ fn jsonrpc_body_with_total_len(target_len: usize) -> Vec<u8> {
     .len();
     assert!(target_len >= base, "target length too small");
     let padding_len = target_len - base;
-    let payload = jsonrpc_result(serde_json::json!({
+    let payload = jsonrpc_result(&serde_json::json!({
         "tools": [],
         "padding": "X".repeat(padding_len)
     }));

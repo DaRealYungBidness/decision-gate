@@ -58,6 +58,9 @@ pub enum SourceError {
     /// HTTP source failed.
     #[error("http failure: {0}")]
     Http(String),
+    /// Source policy rejected the request.
+    #[error("source policy denied request: {0}")]
+    Policy(String),
     /// Inline source failed to decode payload.
     #[error("inline decode failure: {0}")]
     Decode(String),
@@ -119,4 +122,5 @@ pub mod inline;
 
 pub use file::FileSource;
 pub use http::HttpSource;
+pub use http::HttpSourcePolicy;
 pub use inline::InlineSource;

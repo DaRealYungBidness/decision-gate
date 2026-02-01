@@ -48,12 +48,37 @@ class FrameTests(unittest.TestCase):
 
 
 class JsonRpcTests(unittest.TestCase):
+    def test_parse_request_rejects_non_object(self) -> None:
+        payload = b'["not", "object"]'
+
+        result = provider.parse_request(payload)
+
+        self.assertIsNone(result)
+
+    def test_parse_request_rejects_invalid_utf8(self) -> None:
+        payload = b"\xff"
+
+        result = provider.parse_request(payload)
+
+        self.assertIsNone(result)
+
     def test_handle_request_invalid_jsonrpc(self) -> None:
         response = provider.handle_request({"jsonrpc": "1.0", "id": 1})
 
         self.assertEqual(response["error"]["code"], -32600)
 
+    def test_handle_request_rejects_non_object_params(self) -> None:
+        response = provider.handle_request(
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": "invalid",
+            }
+        )
+
+        self.assertEqual(response["error"]["code"], -32602)
+
 
 if __name__ == "__main__":
     unittest.main()
-

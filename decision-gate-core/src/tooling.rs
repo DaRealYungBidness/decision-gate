@@ -9,17 +9,33 @@
 //! ## Overview
 //! Canonical tool identifiers used by Decision Gate MCP.
 //! These names are part of the external contract surface.
+//!
+//! Security posture: tool identifiers are parsed from untrusted inputs; see
+//! `Docs/security/threat_model.md`.
+
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
 
 use std::fmt;
 
 use serde::Deserialize;
 use serde::Serialize;
 
+// ============================================================================
+// SECTION: Tool Names
+// ============================================================================
+
 /// Canonical tool names for Decision Gate MCP.
+///
+/// # Invariants
+/// - Variants map 1:1 to tool contract names.
+/// - [`ToolName::parse`] and [`ToolName::as_str`] roundtrip for all variants.
+/// - Published tool names are stable across releases.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ToolName {
-    /// Register a `ScenarioSpec` and compute its hash.
+    /// Register a [`crate::core::ScenarioSpec`] and compute its hash.
     ScenarioDefine,
     /// Start a new scenario run.
     ScenarioStart,

@@ -13,7 +13,7 @@ Dependencies:
   - system-tests/test_registry.toml
   - system-tests/test_gaps.toml
 ============================================================================
-Last Updated: 2026-01-31 (UTC)
+Last Updated: 2026-02-01 (UTC)
 ============================================================================
 -->
 
@@ -154,6 +154,8 @@ Tests should be registered and coverage docs regenerated when changes occur.
 | Gap tracking | `system-tests/test_gaps.toml` | Missing coverage + acceptance criteria. |
 | SDK system tests | `system-tests/tests/suites/sdk_client.rs` | Python + TypeScript SDK lifecycle + auth tests. |
 | SDK example tests | `system-tests/tests/suites/sdk_examples.rs` | Repository Python/TypeScript examples executed as system tests. |
+| Contract CLI tests | `system-tests/tests/suites/contract_cli.rs` | Contract generator CLI generate/check and drift detection. |
+| Broker integration tests | `system-tests/tests/suites/broker_integration.rs` | CompositeBroker file/http/inline source wiring validation. |
 | SDK fixtures | `system-tests/tests/fixtures/` | Language-specific SDK driver scripts. |
 | Agentic scenario registry | `system-tests/tests/fixtures/agentic/scenario_registry.toml` | Canonical scenario inventory for the harness. |
 | Agentic scenario packs | `system-tests/tests/fixtures/agentic/` | Deterministic fixtures for agentic flows. |

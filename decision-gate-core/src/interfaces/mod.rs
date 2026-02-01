@@ -10,6 +10,9 @@
 //! Interfaces define how Decision Gate integrates with external systems without embedding
 //! backend-specific details. Implementations must be deterministic and fail
 //! closed on missing or invalid data.
+//!
+//! Security posture: interface implementations consume untrusted inputs; see
+//! `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports
@@ -49,6 +52,10 @@ use crate::core::time::Timestamp;
 // ============================================================================
 
 /// Context provided to evidence providers for query evaluation.
+///
+/// # Invariants
+/// - Identifiers refer to the same run and scenario scope.
+/// - Values are snapshots; providers must not mutate them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvidenceContext {
     /// Tenant identifier.
@@ -70,6 +77,9 @@ pub struct EvidenceContext {
 }
 
 /// Evidence provider errors.
+///
+/// # Invariants
+/// - Variants are stable for programmatic handling.
 #[derive(Debug, Error)]
 pub enum EvidenceError {
     /// Evidence provider reported an error.
@@ -103,6 +113,9 @@ pub trait EvidenceProvider {
 // ============================================================================
 
 /// Dispatch errors for packet delivery.
+///
+/// # Invariants
+/// - Variants are stable for programmatic handling.
 #[derive(Debug, Error)]
 pub enum DispatchError {
     /// Dispatcher reported an error.
@@ -130,6 +143,9 @@ pub trait Dispatcher {
 // ============================================================================
 
 /// Artifact data payload written into runpacks.
+///
+/// # Invariants
+/// - `path` is runpack-relative and stable for verification.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Artifact {
     /// Artifact kind.
@@ -145,6 +161,9 @@ pub struct Artifact {
 }
 
 /// Artifact reference returned by sinks.
+///
+/// # Invariants
+/// - `uri` is opaque and may be runpack-relative or external.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArtifactRef {
     /// Runpack-relative path or external URI.
@@ -152,6 +171,9 @@ pub struct ArtifactRef {
 }
 
 /// Artifact sink errors.
+///
+/// # Invariants
+/// - Variants are stable for programmatic handling.
 #[derive(Debug, Error)]
 pub enum ArtifactError {
     /// Artifact sink reported an error.
@@ -210,6 +232,9 @@ pub trait ArtifactReader {
 // ============================================================================
 
 /// Run state store errors.
+///
+/// # Invariants
+/// - Variants are stable for programmatic handling.
 #[derive(Debug, Error)]
 pub enum StoreError {
     /// Store I/O error.
@@ -256,6 +281,9 @@ pub trait RunStateStore {
 // ============================================================================
 
 /// Registry errors for data shape operations.
+///
+/// # Invariants
+/// - Variants are stable for programmatic handling.
 #[derive(Debug, Error)]
 pub enum DataShapeRegistryError {
     /// Registry I/O error.
@@ -313,6 +341,9 @@ pub trait DataShapeRegistry {
 // ============================================================================
 
 /// Dispatch policy decision.
+///
+/// # Invariants
+/// - Variants are stable and exhaustive for authorization outcomes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PolicyDecision {
     /// Permit the dispatch.
@@ -322,6 +353,9 @@ pub enum PolicyDecision {
 }
 
 /// Policy decision errors.
+///
+/// # Invariants
+/// - Variants are stable for programmatic handling.
 #[derive(Debug, Error)]
 pub enum PolicyError {
     /// Policy engine reported an error.

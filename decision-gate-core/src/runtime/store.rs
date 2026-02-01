@@ -51,6 +51,9 @@ struct RegistryCursor {
 }
 
 /// In-memory run state store for tests and examples.
+///
+/// # Invariants
+/// - Stores full run state snapshots in memory; not for production use.
 #[derive(Debug, Default, Clone)]
 pub struct InMemoryRunStateStore {
     /// Run state map protected by a mutex.
@@ -68,6 +71,9 @@ impl InMemoryRunStateStore {
 }
 
 /// In-memory data shape registry for tests and examples.
+///
+/// # Invariants
+/// - Stores full schema payloads in memory; not for production use.
 #[derive(Debug, Clone)]
 pub struct InMemoryDataShapeRegistry {
     /// Registry map protected by a mutex.
@@ -241,7 +247,10 @@ impl DataShapeRegistry for InMemoryDataShapeRegistry {
 // SECTION: Shared Store Wrapper
 // ============================================================================
 
-/// Shared run state store backed by an `Arc` trait object.
+/// Shared run state store backed by an [`std::sync::Arc`] trait object.
+///
+/// # Invariants
+/// - Clones share the same underlying store instance.
 #[derive(Clone)]
 pub struct SharedRunStateStore {
     /// Inner store implementation.
@@ -281,7 +290,10 @@ impl RunStateStore for SharedRunStateStore {
     }
 }
 
-/// Shared data shape registry backed by an `Arc` trait object.
+/// Shared data shape registry backed by an [`std::sync::Arc`] trait object.
+///
+/// # Invariants
+/// - Clones share the same underlying registry instance.
 #[derive(Clone)]
 pub struct SharedDataShapeRegistry {
     /// Inner registry implementation.

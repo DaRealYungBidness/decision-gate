@@ -3,12 +3,15 @@
 // Module: Decision Gate Broker Sinks
 // Description: Sink traits and reference implementations for dispatch delivery.
 // Purpose: Deliver resolved payloads to concrete targets.
-// Dependencies: decision-gate-core, thiserror
+// Dependencies: decision-gate-core, thiserror, std
 // ============================================================================
 
 //! ## Overview
-//! Sinks deliver resolved payloads to concrete targets and return dispatch
-//! receipts for auditing. Implementations must fail closed on delivery errors.
+//! Sinks deliver resolved payloads to [`decision_gate_core::DispatchTarget`] values and return
+//! [`decision_gate_core::DispatchReceipt`] values for auditing. Implementations must fail closed
+//! on delivery errors.
+//! Security posture: dispatch targets are external systems; treat payloads as
+//! sensitive and see `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports

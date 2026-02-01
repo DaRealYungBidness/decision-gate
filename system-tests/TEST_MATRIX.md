@@ -24,6 +24,8 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `http_tls_handshake_success` | operations | TLS handshake succeeds with test CA. |
 | `http_mtls_client_cert_required` | security | mTLS client certs required when configured. |
 | `http_audit_log_written` | operations | Audit log emits structured JSON lines. |
+| `http_payload_too_large_rejected` | operations | HTTP rejects oversized JSON-RPC payloads before parsing. |
+| `sse_payload_too_large_rejected` | operations | SSE rejects oversized JSON-RPC payloads before parsing. |
 | `idempotent_trigger` | reliability | Duplicate trigger IDs do not create new decisions. |
 | `provider_time_after` | providers | Time provider check executes as expected. |
 
@@ -143,6 +145,8 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `stress_schema_list_paging_concurrent_reads` | reliability | Schemas list paging stays deterministic under concurrent reads. |
 | `stress_precheck_request_storm` | reliability | Precheck request storms fail closed and remain stable. |
 | `sdk_gen_cli_generate_and_check` | operations | SDK generator CLI generate/check and drift detection. |
+| `contract_cli_generate_and_check` | operations | Contract CLI generate/check and drift detection. |
+| `broker_composite_sources_and_sinks` | operations | CompositeBroker resolves file/http/inline sources and dispatches via sink. |
 | `provider_discovery_denylist_and_size_limits` | contract | Provider discovery denylist and size limits enforced. |
 | `docs_extra_paths_ingestion_limits` | operations | Docs extra_paths ingestion honors size and count limits. |
 | `cli_smoke_version` | smoke | CLI --version output is available and well-formed. |

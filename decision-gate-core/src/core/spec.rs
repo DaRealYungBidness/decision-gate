@@ -49,6 +49,10 @@ use crate::core::time::Timestamp;
 // ============================================================================
 
 /// Canonical scenario specification.
+///
+/// # Invariants
+/// - Must pass [`ScenarioSpec::validate`] before execution.
+/// - Stage, gate, packet, and condition identifiers are unique after validation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ScenarioSpec {
     /// Scenario identifier.
@@ -115,6 +119,10 @@ impl ScenarioSpec {
 // ============================================================================
 
 /// Stage specification defining gates and disclosures.
+///
+/// # Invariants
+/// - `stage_id` is unique within a scenario after validation.
+/// - `advance_to` references valid stage identifiers after validation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StageSpec {
     /// Stage identifier.
@@ -132,6 +140,9 @@ pub struct StageSpec {
 }
 
 /// Stage advancement policy.
+///
+/// # Invariants
+/// - Any referenced stage identifiers must exist in the scenario after validation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AdvanceTo {
@@ -154,6 +165,10 @@ pub enum AdvanceTo {
 }
 
 /// Branch rule mapping a gate outcome to the next stage.
+///
+/// # Invariants
+/// - `gate_id` must refer to a gate in the same stage.
+/// - `next_stage_id` must exist in the scenario after validation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BranchRule {
     /// Gate identifier referenced for the branch.
@@ -165,6 +180,9 @@ pub struct BranchRule {
 }
 
 /// Gate outcome for branch selection.
+///
+/// # Invariants
+/// - Variants are stable for serialization and contract matching.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GateOutcome {
@@ -177,6 +195,9 @@ pub enum GateOutcome {
 }
 
 /// Stage timeout specification.
+///
+/// # Invariants
+/// - `timeout_ms` is interpreted as milliseconds.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TimeoutSpec {
     /// Timeout duration in milliseconds.
@@ -186,6 +207,9 @@ pub struct TimeoutSpec {
 }
 
 /// Timeout handling policy.
+///
+/// # Invariants
+/// - Variants are stable for serialization and contract matching.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TimeoutPolicy {
@@ -202,6 +226,10 @@ pub enum TimeoutPolicy {
 // ============================================================================
 
 /// Gate specification defined by a requirement algebra tree.
+///
+/// # Invariants
+/// - `gate_id` is unique within the scenario after validation.
+/// - `requirement` references only defined [`ConditionSpec`] entries after validation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GateSpec {
     /// Stable identifier for the gate.
@@ -214,6 +242,9 @@ pub struct GateSpec {
 }
 
 /// Condition specification mapping a condition identifier to evidence query rules.
+///
+/// # Invariants
+/// - `query.provider_id` and `query.check_id` are non-empty after validation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConditionSpec {
     /// Condition identifier referenced by requirements.
@@ -236,6 +267,9 @@ pub struct ConditionSpec {
 // ============================================================================
 
 /// Packet specification defined in the scenario spec.
+///
+/// # Invariants
+/// - `packet_id` is unique within the scenario after validation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PacketSpec {
     /// Packet identifier.
@@ -259,6 +293,9 @@ pub struct PacketSpec {
 // ============================================================================
 
 /// Policy reference used by scenario specifications.
+///
+/// # Invariants
+/// - `policy_id` refers to an external policy definition.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PolicyRef {
     /// Policy identifier.
@@ -268,6 +305,9 @@ pub struct PolicyRef {
 }
 
 /// Schema registry reference for packet schemas.
+///
+/// # Invariants
+/// - `schema_id` refers to an external schema registry entry.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SchemaRef {
     /// Schema identifier.
@@ -283,6 +323,9 @@ pub struct SchemaRef {
 // ============================================================================
 
 /// Scenario specification validation errors.
+///
+/// # Invariants
+/// - Variants correspond to failures raised by [`ScenarioSpec::validate`].
 #[derive(Debug, Error)]
 pub enum SpecError {
     /// Specification contains no stages.

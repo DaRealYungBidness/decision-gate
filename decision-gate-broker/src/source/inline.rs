@@ -3,11 +3,11 @@
 // Module: Decision Gate Inline Source
 // Description: Inline payload source for embedded content references.
 // Purpose: Decode inline payloads encoded into content URIs.
-// Dependencies: base64
+// Dependencies: base64, decision-gate-core
 // ============================================================================
 
 //! ## Overview
-//! `InlineSource` resolves `inline:` URIs that embed payload bytes directly.
+//! [`InlineSource`] resolves `inline:` URIs that embed payload bytes directly.
 //! Supported prefixes: `inline+json:`, `inline+bytes:`, and `inline:`.
 //! Security posture: treats inline payloads as untrusted input; see
 //! `Docs/security/threat_model.md`.

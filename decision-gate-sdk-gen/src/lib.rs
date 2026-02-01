@@ -13,8 +13,8 @@
 //! JSON-RPC `tools/call` surface.
 //!
 //! ### Design Notes
-//! - Output is deterministic: tools, schema properties, and JSON object keys are sorted before
-//!   rendering.
+//! - Output is deterministic: schema properties and JSON object keys are sorted before rendering,
+//!   and tool order follows the tooling contract input.
 //! - The generator does not reach out to external schemas; `$ref` values are treated as opaque and
 //!   rendered as `Any`.
 //! - Schema-to-type mapping is best-effort and intentionally conservative to preserve compatibility
@@ -782,14 +782,15 @@ fn object_properties(schema: &Value) -> Option<Vec<Property>> {
 fn schema_doc(schema: &Value) -> Option<String> {
     let desc = schema_description(schema);
     let constraints = schema_constraints(schema);
-    match (desc, constraints.is_empty()) {
+    let doc = match (desc, constraints.is_empty()) {
         (None, true) => None,
         (Some(description), true) => Some(description),
         (None, false) => Some(format!("Constraints: {}.", constraints.join("; "))),
         (Some(description), false) => {
             Some(format!("{description} Constraints: {}.", constraints.join("; ")))
         }
-    }
+    };
+    doc.map(|value| normalize_doc(&value))
 }
 
 /// Extracts and normalizes the description field from a schema.

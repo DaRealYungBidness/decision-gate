@@ -33,6 +33,7 @@ use std::time::Instant;
 use axum::Router;
 use axum::body::Bytes;
 use axum::extract::ConnectInfo;
+use axum::extract::DefaultBodyLimit;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::http::HeaderValue;
@@ -672,7 +673,10 @@ async fn serve_http(
         bind.parse().map_err(|_| McpServerError::Config("invalid bind address".to_string()))?;
     let state =
         Arc::new(build_server_state(router, &config.server, metrics, audit, auth_challenge));
-    let app = Router::new().route("/rpc", post(handle_http)).with_state(state);
+    let app = Router::new()
+        .route("/rpc", post(handle_http))
+        .layer(DefaultBodyLimit::max(config.server.max_body_bytes))
+        .with_state(state);
     if let Some(tls) = &config.server.tls {
         let tls_config = build_tls_config(tls)?;
         axum_server::bind_rustls(addr, tls_config)
@@ -706,7 +710,10 @@ async fn serve_sse(
         bind.parse().map_err(|_| McpServerError::Config("invalid bind address".to_string()))?;
     let state =
         Arc::new(build_server_state(router, &config.server, metrics, audit, auth_challenge));
-    let app = Router::new().route("/rpc", post(handle_sse)).with_state(state);
+    let app = Router::new()
+        .route("/rpc", post(handle_sse))
+        .layer(DefaultBodyLimit::max(config.server.max_body_bytes))
+        .with_state(state);
     if let Some(tls) = &config.server.tls {
         let tls_config = build_tls_config(tls)?;
         axum_server::bind_rustls(addr, tls_config)

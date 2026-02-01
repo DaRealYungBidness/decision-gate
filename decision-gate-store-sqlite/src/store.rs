@@ -83,6 +83,9 @@ struct RegistryCursor {
 // ============================================================================
 
 /// `SQLite` journal mode configuration.
+///
+/// # Invariants
+/// - Values map 1:1 to `SQLite` `journal_mode` pragma settings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum SqliteStoreMode {
@@ -105,6 +108,9 @@ impl SqliteStoreMode {
 }
 
 /// `SQLite` sync mode configuration.
+///
+/// # Invariants
+/// - Values map 1:1 to `SQLite` `synchronous` pragma settings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum SqliteSyncMode {
@@ -127,6 +133,11 @@ impl SqliteSyncMode {
 }
 
 /// Configuration for the `SQLite` run state store.
+///
+/// # Invariants
+/// - `path` must resolve to a file path (not a directory).
+/// - `busy_timeout_ms` is interpreted as milliseconds.
+/// - `max_versions`, when set, must be greater than zero.
 #[derive(Debug, Clone, Deserialize)]
 pub struct SqliteStoreConfig {
     /// Path to the `SQLite` database file.
@@ -155,6 +166,9 @@ const fn default_busy_timeout_ms() -> u64 {
 // ============================================================================
 
 /// `SQLite` store errors.
+///
+/// # Invariants
+/// - Error messages avoid embedding raw run state or schema payloads.
 #[derive(Debug, Error)]
 pub enum SqliteStoreError {
     /// Store I/O error.
@@ -205,6 +219,10 @@ impl From<SqliteStoreError> for StoreError {
 // ============================================================================
 
 /// `SQLite`-backed run state store with WAL support.
+///
+/// # Invariants
+/// - Run state loads verify stored hashes before deserialization.
+/// - `SQLite` connection access is serialized through a mutex.
 #[derive(Clone)]
 pub struct SqliteRunStateStore {
     /// Store configuration.
@@ -251,13 +269,7 @@ impl DataShapeRegistry for SqliteRunStateStore {
     fn register(&self, record: DataShapeRecord) -> Result<(), DataShapeRegistryError> {
         let schema_bytes = canonical_json_bytes(&record.schema)
             .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
-        if schema_bytes.len() > MAX_SCHEMA_BYTES {
-            return Err(DataShapeRegistryError::Invalid(format!(
-                "schema exceeds size limit: {} bytes (max {})",
-                schema_bytes.len(),
-                MAX_SCHEMA_BYTES
-            )));
-        }
+        ensure_schema_bytes_within_limit(schema_bytes.len())?;
         let schema_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, &schema_bytes);
         let created_at_json = serde_json::to_string(&record.created_at)
             .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
@@ -324,8 +336,24 @@ impl DataShapeRegistry for SqliteRunStateStore {
         let row = {
             let tx =
                 guard.transaction().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
-            let row = tx
+            let length: Option<i64> = tx
                 .query_row(
+                    "SELECT length(schema_json) FROM data_shapes WHERE tenant_id = ?1 AND \
+                     namespace_id = ?2 AND schema_id = ?3 AND version = ?4",
+                    params![
+                        tenant_id.to_string(),
+                        namespace_id.to_string(),
+                        schema_id.as_str(),
+                        version.as_str()
+                    ],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+            let row = if let Some(length) = length {
+                let length_usize = schema_length_to_usize(length)?;
+                ensure_schema_bytes_within_limit(length_usize)?;
+                tx.query_row(
                     "SELECT schema_json, schema_hash, hash_algorithm, description, \
                      signing_key_id, signing_signature, signing_algorithm, created_at_json FROM \
                      data_shapes WHERE tenant_id = ?1 AND namespace_id = ?2 AND schema_id = ?3 \
@@ -358,7 +386,10 @@ impl DataShapeRegistry for SqliteRunStateStore {
                     },
                 )
                 .optional()
-                .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+                .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?
+            } else {
+                None
+            };
             tx.commit().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
             row
         };
@@ -420,6 +451,7 @@ impl DataShapeRegistry for SqliteRunStateStore {
         let records = {
             let tx =
                 guard.transaction().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+            ensure_registry_schema_sizes(&tx, *tenant_id, *namespace_id)?;
             let rows = query_schema_rows(&tx, *tenant_id, *namespace_id, cursor.as_ref(), limit)?;
             let records = rows
                 .into_iter()
@@ -886,6 +918,47 @@ fn fetch_run_state_payload(
 fn parse_registry_cursor(cursor: &str) -> Result<RegistryCursor, DataShapeRegistryError> {
     serde_json::from_str(cursor)
         .map_err(|_| DataShapeRegistryError::Invalid("invalid cursor".to_string()))
+}
+
+/// Ensures schema payload sizes remain within configured limits.
+fn ensure_schema_bytes_within_limit(actual_bytes: usize) -> Result<(), DataShapeRegistryError> {
+    if actual_bytes > MAX_SCHEMA_BYTES {
+        return Err(DataShapeRegistryError::Invalid(format!(
+            "schema exceeds size limit: {actual_bytes} bytes (max {MAX_SCHEMA_BYTES})"
+        )));
+    }
+    Ok(())
+}
+
+/// Parses a schema length returned from `SQLite` into a safe usize.
+fn schema_length_to_usize(length: i64) -> Result<usize, DataShapeRegistryError> {
+    usize::try_from(length)
+        .map_err(|_| DataShapeRegistryError::Invalid("schema length is invalid".to_string()))
+}
+
+/// Checks for oversized schema payloads in the registry.
+fn ensure_registry_schema_sizes(
+    tx: &rusqlite::Transaction<'_>,
+    tenant_id: TenantId,
+    namespace_id: NamespaceId,
+) -> Result<(), DataShapeRegistryError> {
+    let max_schema_bytes = i64::try_from(MAX_SCHEMA_BYTES).map_err(|_| {
+        DataShapeRegistryError::Invalid("schema size limit exceeds platform limits".to_string())
+    })?;
+    let oversized: Option<i64> = tx
+        .query_row(
+            "SELECT length(schema_json) FROM data_shapes WHERE tenant_id = ?1 AND namespace_id = \
+             ?2 AND length(schema_json) > ?3 LIMIT 1",
+            params![tenant_id.to_string(), namespace_id.to_string(), max_schema_bytes],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+    if let Some(length) = oversized {
+        let length_usize = schema_length_to_usize(length)?;
+        ensure_schema_bytes_within_limit(length_usize)?;
+    }
+    Ok(())
 }
 
 /// Schema row data loaded from the registry.

@@ -454,24 +454,16 @@ impl HttpMcpClient {
             .await
             .map_err(|err| McpClientError::Transport(err.to_string()))?;
         let status = response.status();
-        let bytes =
-            response.bytes().await.map_err(|err| McpClientError::Transport(err.to_string()))?;
-        let body = bytes.as_ref();
-        if body.len() > MAX_MCP_RESPONSE_BYTES {
-            return Err(McpClientError::ResponseTooLarge {
-                actual: body.len(),
-                limit: MAX_MCP_RESPONSE_BYTES,
-            });
-        }
+        let body = read_response_body_with_limit(response, MAX_MCP_RESPONSE_BYTES).await?;
         if !status.is_success() {
-            let preview = String::from_utf8_lossy(body);
+            let preview = String::from_utf8_lossy(&body);
             return Err(McpClientError::Transport(format!(
                 "http status {}: {}",
                 status.as_u16(),
                 preview.trim()
             )));
         }
-        let json_bytes = if sse { parse_sse_body(body)? } else { body.to_vec() };
+        let json_bytes = if sse { parse_sse_body(&body)? } else { body };
         let response: JsonRpcResponse = serde_json::from_slice(&json_bytes)
             .map_err(|err| McpClientError::Protocol(format!("invalid json-rpc response: {err}")))?;
         if let Some(error) = response.error.as_ref() {
@@ -504,6 +496,37 @@ impl HttpMcpClient {
         }
         Ok(headers)
     }
+}
+
+// ============================================================================
+// SECTION: HTTP/SSE Helpers
+// ============================================================================
+
+/// Reads an HTTP/SSE response body while enforcing a hard byte limit.
+async fn read_response_body_with_limit(
+    mut response: reqwest::Response,
+    limit: usize,
+) -> Result<Vec<u8>, McpClientError> {
+    let mut body = Vec::new();
+    let mut total: usize = 0;
+    while let Some(chunk) =
+        response.chunk().await.map_err(|err| McpClientError::Transport(err.to_string()))?
+    {
+        let next_total =
+            total.checked_add(chunk.len()).ok_or(McpClientError::ResponseTooLarge {
+                actual: usize::MAX,
+                limit,
+            })?;
+        if next_total > limit {
+            return Err(McpClientError::ResponseTooLarge {
+                actual: next_total,
+                limit,
+            });
+        }
+        body.extend_from_slice(&chunk);
+        total = next_total;
+    }
+    Ok(body)
 }
 
 /// Parses an SSE response body and extracts the first `data:` payload.
@@ -610,12 +633,6 @@ impl StdioMcpClient {
                     .map_err(|_| McpClientError::Transport("stdout lock poisoned".to_string()))?;
                 read_framed(&mut *output)?
             };
-            if response_bytes.len() > MAX_MCP_RESPONSE_BYTES {
-                return Err(McpClientError::ResponseTooLarge {
-                    actual: response_bytes.len(),
-                    limit: MAX_MCP_RESPONSE_BYTES,
-                });
-            }
             let response: JsonRpcResponse =
                 serde_json::from_slice(&response_bytes).map_err(|err| {
                     McpClientError::Protocol(format!("invalid json-rpc response: {err}"))
@@ -640,9 +657,10 @@ impl Drop for StdioMcpClient {
 ///
 /// # Errors
 ///
-/// Returns [`McpClientError`] when framing headers are invalid or I/O fails.
+/// Returns [`McpClientError`] when framing headers are invalid, the content
+/// length exceeds limits, or I/O fails.
 pub fn read_framed(reader: &mut BufReader<impl Read>) -> Result<Vec<u8>, McpClientError> {
-    let mut content_length: Option<usize> = None;
+    let mut content_length: Option<u64> = None;
     let mut line = String::new();
     loop {
         line.clear();
@@ -658,13 +676,24 @@ pub fn read_framed(reader: &mut BufReader<impl Read>) -> Result<Vec<u8>, McpClie
         if let Some(value) = line.strip_prefix("Content-Length:") {
             let parsed = value
                 .trim()
-                .parse::<usize>()
+                .parse::<u64>()
                 .map_err(|_| McpClientError::Protocol("invalid content length".to_string()))?;
             content_length = Some(parsed);
         }
     }
     let len = content_length.ok_or_else(|| {
         McpClientError::Protocol("missing content length in stdio response".to_string())
+    })?;
+    let limit = u64::try_from(MAX_MCP_RESPONSE_BYTES).unwrap_or(u64::MAX);
+    if len > limit {
+        let actual = usize::try_from(len).unwrap_or(usize::MAX);
+        return Err(McpClientError::ResponseTooLarge {
+            actual,
+            limit: MAX_MCP_RESPONSE_BYTES,
+        });
+    }
+    let len = usize::try_from(len).map_err(|_| {
+        McpClientError::Protocol("content length exceeds addressable size".to_string())
     })?;
     let mut buf = vec![0u8; len];
     reader

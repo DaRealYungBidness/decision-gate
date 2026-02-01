@@ -27,6 +27,10 @@ use crate::core::identifiers::GateId;
 // ============================================================================
 
 /// Safe summary returned to clients when gates are unmet.
+///
+/// # Invariants
+/// - Contains only safe, redacted status data (no evidence payloads).
+/// - Strings are opaque and not normalized by this type.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SafeSummary {
     /// Summary status string.

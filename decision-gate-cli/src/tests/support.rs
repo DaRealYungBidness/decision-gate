@@ -105,7 +105,7 @@ impl TestResponse {
 
 impl From<TestResponse> for Response<Full<Bytes>> {
     fn from(value: TestResponse) -> Self {
-        let mut response = Response::new(Full::new(value.body));
+        let mut response = Self::new(Full::new(value.body));
         *response.status_mut() = value.status;
         *response.headers_mut() = value.headers;
         if !value.omit_content_length
@@ -209,7 +209,7 @@ impl TestHttpServer {
 }
 
 /// Builds a JSON-RPC response object.
-pub fn jsonrpc_result(result: Value) -> Value {
+pub fn jsonrpc_result(result: &Value) -> Value {
     serde_json::json!({
         "jsonrpc": "2.0",
         "id": 1,

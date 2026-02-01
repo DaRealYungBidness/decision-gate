@@ -46,6 +46,9 @@ use crate::core::time::Timestamp;
 // ============================================================================
 
 /// Configuration required to start a run.
+///
+/// # Invariants
+/// - Identifiers must refer to the same tenant/namespace/scenario scope.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunConfig {
     /// Tenant identifier for the run.
@@ -67,6 +70,9 @@ pub struct RunConfig {
 // ============================================================================
 
 /// Run lifecycle status.
+///
+/// # Invariants
+/// - Variants are stable for serialization and contract matching.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RunStatus {
@@ -83,6 +89,9 @@ pub enum RunStatus {
 // ============================================================================
 
 /// Trigger event kinds supported by Decision Gate.
+///
+/// # Invariants
+/// - Variants are stable for serialization and contract matching.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TriggerKind {
@@ -97,6 +106,10 @@ pub enum TriggerKind {
 }
 
 /// Canonical trigger event.
+///
+/// # Invariants
+/// - Identifiers must refer to the same run scope.
+/// - `payload` is optional and not interpreted by the core.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TriggerEvent {
     /// Trigger identifier for idempotency.
@@ -120,6 +133,9 @@ pub struct TriggerEvent {
 }
 
 /// Trigger record logged in the run state.
+///
+/// # Invariants
+/// - `seq` is monotonic within a run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TriggerRecord {
     /// Monotonic sequence number assigned by Decision Gate.
@@ -133,6 +149,9 @@ pub struct TriggerRecord {
 // ============================================================================
 
 /// Evidence record logged for condition evaluation.
+///
+/// # Invariants
+/// - `status` reflects the comparator outcome for `result`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvidenceRecord {
     /// Condition identifier that was evaluated.
@@ -148,6 +167,9 @@ pub struct EvidenceRecord {
 // ============================================================================
 
 /// Trace entry for condition evaluation.
+///
+/// # Invariants
+/// - `status` corresponds to the evaluated condition outcome.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GateTraceEntry {
     /// Condition identifier that was evaluated.
@@ -157,6 +179,9 @@ pub struct GateTraceEntry {
 }
 
 /// Gate evaluation result with trace entries.
+///
+/// # Invariants
+/// - `trace` contains condition evaluations referenced by the gate requirement.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GateEvaluation {
     /// Gate identifier.
@@ -168,6 +193,9 @@ pub struct GateEvaluation {
 }
 
 /// Gate evaluation record logged in the run state.
+///
+/// # Invariants
+/// - `evidence` corresponds to conditions used for this gate evaluation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GateEvalRecord {
     /// Trigger identifier associated with this evaluation.
@@ -185,6 +213,9 @@ pub struct GateEvalRecord {
 // ============================================================================
 
 /// Decision outcome for a trigger evaluation.
+///
+/// # Invariants
+/// - Variants are stable for serialization and contract matching.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum DecisionOutcome {
@@ -220,6 +251,9 @@ pub enum DecisionOutcome {
 }
 
 /// Decision record logged in the run state.
+///
+/// # Invariants
+/// - `seq` is monotonic within a run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DecisionRecord {
     /// Decision identifier.
@@ -243,6 +277,9 @@ pub struct DecisionRecord {
 // ============================================================================
 
 /// Submission record for model-provided artifacts.
+///
+/// # Invariants
+/// - `content_hash` must match the submitted payload bytes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SubmissionRecord {
     /// Submission identifier.
@@ -262,6 +299,9 @@ pub struct SubmissionRecord {
 }
 
 /// Tool-call record for `scenario.next/status/submit/trigger` APIs.
+///
+/// # Invariants
+/// - `request_hash` and `response_hash` are canonical hashes of the payloads.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ToolCallRecord {
     /// Tool-call identifier.
@@ -281,6 +321,9 @@ pub struct ToolCallRecord {
 }
 
 /// Tool-call error metadata recorded for failed calls.
+///
+/// # Invariants
+/// - `code` is a stable error identifier for the tool surface.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ToolCallError {
     /// Stable error code string.
@@ -292,6 +335,9 @@ pub struct ToolCallError {
 }
 
 /// Structured details for tool-call errors.
+///
+/// # Invariants
+/// - Variants are stable for serialization and contract matching.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ToolCallErrorDetails {
@@ -309,6 +355,10 @@ pub enum ToolCallErrorDetails {
 // ============================================================================
 
 /// Decision Gate run state with append-only logs.
+///
+/// # Invariants
+/// - Logs are append-only and ordered by `seq` within each stream.
+/// - `spec_hash` matches the canonical hash of the scenario spec.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunState {
     /// Tenant identifier.

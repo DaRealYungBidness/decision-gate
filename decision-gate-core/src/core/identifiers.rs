@@ -2,14 +2,15 @@
 // ============================================================================
 // Module: Decision Gate Identifiers
 // Description: Canonical opaque identifiers for Decision Gate specifications and runs.
-// Purpose: Provide strongly typed, serializable numeric IDs with stable wire forms.
+// Purpose: Provide strongly typed, serializable identifiers with stable wire forms.
 // Dependencies: serde
 // ============================================================================
 
 //! ## Overview
-//! This module defines the canonical numeric identifiers used throughout
-//! Decision Gate. Identifiers are opaque and serialize as numbers on the wire.
-//! Validation (non-zero, 1-based) is handled at construction boundaries.
+//! This module defines the canonical identifiers used throughout
+//! Decision Gate. Identifiers are opaque and serialize as numbers or strings
+//! on the wire. Numeric identifiers enforce non-zero, 1-based invariants at
+//! construction boundaries.
 
 // ============================================================================
 // SECTION: Imports
@@ -94,6 +95,9 @@ impl fmt::Display for NamespaceId {
 }
 
 /// Scenario identifier for a scenario specification.
+///
+/// # Invariants
+/// - Opaque UTF-8 string; no normalization or validation is applied by this type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ScenarioId(String);
@@ -131,6 +135,9 @@ impl From<String> for ScenarioId {
 }
 
 /// Scenario specification version identifier.
+///
+/// # Invariants
+/// - Opaque UTF-8 string; no normalization or validation is applied by this type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct SpecVersion(String);
@@ -168,6 +175,9 @@ impl From<String> for SpecVersion {
 }
 
 /// Run identifier scoped to a tenant.
+///
+/// # Invariants
+/// - Opaque UTF-8 string; no normalization or validation is applied by this type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct RunId(String);
@@ -205,6 +215,9 @@ impl From<String> for RunId {
 }
 
 /// Stage identifier within a scenario specification.
+///
+/// # Invariants
+/// - Opaque UTF-8 string; no normalization or validation is applied by this type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct StageId(String);
@@ -242,6 +255,9 @@ impl From<String> for StageId {
 }
 
 /// Packet identifier within a scenario specification.
+///
+/// # Invariants
+/// - Opaque UTF-8 string; no normalization or validation is applied by this type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct PacketId(String);
@@ -279,6 +295,9 @@ impl From<String> for PacketId {
 }
 
 /// Gate identifier within a scenario specification.
+///
+/// # Invariants
+/// - Opaque UTF-8 string; no normalization or validation is applied by this type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct GateId(String);
@@ -316,6 +335,9 @@ impl From<String> for GateId {
 }
 
 /// Condition identifier referenced in requirements.
+///
+/// # Invariants
+/// - Opaque UTF-8 string; no normalization or validation is applied by this type.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ConditionId(String);
@@ -353,6 +375,9 @@ impl From<String> for ConditionId {
 }
 
 /// Evidence provider identifier used by evidence queries.
+///
+/// # Invariants
+/// - Opaque UTF-8 string; no normalization or validation is applied by this type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ProviderId(String);
@@ -390,6 +415,9 @@ impl From<String> for ProviderId {
 }
 
 /// Trigger identifier used for idempotency.
+///
+/// # Invariants
+/// - Opaque UTF-8 string; no normalization or validation is applied by this type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct TriggerId(String);
@@ -427,6 +455,9 @@ impl From<String> for TriggerId {
 }
 
 /// Decision identifier for logged control-plane decisions.
+///
+/// # Invariants
+/// - Opaque UTF-8 string; no normalization or validation is applied by this type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct DecisionId(String);
@@ -464,6 +495,9 @@ impl From<String> for DecisionId {
 }
 
 /// Correlation identifier used across triggers, decisions, and dispatch.
+///
+/// # Invariants
+/// - Opaque UTF-8 string; no normalization or validation is applied by this type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct CorrelationId(String);
@@ -501,6 +535,9 @@ impl From<String> for CorrelationId {
 }
 
 /// Schema identifier for packet schemas.
+///
+/// # Invariants
+/// - Opaque UTF-8 string; no normalization or validation is applied by this type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct SchemaId(String);
@@ -538,6 +575,9 @@ impl From<String> for SchemaId {
 }
 
 /// Data shape schema identifier.
+///
+/// # Invariants
+/// - Opaque UTF-8 string; no normalization or validation is applied by this type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct DataShapeId(String);
@@ -575,6 +615,9 @@ impl From<String> for DataShapeId {
 }
 
 /// Data shape schema version identifier.
+///
+/// # Invariants
+/// - Opaque UTF-8 string; no normalization or validation is applied by this type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct DataShapeVersion(String);
@@ -612,6 +655,9 @@ impl From<String> for DataShapeVersion {
 }
 
 /// Policy identifier for disclosure or authorization policies.
+///
+/// # Invariants
+/// - Opaque UTF-8 string; no normalization or validation is applied by this type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct PolicyId(String);

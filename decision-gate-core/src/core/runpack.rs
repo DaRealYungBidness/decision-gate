@@ -34,6 +34,9 @@ use crate::core::time::Timestamp;
 // ============================================================================
 
 /// Runpack verification mode.
+///
+/// # Invariants
+/// - Variants are stable for serialization and contract matching.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum VerifierMode {
@@ -44,11 +47,18 @@ pub enum VerifierMode {
 }
 
 /// Runpack manifest version.
+///
+/// # Invariants
+/// - Opaque UTF-8 string; no normalization or validation is applied by this type.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct RunpackVersion(pub String);
 
 /// Runpack manifest describing Decision Gate artifacts.
+///
+/// # Invariants
+/// - `spec_hash` matches the canonical hash of the scenario spec.
+/// - `artifacts` and `integrity.file_hashes` refer to runpack-relative paths.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunpackManifest {
     /// Manifest version identifier.
@@ -82,6 +92,9 @@ pub struct RunpackManifest {
 }
 
 /// Security context metadata for runpack exports.
+///
+/// # Invariants
+/// - Metadata is informational only and does not alter verification rules.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunpackSecurityContext {
     /// Whether dev-permissive mode was enabled.
@@ -91,6 +104,9 @@ pub struct RunpackSecurityContext {
 }
 
 /// Runpack integrity metadata.
+///
+/// # Invariants
+/// - `root_hash` is computed over the ordered `file_hashes` list.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunpackIntegrity {
     /// File hash entries for runpack artifacts.
@@ -100,6 +116,9 @@ pub struct RunpackIntegrity {
 }
 
 /// Hash entry for a file or artifact within the runpack.
+///
+/// # Invariants
+/// - `path` is runpack-relative and stable for verification.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FileHashEntry {
     /// Runpack-relative path.
@@ -109,6 +128,9 @@ pub struct FileHashEntry {
 }
 
 /// Artifact record indexed by the runpack manifest.
+///
+/// # Invariants
+/// - `hash` matches the artifact bytes at `path`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ArtifactRecord {
     /// Artifact identifier.
@@ -126,6 +148,9 @@ pub struct ArtifactRecord {
 }
 
 /// Artifact kinds included in Decision Gate runpacks.
+///
+/// # Invariants
+/// - Variants are stable for serialization and contract matching.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ArtifactKind {

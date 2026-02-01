@@ -16,10 +16,12 @@ autotests = false
 axum = { version = "0.8", features = ["json"] }
 aws-config = "1.1"
 aws-sdk-s3 = "1.121.0"
+base64 = "0.22"
 decision-gate-config = { path = "../decision-gate-config", version = "0.1.0" }
 decision-gate-contract = { path = "../decision-gate-contract", version = "0.1.0" }
 decision-gate-core = { path = "../decision-gate-core", version = "0.1.0" }
 decision-gate-cli = { path = "../decision-gate-cli", version = "0.1.0" }
+decision-gate-broker = { path = "../decision-gate-broker", version = "0.1.0" }
 decision-gate-mcp = { path = "../decision-gate-mcp", version = "0.1.0" }
 decision-gate-store-sqlite = { path = "../decision-gate-store-sqlite", version = "0.1.0" }
 ed25519-dalek = { version = "2.1", features = ["std"] }
@@ -35,6 +37,7 @@ tempfile = "3.10"
 testcontainers = "0.26"
 tokio = { version = "1.49", features = ["io-util", "macros", "rt-multi-thread", "sync", "time"] }
 toml = "0.9"
+url = "2.5"
 
 [lints]
 workspace = true

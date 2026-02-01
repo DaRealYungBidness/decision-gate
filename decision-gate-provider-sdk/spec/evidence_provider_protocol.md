@@ -74,17 +74,17 @@ The response must include a `content` array with a JSON EvidenceResult:
   "id": 1,
   "result": {
     "content": [
-        {
-          "type": "json",
-          "json": {
-            "value": { "kind": "json", "value": "production" },
-            "lane": "verified",
-            "error": null,
-            "evidence_hash": null,
-            "evidence_ref": null,
-            "evidence_anchor": null,
-            "signature": null,
-            "content_type": "application/json"
+      {
+        "type": "json",
+        "json": {
+          "value": { "kind": "json", "value": "production" },
+          "lane": "verified",
+          "error": null,
+          "evidence_hash": null,
+          "evidence_ref": null,
+          "evidence_anchor": null,
+          "signature": null,
+          "content_type": "application/json"
         }
       }
     ]

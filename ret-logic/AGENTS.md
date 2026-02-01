@@ -21,14 +21,14 @@
 
 ## 1) What you may / may not change
 
-### ✅ In scope
+### In scope
 
 - Add or refine condition evaluation traits and adapters.
 - Extend tri-state evaluation logic and trace hooks.
 - Add or tighten DSL parsing and structural validation.
 - Add unit tests (dedicated files under `tests/` only).
 
-### ⛔ Out of scope (require design approval)
+### Out of scope (require design approval)
 
 - Embedding Decision Gate-specific policy (evidence anchoring, runpack artifacts, disclosure rules).
 - Introducing allocations in hot-path evaluation.

@@ -224,6 +224,18 @@ const CATALOG_EN: &[(&str, &str)] = &[
     ("authoring.deserialize_failed", "Failed to deserialize ScenarioSpec from {path}: {error}"),
     ("authoring.spec_failed", "ScenarioSpec validation failed for {path}: {error}"),
     ("authoring.canonicalize_failed", "Failed to canonicalize ScenarioSpec from {path}: {error}"),
+    (
+        "authoring.size_limit_exceeded",
+        "Authoring input at {path} exceeds size limit ({size} > {limit}).",
+    ),
+    (
+        "authoring.depth_limit_exceeded",
+        "Authoring input at {path} exceeds depth limit ({depth} > {limit}).",
+    ),
+    (
+        "authoring.canonical_too_large",
+        "Canonical JSON for {path} exceeds size limit ({size} > {limit}).",
+    ),
     ("authoring.normalize.write_failed", "Failed to write normalized output to {path}: {error}"),
     ("authoring.normalize.ok", "Normalized scenario written to {path}"),
     (
@@ -431,6 +443,18 @@ const CATALOG_CA: &[(&str, &str)] = &[
     (
         "authoring.canonicalize_failed",
         "No s'ha pogut canonitzar ScenarioSpec des de {path}: {error}",
+    ),
+    (
+        "authoring.size_limit_exceeded",
+        "L'entrada d'autoria a {path} supera el límit de mida ({size} > {limit}).",
+    ),
+    (
+        "authoring.depth_limit_exceeded",
+        "L'entrada d'autoria a {path} supera el límit de profunditat ({depth} > {limit}).",
+    ),
+    (
+        "authoring.canonical_too_large",
+        "El JSON canònic per a {path} supera el límit de mida ({size} > {limit}).",
     ),
     (
         "authoring.normalize.write_failed",

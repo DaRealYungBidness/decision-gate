@@ -9,7 +9,7 @@ RET stands for **Requirement Evaluation Tree**.
 
 > **"I ABSTRACT, I ABSTRACT SOME MORE.
 > I'M SUPPOSED TO STOP BUT I CAN'T."**
-> — _Michael "Yung Bidness" Campbell, in reverence of Roy Jones Jr., on the eternal return of recursive formalism and falsity of premature abstraction_
+> - _Michael "Yung Bidness" Campbell, in reverence of Roy Jones Jr., on the eternal return of recursive formalism and falsity of premature abstraction_
 
 A domain-agnostic requirement evaluation engine that separates propositional
 logic (AND/OR/NOT/RequireGroup) from condition semantics. It provides a small
@@ -19,7 +19,7 @@ This crate comes from an attempt to derive the general class structure of "quest
 
 Hence this crate.
 
-That said, this crate exists because of my frustration with recreating the same mathematical form — if you're just doing `if (x && y)`, you probably don't need this crate (as much as you might want it...).
+That said, this crate exists because of my frustration with recreating the same mathematical form - if you're just doing `if (x && y)`, you probably don't need this crate (as much as you might want it...).
 
 ## Status and Scope
 
@@ -226,13 +226,13 @@ Apache 2.0. See `../LICENSE`.
 
 ## Author's Note
 
-I built this system because I kept running into the same problem: evaluating complex boolean conditions over thousands of game entities, and watching naive implementations become bottlenecks. The insight that boolean algebra is universal—that AND/OR/NOT never change regardless of domain—led to this separation of concerns.
+I built this system because I kept running into the same problem: evaluating complex boolean conditions over thousands of game entities, and watching naive implementations become bottlenecks. The insight that boolean algebra is universal - that AND/OR/NOT never change regardless of domain - led to this separation of concerns.
 
 The mathematical approach here is sound. I'm confident in the architecture: universal logic at the top, domain-specific optimization at the condition boundary, and zero-allocation evaluation in the hot path.
 
 That said, I'm still deepening my understanding of low-level optimization. I look forward to experimenting with hand-tuned SIMD implementations, formal benchmarking against alternative approaches, and exploring edge cases as time permits. If you find issues or have suggestions, I'd genuinely appreciate the feedback.
 
-— Michael "Yung Bidness" Campbell, as seen by an LLM.
+- Michael "Yung Bidness" Campbell, as seen by an LLM.
 
 P.S. The above author's note was written by an LLM. I'm a bit strapped for time right now, but in the future (hopefully) I'll come back to this and write a TRULY heartfelt message. Assuming, of course, I'm not distracted by ABSTRACTING SOME MORE.
 

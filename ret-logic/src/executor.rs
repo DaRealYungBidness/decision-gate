@@ -88,13 +88,13 @@ const MAX_PLAN_STACK_DEPTH: usize = 64;
 /// specific reader types.
 ///
 /// # Invariants
-/// - `eval_table` is indexed by [`OpCode`] as `u8`; missing handlers fail closed.
+/// - `eval_table` is indexed by [`OpCode::as_u8`]; missing handlers fail closed.
 pub struct PlanExecutor<R: 'static> {
     /// The compiled plan to execute
     pub plan: Plan,
 
     /// Dispatch table mapping opcodes to evaluation functions
-    /// Index by `OpCode` as u8, contains function pointers for row evaluation
+    /// Index by [`OpCode::as_u8`], contains function pointers for row evaluation
     pub eval_table: EvalTable<R>,
 }
 
@@ -205,7 +205,7 @@ impl<R: 'static> ConditionEval for PlanExecutor<R> {
 
                 _ => {
                     // Domain-specific operation - delegate to dispatch table
-                    let opcode_index = usize::from(operation.opcode as u8);
+                    let opcode_index = usize::from(operation.opcode.as_u8());
                     if let Some(eval_fn) = self.eval_table[opcode_index] {
                         match eval_fn(reader, row, *operation, &self.plan.constants) {
                             Ok(result) => {
@@ -269,7 +269,7 @@ macro_rules! build_dispatch_table {
             [None; 256];
 
         $(
-            table[usize::from($opcode as u8)] = Some($handler);
+            table[usize::from(($opcode).as_u8())] = Some($handler);
         )*
 
         table
@@ -309,7 +309,7 @@ impl<R: 'static> ExecutorBuilder<R> {
         opcode: OpCode,
         handler: fn(&R, Row, Operation, &[Constant]) -> RequirementResult<bool>,
     ) -> Self {
-        self.eval_table[usize::from(opcode as u8)] = Some(handler);
+        self.eval_table[usize::from(opcode.as_u8())] = Some(handler);
         self
     }
 

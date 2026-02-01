@@ -81,6 +81,9 @@ pub const MAX_RUNPACK_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 // ============================================================================
 
 /// Decision Gate runpack builder for deterministic exports.
+///
+/// # Invariants
+/// - Builder configuration is immutable per build invocation.
 #[derive(Debug, Clone)]
 pub struct RunpackBuilder {
     /// Manifest version identifier.
@@ -291,6 +294,9 @@ impl RunpackBuilder {
 // ============================================================================
 
 /// Runpack verifier for offline validation.
+///
+/// # Invariants
+/// - Verification treats all artifacts as untrusted inputs.
 pub struct RunpackVerifier {
     /// Hash algorithm used for verification.
     hash_algorithm: HashAlgorithm,
@@ -373,6 +379,9 @@ impl RunpackVerifier {
 // ============================================================================
 
 /// Verification status for runpack reports.
+///
+/// # Invariants
+/// - Variants are stable for serialization and contract matching.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum VerificationStatus {
@@ -383,6 +392,9 @@ pub enum VerificationStatus {
 }
 
 /// Offline verification report for runpacks.
+///
+/// # Invariants
+/// - `status` summarizes the verification outcome for the runpack.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VerificationReport {
     /// Verification status.
@@ -398,6 +410,9 @@ pub struct VerificationReport {
 // ============================================================================
 
 /// Runpack generation or verification errors.
+///
+/// # Invariants
+/// - Variants are stable for programmatic handling.
 #[derive(Debug, Error)]
 pub enum RunpackError {
     /// Artifact errors.

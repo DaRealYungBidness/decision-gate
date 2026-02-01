@@ -131,9 +131,16 @@ def discard_bytes(stream: Any, count: int) -> None:
 def parse_request(payload: bytes) -> Optional[Dict[str, Any]]:
     """Parses a JSON-RPC request payload."""
     try:
-        return json.loads(payload.decode("utf-8"))
+        text = payload.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    try:
+        parsed = json.loads(text)
     except json.JSONDecodeError:
         return None
+    if not isinstance(parsed, dict):
+        return None
+    return parsed
 
 
 def handle_request(request: Dict[str, Any]) -> Dict[str, Any]:
@@ -155,14 +162,18 @@ def handle_request(request: Dict[str, Any]) -> Dict[str, Any]:
 
 def handle_tool_call(request: Dict[str, Any]) -> Dict[str, Any]:
     """Handles the evidence_query tool call."""
-    params = request.get("params") or {}
+    params = request.get("params")
+    if not isinstance(params, dict):
+        return build_error_response(request.get("id"), -32602, "invalid tool params")
     if params.get("name") != "evidence_query":
         return build_error_response(request.get("id"), -32602, "invalid tool params")
 
-    arguments = params.get("arguments") or {}
+    arguments = params.get("arguments")
+    if not isinstance(arguments, dict):
+        return build_error_response(request.get("id"), -32602, "invalid tool params")
     query = arguments.get("query")
     context = arguments.get("context")
-    if query is None or context is None:
+    if not isinstance(query, dict) or not isinstance(context, dict):
         return build_error_response(request.get("id"), -32602, "missing query or context")
 
     result = handle_evidence_query(query, context)

@@ -24,6 +24,15 @@ use serde::Serialize;
 use crate::requirement::Requirement;
 
 // ============================================================================
+// SECTION: Limits
+// ============================================================================
+
+/// Maximum serialized requirement size accepted by the serializer and file helpers.
+const MAX_SERIALIZED_REQUIREMENT_BYTES: usize = 1024 * 1024;
+/// Maximum serialized requirement size as u64 for I/O limiting.
+const MAX_SERIALIZED_REQUIREMENT_BYTES_U64: u64 = 1024 * 1024;
+
+// ============================================================================
 // SECTION: Serde Errors
 // ============================================================================
 
@@ -121,7 +130,7 @@ pub struct SerdeConfig {
     /// Maximum allowed depth for requirement trees
     pub max_depth: usize,
 
-    /// Whether to validate requirement trees during deserialization
+    /// Whether to validate requirement trees during serialization and deserialization
     pub validate_on_deserialize: bool,
 
     /// Whether to allow empty And/Or requirements
@@ -319,6 +328,18 @@ impl RequirementSerializer {
         }
     }
 
+    /// Validates serialized input size before parsing.
+    fn ensure_input_bounds(input: &str) -> Result<(), SerdeError> {
+        let len = input.len();
+        if len > MAX_SERIALIZED_REQUIREMENT_BYTES {
+            return Err(SerdeError::InvalidStructure(format!(
+                "Serialized requirement exceeds size limit: {len} bytes (max \
+                 {MAX_SERIALIZED_REQUIREMENT_BYTES})"
+            )));
+        }
+        Ok(())
+    }
+
     /// Serializes a requirement to RON format with validation
     ///
     /// This is the primary serialization method for the authoring layer.
@@ -357,11 +378,13 @@ impl RequirementSerializer {
     /// Deserialized and validated requirement ready for compilation
     ///
     /// # Errors
-    /// Returns [`SerdeError`] if parsing fails or validation fails.
+    /// Returns [`SerdeError`] if input exceeds the size limit, parsing fails, or
+    /// validation fails.
     pub fn from_ron<P>(&self, ron_str: &str) -> Result<Requirement<P>, SerdeError>
     where
         P: for<'de> Deserialize<'de>,
     {
+        Self::ensure_input_bounds(ron_str)?;
         let requirement: Requirement<P> =
             ron::from_str(ron_str).map_err(|e| SerdeError::InvalidStructure(e.to_string()))?;
 
@@ -406,11 +429,13 @@ impl RequirementSerializer {
     /// Deserialized and validated requirement
     ///
     /// # Errors
-    /// Returns [`SerdeError`] if parsing fails or validation fails.
+    /// Returns [`SerdeError`] if input exceeds the size limit, parsing fails, or
+    /// validation fails.
     pub fn from_json<P>(&self, json_str: &str) -> Result<Requirement<P>, SerdeError>
     where
         P: for<'de> Deserialize<'de>,
     {
+        Self::ensure_input_bounds(json_str)?;
         let requirement: Requirement<P> = serde_json::from_str(json_str)
             .map_err(|e| SerdeError::InvalidStructure(e.to_string()))?;
 
@@ -491,9 +516,9 @@ pub mod convenience {
     /// # Errors
     /// Returns [`SerdeError`] if parsing fails or validation fails.
     pub fn from_json<P: for<'de> Deserialize<'de>>(
-        ron_str: &str,
+        json_str: &str,
     ) -> Result<Requirement<P>, SerdeError> {
-        RequirementSerializer::default().from_json(ron_str)
+        RequirementSerializer::default().from_json(json_str)
     }
 
     /// Validate a requirement with default configuration
@@ -528,11 +553,6 @@ pub mod ron_utils {
     use super::Serialize;
     use super::convenience;
 
-    /// Maximum allowed RON file size in bytes.
-    const MAX_RON_FILE_BYTES: usize = 1024 * 1024;
-    /// Maximum allowed RON file size as u64 for I/O limits.
-    const MAX_RON_FILE_BYTES_U64: u64 = 1024 * 1024;
-
     /// Errors emitted while loading RON requirement files.
     #[derive(Debug)]
     enum RonFileError {
@@ -564,12 +584,12 @@ pub mod ron_utils {
     fn read_to_string_with_limit(path: impl AsRef<Path>) -> Result<String, Box<dyn Error>> {
         let file = fs::File::open(path)?;
         let mut contents = String::new();
-        let mut limited = file.take(MAX_RON_FILE_BYTES_U64 + 1);
+        let mut limited = file.take(super::MAX_SERIALIZED_REQUIREMENT_BYTES_U64 + 1);
         limited.read_to_string(&mut contents)?;
 
-        if contents.len() > MAX_RON_FILE_BYTES {
+        if contents.len() > super::MAX_SERIALIZED_REQUIREMENT_BYTES {
             return Err(Box::new(RonFileError::FileTooLarge {
-                max_bytes: MAX_RON_FILE_BYTES,
+                max_bytes: super::MAX_SERIALIZED_REQUIREMENT_BYTES,
                 actual_bytes: contents.len(),
             }));
         }
@@ -587,7 +607,7 @@ pub mod ron_utils {
     ///
     /// # Errors
     /// Returns an error if file IO fails, parsing/validation fails, or the file
-    /// exceeds `MAX_RON_FILE_BYTES`.
+    /// exceeds the size limit (1,048,576 bytes).
     pub fn load_from_file<P>(
         path: impl AsRef<Path>,
     ) -> Result<Requirement<P>, Box<dyn std::error::Error>>
@@ -632,7 +652,7 @@ pub mod ron_utils {
     ///
     /// # Errors
     /// Returns an error if file IO fails, parsing/validation fails, or the file
-    /// exceeds `MAX_RON_FILE_BYTES`.
+    /// exceeds the size limit (1,048,576 bytes).
     pub fn validate_file<P>(path: impl AsRef<Path>) -> Result<(), Box<dyn std::error::Error>>
     where
         P: for<'de> Deserialize<'de>,

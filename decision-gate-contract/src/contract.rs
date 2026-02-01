@@ -3,7 +3,7 @@
 // Module: Contract Builder
 // Description: Generator for Decision Gate contract artifacts.
 // Purpose: Assemble deterministic contract outputs and write them to disk.
-// Dependencies: decision-gate-core, serde_jcs, std
+// Dependencies: decision-gate-config, decision-gate-core, serde, serde_jcs, serde_json, std
 // ============================================================================
 
 //! ## Overview
@@ -20,6 +20,7 @@
 
 use std::collections::BTreeSet;
 use std::fs;
+use std::io::ErrorKind;
 use std::path::Component;
 use std::path::Path;
 use std::path::PathBuf;
@@ -49,6 +50,12 @@ use crate::types::ManifestArtifact;
 // ============================================================================
 
 /// Builder for Decision Gate contract artifacts.
+///
+/// # Invariants
+/// - `output_dir` is treated as a trusted root; artifact paths are validated as safe, relative
+///   paths before writes occur.
+/// - When used via [`ContractBuilder::build`], artifacts are deterministic and ordered by their
+///   relative path.
 #[derive(Debug, Clone)]
 pub struct ContractBuilder {
     /// Output directory for generated artifacts.
@@ -141,6 +148,7 @@ impl ContractBuilder {
             write_artifact(output_dir, artifact)?;
         }
         let manifest_path = output_dir.join("index.json");
+        ensure_no_symlink_components(output_dir, Path::new("index.json"))?;
         let manifest_bytes = serialize_json_pretty(&bundle.manifest)?;
         fs::write(&manifest_path, &manifest_bytes)
             .map_err(|err| ContractError::Io(err.to_string()))?;
@@ -157,8 +165,10 @@ impl ContractBuilder {
         ensure_existing_output_dir(output_dir)?;
         let expected_files = expected_paths(&bundle);
         for artifact in &bundle.artifacts {
-            let path = output_dir.join(&artifact.path);
-            let bytes = fs::read(&path).map_err(|err| ContractError::Io(err.to_string()))?;
+            let relative = validate_relative_path(&artifact.path)?;
+            ensure_no_symlink_components(output_dir, &relative)?;
+            let path = output_dir.join(&relative);
+            let bytes = read_expected_bytes(&path, artifact.bytes.len())?;
             if bytes != artifact.bytes {
                 return Err(ContractError::Generation(format!(
                     "artifact mismatch: {}",
@@ -168,8 +178,8 @@ impl ContractBuilder {
         }
         let manifest_bytes = serialize_json_pretty(&bundle.manifest)?;
         let manifest_path = output_dir.join("index.json");
-        let actual_manifest =
-            fs::read(&manifest_path).map_err(|err| ContractError::Io(err.to_string()))?;
+        ensure_no_symlink_components(output_dir, Path::new("index.json"))?;
+        let actual_manifest = read_expected_bytes(&manifest_path, manifest_bytes.len())?;
         if actual_manifest != manifest_bytes {
             return Err(ContractError::Generation(String::from("manifest mismatch: index.json")));
         }
@@ -287,10 +297,12 @@ fn ensure_output_dir(output_dir: &Path) -> Result<(), ContractError> {
     if output_dir.as_os_str().is_empty() {
         return Err(ContractError::OutputPath(output_dir.to_path_buf()));
     }
+    ensure_no_symlink_ancestors(output_dir)?;
     if output_dir.exists() {
         if !output_dir.is_dir() {
             return Err(ContractError::OutputPath(output_dir.to_path_buf()));
         }
+        ensure_no_symlink_path(output_dir)?;
         return Ok(());
     }
     fs::create_dir_all(output_dir).map_err(|err| ContractError::Io(err.to_string()))
@@ -301,12 +313,15 @@ fn ensure_existing_output_dir(output_dir: &Path) -> Result<(), ContractError> {
     if !output_dir.is_dir() {
         return Err(ContractError::OutputPath(output_dir.to_path_buf()));
     }
+    ensure_no_symlink_ancestors(output_dir)?;
+    ensure_no_symlink_path(output_dir)?;
     Ok(())
 }
 
 /// Writes a single artifact to the output directory.
 fn write_artifact(output_dir: &Path, artifact: &ContractArtifact) -> Result<(), ContractError> {
     let relative = validate_relative_path(&artifact.path)?;
+    ensure_no_symlink_components(output_dir, &relative)?;
     let target = output_dir.join(&relative);
     let parent = target.parent().ok_or_else(|| ContractError::OutputPath(target.clone()))?;
     fs::create_dir_all(parent).map_err(|err| ContractError::Io(err.to_string()))?;
@@ -330,6 +345,67 @@ fn validate_relative_path(path: &str) -> Result<PathBuf, ContractError> {
         }
     }
     Ok(candidate)
+}
+
+/// Ensures no existing ancestor component is a symlink.
+fn ensure_no_symlink_ancestors(path: &Path) -> Result<(), ContractError> {
+    for ancestor in path.ancestors() {
+        if ancestor.as_os_str().is_empty() {
+            continue;
+        }
+        match fs::symlink_metadata(ancestor) {
+            Ok(metadata) => {
+                if metadata.file_type().is_symlink() {
+                    return Err(ContractError::OutputPath(ancestor.to_path_buf()));
+                }
+            }
+            Err(err) if err.kind() == ErrorKind::NotFound => {}
+            Err(err) => return Err(ContractError::Io(err.to_string())),
+        }
+    }
+    Ok(())
+}
+
+/// Ensures a path is not a symlink.
+fn ensure_no_symlink_path(path: &Path) -> Result<(), ContractError> {
+    let metadata = fs::symlink_metadata(path).map_err(|err| ContractError::Io(err.to_string()))?;
+    if metadata.file_type().is_symlink() {
+        return Err(ContractError::OutputPath(path.to_path_buf()));
+    }
+    Ok(())
+}
+
+/// Ensures no existing component under the root is a symlink.
+fn ensure_no_symlink_components(root: &Path, relative: &Path) -> Result<(), ContractError> {
+    let mut current = root.to_path_buf();
+    for component in relative.components() {
+        current.push(component);
+        match fs::symlink_metadata(&current) {
+            Ok(metadata) => {
+                if metadata.file_type().is_symlink() {
+                    return Err(ContractError::OutputPath(current.clone()));
+                }
+            }
+            Err(err) if err.kind() == ErrorKind::NotFound => {}
+            Err(err) => return Err(ContractError::Io(err.to_string())),
+        }
+    }
+    Ok(())
+}
+
+/// Reads a file and verifies its length matches the expected size.
+fn read_expected_bytes(path: &Path, expected_len: usize) -> Result<Vec<u8>, ContractError> {
+    let expected_len = u64::try_from(expected_len).map_err(|_| {
+        ContractError::Generation(String::from("expected length exceeds addressable size"))
+    })?;
+    let metadata = fs::metadata(path).map_err(|err| ContractError::Io(err.to_string()))?;
+    if metadata.len() != expected_len {
+        return Err(ContractError::Generation(format!(
+            "artifact size mismatch: {}",
+            path.display()
+        )));
+    }
+    fs::read(path).map_err(|err| ContractError::Io(err.to_string()))
 }
 
 /// Collects the expected output paths for verification.
@@ -359,9 +435,14 @@ fn collect_files_recursive(
     for entry in entries {
         let entry = entry.map_err(|err| ContractError::Io(err.to_string()))?;
         let path = entry.path();
-        if path.is_dir() {
+        let metadata =
+            fs::symlink_metadata(&path).map_err(|err| ContractError::Io(err.to_string()))?;
+        if metadata.file_type().is_symlink() {
+            return Err(ContractError::OutputPath(path));
+        }
+        if metadata.is_dir() {
             collect_files_recursive(root, &path, files)?;
-        } else if path.is_file() {
+        } else if metadata.is_file() {
             let relative =
                 path.strip_prefix(root).map_err(|_| ContractError::OutputPath(path.clone()))?;
             let text = relative
@@ -373,3 +454,10 @@ fn collect_files_recursive(
     }
     Ok(())
 }
+
+// ============================================================================
+// SECTION: Tests
+// ========================================================================
+
+#[cfg(test)]
+mod tests;

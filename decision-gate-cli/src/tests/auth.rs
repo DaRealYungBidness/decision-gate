@@ -29,7 +29,7 @@ use crate::tests::support::jsonrpc_result;
 #[tokio::test]
 async fn bearer_token_injected_in_authorization_header() {
     let server = TestHttpServer::start(|_| {
-        TestResponse::json(&jsonrpc_result(serde_json::json!({ "tools": [] })))
+        TestResponse::json(&jsonrpc_result(&serde_json::json!({ "tools": [] })))
     })
     .await;
     let token = "test-bearer-token-12345";
@@ -58,7 +58,7 @@ async fn bearer_token_injected_in_authorization_header() {
 #[tokio::test]
 async fn client_subject_injected_in_custom_header() {
     let server = TestHttpServer::start(|_| {
-        TestResponse::json(&jsonrpc_result(serde_json::json!({ "tools": [] })))
+        TestResponse::json(&jsonrpc_result(&serde_json::json!({ "tools": [] })))
     })
     .await;
     let subject = "CN=test-client";
@@ -87,7 +87,7 @@ async fn client_subject_injected_in_custom_header() {
 #[tokio::test]
 async fn sse_transport_sets_accept_header() {
     let server = TestHttpServer::start(|_| {
-        TestResponse::sse_json(&jsonrpc_result(serde_json::json!({ "tools": [] })))
+        TestResponse::sse_json(&jsonrpc_result(&serde_json::json!({ "tools": [] })))
     })
     .await;
     let config = McpClientConfig {
@@ -114,7 +114,7 @@ async fn sse_transport_sets_accept_header() {
 #[tokio::test]
 async fn invalid_bearer_token_rejected() {
     let server = TestHttpServer::start(|_| {
-        TestResponse::json(&jsonrpc_result(serde_json::json!({ "tools": [] })))
+        TestResponse::json(&jsonrpc_result(&serde_json::json!({ "tools": [] })))
     })
     .await;
     let token = "invalid\nvalue";
@@ -138,7 +138,7 @@ async fn invalid_bearer_token_rejected() {
 #[tokio::test]
 async fn invalid_client_subject_rejected() {
     let server = TestHttpServer::start(|_| {
-        TestResponse::json(&jsonrpc_result(serde_json::json!({ "tools": [] })))
+        TestResponse::json(&jsonrpc_result(&serde_json::json!({ "tools": [] })))
     })
     .await;
     let subject = "CN=bad\nvalue";

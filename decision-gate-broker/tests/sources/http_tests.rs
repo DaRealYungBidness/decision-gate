@@ -26,6 +26,7 @@ use std::thread;
 use std::time::Duration;
 
 use decision_gate_broker::HttpSource;
+use decision_gate_broker::HttpSourcePolicy;
 use decision_gate_broker::MAX_SOURCE_BYTES;
 use decision_gate_broker::Source;
 use decision_gate_broker::SourceError;
@@ -36,6 +37,10 @@ use reqwest::blocking::Client;
 use tiny_http::Header;
 use tiny_http::Response;
 use tiny_http::Server;
+
+fn local_source() -> HttpSource {
+    HttpSource::with_policy(HttpSourcePolicy::new().allow_private_networks()).expect("http source")
+}
 
 // ============================================================================
 // SECTION: Constructor Tests
@@ -55,6 +60,56 @@ fn http_source_with_client_uses_custom_client() {
 
     let _source = HttpSource::with_client(client);
     // Source created successfully with custom client
+}
+
+/// Tests http source blocks loopback by default.
+#[test]
+fn http_source_blocks_loopback_by_default() {
+    let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"payload");
+    let content_ref = ContentRef {
+        uri: "http://127.0.0.1:8080/data".to_string(),
+        content_hash,
+        encryption: None,
+    };
+
+    let source = HttpSource::new().expect("http source");
+    let err = source.fetch(&content_ref).unwrap_err();
+    assert!(matches!(err, SourceError::Policy(_)));
+}
+
+/// Tests http source allowlist blocks unlisted hosts.
+#[test]
+fn http_source_allowlist_blocks_unlisted_hosts() {
+    let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"payload");
+    let content_ref = ContentRef {
+        uri: "http://127.0.0.1:8080/data".to_string(),
+        content_hash,
+        encryption: None,
+    };
+
+    let policy = HttpSourcePolicy::new().allow_hosts(["example.com"]);
+    let source = HttpSource::with_policy(policy).expect("http source");
+    let err = source.fetch(&content_ref).unwrap_err();
+    assert!(matches!(err, SourceError::Policy(_)));
+}
+
+/// Tests http source denylist overrides allowlist.
+#[test]
+fn http_source_denylist_overrides_allowlist() {
+    let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"payload");
+    let content_ref = ContentRef {
+        uri: "http://127.0.0.1:8080/data".to_string(),
+        content_hash,
+        encryption: None,
+    };
+
+    let policy = HttpSourcePolicy::new()
+        .allow_hosts(["127.0.0.1"])
+        .deny_hosts(["127.0.0.1"])
+        .allow_private_networks();
+    let source = HttpSource::with_policy(policy).expect("http source");
+    let err = source.fetch(&content_ref).unwrap_err();
+    assert!(matches!(err, SourceError::Policy(_)));
 }
 
 // ============================================================================
@@ -85,7 +140,7 @@ fn http_source_fetches_bytes_with_content_type() {
         encryption: None,
     };
 
-    let source = HttpSource::new().expect("http source");
+    let source = local_source();
     let payload = source.fetch(&content_ref).expect("http fetch");
 
     assert_eq!(payload.bytes, b"remote payload");
@@ -118,7 +173,7 @@ fn http_source_fetches_json_content_type() {
         encryption: None,
     };
 
-    let source = HttpSource::new().expect("http source");
+    let source = local_source();
     let payload = source.fetch(&content_ref).expect("http fetch");
 
     assert_eq!(payload.bytes, br#"{"key": "value"}"#);
@@ -149,7 +204,7 @@ fn http_source_handles_missing_content_type() {
         encryption: None,
     };
 
-    let source = HttpSource::new().expect("http source");
+    let source = local_source();
     let payload = source.fetch(&content_ref).expect("http fetch");
 
     assert_eq!(payload.bytes, b"no content type");
@@ -180,7 +235,7 @@ fn http_source_rejects_oversized_payload() {
         encryption: None,
     };
 
-    let source = HttpSource::new().expect("http source");
+    let source = local_source();
     let err = source.fetch(&content_ref).unwrap_err();
 
     assert!(matches!(err, SourceError::TooLarge { .. }));
@@ -209,7 +264,7 @@ fn http_source_fetches_empty_response() {
         encryption: None,
     };
 
-    let source = HttpSource::new().expect("http source");
+    let source = local_source();
     let payload = source.fetch(&content_ref).expect("http fetch");
 
     assert!(payload.bytes.is_empty());
@@ -229,7 +284,7 @@ fn http_source_supports_https_scheme() {
         encryption: None,
     };
 
-    let source = HttpSource::new().expect("http source");
+    let source = local_source();
     let err = source.fetch(&content_ref).unwrap_err();
 
     // Should be HTTP error (connection failed), not UnsupportedScheme
@@ -262,7 +317,7 @@ fn http_source_rejects_404_not_found() {
         encryption: None,
     };
 
-    let source = HttpSource::new().expect("http source");
+    let source = local_source();
     let err = source.fetch(&content_ref).unwrap_err();
 
     assert!(matches!(err, SourceError::Http(_)));
@@ -293,7 +348,7 @@ fn http_source_rejects_500_server_error() {
         encryption: None,
     };
 
-    let source = HttpSource::new().expect("http source");
+    let source = local_source();
     let err = source.fetch(&content_ref).unwrap_err();
 
     assert!(matches!(err, SourceError::Http(_)));
@@ -312,7 +367,7 @@ fn http_source_rejects_non_http_scheme() {
         encryption: None,
     };
 
-    let source = HttpSource::new().expect("http source");
+    let source = local_source();
     let err = source.fetch(&content_ref).unwrap_err();
 
     assert!(matches!(err, SourceError::UnsupportedScheme(_)));
@@ -329,7 +384,7 @@ fn http_source_rejects_ftp_scheme() {
         encryption: None,
     };
 
-    let source = HttpSource::new().expect("http source");
+    let source = local_source();
     let err = source.fetch(&content_ref).unwrap_err();
 
     assert!(matches!(err, SourceError::UnsupportedScheme(_)));
@@ -346,7 +401,7 @@ fn http_source_rejects_malformed_uri() {
         encryption: None,
     };
 
-    let source = HttpSource::new().expect("http source");
+    let source = local_source();
     let err = source.fetch(&content_ref).unwrap_err();
 
     assert!(matches!(err, SourceError::InvalidUri(_)));
@@ -363,7 +418,7 @@ fn http_source_handles_connection_refused() {
         encryption: None,
     };
 
-    let source = HttpSource::new().expect("http source");
+    let source = local_source();
     let err = source.fetch(&content_ref).unwrap_err();
 
     assert!(matches!(err, SourceError::Http(_)));
@@ -398,7 +453,7 @@ fn http_source_handles_redirect_codes_as_failure() {
     };
 
     // HttpSource disables redirects by default, so 3xx should fail closed.
-    let source = HttpSource::new().expect("http source");
+    let source = local_source();
     let result = source.fetch(&content_ref);
 
     // Either it follows and fails on the new target, or reports HTTP error

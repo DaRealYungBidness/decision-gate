@@ -3,7 +3,7 @@
 // Module: Contract CLI
 // Description: CLI entrypoint for generating Decision Gate contract artifacts.
 // Purpose: Provide deterministic artifact generation for docs and tooling.
-// Dependencies: clap, decision-gate-contract
+// Dependencies: clap, decision-gate-config, decision-gate-contract
 // ============================================================================
 
 //! ## Overview
@@ -30,6 +30,9 @@ use decision_gate_contract::ContractError;
 // ============================================================================
 
 /// Contract generator CLI arguments.
+///
+/// # Invariants
+/// - `command` selects exactly one subcommand.
 #[derive(Debug, Parser)]
 #[command(name = "decision-gate-contract", about = "Generate Decision Gate contract artifacts.")]
 struct Cli {
@@ -39,6 +42,9 @@ struct Cli {
 }
 
 /// Supported CLI subcommands.
+///
+/// # Invariants
+/// - Variants map 1:1 to the CLI subcommands exposed by this binary.
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Generate the contract artifacts.

@@ -30,6 +30,10 @@ use crate::core::identifiers::ProviderId;
 // ============================================================================
 
 /// Canonical evidence query supported by Decision Gate.
+///
+/// # Invariants
+/// - `provider_id` and `check_id` must be non-empty after spec validation.
+/// - `params` is optional and unvalidated at this layer.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvidenceQuery {
     /// Evidence provider identifier.
@@ -46,6 +50,9 @@ pub struct EvidenceQuery {
 // ============================================================================
 
 /// Comparator applied to evidence values.
+///
+/// # Invariants
+/// - Variants are stable for serialization and contract matching.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Comparator {
@@ -88,6 +95,9 @@ pub enum Comparator {
 // ============================================================================
 
 /// Evidence trust lane classification.
+///
+/// # Invariants
+/// - `Verified` is strictly more trusted than `Asserted`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum TrustLane {
@@ -115,6 +125,9 @@ impl TrustLane {
 }
 
 /// Trust requirement for evidence usage.
+///
+/// # Invariants
+/// - `min_lane` is the minimum acceptable trust level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TrustRequirement {
     /// Minimum acceptable lane for evidence.
@@ -142,6 +155,10 @@ impl TrustRequirement {
 // ============================================================================
 
 /// Evidence payload value used for condition comparison.
+///
+/// # Invariants
+/// - JSON values are compared using canonical rules in the control plane.
+/// - Byte payloads are opaque and unstructured at this layer.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum EvidenceValue {
@@ -156,6 +173,10 @@ pub enum EvidenceValue {
 // ============================================================================
 
 /// Stable anchor used to identify evidence locations.
+///
+/// # Invariants
+/// - `anchor_type` is a stable identifier within a provider domain.
+/// - `anchor_value` is opaque unless validated against an anchor policy.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvidenceAnchor {
     /// Anchor type identifier (`snapshot`, `log_offset`, `receipt_id`, etc.).
@@ -165,6 +186,9 @@ pub struct EvidenceAnchor {
 }
 
 /// Reference to an evidence artifact in an external system or runpack.
+///
+/// # Invariants
+/// - `uri` is opaque and may be runpack-relative or external.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvidenceRef {
     /// Reference URI or runpack-relative path.
@@ -172,6 +196,9 @@ pub struct EvidenceRef {
 }
 
 /// Optional evidence signature metadata.
+///
+/// # Invariants
+/// - Signature bytes are opaque; verification is performed elsewhere.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvidenceSignature {
     /// Signature scheme identifier.
@@ -187,6 +214,10 @@ pub struct EvidenceSignature {
 // ============================================================================
 
 /// Evidence provider error metadata recorded for audit trails.
+///
+/// # Invariants
+/// - `code` is a stable provider-specific identifier.
+/// - `message` should be safe for logs; evidence payloads must not appear here.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvidenceProviderError {
     /// Stable error code string.
@@ -199,6 +230,10 @@ pub struct EvidenceProviderError {
 }
 
 /// Evidence result returned by providers.
+///
+/// # Invariants
+/// - When `error` is set, `value` and `evidence_hash` should be `None`.
+/// - When produced by the control plane, `evidence_hash` matches the canonical hash of `value`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvidenceResult {
     /// Evidence payload value, if available.
@@ -226,6 +261,10 @@ pub struct EvidenceResult {
 // ============================================================================
 
 /// Anchor requirements for evidence providers.
+///
+/// # Invariants
+/// - `anchor_type` must match the expected provider anchor type when enforced.
+/// - `required_fields` are keys expected in the anchor payload object.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnchorRequirement {
     /// Anchor type identifier expected on evidence results.
@@ -235,6 +274,9 @@ pub struct AnchorRequirement {
 }
 
 /// Provider-specific anchor policy.
+///
+/// # Invariants
+/// - `provider_id` identifies the provider this policy applies to.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProviderAnchorPolicy {
     /// Provider identifier enforced by this policy.
@@ -244,6 +286,9 @@ pub struct ProviderAnchorPolicy {
 }
 
 /// Evidence anchor policy applied by the control plane and runpack verifier.
+///
+/// # Invariants
+/// - Empty policies impose no anchor requirements.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct EvidenceAnchorPolicy {
     /// Provider-specific anchor requirements.
@@ -267,6 +312,9 @@ impl EvidenceAnchorPolicy {
 // ============================================================================
 
 /// Provider-missing diagnostics returned by evidence registries.
+///
+/// # Invariants
+/// - `missing_providers` lists required provider identifiers that are unavailable.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProviderMissingError {
     /// Provider identifiers required by the scenario but not registered.

@@ -109,6 +109,9 @@ pub const MAX_PAYLOAD_BYTES: usize = 2 * 1024 * 1024;
 // ============================================================================
 
 /// Configuration for the Decision Gate control plane engine.
+///
+/// # Invariants
+/// - Provider overrides are keyed by provider identifier strings.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ControlPlaneConfig {
     /// Tri-state logic mode used for gate evaluation.
@@ -148,6 +151,9 @@ impl Default for ControlPlaneConfig {
 // ============================================================================
 
 /// Control plane engine implementing deterministic Decision Gate evaluation.
+///
+/// # Invariants
+/// - `spec` is validated at construction.
 pub struct ControlPlane<P, D, S, Pol> {
     /// Scenario specification used for evaluation.
     spec: ScenarioSpec,
@@ -1153,6 +1159,9 @@ where
 // ============================================================================
 
 /// Request payload for `scenario.status`.
+///
+/// # Invariants
+/// - Identifiers must refer to the same run scope.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StatusRequest {
     /// Run identifier.
@@ -1168,6 +1177,9 @@ pub struct StatusRequest {
 }
 
 /// Pull-mode request for `scenario.next`.
+///
+/// # Invariants
+/// - Identifiers must refer to the same run scope.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NextRequest {
     /// Run identifier.
@@ -1187,6 +1199,9 @@ pub struct NextRequest {
 }
 
 /// Request payload for `scenario.submit`.
+///
+/// # Invariants
+/// - Identifiers must refer to the same run scope.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SubmitRequest {
     /// Run identifier.
@@ -1208,6 +1223,9 @@ pub struct SubmitRequest {
 }
 
 /// Request payload for precheck evaluation.
+///
+/// # Invariants
+/// - Evidence entries are keyed by condition identifiers.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PrecheckRequest {
     /// Optional stage identifier override.
@@ -1217,6 +1235,9 @@ pub struct PrecheckRequest {
 }
 
 /// Result returned by `scenario.next`.
+///
+/// # Invariants
+/// - `decision` and `packets` reflect a single evaluation step.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NextResult {
     /// Decision record produced by Decision Gate.
@@ -1239,6 +1260,9 @@ impl NextResult {
 }
 
 /// Result returned by `scenario.submit`.
+///
+/// # Invariants
+/// - `record` is the canonical submission log entry.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SubmitResult {
     /// Submission record appended to the run state.
@@ -1246,6 +1270,9 @@ pub struct SubmitResult {
 }
 
 /// Result returned by `scenario.trigger`.
+///
+/// # Invariants
+/// - `decision` and `packets` reflect a single evaluation step.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TriggerResult {
     /// Decision record produced by Decision Gate.
@@ -1257,6 +1284,9 @@ pub struct TriggerResult {
 }
 
 /// Result returned by precheck evaluation.
+///
+/// # Invariants
+/// - Results are derived from asserted evidence only (no run state mutation).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PrecheckResult {
     /// Predicted decision outcome.
@@ -1277,6 +1307,9 @@ impl TriggerResult {
 }
 
 /// Evaluation result produced by the control plane engine.
+///
+/// # Invariants
+/// - Results correspond to a single trigger evaluation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvaluationResult {
     /// Decision record.
@@ -1288,6 +1321,9 @@ pub struct EvaluationResult {
 }
 
 /// Scenario status response.
+///
+/// # Invariants
+/// - `issued_packet_ids` reflect packets already disclosed for the run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScenarioStatus {
     /// Run identifier.
@@ -1337,6 +1373,9 @@ impl ScenarioStatus {
 // ============================================================================
 
 /// Control plane execution errors.
+///
+/// # Invariants
+/// - Variants are stable for programmatic handling.
 #[derive(Debug, Error)]
 pub enum ControlPlaneError {
     /// Scenario spec failed validation.
@@ -1470,7 +1509,6 @@ fn condition_specs(
     Ok(specs)
 }
 
-/// Filters evidence records relevant to a gate.
 /// Filters evidence records relevant to a gate.
 fn evidence_for_gate(records: &[EvidenceRecord], gate: &GateSpec) -> Vec<EvidenceRecord> {
     let conditions = collect_conditions(&gate.requirement);

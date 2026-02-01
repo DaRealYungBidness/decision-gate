@@ -3,7 +3,7 @@
 // Module: Decision Gate Contract Library
 // Description: Canonical contract definitions and generators for Decision Gate.
 // Purpose: Provide the invariant contract used to generate docs and tooling.
-// Dependencies: decision-gate-core, serde
+// Dependencies: decision-gate-core, serde, thiserror
 // ============================================================================
 
 //! ## Overview
@@ -36,6 +36,10 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 /// Errors raised when generating contract artifacts.
+///
+/// # Invariants
+/// - Variants carry human-readable context for diagnostics.
+/// - [`ContractError::OutputPath`] always includes the offending path.
 #[derive(Debug, Error)]
 pub enum ContractError {
     /// IO failure while writing artifacts.

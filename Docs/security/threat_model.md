@@ -346,3 +346,6 @@ Decision Gate is composed of:
   correlation ID sanitization, and audit payload redaction.
 - Expanded broker/source protections and object-store key validation coverage.
 - Mapped security controls to concrete code locations for traceability.
+- Added explicit authoring input size/depth limits in contract normalization.
+- Added HTTP source host allow/deny policy with private/link-local IP guards.
+- Enforced symlink-safe file source opens for rooted file disclosures.

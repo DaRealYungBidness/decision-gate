@@ -37,6 +37,9 @@ use crate::core::time::Timestamp;
 // ============================================================================
 
 /// Disclosure visibility policy for packets.
+///
+/// # Invariants
+/// - Labels and policy tags are opaque; ordering is preserved.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VisibilityPolicy {
     /// Classification or policy tags controlling disclosure.
@@ -61,6 +64,9 @@ impl VisibilityPolicy {
 // ============================================================================
 
 /// Dispatch target for packet delivery.
+///
+/// # Invariants
+/// - Variants are stable for serialization and contract matching.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum DispatchTarget {
@@ -93,6 +99,10 @@ pub enum DispatchTarget {
 // ============================================================================
 
 /// Payload reference to external storage.
+///
+/// # Invariants
+/// - `content_hash` must match the referenced payload bytes when fetched.
+/// - `uri` is opaque and must be resolved by the dispatcher or client.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContentRef {
     /// URI or handle to the content blob.
@@ -104,6 +114,9 @@ pub struct ContentRef {
 }
 
 /// Packet payload content.
+///
+/// # Invariants
+/// - Exactly one payload variant is present per packet.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PacketPayload {
@@ -129,6 +142,10 @@ pub enum PacketPayload {
 // ============================================================================
 
 /// Packet envelope with stable metadata and content hash.
+///
+/// # Invariants
+/// - `content_hash` must correspond to the packet payload.
+/// - Identifiers must match the originating run and scenario.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PacketEnvelope {
     /// Scenario identifier.
@@ -156,6 +173,9 @@ pub struct PacketEnvelope {
 }
 
 /// Packet delivery receipt.
+///
+/// # Invariants
+/// - `receipt_hash` must be computed deterministically by the dispatcher.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DispatchReceipt {
     /// Dispatch identifier for idempotency.
@@ -171,6 +191,9 @@ pub struct DispatchReceipt {
 }
 
 /// Packet record logged in run state.
+///
+/// # Invariants
+/// - `envelope` and `payload` are the canonical disclosure record for a decision.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PacketRecord {
     /// Packet envelope.

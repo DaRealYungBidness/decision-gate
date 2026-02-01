@@ -82,4 +82,7 @@ cargo test -p decision-gate-sdk-gen
 
 ## References
 
-TODO: CITE YOUR SOURCES
+- `Docs/generated/decision-gate/tooling.json`
+- `Docs/generated/openapi/decision-gate.json`
+- `Docs/security/threat_model.md`
+- `decision-gate-contract/README.md`

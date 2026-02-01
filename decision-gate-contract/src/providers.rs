@@ -3,7 +3,8 @@
 // Module: Provider Contracts
 // Description: Canonical provider capability definitions for Decision Gate.
 // Purpose: Describe check schemas and provider configuration contracts.
-// Dependencies: serde_json, decision-gate-contract::schemas
+// Dependencies: decision-gate-core, serde_json, std, decision-gate-contract::schemas,
+// decision-gate-contract::types
 // ============================================================================
 
 //! ## Overview

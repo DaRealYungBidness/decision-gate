@@ -3,12 +3,14 @@
 // Module: Decision Gate Callback Sink
 // Description: Callback-based sink for synchronous delivery.
 // Purpose: Invoke a user-provided function with resolved payloads.
-// Dependencies: std
+// Dependencies: decision-gate-core, std
 // ============================================================================
 
 //! ## Overview
-//! `CallbackSink` delivers payloads by invoking a user-supplied function and
+//! [`CallbackSink`] delivers payloads by invoking a user-supplied function and
 //! returning the provided dispatch receipt.
+//! Security posture: callback handlers are external sinks; treat payloads as
+//! sensitive per `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports

@@ -41,25 +41,7 @@ const SAMPLE_FLOAT: f32 = std::f32::consts::PI;
 
 /// Returns the canonical byte value for an opcode variant.
 const fn opcode_value(opcode: OpCode) -> u8 {
-    match opcode {
-        OpCode::AndStart => 0,
-        OpCode::AndEnd => 1,
-        OpCode::OrStart => 2,
-        OpCode::OrEnd => 3,
-        OpCode::Not => 4,
-        OpCode::FloatGte => 10,
-        OpCode::FloatLte => 11,
-        OpCode::FloatEq => 12,
-        OpCode::IntGte => 13,
-        OpCode::IntLte => 14,
-        OpCode::IntEq => 15,
-        OpCode::HasAllFlags => 20,
-        OpCode::HasAnyFlags => 21,
-        OpCode::HasNoneFlags => 22,
-        OpCode::InRange => 30,
-        OpCode::InRegion => 31,
-        OpCode::DomainStart => 100,
-    }
+    opcode.as_u8()
 }
 
 // ============================================================================

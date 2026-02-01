@@ -367,6 +367,26 @@ fn read_framed_accepts_payload_at_limit() {
 }
 
 #[test]
+fn parse_request_rejects_payload_over_limit() {
+    let mut config = sample_config();
+    let payload = json!({
+        "jsonrpc": "2.0",
+        "id": 99,
+        "method": "tools/list",
+    });
+    let bytes = Bytes::from(serde_json::to_vec(&payload).expect("payload bytes"));
+    config.server.max_body_bytes = bytes.len() - 1;
+    let metrics = Arc::new(TestMetrics::default());
+    let audit = Arc::new(TestAudit::default());
+    let state = build_server_state(sample_router(&config), &config.server, metrics, audit, None);
+    let context = RequestContext::stdio();
+    let response = parse_request_sync(&state, &context, &bytes);
+    assert_eq!(response.0, StatusCode::PAYLOAD_TOO_LARGE);
+    let error = response.1.error.expect("error");
+    assert_eq!(error.code, -32070);
+}
+
+#[test]
 fn metrics_recorded_for_tools_list() {
     let mut config = sample_config();
     config.server.limits.max_inflight = 1;

@@ -23,6 +23,10 @@ use serde::Serialize;
 // ============================================================================
 
 /// Canonical timestamp used in Decision Gate logs and trigger records.
+///
+/// # Invariants
+/// - Values are explicitly provided by callers; the core never reads wall-clock time.
+/// - No validation is performed; monotonicity is a caller responsibility.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum Timestamp {

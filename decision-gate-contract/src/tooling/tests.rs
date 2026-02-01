@@ -3,7 +3,7 @@
 // Module: Tooling Schema Unit Tests
 // Description: Validates tool examples against their JSON schemas.
 // Purpose: Ensure contract examples are kept in sync with schema definitions.
-// Dependencies: decision-gate-contract
+// Dependencies: decision-gate-contract, jsonschema, serde_json
 // ============================================================================
 
 //! ## Overview

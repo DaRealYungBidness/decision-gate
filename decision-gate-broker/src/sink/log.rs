@@ -3,12 +3,14 @@
 // Module: Decision Gate Log Sink
 // Description: Log-only sink for audit-grade delivery records.
 // Purpose: Persist delivery receipts without dispatching payloads.
-// Dependencies: serde_json, std
+// Dependencies: decision-gate-core, serde_json, std
 // ============================================================================
 
 //! ## Overview
-//! `LogSink` writes a log record for each dispatch and returns the receipt. It
+//! [`LogSink`] writes a log record for each dispatch and returns the receipt. It
 //! does not deliver payloads to external systems.
+//! Security posture: logs can contain sensitive metadata; protect outputs per
+//! `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports

@@ -3,7 +3,7 @@
 // Module: MCP Documentation Registry
 // Description: Embedded documentation registry and search helpers for MCP tools
 // Purpose: Serve documentation sections to MCP callers without runtime I/O
-// Dependencies: serde
+// Dependencies: serde, decision-gate-config
 // ============================================================================
 
 //! ## Overview
@@ -12,6 +12,8 @@
 //! documents are embedded at compile time; optional extra docs may be loaded
 //! from local paths during server startup. Search uses heading-first lexical
 //! matching with role-aware tie-breaking and stable ordering.
+//! Security posture: docs input is untrusted; enforce size/path limits; see
+//! `Docs/security/threat_model.md`.
 //!
 //! ## Layer Responsibilities
 //!
@@ -484,6 +486,7 @@ fn load_extra_docs(
     }
     let mut docs = Vec::new();
     let mut seen_ids: HashSet<String> = HashSet::new();
+    let max_doc_bytes = config.max_doc_bytes;
 
     for entry in &config.extra_paths {
         let path = PathBuf::from(entry);
@@ -494,7 +497,7 @@ fn load_extra_docs(
             )));
         }
         if path.is_dir() {
-            collect_markdown_files(&path, &mut docs, &mut seen_ids, warnings)?;
+            collect_markdown_files(&path, &mut docs, &mut seen_ids, warnings, max_doc_bytes)?;
         } else {
             if !is_markdown_file(&path) {
                 warnings.push(format!(
@@ -503,7 +506,7 @@ fn load_extra_docs(
                 ));
                 continue;
             }
-            if let Some(doc) = load_markdown_file(&path, &mut seen_ids)? {
+            if let Some(doc) = load_markdown_file(&path, &mut seen_ids, warnings, max_doc_bytes)? {
                 docs.push(doc);
             }
         }
@@ -518,21 +521,20 @@ fn collect_markdown_files(
     docs: &mut Vec<DocEntry>,
     seen_ids: &mut HashSet<String>,
     warnings: &mut Vec<String>,
+    max_doc_bytes: usize,
 ) -> Result<(), DocsCatalogError> {
     for entry in fs::read_dir(dir).map_err(|err| DocsCatalogError::Io(err.to_string()))? {
         let entry = entry.map_err(|err| DocsCatalogError::Io(err.to_string()))?;
         let path = entry.path();
         if path.is_dir() {
-            collect_markdown_files(&path, docs, seen_ids, warnings)?;
+            collect_markdown_files(&path, docs, seen_ids, warnings, max_doc_bytes)?;
             continue;
         }
         if !is_markdown_file(&path) {
             continue;
         }
-        if let Some(doc) = load_markdown_file(&path, seen_ids)? {
+        if let Some(doc) = load_markdown_file(&path, seen_ids, warnings, max_doc_bytes)? {
             docs.push(doc);
-        } else {
-            warnings.push(format!("docs.extra_paths skipping empty file: {}", path.display()));
         }
     }
     Ok(())
@@ -542,10 +544,29 @@ fn collect_markdown_files(
 fn load_markdown_file(
     path: &Path,
     seen_ids: &mut HashSet<String>,
+    warnings: &mut Vec<String>,
+    max_doc_bytes: usize,
 ) -> Result<Option<DocEntry>, DocsCatalogError> {
+    let metadata = fs::metadata(path).map_err(|err| DocsCatalogError::Io(err.to_string()))?;
+    if !metadata.is_file() {
+        warnings.push(format!("docs.extra_paths ignoring non-regular file: {}", path.display()));
+        return Ok(None);
+    }
+    let file_bytes = usize::try_from(metadata.len()).unwrap_or(usize::MAX);
+    if file_bytes > max_doc_bytes {
+        let id = normalize_doc_id(path);
+        warnings.push(format!("docs entry '{id}' exceeds max_doc_bytes; skipping"));
+        return Ok(None);
+    }
     let contents = fs::read_to_string(path).map_err(|err| DocsCatalogError::Io(err.to_string()))?;
     let trimmed = contents.trim();
     if trimmed.is_empty() {
+        warnings.push(format!("docs.extra_paths skipping empty file: {}", path.display()));
+        return Ok(None);
+    }
+    if contents.len() > max_doc_bytes {
+        let id = normalize_doc_id(path);
+        warnings.push(format!("docs entry '{id}' exceeds max_doc_bytes; skipping"));
         return Ok(None);
     }
     let (title, body) = extract_title_and_body(trimmed, path);

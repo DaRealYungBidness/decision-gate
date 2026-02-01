@@ -154,6 +154,26 @@ artifacts = ["summary.json", "summary.md", "tool_transcript.json", "audit.log"]
 estimated_runtime_sec = 8
 
 [[tests]]
+name = "http_payload_too_large_rejected"
+category = "operations"
+priority = "P0"
+description = "HTTP MCP rejects oversized JSON-RPC payloads before parsing."
+files = ["system-tests/tests/suites/mcp_hardening.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact mcp_hardening::http_payload_too_large_rejected"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "sse_payload_too_large_rejected"
+category = "operations"
+priority = "P0"
+description = "SSE MCP rejects oversized JSON-RPC payloads before parsing."
+files = ["system-tests/tests/suites/mcp_hardening.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact mcp_hardening::sse_payload_too_large_rejected"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
 name = "idempotent_trigger"
 category = "reliability"
 priority = "P0"
@@ -1331,6 +1351,26 @@ files = ["system-tests/tests/suites/sdk_gen_cli.rs", "Docs/generated/decision-ga
 run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact sdk_gen_cli::sdk_gen_cli_generate_and_check"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "sdk_gen.generate.stdout.log", "sdk_gen.generate.stderr.log", "sdk_gen.check.stdout.log", "sdk_gen.check.stderr.log", "sdk_gen.drift.stdout.log", "sdk_gen.drift.stderr.log", "sdk_gen.invalid.stdout.log", "sdk_gen.invalid.stderr.log"]
 estimated_runtime_sec = 10
+
+[[tests]]
+name = "contract_cli_generate_and_check"
+category = "operations"
+priority = "P2"
+description = "Contract CLI generate/check workflows succeed and detect drift."
+files = ["system-tests/tests/suites/contract_cli.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact contract_cli::contract_cli_generate_and_check"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "contract.generate.stdout.log", "contract.generate.stderr.log", "contract.check.stdout.log", "contract.check.stderr.log", "contract.drift.stdout.log", "contract.drift.stderr.log"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "broker_composite_sources_and_sinks"
+category = "operations"
+priority = "P2"
+description = "CompositeBroker dispatch resolves file/http/inline sources and delivers via sink."
+files = ["system-tests/tests/suites/broker_integration.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact broker_integration::broker_composite_sources_and_sinks"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
 
 [[tests]]
 name = "provider_discovery_denylist_and_size_limits"

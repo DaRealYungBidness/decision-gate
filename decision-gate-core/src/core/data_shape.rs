@@ -31,6 +31,9 @@ use crate::core::time::Timestamp;
 // ============================================================================
 
 /// Reference to a data shape schema.
+///
+/// # Invariants
+/// - `schema_id` and `version` identify an immutable registry entry.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DataShapeRef {
     /// Data shape identifier.
@@ -44,6 +47,10 @@ pub struct DataShapeRef {
 // ============================================================================
 
 /// Data shape registry record.
+///
+/// # Invariants
+/// - Records are immutable once registered.
+/// - `schema` must be a valid JSON Schema payload.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DataShapeRecord {
     /// Tenant identifier.
@@ -70,6 +77,9 @@ pub struct DataShapeRecord {
 // ============================================================================
 
 /// Optional schema signing metadata.
+///
+/// # Invariants
+/// - Signature values are opaque; verification is performed elsewhere.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DataShapeSignature {
     /// Signing key identifier.
@@ -86,6 +96,9 @@ pub struct DataShapeSignature {
 // ============================================================================
 
 /// Page of data shapes.
+///
+/// # Invariants
+/// - `next_token` is an opaque pagination cursor.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DataShapePage {
     /// Data shape records in the page.

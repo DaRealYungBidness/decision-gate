@@ -7,8 +7,10 @@
 // ============================================================================
 
 //! ## Overview
-//! Decision Gate Broker provides ready-made source and sink implementations
-//! plus a composite dispatcher that wires them together.
+//! Decision Gate Broker provides ready-made [`Source`] and [`Sink`] implementations
+//! plus the [`CompositeBroker`] dispatcher that wires them together.
+//! Security posture: resolves untrusted content references and dispatch targets;
+//! see `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Modules
@@ -36,6 +38,7 @@ pub use sink::Sink;
 pub use sink::SinkError;
 pub use source::FileSource;
 pub use source::HttpSource;
+pub use source::HttpSourcePolicy;
 pub use source::InlineSource;
 pub use source::MAX_SOURCE_BYTES;
 pub use source::Source;

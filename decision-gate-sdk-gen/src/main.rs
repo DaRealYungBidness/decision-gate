@@ -184,6 +184,16 @@ fn write_output(path: &Path, contents: &str) -> Result<(), SdkGenError> {
 ///
 /// This is used by CI to ensure generated outputs stay in sync.
 fn check_output(path: &Path, contents: &str) -> Result<(), SdkGenError> {
+    let metadata = fs::metadata(path).map_err(|err| SdkGenError::Io(err.to_string()))?;
+    let expected_len = u64::try_from(contents.len()).map_err(|_| {
+        SdkGenError::Tooling("generated output size exceeds addressable memory".to_string())
+    })?;
+    if metadata.len() != expected_len {
+        return Err(SdkGenError::Tooling(format!(
+            "SDK drift detected for {}. Run decision-gate-sdk-gen generate.",
+            path.display()
+        )));
+    }
     let existing = fs::read_to_string(path).map_err(|err| SdkGenError::Io(err.to_string()))?;
     if existing != contents {
         return Err(SdkGenError::Tooling(format!(

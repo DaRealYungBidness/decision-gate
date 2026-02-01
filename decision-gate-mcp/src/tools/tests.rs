@@ -266,8 +266,10 @@ impl DocsProvider for StubDocsProvider {
         _auth: &AuthContext,
         request: DocsSearchRequest,
     ) -> Result<crate::docs::SearchResult, ToolError> {
-        let mut calls = self.search_calls.lock().expect("search calls lock");
-        *calls += 1;
+        {
+            let mut calls = self.search_calls.lock().expect("search calls lock");
+            *calls += 1;
+        }
         Ok(crate::docs::SearchResult {
             sections: Vec::new(),
             docs_covered: Vec::new(),
@@ -280,8 +282,10 @@ impl DocsProvider for StubDocsProvider {
         _context: &RequestContext,
         _auth: &AuthContext,
     ) -> Result<Vec<crate::docs::ResourceMetadata>, ToolError> {
-        let mut calls = self.list_calls.lock().expect("list calls lock");
-        *calls += 1;
+        {
+            let mut calls = self.list_calls.lock().expect("list calls lock");
+            *calls += 1;
+        }
         Ok(vec![crate::docs::ResourceMetadata {
             uri: self.resource_uri.clone(),
             name: "Stub Doc".to_string(),
@@ -296,8 +300,10 @@ impl DocsProvider for StubDocsProvider {
         _auth: &AuthContext,
         uri: &str,
     ) -> Result<crate::docs::ResourceContent, ToolError> {
-        let mut calls = self.read_calls.lock().expect("read calls lock");
-        *calls += 1;
+        {
+            let mut calls = self.read_calls.lock().expect("read calls lock");
+            *calls += 1;
+        }
         Ok(crate::docs::ResourceContent {
             uri: uri.to_string(),
             mime_type: "text/markdown",
@@ -1123,7 +1129,7 @@ fn docs_search_handles_empty_catalog() {
 fn docs_provider_disables_search_hides_tool_and_rejects_call() {
     let config = sample_config();
     let docs_provider = Arc::new(StubDocsProvider::new(false, true));
-    let docs_provider_trait: Arc<dyn DocsProvider> = docs_provider.clone();
+    let docs_provider_trait: Arc<dyn DocsProvider> = docs_provider;
     let router = router_with_overrides(config, None, None, Some(docs_provider_trait), None);
     let tools = tokio::runtime::Runtime::new()
         .expect("runtime")

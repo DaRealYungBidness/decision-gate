@@ -3,12 +3,14 @@
 // Module: Decision Gate Channel Sink
 // Description: Channel-based sink for asynchronous delivery.
 // Purpose: Send resolved payloads through a Tokio mpsc channel.
-// Dependencies: tokio
+// Dependencies: decision-gate-core, tokio
 // ============================================================================
 
 //! ## Overview
-//! `ChannelSink` delivers payloads by sending dispatch messages into a
+//! [`ChannelSink`] delivers payloads by sending dispatch messages into a
 //! `tokio::sync::mpsc` channel.
+//! Security posture: channel receivers are external sinks; treat payloads as
+//! sensitive per `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports

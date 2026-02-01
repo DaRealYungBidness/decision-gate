@@ -3,7 +3,7 @@
 // Module: Contract Schemas
 // Description: JSON schema builders for core Decision Gate data shapes.
 // Purpose: Provide canonical validation schemas for scenarios, config, and tools.
-// Dependencies: serde_json
+// Dependencies: decision-gate-config, serde_json
 // ============================================================================
 
 //! ## Overview
@@ -26,7 +26,7 @@ use serde_json::json;
 // SECTION: Public Schema Entrypoints
 // ============================================================================
 
-/// Returns the JSON schema for `ScenarioSpec`.
+/// Returns the JSON schema for [`decision_gate_core::ScenarioSpec`].
 #[must_use]
 pub fn scenario_schema() -> Value {
     let timestamp = timestamp_schema();
@@ -83,7 +83,7 @@ pub fn scenario_schema() -> Value {
     })
 }
 
-/// Builds the shared schema definitions for `ScenarioSpec`.
+/// Builds the shared schema definitions for [`decision_gate_core::ScenarioSpec`].
 fn scenario_defs(
     timestamp: &Value,
     hash_digest: &Value,
@@ -338,7 +338,7 @@ pub fn config_schema() -> Value {
     config::config_schema()
 }
 
-/// Returns the JSON schema for `EvidenceQuery`.
+/// Returns the JSON schema for [`decision_gate_core::EvidenceQuery`].
 #[must_use]
 pub fn evidence_query_schema() -> Value {
     json!({
@@ -353,7 +353,7 @@ pub fn evidence_query_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `EvidenceResult`.
+/// Returns the JSON schema for [`decision_gate_core::EvidenceResult`].
 #[must_use]
 pub fn evidence_result_schema() -> Value {
     json!({
@@ -437,7 +437,7 @@ fn evidence_provider_error_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `RunConfig`.
+/// Returns the JSON schema for [`decision_gate_core::RunConfig`].
 #[must_use]
 pub fn run_config_schema() -> Value {
     json!({
@@ -464,7 +464,7 @@ pub fn run_config_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `DataShapeRef`.
+/// Returns the JSON schema for [`decision_gate_core::DataShapeRef`].
 #[must_use]
 pub fn data_shape_ref_schema() -> Value {
     json!({
@@ -478,7 +478,7 @@ pub fn data_shape_ref_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `DataShapeRecord`.
+/// Returns the JSON schema for [`decision_gate_core::DataShapeRecord`].
 #[must_use]
 pub fn data_shape_record_schema() -> Value {
     json!({
@@ -511,7 +511,7 @@ pub fn data_shape_record_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `DataShapeSignature`.
+/// Returns the JSON schema for [`decision_gate_core::DataShapeSignature`].
 #[must_use]
 fn data_shape_signature_schema() -> Value {
     json!({
@@ -532,7 +532,7 @@ fn data_shape_signature_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `DataShapePage`.
+/// Returns the JSON schema for [`decision_gate_core::DataShapePage`].
 #[must_use]
 pub fn data_shape_page_schema() -> Value {
     json!({
@@ -554,7 +554,7 @@ pub fn data_shape_page_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `TriggerEvent`.
+/// Returns the JSON schema for [`decision_gate_core::TriggerEvent`].
 #[must_use]
 pub fn trigger_event_schema() -> Value {
     json!({
@@ -593,7 +593,7 @@ pub fn trigger_event_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `StatusRequest`.
+/// Returns the JSON schema for [`decision_gate_core::StatusRequest`].
 #[must_use]
 pub fn status_request_schema() -> Value {
     json!({
@@ -615,7 +615,7 @@ pub fn status_request_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `NextRequest`.
+/// Returns the JSON schema for [`decision_gate_core::NextRequest`].
 #[must_use]
 pub fn next_request_schema() -> Value {
     json!({
@@ -639,7 +639,7 @@ pub fn next_request_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `SubmitRequest`.
+/// Returns the JSON schema for [`decision_gate_core::SubmitRequest`].
 #[must_use]
 pub fn submit_request_schema() -> Value {
     json!({
@@ -672,7 +672,7 @@ pub fn submit_request_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `ScenarioStatus`.
+/// Returns the JSON schema for [`decision_gate_core::ScenarioStatus`].
 #[must_use]
 pub fn scenario_status_schema() -> Value {
     json!({
@@ -713,7 +713,7 @@ pub fn scenario_status_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `NextResult`.
+/// Returns the JSON schema for [`decision_gate_core::NextResult`].
 #[must_use]
 pub fn next_result_schema() -> Value {
     json!({
@@ -755,7 +755,7 @@ pub fn scenario_next_result_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `SubmitResult`.
+/// Returns the JSON schema for [`decision_gate_core::SubmitResult`].
 #[must_use]
 pub fn submit_result_schema() -> Value {
     json!({
@@ -768,13 +768,13 @@ pub fn submit_result_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `TriggerResult`.
+/// Returns the JSON schema for [`decision_gate_core::TriggerResult`].
 #[must_use]
 pub fn trigger_result_schema() -> Value {
     next_result_schema()
 }
 
-/// Returns the JSON schema for `RunState`.
+/// Returns the JSON schema for [`decision_gate_core::RunState`].
 #[must_use]
 pub fn run_state_schema() -> Value {
     json!({
@@ -838,7 +838,7 @@ pub fn run_state_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `RunpackManifest`.
+/// Returns the JSON schema for [`decision_gate_core::RunpackManifest`].
 #[must_use]
 pub fn runpack_manifest_schema() -> Value {
     json!({
@@ -893,7 +893,7 @@ fn runpack_security_context_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `VerificationReport`.
+/// Returns the JSON schema for [`decision_gate_core::VerificationReport`].
 #[must_use]
 pub fn verification_report_schema() -> Value {
     json!({
@@ -911,7 +911,7 @@ pub fn verification_report_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `VerificationStatus`.
+/// Returns the JSON schema for [`decision_gate_core::VerificationStatus`].
 #[must_use]
 pub fn verification_status_schema() -> Value {
     json!({
@@ -921,7 +921,7 @@ pub fn verification_status_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `HashDigest`.
+/// Returns the JSON schema for [`decision_gate_core::HashDigest`].
 #[must_use]
 pub fn hash_digest_schema() -> Value {
     json!({
@@ -938,7 +938,7 @@ pub fn hash_digest_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `Timestamp`.
+/// Returns the JSON schema for [`decision_gate_core::Timestamp`].
 #[must_use]
 pub fn timestamp_schema() -> Value {
     json!({
@@ -965,7 +965,7 @@ pub fn timestamp_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `DispatchTarget`.
+/// Returns the JSON schema for [`decision_gate_core::DispatchTarget`].
 #[must_use]
 pub fn dispatch_target_schema() -> Value {
     json!({
@@ -1011,7 +1011,7 @@ pub fn dispatch_target_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `PacketPayload`.
+/// Returns the JSON schema for [`decision_gate_core::PacketPayload`].
 #[must_use]
 pub fn packet_payload_schema() -> Value {
     json!({
@@ -1102,7 +1102,7 @@ fn schema_for_json_value(description: &str) -> Value {
     })
 }
 
-/// Returns the JSON schema for `Comparator`.
+/// Returns the JSON schema for [`decision_gate_core::Comparator`].
 #[must_use]
 pub fn comparator_schema() -> Value {
     json!({
@@ -1129,7 +1129,7 @@ pub fn comparator_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `DeterminismClass`.
+/// Returns the JSON schema for [`crate::types::DeterminismClass`].
 #[must_use]
 pub fn determinism_class_schema() -> Value {
     json!({
@@ -1139,7 +1139,7 @@ pub fn determinism_class_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `CheckExample`.
+/// Returns the JSON schema for [`crate::types::CheckExample`].
 #[must_use]
 pub fn check_example_schema() -> Value {
     json!({
@@ -1154,7 +1154,7 @@ pub fn check_example_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `CheckContract`.
+/// Returns the JSON schema for [`crate::types::CheckContract`].
 #[must_use]
 pub fn check_contract_schema() -> Value {
     json!({
@@ -1197,7 +1197,7 @@ pub fn check_contract_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `ProviderContract`.
+/// Returns the JSON schema for [`crate::types::ProviderContract`].
 #[must_use]
 pub fn provider_contract_schema() -> Value {
     json!({
@@ -1231,7 +1231,7 @@ pub fn provider_contract_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `TrustLane`.
+/// Returns the JSON schema for [`decision_gate_core::TrustLane`].
 #[must_use]
 pub fn trust_lane_schema() -> Value {
     json!({
@@ -1241,7 +1241,7 @@ pub fn trust_lane_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `TrustRequirement`.
+/// Returns the JSON schema for [`decision_gate_core::TrustRequirement`].
 #[must_use]
 fn trust_requirement_schema() -> Value {
     json!({
@@ -1320,7 +1320,7 @@ fn requirement_schema() -> Value {
     })
 }
 
-/// Returns the JSON schema for `AdvanceTo`.
+/// Returns the JSON schema for [`decision_gate_core::AdvanceTo`].
 #[must_use]
 fn advance_to_schema() -> Value {
     json!({

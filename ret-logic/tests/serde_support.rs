@@ -647,6 +647,37 @@ fn test_serializer_validates_on_serialize() -> TestResult {
 }
 
 // ============================================================================
+// SECTION: Input Size Limits
+// ============================================================================
+
+/// Default serialized requirement size limit used by the serializer.
+const MAX_SERIALIZED_REQUIREMENT_BYTES: usize = 1024 * 1024;
+
+/// Tests serializer rejects oversized RON input.
+#[test]
+fn test_serializer_rejects_oversized_ron_input() -> TestResult {
+    let serializer = RequirementSerializer::with_defaults();
+    let oversized = "a".repeat(MAX_SERIALIZED_REQUIREMENT_BYTES + 1);
+    let err = serializer
+        .from_ron::<MockCondition>(&oversized)
+        .expect_err("Expected oversized RON input to be rejected");
+    ensure(err.to_string().contains("size limit"), "Expected size limit error message")?;
+    Ok(())
+}
+
+/// Tests serializer rejects oversized JSON input.
+#[test]
+fn test_serializer_rejects_oversized_json_input() -> TestResult {
+    let serializer = RequirementSerializer::with_defaults();
+    let oversized = "a".repeat(MAX_SERIALIZED_REQUIREMENT_BYTES + 1);
+    let err = serializer
+        .from_json::<MockCondition>(&oversized)
+        .expect_err("Expected oversized JSON input to be rejected");
+    ensure(err.to_string().contains("size limit"), "Expected size limit error message")?;
+    Ok(())
+}
+
+// ============================================================================
 // SECTION: Edge Cases
 // ============================================================================
 

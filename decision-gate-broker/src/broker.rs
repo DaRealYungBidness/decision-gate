@@ -7,8 +7,9 @@
 // ============================================================================
 
 //! ## Overview
-//! `CompositeBroker` implements Decision Gate's dispatcher interface by resolving
-//! external payloads with sources and delivering them with sinks.
+//! [`CompositeBroker`] implements the [`decision_gate_core::Dispatcher`] interface
+//! by resolving external payloads with [`Source`] implementations and delivering
+//! them with [`Sink`] implementations.
 //! Security posture: treats content references as untrusted input; see
 //! `Docs/security/threat_model.md`.
 

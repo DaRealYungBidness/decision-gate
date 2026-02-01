@@ -3,7 +3,7 @@
 // Module: Contract Examples
 // Description: Canonical example payloads for scenarios and configuration.
 // Purpose: Provide deterministic, real-world examples for docs and SDKs.
-// Dependencies: decision-gate-core, ret-logic, serde_json
+// Dependencies: decision-gate-core, ret-logic, ron, serde_json
 // ============================================================================
 
 //! ## Overview
@@ -52,7 +52,7 @@ use serde_json::json;
 // SECTION: Example Builders
 // ============================================================================
 
-/// Returns a canonical example scenario spec.
+/// Returns a canonical example [`ScenarioSpec`].
 #[must_use]
 pub fn scenario_example() -> ScenarioSpec {
     ScenarioSpec {
@@ -67,7 +67,7 @@ pub fn scenario_example() -> ScenarioSpec {
     }
 }
 
-/// Returns a RON authoring example for the canonical scenario spec.
+/// Returns a RON authoring example for the canonical [`ScenarioSpec`].
 ///
 /// # Errors
 ///
@@ -80,7 +80,7 @@ pub fn scenario_example_ron() -> Result<String, ron::Error> {
     ron::ser::to_string_pretty(&value, pretty)
 }
 
-/// Returns a canonical example run configuration.
+/// Returns a canonical example [`RunConfig`].
 #[must_use]
 pub fn run_config_example() -> RunConfig {
     RunConfig {

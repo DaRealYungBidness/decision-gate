@@ -271,8 +271,9 @@ fn file_source_rejects_directory_as_file() {
     let source = FileSource::new(dir.path());
     let err = source.fetch(&content_ref).unwrap_err();
 
-    // Reading a directory should fail with IO error
-    assert!(matches!(err, SourceError::Io(_)));
+    // Reading a directory should fail with a deterministic error across OSes.
+    assert!(matches!(err, SourceError::InvalidUri(_)));
+    assert!(err.to_string().contains("directory"));
 }
 
 // ============================================================================
@@ -323,4 +324,30 @@ fn file_source_handles_nested_subdirectories() {
     let payload = source.fetch(&content_ref).expect("file fetch");
 
     assert_eq!(payload.bytes, content);
+}
+
+/// Tests file source rejects symlink escape attempts.
+#[cfg(unix)]
+#[test]
+fn file_source_rejects_symlink_escape() {
+    use std::os::unix::fs::symlink;
+
+    let root = tempdir().expect("temp dir");
+    let outside = tempdir().expect("outside dir");
+    let secret_path = outside.path().join("secret.txt");
+    std::fs::write(&secret_path, b"secret").expect("write secret");
+
+    let link_path = root.path().join("link");
+    symlink(&secret_path, &link_path).expect("create symlink");
+
+    let uri = Url::from_file_path(&link_path).expect("file url").to_string();
+    let content_ref = ContentRef {
+        uri,
+        content_hash: hash_bytes(DEFAULT_HASH_ALGORITHM, b"secret"),
+        encryption: None,
+    };
+
+    let source = FileSource::new(root.path());
+    let err = source.fetch(&content_ref).unwrap_err();
+    assert!(matches!(err, SourceError::InvalidUri(_) | SourceError::Io(_)));
 }

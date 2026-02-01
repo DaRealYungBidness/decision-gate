@@ -40,6 +40,9 @@ use thiserror::Error;
 // ============================================================================
 
 /// Supported hash algorithms for Decision Gate artifacts.
+///
+/// # Invariants
+/// - Variants are stable for serialization and contract matching.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HashAlgorithm {
@@ -55,6 +58,9 @@ pub const DEFAULT_HASH_ALGORITHM: HashAlgorithm = HashAlgorithm::Sha256;
 // ============================================================================
 
 /// Deterministic content hash representation.
+///
+/// # Invariants
+/// - `value` is lowercase hex for the selected `algorithm`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HashDigest {
     /// Hash algorithm identifier.
@@ -79,6 +85,9 @@ impl HashDigest {
 // ============================================================================
 
 /// Errors raised when computing canonical hashes.
+///
+/// # Invariants
+/// - Variants are stable for programmatic handling.
 #[derive(Debug, Error)]
 pub enum HashError {
     /// JSON canonicalization failed.

@@ -9,8 +9,15 @@
 //! ## Overview
 //! Exposes constant-time equality helpers for secret values such as bearer
 //! tokens or mTLS subject identifiers.
+//!
+//! Security posture: minimize timing side-channels when comparing secret inputs;
+//! see `Docs/security/threat_model.md`.
 
 use subtle::ConstantTimeEq;
+
+// ============================================================================
+// SECTION: Constant-Time Comparisons
+// ============================================================================
 
 /// Compares two byte slices in constant time.
 #[must_use]

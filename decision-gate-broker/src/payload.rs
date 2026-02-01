@@ -8,8 +8,10 @@
 
 //! ## Overview
 //! Payloads represent resolved disclosure content paired with the originating
-//! Decision Gate envelope. Sinks receive payloads after sources resolve any
+//! [`decision_gate_core::PacketEnvelope`]. Sinks receive payloads after sources resolve any
 //! external references.
+//! Security posture: payload bodies originate from untrusted inputs and should
+//! only be constructed after validation; see `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports

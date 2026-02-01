@@ -371,7 +371,7 @@ impl<'a> Lexer<'a> {
                 _ => {
                     return Err(DslError::UnexpectedToken {
                         expected: "identifier, number, or operator",
-                        found: (ch as char).to_string(),
+                        found: char::from(ch).to_string(),
                         position: self.offset,
                     });
                 }

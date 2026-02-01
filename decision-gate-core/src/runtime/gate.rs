@@ -31,6 +31,9 @@ use crate::core::state::EvidenceRecord;
 // ============================================================================
 
 /// Evaluates gates against evidence snapshots using tri-state logic.
+///
+/// # Invariants
+/// - Evaluation uses the configured [`LogicMode`] deterministically.
 pub struct GateEvaluator {
     /// Logic mode used for tri-state evaluation.
     logic: LogicMode,
@@ -73,6 +76,9 @@ impl GateEvaluator {
 // ============================================================================
 
 /// Evidence snapshot keyed by condition identifier.
+///
+/// # Invariants
+/// - Records must correspond to the conditions referenced by evaluated gates.
 #[derive(Debug, Clone, Default)]
 pub struct EvidenceSnapshot {
     /// Evidence records keyed by condition.
@@ -104,6 +110,10 @@ impl EvidenceSnapshot {
     }
 }
 
+/// Evidence reader adapter for requirement evaluation.
+///
+/// # Invariants
+/// - Holds an immutable reference to an [`EvidenceSnapshot`].
 #[doc(hidden)]
 pub struct EvidenceReader<'a> {
     snapshot: &'a EvidenceSnapshot,

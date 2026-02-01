@@ -64,12 +64,14 @@ Sources resolve `ContentRef` URIs into raw payload bytes.
 
 - Supports: `file://` URIs.
 - Optional root directory; when set, paths must resolve under the root.
+- Rooted paths are enforced at open time; symlink components are rejected.
 
 ### HttpSource
 
 - Supports: `http://` and `https://` URIs.
 - Rejects redirects and non-2xx responses.
 - Enforces a 30s request timeout and max payload size.
+- Denies private/link-local IP ranges by default; allowlists/denylists are supported.
 
 ## Sinks
 
@@ -105,6 +107,22 @@ let broker = CompositeBroker::builder()
 Schemes are matched directly. For `inline+json:` and `inline+bytes:` URIs,
 register `inline` as the base scheme.
 
+Configure HTTP host policies:
+
+```rust
+use decision_gate_broker::{CompositeBroker, HttpSource, HttpSourcePolicy, LogSink};
+
+let policy = HttpSourcePolicy::new()
+    .allow_hosts(["example.com", "*.example.org"])
+    .allow_private_networks();
+let http_source = HttpSource::with_policy(policy)?;
+
+let broker = CompositeBroker::builder()
+    .source("http", http_source)
+    .sink(LogSink::new(std::io::stdout()))
+    .build()?;
+```
+
 ## Usage Examples
 
 Resolve a file-backed payload and log disclosures:
@@ -121,14 +139,22 @@ let broker = CompositeBroker::builder()
 Custom sink with callback:
 
 ```rust
-use decision_gate_broker::{CallbackSink, CompositeBroker, InlineSource};
+use decision_gate_broker::{CallbackSink, CompositeBroker, InlineSource, SinkError};
+use decision_gate_core::{DispatchReceipt, Timestamp};
 
 let broker = CompositeBroker::builder()
     .source("inline", InlineSource::new())
-    .sink(CallbackSink::new(|msg| {
+    .sink(CallbackSink::new(|target, payload| {
         // Deliver to external system
-        send_to_webhook(msg.target, msg.payload)?;
-        Ok(())
+        send_to_webhook(target, payload)
+            .map_err(|err| SinkError::DeliveryFailed(err.to_string()))?;
+        Ok(DispatchReceipt {
+            dispatch_id: "webhook-1".to_string(),
+            target: target.clone(),
+            receipt_hash: payload.envelope.content_hash.clone(),
+            dispatched_at: Timestamp::Logical(1),
+            dispatcher: "webhook".to_string(),
+        })
     }))
     .build()?;
 ```

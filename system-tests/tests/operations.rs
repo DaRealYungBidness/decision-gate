@@ -10,12 +10,16 @@
 
 mod helpers;
 
+#[path = "suites/broker_integration.rs"]
+mod broker_integration;
 #[path = "suites/cli_golden_outputs.rs"]
 mod cli_golden_outputs;
 #[path = "suites/cli_limits.rs"]
 mod cli_limits;
 #[path = "suites/cli_workflows.rs"]
 mod cli_workflows;
+#[path = "suites/contract_cli.rs"]
+mod contract_cli;
 #[path = "suites/docs_config.rs"]
 mod docs_config;
 #[path = "suites/mcp_hardening.rs"]

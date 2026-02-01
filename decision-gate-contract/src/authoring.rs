@@ -3,11 +3,11 @@
 // Module: Authoring Formats
 // Description: ScenarioSpec authoring parsing and normalization helpers.
 // Purpose: Validate and canonicalize authoring inputs into RFC 8785 JSON.
-// Dependencies: decision-gate-core, jsonschema, ron, serde_json
+// Dependencies: decision-gate-core, jsonschema, ron, serde_json, thiserror
 // ============================================================================
 
 //! ## Overview
-//! This module validates and normalizes `ScenarioSpec` authoring inputs. JSON is
+//! This module validates and normalizes [`ScenarioSpec`] authoring inputs. JSON is
 //! the canonical format; RON is accepted for human-friendly authoring and is
 //! normalized into canonical JSON (RFC 8785 / JCS).
 //! Security posture: authoring inputs are untrusted; see
@@ -18,11 +18,15 @@
 // ============================================================================
 
 use std::fmt;
+use std::fmt::Write;
 use std::path::Path;
 
 use decision_gate_core::ScenarioSpec;
+use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
 use decision_gate_core::hashing::HashDigest;
-use decision_gate_core::hashing::canonical_json_bytes;
+use decision_gate_core::hashing::canonical_json_bytes_with_limit;
+use decision_gate_core::hashing::hash_bytes;
+use decision_gate_core::runtime::MAX_RUNPACK_ARTIFACT_BYTES;
 use jsonschema::Draft;
 use jsonschema::Validator;
 use serde_json::Value;
@@ -34,7 +38,10 @@ use crate::schemas;
 // SECTION: Authoring Formats
 // ============================================================================
 
-/// Supported authoring formats for `ScenarioSpec`.
+/// Supported authoring formats for [`ScenarioSpec`].
+///
+/// # Invariants
+/// - Variants map 1:1 to on-disk authoring formats.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthoringFormat {
     /// Canonical JSON authoring format.
@@ -80,7 +87,16 @@ impl fmt::Display for AuthoringFormat {
 // SECTION: Normalized Outputs
 // ============================================================================
 
-/// Normalized `ScenarioSpec` output with canonical JSON and hash metadata.
+/// Maximum size of authoring input accepted for normalization.
+pub const MAX_AUTHORING_INPUT_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;
+/// Maximum nesting depth accepted for authoring inputs.
+pub const MAX_AUTHORING_DEPTH: usize = 64;
+
+/// Normalized [`ScenarioSpec`] output with canonical JSON and hash metadata.
+///
+/// # Invariants
+/// - `canonical_json` is the RFC 8785 representation of `spec`.
+/// - `spec_hash` is the canonical hash of `canonical_json`.
 #[derive(Debug, Clone)]
 pub struct NormalizedScenario {
     /// Parsed scenario specification.
@@ -96,8 +112,27 @@ pub struct NormalizedScenario {
 // ============================================================================
 
 /// Errors raised while normalizing authoring inputs.
+///
+/// # Invariants
+/// - Error variants preserve the originating format or validation phase.
 #[derive(Debug, Error)]
 pub enum AuthoringError {
+    /// Authoring input exceeded the size limit.
+    #[error("authoring input exceeds size limit ({actual_bytes} > {max_bytes})")]
+    InputTooLarge {
+        /// Maximum allowed bytes.
+        max_bytes: usize,
+        /// Observed size in bytes.
+        actual_bytes: usize,
+    },
+    /// Authoring input exceeded the depth limit.
+    #[error("authoring input exceeds depth limit ({actual_depth} > {max_depth})")]
+    DepthLimitExceeded {
+        /// Maximum allowed depth.
+        max_depth: usize,
+        /// Observed depth.
+        actual_depth: usize,
+    },
     /// Failed to parse the authoring input.
     #[error("failed to parse {format} input: {error}")]
     Parse {
@@ -112,16 +147,16 @@ pub enum AuthoringError {
         /// Schema validation details.
         error: String,
     },
-    /// Failed to deserialize into core `ScenarioSpec` types.
+    /// Failed to deserialize into core [`ScenarioSpec`] types.
     #[error("failed to deserialize ScenarioSpec: {error}")]
     Deserialize {
         /// Deserialization error details.
         error: String,
     },
-    /// `ScenarioSpec` semantic validation failed.
+    /// [`ScenarioSpec`] semantic validation failed.
     #[error("ScenarioSpec validation failed: {error}")]
     Spec {
-        /// `ScenarioSpec` validation error details.
+        /// [`ScenarioSpec`] validation error details.
         error: String,
     },
     /// Canonical JSON serialization failed.
@@ -129,6 +164,14 @@ pub enum AuthoringError {
     Canonicalization {
         /// Canonicalization error details.
         error: String,
+    },
+    /// Canonical JSON exceeded the size limit.
+    #[error("canonical json exceeds size limit ({actual_bytes} > {max_bytes})")]
+    CanonicalTooLarge {
+        /// Maximum allowed bytes.
+        max_bytes: usize,
+        /// Observed size in bytes.
+        actual_bytes: usize,
     },
 }
 
@@ -144,7 +187,7 @@ pub fn detect_format(path: &Path) -> Option<AuthoringFormat> {
         .and_then(AuthoringFormat::from_extension)
 }
 
-/// Normalize `ScenarioSpec` authoring input into canonical JSON bytes.
+/// Normalize [`ScenarioSpec`] authoring input into canonical JSON bytes.
 ///
 /// # Errors
 ///
@@ -155,7 +198,9 @@ pub fn normalize_scenario(
     input: &str,
     format: AuthoringFormat,
 ) -> Result<NormalizedScenario, AuthoringError> {
+    enforce_input_size_limit(input)?;
     let value = parse_value(input, format)?;
+    enforce_depth_limit(&value)?;
     validate_scenario_schema(&value)?;
     let spec: ScenarioSpec =
         serde_json::from_value(value).map_err(|err| AuthoringError::Deserialize {
@@ -164,13 +209,22 @@ pub fn normalize_scenario(
     spec.validate().map_err(|err| AuthoringError::Spec {
         error: err.to_string(),
     })?;
-    let canonical_json =
-        canonical_json_bytes(&spec).map_err(|err| AuthoringError::Canonicalization {
-            error: err.to_string(),
+    let canonical_json = canonical_json_bytes_with_limit(&spec, MAX_AUTHORING_INPUT_BYTES)
+        .map_err(|err| match err {
+            decision_gate_core::hashing::HashError::SizeLimitExceeded {
+                limit,
+                actual,
+            } => AuthoringError::CanonicalTooLarge {
+                max_bytes: limit,
+                actual_bytes: actual,
+            },
+            decision_gate_core::hashing::HashError::Canonicalization(error) => {
+                AuthoringError::Canonicalization {
+                    error,
+                }
+            }
         })?;
-    let spec_hash = spec.canonical_hash().map_err(|err| AuthoringError::Canonicalization {
-        error: err.to_string(),
-    })?;
+    let spec_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, &canonical_json);
     Ok(NormalizedScenario {
         spec,
         canonical_json,
@@ -201,6 +255,9 @@ pub fn authoring_markdown() -> String {
     out.push_str("3. Run ScenarioSpec semantic validation (IDs, conditions, gates).\n");
     out.push_str("4. Canonicalize to JSON (RFC 8785).\n");
     out.push_str("5. Compute the canonical spec hash.\n\n");
+    out.push_str("## Limits\n\n");
+    let _ = writeln!(out, "- Max authoring input size: {MAX_AUTHORING_INPUT_BYTES} bytes.");
+    let _ = writeln!(out, "- Max nesting depth: {MAX_AUTHORING_DEPTH}.\n");
     out.push_str("## CLI Usage\n\n");
     out.push_str("Validate RON authoring input:\n\n");
     out.push_str("```bash\n");
@@ -231,14 +288,17 @@ fn parse_value(input: &str, format: AuthoringFormat) -> Result<Value, AuthoringE
             format,
             error: err.to_string(),
         }),
-        AuthoringFormat::Ron => ron::from_str(input).map_err(|err| AuthoringError::Parse {
-            format,
-            error: err.to_string(),
-        }),
+        AuthoringFormat::Ron => ron::Options::default()
+            .with_recursion_limit(MAX_AUTHORING_DEPTH)
+            .from_str(input)
+            .map_err(|err| AuthoringError::Parse {
+                format,
+                error: err.to_string(),
+            }),
     }
 }
 
-/// Validate `ScenarioSpec` input against the JSON schema.
+/// Validate [`ScenarioSpec`] input against the JSON schema.
 fn validate_scenario_schema(instance: &Value) -> Result<(), AuthoringError> {
     let schema = schemas::scenario_schema();
     let compiled = compile_schema(&schema)?;
@@ -252,7 +312,56 @@ fn validate_scenario_schema(instance: &Value) -> Result<(), AuthoringError> {
     }
 }
 
-/// Compile the `ScenarioSpec` JSON schema for validation.
+/// Enforces the authoring input size limit before parsing.
+const fn enforce_input_size_limit(input: &str) -> Result<(), AuthoringError> {
+    let actual_bytes = input.len();
+    if actual_bytes > MAX_AUTHORING_INPUT_BYTES {
+        return Err(AuthoringError::InputTooLarge {
+            max_bytes: MAX_AUTHORING_INPUT_BYTES,
+            actual_bytes,
+        });
+    }
+    Ok(())
+}
+
+/// Enforces the maximum depth for parsed authoring inputs.
+fn enforce_depth_limit(value: &Value) -> Result<(), AuthoringError> {
+    let actual_depth = max_value_depth(value);
+    if actual_depth > MAX_AUTHORING_DEPTH {
+        return Err(AuthoringError::DepthLimitExceeded {
+            max_depth: MAX_AUTHORING_DEPTH,
+            actual_depth,
+        });
+    }
+    Ok(())
+}
+
+/// Returns the maximum nesting depth of the provided JSON value.
+fn max_value_depth(value: &Value) -> usize {
+    let mut max_depth = 1usize;
+    let mut stack = vec![(value, 1usize)];
+    while let Some((current, depth)) = stack.pop() {
+        if depth > max_depth {
+            max_depth = depth;
+        }
+        match current {
+            Value::Array(items) => {
+                for item in items {
+                    stack.push((item, depth + 1));
+                }
+            }
+            Value::Object(map) => {
+                for value in map.values() {
+                    stack.push((value, depth + 1));
+                }
+            }
+            _ => {}
+        }
+    }
+    max_depth
+}
+
+/// Compile the [`ScenarioSpec`] JSON schema for validation.
 fn compile_schema(schema: &Value) -> Result<Validator, AuthoringError> {
     jsonschema::options().with_draft(Draft::Draft202012).build(schema).map_err(|err| {
         AuthoringError::Schema {

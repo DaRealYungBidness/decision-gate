@@ -373,7 +373,7 @@ struct SchemaListCommand {
     cursor: Option<String>,
     /// Maximum number of records to return.
     #[arg(long, value_name = "LIMIT")]
-    limit: Option<usize>,
+    limit: Option<u64>,
 }
 
 /// Arguments for `schema get`.
@@ -1313,7 +1313,7 @@ async fn command_schema_list(command: SchemaListCommand) -> CliResult<ExitCode> 
         payload.insert("cursor".to_string(), Value::String(cursor.clone()));
     }
     if let Some(limit) = command.limit {
-        payload.insert("limit".to_string(), Value::Number(serde_json::Number::from(limit as u64)));
+        payload.insert("limit".to_string(), Value::Number(serde_json::Number::from(limit)));
     }
     let input = Value::Object(payload);
     validate_mcp_tool_input(decision_gate_core::ToolName::SchemasList, &input)?;
@@ -2275,12 +2275,16 @@ struct CliClientConfig {
 
 /// Loads auth profiles from a config file.
 fn load_auth_profiles(path: &Path) -> CliResult<BTreeMap<String, AuthProfileConfig>> {
-    let bytes = fs::read(path).map_err(|err| {
-        CliError::new(t!("mcp.client.auth_config_read_failed", path = path.display(), error = err))
+    let bytes = read_bytes_with_limit(path, MAX_AUTH_CONFIG_BYTES).map_err(|err| match err {
+        ReadLimitError::Io(err) => CliError::new(t!(
+            "mcp.client.auth_config_read_failed",
+            path = path.display(),
+            error = err
+        )),
+        ReadLimitError::TooLarge {
+            ..
+        } => CliError::new(t!("mcp.client.auth_config_too_large", path = path.display())),
     })?;
-    if bytes.len() > MAX_AUTH_CONFIG_BYTES {
-        return Err(CliError::new(t!("mcp.client.auth_config_too_large", path = path.display())));
-    }
     let content = std::str::from_utf8(&bytes)
         .map_err(|err| CliError::new(t!("mcp.client.auth_config_parse_failed", error = err)))?;
     let parsed: CliConfig = toml::from_str(content)
@@ -2439,6 +2443,24 @@ fn normalize_authoring_input(
 /// Maps authoring errors into localized CLI messages.
 fn map_authoring_error(error: AuthoringError, path: &Path) -> CliError {
     let message = match error {
+        AuthoringError::InputTooLarge {
+            max_bytes,
+            actual_bytes,
+        } => t!(
+            "authoring.size_limit_exceeded",
+            path = path.display(),
+            size = actual_bytes,
+            limit = max_bytes
+        ),
+        AuthoringError::DepthLimitExceeded {
+            max_depth,
+            actual_depth,
+        } => t!(
+            "authoring.depth_limit_exceeded",
+            path = path.display(),
+            depth = actual_depth,
+            limit = max_depth
+        ),
         AuthoringError::Parse {
             format,
             error,
@@ -2465,6 +2487,15 @@ fn map_authoring_error(error: AuthoringError, path: &Path) -> CliError {
         } => {
             t!("authoring.canonicalize_failed", path = path.display(), error = error)
         }
+        AuthoringError::CanonicalTooLarge {
+            max_bytes,
+            actual_bytes,
+        } => t!(
+            "authoring.canonical_too_large",
+            path = path.display(),
+            size = actual_bytes,
+            limit = max_bytes
+        ),
     };
     CliError::new(message)
 }

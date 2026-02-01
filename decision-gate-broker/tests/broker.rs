@@ -32,6 +32,7 @@ use decision_gate_broker::CompositeBroker;
 use decision_gate_broker::DispatchMessage;
 use decision_gate_broker::FileSource;
 use decision_gate_broker::HttpSource;
+use decision_gate_broker::HttpSourcePolicy;
 use decision_gate_broker::InlineSource;
 use decision_gate_broker::LogSink;
 use decision_gate_broker::Payload;
@@ -150,7 +151,8 @@ fn http_source_fetches_bytes() {
         content_hash: hash_bytes(DEFAULT_HASH_ALGORITHM, b"remote"),
         encryption: None,
     };
-    let source = HttpSource::new().expect("http source");
+    let source = HttpSource::with_policy(HttpSourcePolicy::new().allow_private_networks())
+        .expect("http source");
     let payload = source.fetch(&content_ref).expect("http fetch");
     assert_eq!(payload.bytes, b"remote");
     assert_eq!(payload.content_type.as_deref(), Some("application/octet-stream"));

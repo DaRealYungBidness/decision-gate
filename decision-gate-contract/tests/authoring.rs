@@ -32,6 +32,8 @@
 
 use decision_gate_contract::AuthoringError;
 use decision_gate_contract::AuthoringFormat;
+use decision_gate_contract::authoring::MAX_AUTHORING_DEPTH;
+use decision_gate_contract::authoring::MAX_AUTHORING_INPUT_BYTES;
 use decision_gate_contract::authoring::normalize_scenario;
 use decision_gate_contract::examples;
 use decision_gate_core::hashing::canonical_json_bytes;
@@ -73,4 +75,27 @@ fn schema_validation_rejects_unknown_fields() -> Result<(), Box<dyn std::error::
     let err = normalize_scenario(&input, AuthoringFormat::Json).unwrap_err();
     assert!(matches!(err, AuthoringError::Schema { .. }));
     Ok(())
+}
+
+/// Confirms oversized authoring inputs are rejected before parsing.
+#[test]
+fn authoring_rejects_oversized_input() {
+    let input = "a".repeat(MAX_AUTHORING_INPUT_BYTES + 1);
+    let err = normalize_scenario(&input, AuthoringFormat::Json).unwrap_err();
+    assert!(matches!(err, AuthoringError::InputTooLarge { .. }));
+}
+
+/// Confirms overly deep authoring inputs are rejected.
+#[test]
+fn authoring_rejects_overly_deep_inputs() {
+    let mut input = String::new();
+    for _ in 0 ..= MAX_AUTHORING_DEPTH {
+        input.push('[');
+    }
+    input.push('0');
+    for _ in 0 ..= MAX_AUTHORING_DEPTH {
+        input.push(']');
+    }
+    let err = normalize_scenario(&input, AuthoringFormat::Json).unwrap_err();
+    assert!(matches!(err, AuthoringError::DepthLimitExceeded { .. }));
 }

@@ -241,8 +241,7 @@ fn auth_config_size_limit_enforced() {
     let err_msg = result.unwrap_err().to_string();
     assert!(
         err_msg.contains("too large") || err_msg.contains("size") || err_msg.contains("large"),
-        "Error should mention size limit: {}",
-        err_msg
+        "Error should mention size limit: {err_msg}"
     );
 }
 

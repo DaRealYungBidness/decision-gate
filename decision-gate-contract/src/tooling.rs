@@ -3,7 +3,8 @@
 // Module: MCP Tool Contracts
 // Description: Canonical MCP tool definitions and schemas for Decision Gate.
 // Purpose: Provide tool contracts for docs, SDK generation, and MCP listing.
-// Dependencies: serde_json, decision-gate-contract::schemas
+// Dependencies: serde_json, std, decision-gate-contract::examples, decision-gate-contract::schemas,
+// decision-gate-contract::types
 // ============================================================================
 
 //! ## Overview
@@ -1097,17 +1098,17 @@ fn example_hash_digest() -> Value {
     })
 }
 
-/// Example `ScenarioSpec` payload rendered from core types.
+/// Example [`decision_gate_core::ScenarioSpec`] payload rendered from core types.
 fn example_scenario_spec() -> Value {
     serde_json::to_value(examples::scenario_example()).unwrap_or_else(|_| json!({}))
 }
 
-/// Example `RunConfig` payload rendered from core types.
+/// Example [`decision_gate_core::RunConfig`] payload rendered from core types.
 fn example_run_config() -> Value {
     serde_json::to_value(examples::run_config_example()).unwrap_or_else(|_| json!({}))
 }
 
-/// Example `RunState` payload used in tooling docs.
+/// Example [`decision_gate_core::RunState`] payload used in tooling docs.
 fn example_run_state() -> Value {
     json!({
         "tenant_id": EXAMPLE_TENANT_ID,
@@ -1864,7 +1865,7 @@ fn tool_output_schema(properties: &Value, required: &[&str]) -> Value {
     with_schema(object_schema(properties, required))
 }
 
-/// Returns the JSON schema for `EvidenceContext`.
+/// Returns the JSON schema for [`decision_gate_core::EvidenceContext`].
 #[must_use]
 fn evidence_context_schema() -> Value {
     let properties = json!({

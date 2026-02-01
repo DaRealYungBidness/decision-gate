@@ -44,7 +44,7 @@ fn truncated_json_rpc_frame_rejected() {
             // Valid JSON at this truncation point is rare but possible
             continue;
         }
-        assert!(result.is_err(), "Truncated JSON should fail: '{}'", truncated);
+        assert!(result.is_err(), "Truncated JSON should fail: '{truncated}'");
     }
 }
 
@@ -58,12 +58,12 @@ fn malformed_json_in_response_rejected() {
         r#"{"jsonrpc":"2.0","id":1,"result":[}"#, // Mismatched brackets
         r#"{"jsonrpc":"2.0","id":1,"result":null"#, // Missing closing brace
         r#"{"jsonrpc":"2.0","id":1,"result":undefined}"#, // Invalid value
-        r#"{'jsonrpc':'2.0','id':1,'result':{}}"#, // Single quotes (not valid JSON)
+        r"{'jsonrpc':'2.0','id':1,'result':{}}", // Single quotes (not valid JSON)
     ];
 
     for case in malformed_cases {
         let result = serde_json::from_str::<serde_json::Value>(case);
-        assert!(result.is_err(), "Malformed JSON should fail: '{}'", case);
+        assert!(result.is_err(), "Malformed JSON should fail: '{case}'");
     }
 }
 
@@ -173,9 +173,8 @@ fn sse_data_without_colon_rejected() {
     let result = parse_sse_body(body);
     // This might parse as invalid data or fail
     // The key is it doesn't crash
-    if result.is_ok() {
+    if let Ok(parsed) = result {
         // If it parses, verify it's not the expected JSON
-        let parsed = result.unwrap();
         assert!(parsed != b"{\"jsonrpc\":\"2.0\"}");
     }
 }
@@ -205,7 +204,7 @@ proptest! {
     #[test]
     fn arbitrary_content_length_safe(length in 0u64..1_000_000_000) {
         // Test various Content-Length values
-        let header = format!("Content-Length: {}\r\n\r\n", length);
+        let header = format!("Content-Length: {length}\r\n\r\n");
         let mut reader = std::io::BufReader::new(Cursor::new(header.as_bytes()));
 
         // Should not crash, even with huge lengths
@@ -228,7 +227,7 @@ proptest! {
 
 #[test]
 fn empty_json_object_valid() {
-    let empty = r#"{}"#;
+    let empty = "{}";
     let result = serde_json::from_str::<serde_json::Value>(empty);
     assert!(result.is_ok());
 }
@@ -242,9 +241,9 @@ fn deeply_nested_json_handled() {
     }
     json.push_str("\"b\":1");
     for _ in 0 .. 100 {
-        json.push_str("}");
+        json.push('}');
     }
-    json.push_str("}");
+    json.push('}');
 
     // Should parse without stack overflow
     let result = serde_json::from_str::<serde_json::Value>(&json);
