@@ -1069,6 +1069,46 @@ artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 10
 
 [[tests]]
+name = "cli_auth_matrix"
+category = "security"
+priority = "P1"
+description = "CLI MCP client enforces bearer token and mTLS subject auth."
+files = ["system-tests/tests/suites/cli_auth.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact cli_auth::cli_auth_matrix"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 12
+
+[[tests]]
+name = "cli_auth_profile_bearer_token"
+category = "security"
+priority = "P1"
+description = "CLI auth profile supplies bearer token for MCP client calls."
+files = ["system-tests/tests/suites/cli_auth.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact cli_auth::cli_auth_profile_bearer_token"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 10
+
+[[tests]]
+name = "cli_auth_profile_cli_override"
+category = "security"
+priority = "P1"
+description = "CLI bearer token flag overrides auth profile credentials."
+files = ["system-tests/tests/suites/cli_auth.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact cli_auth::cli_auth_profile_cli_override"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 10
+
+[[tests]]
+name = "cli_mcp_tool_wrappers_conformance"
+category = "functional"
+priority = "P1"
+description = "CLI MCP tool wrappers execute against a live MCP server."
+files = ["system-tests/tests/suites/cli_conformance.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test functional -- --exact cli_conformance::cli_mcp_tool_wrappers_conformance"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runpack/"]
+estimated_runtime_sec = 35
+
+[[tests]]
 name = "cli_workflows_end_to_end"
 category = "operations"
 priority = "P1"
@@ -1077,6 +1117,16 @@ files = ["system-tests/tests/suites/cli_workflows.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact cli_workflows::cli_workflows_end_to_end"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "cli.serve.stdout.log", "cli.serve.stderr.log", "cli.runpack.export.stdout.log", "cli.runpack.export.stderr.log", "cli.runpack.verify.stdout.log", "cli.runpack.verify.stderr.log", "cli.authoring.validate.stdout.log", "cli.authoring.validate.stderr.log", "cli.authoring.normalize.stdout.log", "cli.authoring.normalize.stderr.log", "cli.config.validate.stdout.log", "cli.config.validate.stderr.log", "cli.interop.stdout.log", "cli.interop.stderr.log"]
 estimated_runtime_sec = 30
+
+[[tests]]
+name = "cli_config_env_override"
+category = "operations"
+priority = "P1"
+description = "CLI config validate honors DECISION_GATE_CONFIG environment override."
+files = ["system-tests/tests/suites/cli_workflows.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact cli_workflows::cli_config_env_override"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "cli.config.env.stdout.log", "cli.config.env.stderr.log"]
+estimated_runtime_sec = 5
 
 [[tests]]
 name = "agentic_flow_harness_deterministic"
@@ -1097,6 +1147,16 @@ files = ["system-tests/tests/suites/cli_workflows.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact cli_workflows::cli_rejects_non_loopback_bind"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "cli.non_loopback.stdout.log", "cli.non_loopback.stderr.log"]
 estimated_runtime_sec = 5
+
+[[tests]]
+name = "cli_size_limits_enforced"
+category = "operations"
+priority = "P1"
+description = "CLI rejects oversized inputs and enforces output size limits."
+files = ["system-tests/tests/suites/cli_limits.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact cli_limits::cli_size_limits_enforced"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
 
 [[tests]]
 name = "provider_template_python"
@@ -1291,6 +1351,46 @@ files = ["system-tests/tests/suites/docs_config.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact docs_config::docs_extra_paths_ingestion_limits"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 18
+
+[[tests]]
+name = "cli_smoke_version"
+category = "smoke"
+priority = "P2"
+description = "CLI --version output is available and well-formed."
+files = ["system-tests/tests/suites/smoke.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test smoke -- --exact smoke::cli_smoke_version"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "cli.version.stdout.log", "cli.version.stderr.log"]
+estimated_runtime_sec = 4
+
+[[tests]]
+name = "cli_transport_matrix"
+category = "mcp_transport"
+priority = "P2"
+description = "CLI MCP client parity across HTTP, SSE, and stdio transports."
+files = ["system-tests/tests/suites/cli_transport.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test mcp_transport -- --exact cli_transport::cli_transport_matrix"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 15
+
+[[tests]]
+name = "cli_golden_provider_list"
+category = "operations"
+priority = "P2"
+description = "CLI provider list output matches the golden JSON fixture."
+files = ["system-tests/tests/suites/cli_golden_outputs.rs", "system-tests/tests/fixtures/cli/provider_list.json"]
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact cli_golden_outputs::cli_golden_provider_list"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 5
+
+[[tests]]
+name = "cli_i18n_catalan_disclaimer"
+category = "operations"
+priority = "P2"
+description = "CLI emits Catalan output and machine-translation disclaimer."
+files = ["system-tests/tests/suites/cli_workflows.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact cli_workflows::cli_i18n_catalan_disclaimer"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "cli.i18n.stdout.log", "cli.i18n.stderr.log"]
+estimated_runtime_sec = 5
 
 [[tests]]
 name = "sse_transport_bearer_rejects_missing_token"

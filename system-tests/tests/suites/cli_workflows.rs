@@ -12,12 +12,12 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
-use std::process::Output;
-use std::sync::OnceLock;
 use std::time::Duration;
 
 use decision_gate_core::Timestamp;
 use helpers::artifacts::TestReporter;
+use helpers::cli::cli_binary;
+use helpers::cli::run_cli;
 use helpers::harness::allocate_bind_addr;
 use helpers::mcp_client::McpHttpClient;
 use helpers::readiness::wait_for_server_ready;
@@ -58,67 +58,6 @@ impl CliServer {
     }
 }
 
-fn cli_binary() -> Option<PathBuf> {
-    if let Some(path) = option_env!("CARGO_BIN_EXE_decision_gate") {
-        let candidate = PathBuf::from(path);
-        if candidate.exists() {
-            return Some(candidate);
-        }
-    }
-    if let Ok(path) = std::env::var("CARGO_BIN_EXE_decision_gate") {
-        let candidate = PathBuf::from(path);
-        if candidate.exists() {
-            return Some(candidate);
-        }
-    }
-    build_cli_binary().map_or_else(|_| resolve_cli_from_current_exe(), Some)
-}
-
-fn resolve_cli_from_current_exe() -> Option<PathBuf> {
-    let exe = std::env::current_exe().ok()?;
-    let profile_dir = exe.parent()?.parent()?;
-    let candidate = profile_dir.join(format!("decision-gate{}", exe_suffix()));
-    if candidate.exists() { Some(candidate) } else { None }
-}
-
-fn target_dir_from_current_exe() -> Option<PathBuf> {
-    let exe = std::env::current_exe().ok()?;
-    let profile_dir = exe.parent()?.parent()?;
-    profile_dir.parent().map(PathBuf::from)
-}
-
-fn build_cli_binary() -> Result<PathBuf, String> {
-    static BUILD_RESULT: OnceLock<Result<PathBuf, String>> = OnceLock::new();
-    let result = BUILD_RESULT.get_or_init(|| {
-        let Some(target_dir) = target_dir_from_current_exe() else {
-            return Err("unable to resolve target dir from current exe".to_string());
-        };
-        let output = Command::new("cargo")
-            .args(["build", "-p", "decision-gate-cli", "--bin", "decision-gate", "--target-dir"])
-            .arg(&target_dir)
-            .output()
-            .map_err(|err| format!("spawn cargo build failed: {err}"))?;
-        if !output.status.success() {
-            return Err(format!(
-                "cargo build decision-gate-cli failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            ));
-        }
-        resolve_cli_from_target_dir(&target_dir)
-            .ok_or_else(|| "decision-gate binary not found after build".to_string())
-    });
-    result.clone()
-}
-
-fn resolve_cli_from_target_dir(target_dir: &Path) -> Option<PathBuf> {
-    let profile_dir = target_dir.join("debug");
-    let candidate = profile_dir.join(format!("decision-gate{}", exe_suffix()));
-    if candidate.exists() { Some(candidate) } else { None }
-}
-
-const fn exe_suffix() -> &'static str {
-    if cfg!(windows) { ".exe" } else { "" }
-}
 
 fn write_cli_config(path: &Path, bind: &str) -> Result<(), String> {
     let contents = format!(
@@ -155,22 +94,23 @@ type = "builtin"
     fs::write(path, contents).map_err(|err| format!("write config: {err}"))
 }
 
-fn run_cli(binary: &Path, args: &[&str]) -> Result<Output, String> {
-    Command::new(binary)
-        .args(args)
-        .output()
-        .map_err(|err| format!("run decision-gate failed: {err}"))
-}
 
 #[tokio::test(flavor = "multi_thread")]
 #[allow(clippy::too_many_lines, reason = "End-to-end CLI workflow stays linear for auditability.")]
 async fn cli_workflows_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("cli_workflows_end_to_end")?;
     let Some(cli) = cli_binary() else {
+        reporter
+            .artifacts()
+            .write_json("tool_transcript.json", &Vec::<serde_json::Value>::new())?;
         reporter.finish(
             "skip",
             vec!["decision-gate CLI binary unavailable".to_string()],
-            vec!["summary.json".to_string(), "summary.md".to_string()],
+            vec![
+                "summary.json".to_string(),
+                "summary.md".to_string(),
+                "tool_transcript.json".to_string(),
+            ],
         )?;
         drop(reporter);
         return Ok(());
@@ -374,6 +314,188 @@ async fn cli_workflows_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
         return Err("provider check schema response missing check_id".into());
     }
 
+    let provider_list =
+        run_cli(&cli, &["provider", "list", "--config", config_path.to_str().unwrap_or_default()])?;
+    if !provider_list.status.success() {
+        return Err("provider list CLI failed".into());
+    }
+    let provider_list_json: Value = serde_json::from_slice(&provider_list.stdout)?;
+    if provider_list_json.get("providers").is_none() {
+        return Err("provider list response missing providers".into());
+    }
+
+    let mcp_tools = run_cli(&cli, &["mcp", "tools", "list", "--endpoint", &base_url])?;
+    if !mcp_tools.status.success() {
+        return Err("mcp tools list CLI failed".into());
+    }
+    let mcp_tools_json: Value = serde_json::from_slice(&mcp_tools.stdout)?;
+    if mcp_tools_json.get("tools").is_none() {
+        return Err("mcp tools list response missing tools".into());
+    }
+
+    let mcp_providers = run_cli(
+        &cli,
+        &[
+            "mcp",
+            "tools",
+            "call",
+            "--tool",
+            "providers_list",
+            "--json",
+            "{}",
+            "--endpoint",
+            &base_url,
+        ],
+    )?;
+    if !mcp_providers.status.success() {
+        return Err("mcp tools call providers_list failed".into());
+    }
+    let mcp_providers_json: Value = serde_json::from_slice(&mcp_providers.stdout)?;
+    if mcp_providers_json.get("providers").is_none() {
+        return Err("mcp tools call response missing providers".into());
+    }
+
+    let mcp_resources = run_cli(&cli, &["mcp", "resources", "list", "--endpoint", &base_url])?;
+    if !mcp_resources.status.success() {
+        return Err("mcp resources list CLI failed".into());
+    }
+    let mcp_resources_json: Value = serde_json::from_slice(&mcp_resources.stdout)?;
+    let resource_uri = mcp_resources_json
+        .get("resources")
+        .and_then(Value::as_array)
+        .and_then(|resources| resources.first())
+        .and_then(|resource| resource.get("uri"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+
+    if let Some(uri) = &resource_uri {
+        let mcp_resource_read =
+            run_cli(&cli, &["mcp", "resources", "read", "--uri", uri, "--endpoint", &base_url])?;
+        if !mcp_resource_read.status.success() {
+            return Err("mcp resources read CLI failed".into());
+        }
+        let mcp_resource_json: Value = serde_json::from_slice(&mcp_resource_read.stdout)?;
+        if mcp_resource_json.get("contents").is_none() {
+            return Err("mcp resources read response missing contents".into());
+        }
+    }
+
+    let docs_search =
+        run_cli(&cli, &["docs", "search", "--query", "decision gate", "--endpoint", &base_url])?;
+    if !docs_search.status.success() {
+        return Err("docs search CLI failed".into());
+    }
+    let docs_search_json: Value = serde_json::from_slice(&docs_search.stdout)?;
+    if docs_search_json.get("sections").is_none() {
+        return Err("docs search response missing sections".into());
+    }
+
+    let docs_list = run_cli(&cli, &["docs", "list", "--endpoint", &base_url])?;
+    if !docs_list.status.success() {
+        return Err("docs list CLI failed".into());
+    }
+    let docs_list_json: Value = serde_json::from_slice(&docs_list.stdout)?;
+    if docs_list_json.get("resources").is_none() {
+        return Err("docs list response missing resources".into());
+    }
+
+    if let Some(uri) = &resource_uri {
+        let docs_read = run_cli(&cli, &["docs", "read", "--uri", uri, "--endpoint", &base_url])?;
+        if !docs_read.status.success() {
+            return Err("docs read CLI failed".into());
+        }
+        let docs_read_json: Value = serde_json::from_slice(&docs_read.stdout)?;
+        if docs_read_json.get("contents").is_none() {
+            return Err("docs read response missing contents".into());
+        }
+    }
+
+    let schema_record = serde_json::json!({
+        "record": {
+            "tenant_id": 1,
+            "namespace_id": 1,
+            "schema_id": "cli-schema",
+            "version": "v1",
+            "schema": {
+                "type": "object",
+                "properties": { "value": { "type": "string" } },
+                "required": ["value"]
+            },
+            "description": "CLI test schema",
+            "created_at": { "kind": "logical", "value": 1 }
+        }
+    });
+    let schema_record_path = temp_dir.path().join("schema_register.json");
+    fs::write(&schema_record_path, serde_json::to_vec(&schema_record)?)?;
+
+    let schema_register = run_cli(
+        &cli,
+        &[
+            "schema",
+            "register",
+            "--input",
+            schema_record_path.to_str().unwrap_or_default(),
+            "--endpoint",
+            &base_url,
+        ],
+    )?;
+    if !schema_register.status.success() {
+        return Err("schema register CLI failed".into());
+    }
+    let schema_register_json: Value = serde_json::from_slice(&schema_register.stdout)?;
+    if schema_register_json.get("record").is_none() {
+        return Err("schema register response missing record".into());
+    }
+
+    let schema_list = run_cli(
+        &cli,
+        &["schema", "list", "--tenant-id", "1", "--namespace-id", "1", "--endpoint", &base_url],
+    )?;
+    if !schema_list.status.success() {
+        return Err("schema list CLI failed".into());
+    }
+    let schema_list_json: Value = serde_json::from_slice(&schema_list.stdout)?;
+    let schema_items = schema_list_json
+        .get("items")
+        .and_then(Value::as_array)
+        .ok_or("schema list response missing items")?;
+    let schema_found = schema_items.iter().any(|item| {
+        item.get("schema_id").and_then(Value::as_str).map_or(false, |id| id == "cli-schema")
+    });
+    if !schema_found {
+        return Err("schema list response missing cli-schema".into());
+    }
+
+    let schema_get = run_cli(
+        &cli,
+        &[
+            "schema",
+            "get",
+            "--tenant-id",
+            "1",
+            "--namespace-id",
+            "1",
+            "--schema-id",
+            "cli-schema",
+            "--schema-version",
+            "v1",
+            "--endpoint",
+            &base_url,
+        ],
+    )?;
+    if !schema_get.status.success() {
+        return Err("schema get CLI failed".into());
+    }
+    let schema_get_json: Value = serde_json::from_slice(&schema_get.stdout)?;
+    let schema_get_record = schema_get_json
+        .get("record")
+        .and_then(|record| record.get("schema_id"))
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if schema_get_record != "cli-schema" {
+        return Err("schema get response missing cli-schema".into());
+    }
+
     let interop_fixture = ScenarioFixture::time_after("cli-interop", "run-interop", 0);
     let mut interop_spec = interop_fixture.spec.clone();
     interop_spec.default_tenant_id = Some(interop_fixture.tenant_id);
@@ -459,10 +581,17 @@ async fn cli_workflows_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
 async fn cli_rejects_non_loopback_bind() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("cli_rejects_non_loopback_bind")?;
     let Some(cli) = cli_binary() else {
+        reporter
+            .artifacts()
+            .write_json("tool_transcript.json", &Vec::<serde_json::Value>::new())?;
         reporter.finish(
             "skip",
             vec!["decision-gate CLI binary unavailable".to_string()],
-            vec!["summary.json".to_string(), "summary.md".to_string()],
+            vec![
+                "summary.json".to_string(),
+                "summary.md".to_string(),
+                "tool_transcript.json".to_string(),
+            ],
         )?;
         drop(reporter);
         return Ok(());
@@ -517,6 +646,126 @@ type = "builtin"
             "tool_transcript.json".to_string(),
             "cli.non_loopback.stdout.log".to_string(),
             "cli.non_loopback.stderr.log".to_string(),
+        ],
+    )?;
+    drop(reporter);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn cli_i18n_catalan_disclaimer() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("cli_i18n_catalan_disclaimer")?;
+    let Some(cli) = cli_binary() else {
+        reporter
+            .artifacts()
+            .write_json("tool_transcript.json", &Vec::<serde_json::Value>::new())?;
+        reporter.finish(
+            "skip",
+            vec!["decision-gate CLI binary unavailable".to_string()],
+            vec![
+                "summary.json".to_string(),
+                "summary.md".to_string(),
+                "tool_transcript.json".to_string(),
+            ],
+        )?;
+        drop(reporter);
+        return Ok(());
+    };
+    let temp_dir = TempDir::new()?;
+    let bind = allocate_bind_addr()?.to_string();
+    helpers::harness::release_bind_addr(&bind);
+    let config_path = temp_dir.path().join("decision-gate.toml");
+    write_cli_config(&config_path, &bind)?;
+
+    let output = Command::new(&cli)
+        .args(["config", "validate", "--config", config_path.to_str().unwrap_or_default()])
+        .env("DECISION_GATE_LANG", "ca")
+        .output()?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    reporter.artifacts().write_text("cli.i18n.stdout.log", &stdout)?;
+    reporter.artifacts().write_text("cli.i18n.stderr.log", &stderr)?;
+
+    if !output.status.success() {
+        return Err("expected config validate to succeed under Catalan locale".into());
+    }
+    if !stdout.contains("Configuració vàlida.") {
+        return Err("expected Catalan translation for config validation output".into());
+    }
+    if !stderr.contains(
+        "Nota: la sortida que no és en anglès està traduïda automàticament i pot ser inexacta.",
+    ) {
+        return Err("expected machine-translation disclaimer on stderr".into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &Vec::<serde_json::Value>::new())?;
+    reporter.finish(
+        "pass",
+        vec!["CLI Catalan i18n output and disclaimer verified".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+            "cli.i18n.stdout.log".to_string(),
+            "cli.i18n.stderr.log".to_string(),
+        ],
+    )?;
+    drop(reporter);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn cli_config_env_override() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("cli_config_env_override")?;
+    let Some(cli) = cli_binary() else {
+        reporter.artifacts().write_json("tool_transcript.json", &Vec::<Value>::new())?;
+        reporter.finish(
+            "skip",
+            vec!["decision-gate CLI binary unavailable".to_string()],
+            vec![
+                "summary.json".to_string(),
+                "summary.md".to_string(),
+                "tool_transcript.json".to_string(),
+            ],
+        )?;
+        drop(reporter);
+        return Ok(());
+    };
+
+    let temp_dir = TempDir::new()?;
+    let bind = allocate_bind_addr()?.to_string();
+    helpers::harness::release_bind_addr(&bind);
+    let config_path = temp_dir.path().join("decision-gate.toml");
+    write_cli_config(&config_path, &bind)?;
+
+    let output = Command::new(&cli)
+        .args(["config", "validate"])
+        .env("DECISION_GATE_CONFIG", config_path.to_str().unwrap_or_default())
+        .output()
+        .map_err(|err| format!("run decision-gate config validate failed: {err}"))?;
+
+    reporter
+        .artifacts()
+        .write_text("cli.config.env.stdout.log", &String::from_utf8_lossy(&output.stdout))?;
+    reporter
+        .artifacts()
+        .write_text("cli.config.env.stderr.log", &String::from_utf8_lossy(&output.stderr))?;
+
+    if !output.status.success() {
+        return Err("config validate failed with DECISION_GATE_CONFIG".into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &Vec::<Value>::new())?;
+    reporter.finish(
+        "pass",
+        vec!["CLI DECISION_GATE_CONFIG override honored".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+            "cli.config.env.stdout.log".to_string(),
+            "cli.config.env.stderr.log".to_string(),
         ],
     )?;
     drop(reporter);

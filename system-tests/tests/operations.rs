@@ -10,6 +10,10 @@
 
 mod helpers;
 
+#[path = "suites/cli_golden_outputs.rs"]
+mod cli_golden_outputs;
+#[path = "suites/cli_limits.rs"]
+mod cli_limits;
 #[path = "suites/cli_workflows.rs"]
 mod cli_workflows;
 #[path = "suites/docs_config.rs"]

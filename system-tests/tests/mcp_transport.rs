@@ -10,6 +10,8 @@
 
 mod helpers;
 
+#[path = "suites/cli_transport.rs"]
+mod cli_transport;
 #[path = "suites/mcp_transport.rs"]
 mod mcp_transport;
 #[path = "suites/sse_transport.rs"]

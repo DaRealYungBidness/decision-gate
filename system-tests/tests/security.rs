@@ -16,6 +16,8 @@ mod anchor_fuzz;
 mod audit_registry;
 #[path = "suites/auth_matrix.rs"]
 mod auth_matrix;
+#[path = "suites/cli_auth.rs"]
+mod cli_auth;
 #[path = "suites/config_defaults.rs"]
 mod config_defaults;
 #[path = "suites/config_validation.rs"]

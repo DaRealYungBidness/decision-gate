@@ -10,6 +10,7 @@
 
 pub mod artifacts;
 pub mod auth_proxy;
+pub mod cli;
 pub mod docs;
 pub mod env;
 pub mod harness;

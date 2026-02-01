@@ -69,6 +69,7 @@ use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 
 use crate::interop::InteropConfig;
+use crate::interop::InteropTransport;
 use crate::interop::MAX_INTEROP_RESPONSE_BYTES;
 use crate::interop::run_interop;
 use crate::interop::validate_inputs;
@@ -119,6 +120,64 @@ fn minimal_trigger(run_config: &RunConfig) -> TriggerEvent {
         source_id: "test".to_string(),
         payload: None,
         correlation_id: None,
+    }
+}
+
+fn run_state_for(
+    run_config: &RunConfig,
+    spec_hash: &HashDigest,
+    started_at: Timestamp,
+) -> RunState {
+    RunState {
+        tenant_id: run_config.tenant_id,
+        namespace_id: run_config.namespace_id,
+        run_id: run_config.run_id.clone(),
+        scenario_id: run_config.scenario_id.clone(),
+        spec_hash: spec_hash.clone(),
+        current_stage_id: StageId::new("stage-1"),
+        stage_entered_at: started_at,
+        status: RunStatus::Active,
+        dispatch_targets: Vec::new(),
+        triggers: Vec::new(),
+        gate_evals: Vec::new(),
+        decisions: Vec::new(),
+        packets: Vec::new(),
+        submissions: Vec::new(),
+        tool_calls: Vec::new(),
+    }
+}
+
+fn decision_for(trigger: &TriggerEvent, decided_at: Timestamp) -> DecisionRecord {
+    DecisionRecord {
+        decision_id: DecisionId::new("decision-1"),
+        seq: 1,
+        trigger_id: trigger.trigger_id.clone(),
+        stage_id: StageId::new("stage-1"),
+        decided_at,
+        outcome: DecisionOutcome::Start {
+            stage_id: StageId::new("stage-1"),
+        },
+        correlation_id: trigger.correlation_id.clone(),
+    }
+}
+
+fn trigger_result_for(trigger: &TriggerEvent, decided_at: Timestamp) -> TriggerResult {
+    TriggerResult {
+        decision: decision_for(trigger, decided_at),
+        packets: Vec::new(),
+        status: RunStatus::Active,
+    }
+}
+
+fn status_for(run_config: &RunConfig, last_decision: Option<DecisionRecord>) -> ScenarioStatus {
+    ScenarioStatus {
+        run_id: run_config.run_id.clone(),
+        scenario_id: run_config.scenario_id.clone(),
+        current_stage_id: StageId::new("stage-1"),
+        status: RunStatus::Active,
+        last_decision,
+        issued_packet_ids: Vec::new(),
+        safe_summary: None,
     }
 }
 
@@ -404,52 +463,9 @@ async fn run_interop_executes_full_sequence() {
     let started_at = Timestamp::Logical(10);
     let status_requested_at = Timestamp::Logical(11);
     let spec_hash = HashDigest::new(HashAlgorithm::Sha256, b"spec-hash");
-
-    let run_state = RunState {
-        tenant_id: run_config.tenant_id,
-        namespace_id: run_config.namespace_id,
-        run_id: run_config.run_id.clone(),
-        scenario_id: run_config.scenario_id.clone(),
-        spec_hash: spec_hash.clone(),
-        current_stage_id: StageId::new("stage-1"),
-        stage_entered_at: started_at,
-        status: RunStatus::Active,
-        dispatch_targets: Vec::new(),
-        triggers: Vec::new(),
-        gate_evals: Vec::new(),
-        decisions: Vec::new(),
-        packets: Vec::new(),
-        submissions: Vec::new(),
-        tool_calls: Vec::new(),
-    };
-
-    let decision = DecisionRecord {
-        decision_id: DecisionId::new("decision-1"),
-        seq: 1,
-        trigger_id: trigger.trigger_id.clone(),
-        stage_id: StageId::new("stage-1"),
-        decided_at: Timestamp::Logical(12),
-        outcome: DecisionOutcome::Start {
-            stage_id: StageId::new("stage-1"),
-        },
-        correlation_id: trigger.correlation_id.clone(),
-    };
-
-    let trigger_result = TriggerResult {
-        decision: decision.clone(),
-        packets: Vec::new(),
-        status: RunStatus::Active,
-    };
-
-    let status = ScenarioStatus {
-        run_id: run_config.run_id.clone(),
-        scenario_id: run_config.scenario_id.clone(),
-        current_stage_id: StageId::new("stage-1"),
-        status: RunStatus::Active,
-        last_decision: Some(decision),
-        issued_packet_ids: Vec::new(),
-        safe_summary: None,
-    };
+    let run_state = run_state_for(&run_config, &spec_hash, started_at);
+    let trigger_result = trigger_result_for(&trigger, Timestamp::Logical(12));
+    let status = status_for(&run_config, Some(trigger_result.decision.clone()));
 
     let define_response = ScenarioDefineResponse {
         scenario_id: spec.scenario_id.clone(),
@@ -480,7 +496,11 @@ async fn run_interop_executes_full_sequence() {
     .await;
 
     let config = InteropConfig {
-        mcp_url: server.url(),
+        transport: InteropTransport::Http,
+        endpoint: Some(server.url()),
+        stdio_command: None,
+        stdio_args: Vec::new(),
+        stdio_env: Vec::new(),
         spec: spec.clone(),
         run_config: run_config.clone(),
         trigger: trigger.clone(),
@@ -568,7 +588,11 @@ async fn run_interop_rejects_define_scenario_mismatch() {
     .await;
 
     let config = InteropConfig {
-        mcp_url: server.url(),
+        transport: InteropTransport::Http,
+        endpoint: Some(server.url()),
+        stdio_command: None,
+        stdio_args: Vec::new(),
+        stdio_env: Vec::new(),
         spec,
         run_config,
         trigger,
@@ -598,47 +622,9 @@ async fn run_interop_accepts_response_at_size_limit() {
         scenario_id: spec.scenario_id.clone(),
         spec_hash: spec_hash.clone(),
     };
-    let run_state = RunState {
-        tenant_id: run_config.tenant_id,
-        namespace_id: run_config.namespace_id,
-        run_id: run_config.run_id.clone(),
-        scenario_id: run_config.scenario_id.clone(),
-        spec_hash: spec_hash.clone(),
-        current_stage_id: StageId::new("stage-1"),
-        stage_entered_at: started_at,
-        status: RunStatus::Active,
-        dispatch_targets: Vec::new(),
-        triggers: Vec::new(),
-        gate_evals: Vec::new(),
-        decisions: Vec::new(),
-        packets: Vec::new(),
-        submissions: Vec::new(),
-        tool_calls: Vec::new(),
-    };
-    let trigger_result = TriggerResult {
-        decision: DecisionRecord {
-            decision_id: DecisionId::new("decision-1"),
-            seq: 1,
-            trigger_id: trigger.trigger_id.clone(),
-            stage_id: StageId::new("stage-1"),
-            decided_at: Timestamp::Logical(12),
-            outcome: DecisionOutcome::Start {
-                stage_id: StageId::new("stage-1"),
-            },
-            correlation_id: trigger.correlation_id.clone(),
-        },
-        packets: Vec::new(),
-        status: RunStatus::Active,
-    };
-    let status = ScenarioStatus {
-        run_id: run_config.run_id.clone(),
-        scenario_id: run_config.scenario_id.clone(),
-        current_stage_id: StageId::new("stage-1"),
-        status: RunStatus::Active,
-        last_decision: None,
-        issued_packet_ids: Vec::new(),
-        safe_summary: None,
-    };
+    let run_state = run_state_for(&run_config, &spec_hash, started_at);
+    let trigger_result = trigger_result_for(&trigger, Timestamp::Logical(12));
+    let status = status_for(&run_config, None);
 
     let run_state_response = run_state.clone();
     let trigger_response = trigger_result.clone();
@@ -671,7 +657,11 @@ async fn run_interop_accepts_response_at_size_limit() {
     .await;
 
     let config = InteropConfig {
-        mcp_url: server.url(),
+        transport: InteropTransport::Http,
+        endpoint: Some(server.url()),
+        stdio_command: None,
+        stdio_args: Vec::new(),
+        stdio_env: Vec::new(),
         spec,
         run_config,
         trigger,
@@ -705,7 +695,11 @@ async fn run_interop_rejects_oversized_response_body() {
     .await;
 
     let config = InteropConfig {
-        mcp_url: server.url(),
+        transport: InteropTransport::Http,
+        endpoint: Some(server.url()),
+        stdio_command: None,
+        stdio_args: Vec::new(),
+        stdio_env: Vec::new(),
         spec,
         run_config,
         trigger,
@@ -734,7 +728,11 @@ async fn run_interop_rejects_invalid_jsonrpc_response() {
     .await;
 
     let config = InteropConfig {
-        mcp_url: server.url(),
+        transport: InteropTransport::Http,
+        endpoint: Some(server.url()),
+        stdio_command: None,
+        stdio_args: Vec::new(),
+        stdio_env: Vec::new(),
         spec,
         run_config,
         trigger,
@@ -767,7 +765,11 @@ async fn run_interop_rejects_http_error_status() {
     .await;
 
     let config = InteropConfig {
-        mcp_url: server.url(),
+        transport: InteropTransport::Http,
+        endpoint: Some(server.url()),
+        stdio_command: None,
+        stdio_args: Vec::new(),
+        stdio_env: Vec::new(),
         spec,
         run_config,
         trigger,
@@ -796,7 +798,11 @@ async fn run_interop_rejects_jsonrpc_error_payload() {
     .await;
 
     let config = InteropConfig {
-        mcp_url: server.url(),
+        transport: InteropTransport::Http,
+        endpoint: Some(server.url()),
+        stdio_command: None,
+        stdio_args: Vec::new(),
+        stdio_env: Vec::new(),
         spec,
         run_config,
         trigger,
@@ -833,7 +839,11 @@ async fn run_interop_rejects_tool_without_json_content() {
     .await;
 
     let config = InteropConfig {
-        mcp_url: server.url(),
+        transport: InteropTransport::Http,
+        endpoint: Some(server.url()),
+        stdio_command: None,
+        stdio_args: Vec::new(),
+        stdio_env: Vec::new(),
         spec,
         run_config,
         trigger,

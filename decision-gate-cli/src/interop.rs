@@ -1,7 +1,7 @@
 // decision-gate-cli/src/interop.rs
 // ============================================================================
 // Module: Decision Gate CLI Interop Runner
-// Description: MCP HTTP driver for deterministic interop evaluation.
+// Description: MCP transport driver for deterministic interop evaluation.
 // Purpose: Execute scenario define/start/trigger/status with transcript capture.
 // Dependencies: decision-gate-core, decision-gate-mcp, reqwest, serde
 // ============================================================================
@@ -16,8 +16,8 @@
 //! - Scenario/run identifiers must match across spec, run config, and trigger.
 //! - MCP transcripts capture every tool call in order.
 //!
-//! Security posture: HTTP responses are untrusted; enforce strict size limits
-//! and fail closed on malformed responses (see `Docs/security/threat_model.md`).
+//! Security posture: transport responses are untrusted; enforce strict size
+//! limits and fail closed on malformed responses (see `Docs/security/threat_model.md`).
 
 // ============================================================================
 // SECTION: Imports
@@ -48,6 +48,11 @@ use reqwest::redirect::Policy;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
+use serde_json::json;
+
+use crate::mcp_client::McpClient;
+use crate::mcp_client::McpClientConfig;
+use crate::mcp_client::McpTransport;
 
 // ============================================================================
 // SECTION: Limits
@@ -62,11 +67,41 @@ const MAX_INTEROP_ERROR_BODY_BYTES: usize = 2048;
 // SECTION: Public Types
 // ============================================================================
 
+/// Supported interop transports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InteropTransport {
+    /// HTTP JSON-RPC transport.
+    Http,
+    /// SSE JSON-RPC transport.
+    Sse,
+    /// Stdio JSON-RPC transport.
+    Stdio,
+}
+
+impl InteropTransport {
+    /// Maps the interop transport to the MCP transport.
+    const fn to_mcp(self) -> McpTransport {
+        match self {
+            Self::Http => McpTransport::Http,
+            Self::Sse => McpTransport::Sse,
+            Self::Stdio => McpTransport::Stdio,
+        }
+    }
+}
+
 /// Inputs required to run an interop evaluation.
 #[derive(Debug, Clone)]
 pub struct InteropConfig {
-    /// Base URL for the MCP HTTP JSON-RPC endpoint.
-    pub mcp_url: String,
+    /// MCP transport selection.
+    pub transport: InteropTransport,
+    /// MCP endpoint URL for HTTP/SSE transports.
+    pub endpoint: Option<String>,
+    /// Stdio command to spawn for stdio transport.
+    pub stdio_command: Option<String>,
+    /// Stdio command arguments.
+    pub stdio_args: Vec<String>,
+    /// Stdio environment variables.
+    pub stdio_env: Vec<(String, String)>,
     /// Scenario specification payload.
     pub spec: ScenarioSpec,
     /// Run configuration payload.
@@ -174,12 +209,7 @@ pub fn validate_inputs(
 ///
 /// Returns an error when request serialization, transport, or server responses fail.
 pub async fn run_interop(config: InteropConfig) -> Result<InteropReport, String> {
-    let mut client = McpHttpClient::new(
-        config.mcp_url,
-        config.timeout,
-        config.bearer_token,
-        config.client_subject,
-    )?;
+    let mut client = InteropClient::new(&config)?;
 
     let define_input = ScenarioDefineRequest {
         spec: config.spec.clone(),
@@ -249,6 +279,175 @@ pub async fn run_interop(config: InteropConfig) -> Result<InteropReport, String>
         status,
         transcript: client.transcript(),
     })
+}
+
+// ============================================================================
+// SECTION: Interop Client
+// ============================================================================
+
+/// Internal transport abstraction for the interop runner.
+enum InteropClient {
+    /// Dedicated HTTP transport with transcript capture.
+    Http(McpHttpClient),
+    /// Generic MCP client transport (SSE or stdio).
+    Generic(McpGenericClient),
+}
+
+impl InteropClient {
+    /// Builds the transport client from the interop configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when configuration or transport setup fails.
+    fn new(config: &InteropConfig) -> Result<Self, String> {
+        match config.transport {
+            InteropTransport::Http => {
+                let endpoint = config
+                    .endpoint
+                    .clone()
+                    .ok_or_else(|| "endpoint is required for HTTP transport".to_string())?;
+                Ok(Self::Http(McpHttpClient::new(
+                    endpoint,
+                    config.timeout,
+                    config.bearer_token.clone(),
+                    config.client_subject.clone(),
+                )?))
+            }
+            InteropTransport::Sse | InteropTransport::Stdio => {
+                let client_config = McpClientConfig {
+                    transport: config.transport.to_mcp(),
+                    endpoint: config.endpoint.clone(),
+                    stdio_command: config.stdio_command.clone(),
+                    stdio_args: config.stdio_args.clone(),
+                    stdio_env: config.stdio_env.clone(),
+                    timeout: config.timeout,
+                    bearer_token: config.bearer_token.clone(),
+                    client_subject: config.client_subject.clone(),
+                };
+                let client = McpClient::new(client_config)
+                    .map_err(|err| format!("mcp client config error: {err}"))?;
+                Ok(Self::Generic(McpGenericClient::new(client)))
+            }
+        }
+    }
+
+    /// Calls a tool and decodes the response into the requested type.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the tool call fails or the response cannot be decoded.
+    async fn call_tool_typed<T: for<'de> Deserialize<'de>>(
+        &mut self,
+        name: &str,
+        arguments: Value,
+    ) -> Result<T, String> {
+        match self {
+            Self::Http(client) => client.call_tool_typed(name, arguments).await,
+            Self::Generic(client) => client.call_tool_typed(name, arguments).await,
+        }
+    }
+
+    /// Returns a cloned transcript of all requests/responses.
+    fn transcript(&self) -> Vec<TranscriptEntry> {
+        match self {
+            Self::Http(client) => client.transcript(),
+            Self::Generic(client) => client.transcript(),
+        }
+    }
+}
+
+/// Wrapper for generic MCP transports with transcript capture.
+struct McpGenericClient {
+    /// Underlying MCP client.
+    client: McpClient,
+    /// Captured transcript entries.
+    transcript: Vec<TranscriptEntry>,
+    /// Next JSON-RPC request identifier.
+    next_id: u64,
+}
+
+impl McpGenericClient {
+    /// Creates a new generic MCP client wrapper.
+    const fn new(client: McpClient) -> Self {
+        Self {
+            client,
+            transcript: Vec::new(),
+            next_id: 1,
+        }
+    }
+
+    /// Returns a cloned transcript of all requests/responses.
+    fn transcript(&self) -> Vec<TranscriptEntry> {
+        self.transcript.clone()
+    }
+
+    /// Calls a tool and decodes the response into the requested type.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the tool call fails or the response cannot be decoded.
+    async fn call_tool_typed<T: for<'de> Deserialize<'de>>(
+        &mut self,
+        name: &str,
+        arguments: Value,
+    ) -> Result<T, String> {
+        let json = self.call_tool(name, arguments).await?;
+        serde_json::from_value(json).map_err(|err| format!("decode {name} response: {err}"))
+    }
+
+    /// Calls a tool and returns the raw JSON content payload.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the transport fails or the response is invalid.
+    async fn call_tool(&mut self, name: &str, arguments: Value) -> Result<Value, String> {
+        let id = self.next_id;
+        self.next_id = self.next_id.saturating_add(1);
+        let params = json!({
+            "name": name,
+            "arguments": arguments.clone(),
+        });
+        let request = json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": "tools/call",
+            "params": params,
+        });
+
+        match self.client.call_tool_raw(name, arguments).await {
+            Ok(result) => {
+                let response = json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "result": { "content": [ { "type": "json", "json": &result } ] }
+                });
+                self.push_transcript("tools/call", request, response, None);
+                Ok(result)
+            }
+            Err(err) => {
+                self.push_transcript("tools/call", request, Value::Null, Some(err.to_string()));
+                Err(err.to_string())
+            }
+        }
+    }
+
+    /// Appends a transcript entry for a tool call.
+    fn push_transcript(
+        &mut self,
+        method: &str,
+        request: Value,
+        response: Value,
+        error: Option<String>,
+    ) {
+        let sequence = u64::try_from(self.transcript.len()).unwrap_or(u64::MAX) + 1;
+        self.transcript.push(TranscriptEntry {
+            sequence,
+            method: method.to_string(),
+            request,
+            response,
+            error,
+        });
+    }
 }
 
 // ============================================================================

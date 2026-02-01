@@ -14,6 +14,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use decision_gate_cli::interop::InteropConfig;
+use decision_gate_cli::interop::InteropTransport;
 use decision_gate_cli::interop::run_interop;
 use decision_gate_core::DecisionOutcome;
 use decision_gate_core::RunStatus;
@@ -206,7 +207,11 @@ async fn run_cli_transport(
     wait_for_server_ready(&client, Duration::from_secs(5)).await?;
 
     let report = run_interop(InteropConfig {
-        mcp_url: server.base_url().to_string(),
+        transport: InteropTransport::Http,
+        endpoint: Some(server.base_url().to_string()),
+        stdio_command: None,
+        stdio_args: Vec::new(),
+        stdio_env: Vec::new(),
         spec: fixture.spec.clone(),
         run_config: fixture.run_config(),
         trigger: trigger.clone(),

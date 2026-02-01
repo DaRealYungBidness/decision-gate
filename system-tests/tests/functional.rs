@@ -10,6 +10,8 @@
 
 mod helpers;
 
+#[path = "suites/cli_conformance.rs"]
+mod cli_conformance;
 #[path = "suites/docs_search.rs"]
 mod docs_search;
 #[path = "suites/json_evidence.rs"]

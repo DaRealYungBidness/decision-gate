@@ -27,6 +27,8 @@ use decision_gate_mcp::tools::ScenarioStartRequest;
 use decision_gate_mcp::tools::ScenarioStatusRequest;
 use decision_gate_mcp::tools::SchemasRegisterRequest;
 use helpers::artifacts::TestReporter;
+use helpers::cli::cli_binary;
+use helpers::cli::run_cli;
 use helpers::harness::allocate_bind_addr;
 use helpers::harness::base_http_config;
 use helpers::harness::spawn_mcp_server;
@@ -269,6 +271,55 @@ async fn smoke_schema_registry_max_entries_enforced() -> Result<(), Box<dyn std:
             "summary.json".to_string(),
             "summary.md".to_string(),
             "tool_transcript.json".to_string(),
+        ],
+    )?;
+    drop(reporter);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn cli_smoke_version() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("cli_smoke_version")?;
+    let Some(cli) = cli_binary() else {
+        reporter
+            .artifacts()
+            .write_json("tool_transcript.json", &Vec::<serde_json::Value>::new())?;
+        reporter.finish(
+            "skip",
+            vec!["decision-gate CLI binary unavailable".to_string()],
+            vec![
+                "summary.json".to_string(),
+                "summary.md".to_string(),
+                "tool_transcript.json".to_string(),
+            ],
+        )?;
+        drop(reporter);
+        return Ok(());
+    };
+
+    let output = run_cli(&cli, &["--version"])?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    reporter.artifacts().write_text("cli.version.stdout.log", &stdout)?;
+    reporter.artifacts().write_text("cli.version.stderr.log", &stderr)?;
+
+    if !output.status.success() {
+        return Err("cli --version failed".into());
+    }
+    if !stdout.contains("decision-gate") {
+        return Err("cli --version output missing decision-gate label".into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &Vec::<serde_json::Value>::new())?;
+    reporter.finish(
+        "pass",
+        vec!["cli --version output verified".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+            "cli.version.stdout.log".to_string(),
+            "cli.version.stderr.log".to_string(),
         ],
     )?;
     drop(reporter);

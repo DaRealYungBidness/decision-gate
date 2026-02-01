@@ -13,7 +13,7 @@
 //!
 //! ## Invariants
 //! - The catalog is initialized once and read-only thereafter.
-//! - Missing keys fall back to the key itself to avoid panics.
+//! - Missing keys fall back to English and then to the key itself.
 //! - Placeholder substitutions preserve deterministic order.
 
 // ============================================================================
@@ -26,6 +26,45 @@ use std::sync::OnceLock;
 // ============================================================================
 // SECTION: Types
 // ============================================================================
+
+/// Supported CLI locales.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Locale {
+    /// English (default).
+    En,
+    /// Catalan.
+    Ca,
+}
+
+impl Locale {
+    /// Returns the canonical locale label.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::En => "en",
+            Self::Ca => "ca",
+        }
+    }
+
+    /// Attempts to parse a locale value (case-insensitive, tolerant of region tags).
+    #[must_use]
+    pub fn parse(value: &str) -> Option<Self> {
+        let value = value.trim();
+        if value.is_empty() {
+            return None;
+        }
+        let normalized = value.to_ascii_lowercase();
+        let lang = normalized.split(['-', '_']).next().unwrap_or("");
+        match lang {
+            "en" => Some(Self::En),
+            "ca" => Some(Self::Ca),
+            _ => None,
+        }
+    }
+}
+
+/// Ordered list of supported CLI locales.
+pub const SUPPORTED_LOCALES: &[Locale] = &[Locale::En, Locale::Ca];
 
 /// A formatted message argument captured by the [`macro@crate::t`] macro.
 #[derive(Clone)]
@@ -47,11 +86,29 @@ impl MessageArg {
 }
 
 // ============================================================================
+// SECTION: Locale Selection
+// ============================================================================
+
+/// Global locale selection for CLI output.
+static CURRENT_LOCALE: OnceLock<Locale> = OnceLock::new();
+
+/// Sets the CLI locale. Only the first call wins.
+pub fn set_locale(locale: Locale) {
+    let _ = CURRENT_LOCALE.set(locale);
+}
+
+/// Returns the current CLI locale (defaults to English).
+#[must_use]
+pub fn current_locale() -> Locale {
+    CURRENT_LOCALE.get().copied().unwrap_or(Locale::En)
+}
+
+// ============================================================================
 // SECTION: Catalog
 // ============================================================================
 
-/// Static catalog entries loaded into the localized message bundle.
-const CATALOG_ITEMS: &[(&str, &str)] = &[
+/// Static English catalog entries loaded into the localized message bundle.
+const CATALOG_EN: &[(&str, &str)] = &[
     ("main.version", "decision-gate {version}"),
     (
         "serve.warn.local_only_auth",
@@ -201,16 +258,297 @@ const CATALOG_ITEMS: &[(&str, &str)] = &[
         "provider.discovery.serialize_failed",
         "Failed to serialize provider discovery output: {error}",
     ),
+    ("provider.list.header", "Providers:"),
+    ("provider.list.checks.none", "none"),
+    ("provider.list.entry", "- {provider} ({transport}) checks: {checks}"),
+    ("schema.invalid_id", "Invalid {field} value: {value}. Must be >= 1."),
+    ("mcp.client.failed", "MCP request failed: {error}"),
+    ("mcp.client.config_failed", "MCP client configuration failed: {error}"),
+    ("mcp.client.input_read_failed", "Failed to read MCP input {path}: {error}"),
+    ("mcp.client.input_parse_failed", "Failed to parse MCP input: {error}"),
+    ("mcp.client.invalid_stdio_env", "Invalid stdio env var: {value}. Expected KEY=VALUE."),
+    ("mcp.client.auth_profile_missing", "Auth profile not found: {profile}"),
+    ("mcp.client.auth_config_read_failed", "Failed to read auth config at {path}: {error}"),
+    ("mcp.client.auth_config_too_large", "Auth config file too large: {path}."),
+    ("mcp.client.auth_config_parse_failed", "Failed to parse auth config: {error}"),
+    ("mcp.client.schema_registry_missing", "Scenario schema registry missing $id."),
+    ("mcp.client.schema_registry_failed", "Schema registry build failed: {error}"),
+    ("mcp.client.schema_unknown_tool", "Unknown tool for schema validation: {tool}"),
+    ("mcp.client.schema_compile_failed", "Schema compilation failed: {error}"),
+    ("mcp.client.schema_validation_failed", "Schema validation failed for {tool}: {error}"),
+    ("mcp.client.schema_lock_failed", "Schema validator lock failed."),
+    ("mcp.client.json_failed", "Failed to render JSON output: {error}"),
+    ("contract.generate.failed", "Contract generation failed: {error}"),
+    ("contract.check.failed", "Contract verification failed: {error}"),
+    ("sdk.generate.failed", "SDK generation failed: {error}"),
+    ("sdk.check.failed", "SDK verification failed: {error}"),
+    ("sdk.check.drift", "SDK drift detected for {path}."),
+    ("sdk.io.failed", "SDK I/O failed: {error}"),
+    ("i18n.lang.invalid_env", "Invalid value for {env}: {value}. Expected 'en' or 'ca'."),
+    (
+        "i18n.disclaimer.machine_translated",
+        "Note: non-English output is machine-translated and may be inaccurate.",
+    ),
 ];
+
+/// Static Catalan catalog entries loaded into the localized message bundle.
+const CATALOG_CA: &[(&str, &str)] = &[
+    ("main.version", "decision-gate {version}"),
+    (
+        "serve.warn.local_only_auth",
+        "Informació: s'està executant en mode només local (només stdio + HTTP/SSE de loopback). \
+         Configureu server.auth per a bearer_token o mtls quan s'exposi fora de localhost.",
+    ),
+    (
+        "serve.warn.loopback_only_transport",
+        "Informació: HTTP/SSE està lligat només al loopback. Utilitzeu --allow-non-loopback o \
+         {env}=1 amb TLS + auth per exposar-lo.",
+    ),
+    ("output.stream.stdout", "stdout"),
+    ("output.stream.stderr", "stderr"),
+    ("output.stream.unknown", "sortida"),
+    ("output.write_failed", "No s'ha pogut escriure a {stream}: {error}"),
+    (
+        "input.read_too_large",
+        "Es rebutja llegir {kind} a {path} perquè fa {size} bytes (límit {limit}).",
+    ),
+    ("config.load_failed", "No s'ha pogut carregar la configuració: {error}"),
+    ("config.validate.ok", "Configuració vàlida."),
+    ("serve.config.load_failed", "No s'ha pogut carregar la configuració: {error}"),
+    ("serve.bind.parse_failed", "Adreça de bind no vàlida {bind}: {error}"),
+    (
+        "serve.bind.non_loopback_opt_in",
+        "Es rebutja bind a l'adreça no-loopback {bind}. Establiu --allow-non-loopback o {env}=1 \
+         per habilitar-ho.",
+    ),
+    (
+        "serve.bind.non_loopback_auth_required",
+        "Es rebutja bind a {bind}: server.auth.mode ha de ser bearer_token o mtls per a \
+         no-loopback.",
+    ),
+    (
+        "serve.bind.non_loopback_tls_required",
+        "Es rebutja bind a {bind}: server.tls s'ha de configurar per a no-loopback.",
+    ),
+    (
+        "serve.bind.non_loopback_mtls_client_ca_required",
+        "Es rebutja bind a {bind}: mTLS requereix tls.client_ca_path.",
+    ),
+    (
+        "serve.bind.non_loopback_mtls_client_cert_required",
+        "Es rebutja bind a {bind}: mTLS requereix tls.require_client_cert=true.",
+    ),
+    (
+        "serve.bind.allow_env_invalid",
+        "Valor no vàlid per a {env}: {value}. S'esperava true/false/1/0/yes/no/on/off.",
+    ),
+    ("serve.warn.network.header", "AVÍS DE SEGURETAT: Decision Gate està exposat a la xarxa."),
+    ("serve.warn.network.bind", "Bind: {bind}"),
+    ("serve.warn.network.auth", "Mode d'autenticació: {mode}"),
+    ("serve.warn.network.tls", "TLS: {tls}"),
+    ("serve.warn.network.audit", "Registre d'auditoria: {status}"),
+    ("serve.warn.network.rate_limit", "Limitació de taxa: {status}"),
+    (
+        "serve.warn.network.footer",
+        "Verifiqueu les regles del tallafoc i les credencials; aquesta exposició és intencionada.",
+    ),
+    ("serve.warn.network.enabled", "habilitat"),
+    ("serve.warn.network.disabled", "deshabilitat"),
+    (
+        "serve.warn.network.tls_enabled",
+        "habilitat (certificat de client {client_cert}, CA de client {client_ca})",
+    ),
+    ("serve.warn.network.tls_disabled", "deshabilitat"),
+    ("serve.warn.network.required", "requerit"),
+    ("serve.warn.network.not_required", "no requerit"),
+    ("serve.warn.network.present", "present"),
+    ("serve.warn.network.missing", "manca"),
+    ("serve.init_failed", "No s'ha pogut inicialitzar el servidor MCP: {error}"),
+    ("serve.failed", "El servidor MCP ha fallat: {error}"),
+    ("runpack.export.read_failed", "No s'ha pogut llegir el fitxer {kind} a {path}: {error}"),
+    ("runpack.export.parse_failed", "No s'ha pogut analitzar el JSON {kind} a {path}: {error}"),
+    ("runpack.export.spec_failed", "Validació de ScenarioSpec fallida per a {path}: {error}"),
+    (
+        "runpack.export.output_dir_failed",
+        "No s'ha pogut crear el directori de sortida {path}: {error}",
+    ),
+    (
+        "runpack.export.sink_failed",
+        "No s'ha pogut inicialitzar el sink de runpack a {path}: {error}",
+    ),
+    ("runpack.export.build_failed", "No s'ha pogut construir el runpack: {error}"),
+    ("runpack.export.ok", "Manifest del runpack escrit a {path}"),
+    ("runpack.export.verification_status", "Estat de verificació: {status}"),
+    ("runpack.export.kind.spec", "especificació d'escenari"),
+    ("runpack.export.kind.state", "estat d'execució"),
+    (
+        "runpack.export.time.system_failed",
+        "No s'ha pogut llegir l'hora del sistema per generar el runpack: {error}",
+    ),
+    (
+        "runpack.export.time.overflow",
+        "L'hora del sistema està fora de rang per generar el runpack.",
+    ),
+    (
+        "runpack.export.time.negative",
+        "generated_at ha de ser una marca de temps unix en mil·lisegons no negativa.",
+    ),
+    (
+        "runpack.verify.read_failed",
+        "No s'ha pogut llegir el manifest del runpack a {path}: {error}",
+    ),
+    (
+        "runpack.verify.parse_failed",
+        "No s'ha pogut analitzar el manifest del runpack a {path}: {error}",
+    ),
+    (
+        "runpack.verify.reader_failed",
+        "No s'ha pogut obrir el directori del runpack {path}: {error}",
+    ),
+    ("runpack.verify.failed", "No s'ha pogut verificar el runpack: {error}"),
+    ("runpack.verify.kind.manifest", "manifest del runpack"),
+    ("runpack.verify.status.pass", "aprovat"),
+    ("runpack.verify.status.fail", "fallat"),
+    ("runpack.verify.md.header", "# Verificació del Runpack de Decision Gate"),
+    ("runpack.verify.md.status", "- Estat: {status}"),
+    ("runpack.verify.md.checked", "- Fitxers comprovats: {count}"),
+    ("runpack.verify.md.errors_header", "## Errors"),
+    ("runpack.verify.md.error_line", "- {error}"),
+    ("runpack.verify.md.no_errors", "- Cap"),
+    ("authoring.read_failed", "No s'ha pogut llegir l'entrada d'autoria a {path}: {error}"),
+    ("authoring.kind.input", "entrada d'autoria"),
+    (
+        "authoring.format.missing",
+        "No s'ha pogut determinar el format d'autoria per a {path}; especifiqueu --format.",
+    ),
+    ("authoring.parse_failed", "No s'ha pogut analitzar l'entrada {format} a {path}: {error}"),
+    ("authoring.schema_failed", "Validació d'esquema fallida per a {path}: {error}"),
+    (
+        "authoring.deserialize_failed",
+        "No s'ha pogut deserialitzar ScenarioSpec des de {path}: {error}",
+    ),
+    ("authoring.spec_failed", "Validació de ScenarioSpec fallida per a {path}: {error}"),
+    (
+        "authoring.canonicalize_failed",
+        "No s'ha pogut canonitzar ScenarioSpec des de {path}: {error}",
+    ),
+    (
+        "authoring.normalize.write_failed",
+        "No s'ha pogut escriure la sortida normalitzada a {path}: {error}",
+    ),
+    ("authoring.normalize.ok", "Escenari normalitzat escrit a {path}"),
+    (
+        "authoring.validate.ok",
+        "ScenarioSpec vàlid (scenario_id={scenario_id}, spec_hash={spec_hash})",
+    ),
+    ("interop.kind.spec", "especificació d'escenari"),
+    ("interop.kind.run_config", "configuració d'execució"),
+    ("interop.kind.trigger", "esdeveniment de desencadenament"),
+    ("interop.read_failed", "No s'ha pogut llegir el fitxer {kind} a {path}: {error}"),
+    ("interop.parse_failed", "No s'ha pogut analitzar el JSON {kind} a {path}: {error}"),
+    ("interop.spec_failed", "Validació de ScenarioSpec fallida per a {path}: {error}"),
+    ("interop.input_invalid", "Validació d'entrada d'interoperabilitat fallida: {error}"),
+    ("interop.execution_failed", "Execució d'interoperabilitat fallida: {error}"),
+    (
+        "interop.report.serialize_failed",
+        "No s'ha pogut serialitzar l'informe d'interoperabilitat: {error}",
+    ),
+    (
+        "interop.report.write_failed",
+        "No s'ha pogut escriure l'informe d'interoperabilitat a {path}: {error}",
+    ),
+    (
+        "interop.expect_status_mismatch",
+        "Desajust d'estat d'interoperabilitat (s'esperava {expected}, actual {actual}).",
+    ),
+    (
+        "interop.timestamp.conflict",
+        "S'han proporcionat {label}_unix_ms i {label}_logical; trieu-ne un.",
+    ),
+    ("interop.timestamp.negative", "{label}_unix_ms ha de ser no negatiu."),
+    ("interop.status.active", "actiu"),
+    ("interop.status.completed", "completat"),
+    ("interop.status.failed", "fallat"),
+    ("provider.discovery.failed", "La descoberta de proveïdors ha fallat: {error}"),
+    ("provider.discovery.denied", "Descoberta de proveïdors denegada per a {provider}."),
+    (
+        "provider.discovery.serialize_failed",
+        "No s'ha pogut serialitzar la sortida de descoberta de proveïdors: {error}",
+    ),
+    ("provider.list.header", "Proveïdors:"),
+    ("provider.list.checks.none", "cap"),
+    ("provider.list.entry", "- {provider} ({transport}) comprovacions: {checks}"),
+    ("schema.invalid_id", "Valor de {field} no vàlid: {value}. Ha de ser >= 1."),
+    ("mcp.client.failed", "La sol·licitud MCP ha fallat: {error}"),
+    ("mcp.client.config_failed", "La configuració del client MCP ha fallat: {error}"),
+    ("mcp.client.input_read_failed", "No s'ha pogut llegir l'entrada MCP {path}: {error}"),
+    ("mcp.client.input_parse_failed", "No s'ha pogut analitzar l'entrada MCP: {error}"),
+    (
+        "mcp.client.invalid_stdio_env",
+        "Variable d'entorn stdio no vàlida: {value}. S'esperava KEY=VALUE.",
+    ),
+    ("mcp.client.auth_profile_missing", "Perfil d'autenticació no trobat: {profile}"),
+    (
+        "mcp.client.auth_config_read_failed",
+        "No s'ha pogut llegir la configuració d'autenticació a {path}: {error}",
+    ),
+    (
+        "mcp.client.auth_config_too_large",
+        "Fitxer de configuració d'autenticació massa gran: {path}.",
+    ),
+    (
+        "mcp.client.auth_config_parse_failed",
+        "No s'ha pogut analitzar la configuració d'autenticació: {error}",
+    ),
+    ("mcp.client.schema_registry_missing", "L'ID $id de l'esquema d'escenari manca."),
+    (
+        "mcp.client.schema_registry_failed",
+        "La construcció del registre d'esquemes ha fallat: {error}",
+    ),
+    ("mcp.client.schema_unknown_tool", "Eina desconeguda per a validació d'esquema: {tool}"),
+    ("mcp.client.schema_compile_failed", "La compilació de l'esquema ha fallat: {error}"),
+    (
+        "mcp.client.schema_validation_failed",
+        "La validació de l'esquema ha fallat per a {tool}: {error}",
+    ),
+    ("mcp.client.schema_lock_failed", "El bloqueig del validador d'esquemes ha fallat."),
+    ("mcp.client.json_failed", "No s'ha pogut renderitzar la sortida JSON: {error}"),
+    ("contract.generate.failed", "La generació del contracte ha fallat: {error}"),
+    ("contract.check.failed", "La verificació del contracte ha fallat: {error}"),
+    ("sdk.generate.failed", "La generació de l'SDK ha fallat: {error}"),
+    ("sdk.check.failed", "La verificació de l'SDK ha fallat: {error}"),
+    ("sdk.check.drift", "S'ha detectat drift de l'SDK per a {path}."),
+    ("sdk.io.failed", "L'E/S de l'SDK ha fallat: {error}"),
+    ("i18n.lang.invalid_env", "Valor no vàlid per a {env}: {value}. S'esperava 'en' o 'ca'."),
+    (
+        "i18n.disclaimer.machine_translated",
+        "Nota: la sortida que no és en anglès està traduïda automàticament i pot ser inexacta.",
+    ),
+];
+
+/// Returns the message catalog for the requested locale.
+pub(crate) fn catalog_for(locale: Locale) -> &'static HashMap<&'static str, &'static str> {
+    static CATALOG_EN_MAP: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
+    static CATALOG_CA_MAP: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
+    match locale {
+        Locale::En => CATALOG_EN_MAP.get_or_init(|| CATALOG_EN.iter().copied().collect()),
+        Locale::Ca => CATALOG_CA_MAP.get_or_init(|| CATALOG_CA.iter().copied().collect()),
+    }
+}
 
 // ============================================================================
 // SECTION: Translation
 // ============================================================================
 
-/// Translates `key` using the English fallback catalog while substituting `args`.
+/// Translates `key` using the selected locale while substituting `args`.
 #[must_use]
 pub fn translate(key: &str, args: Vec<MessageArg>) -> String {
-    let template = catalog().get(key).copied().unwrap_or(key);
+    let locale = current_locale();
+    let template = catalog_for(locale)
+        .get(key)
+        .copied()
+        .or_else(|| catalog_for(Locale::En).get(key).copied())
+        .unwrap_or(key);
     if args.is_empty() {
         return template.to_string();
     }
@@ -221,13 +559,6 @@ pub fn translate(key: &str, args: Vec<MessageArg>) -> String {
         result = result.replace(&placeholder, &arg.value);
     }
     result
-}
-
-/// Returns the static English catalog used by the CLI.
-fn catalog() -> &'static HashMap<&'static str, &'static str> {
-    static CATALOG: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
-
-    CATALOG.get_or_init(|| CATALOG_ITEMS.iter().copied().collect())
 }
 
 // ============================================================================

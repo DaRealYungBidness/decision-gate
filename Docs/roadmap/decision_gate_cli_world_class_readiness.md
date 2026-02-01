@@ -251,6 +251,29 @@ operator entrypoint.
 
 ---
 
+### 13) Internationalization (i18n) Readiness
+
+**Open Point:** CLI has English-only catalog; no locale selection or parity checks.
+
+**Closure Requirements:**
+- Locale selection via `--lang` and `DECISION_GATE_LANG` with deterministic
+  fallback to `en`.
+- Separate locale catalogs with identical key sets.
+- Default warning banner when language is not English:
+  "Note: non-English output is machine-translated and may be inaccurate."
+- CI tests enforce:
+  - Every user-facing string uses `t!`.
+  - Locale catalogs have identical keys (no missing translations).
+  - English is the canonical fallback for missing keys.
+- Launch with two languages: `en` and `ca` (Catalan) as the test language.
+
+**Acceptance Criteria:**
+- CLI can switch to `ca` and emit translated output for all keys.
+- Any missing translation fails CI (no silent fallback except `en`).
+- Disclaimer is shown for all non-English locales.
+
+---
+
 ## Quality Gates
 
 ### Functional
@@ -267,6 +290,10 @@ operator entrypoint.
 - Canonical JSON output for all machine-readable responses.
 - Stable ordering for lists and transcripts.
 
+### Internationalization
+- Locale key parity enforced across all catalogs.
+- Non-English disclaimer present and deterministic.
+
 ### Auditability
 - Correlation and request metadata preserved in outputs.
 - Optional JSON transcript output for all tool calls.
@@ -281,6 +308,8 @@ operator entrypoint.
 3. **Auth matrix**: local-only, bearer token, mTLS proxy subject.
 4. **Size-limit tests**: verify hard caps on input/output across commands.
 5. **Golden outputs**: snapshot tests for canonical JSON output.
+6. **i18n parity tests**: verify `en` and `ca` catalogs have identical keys and
+   all CLI strings route through `t!`.
 
 ---
 
@@ -298,6 +327,8 @@ operator entrypoint.
 - [ ] Contract/SDK generators integrated.
 - [ ] Output formats deterministic + documented.
 - [ ] Security posture validated in tests.
+- [ ] i18n parity tests green (en + ca).
+- [ ] Non-English disclaimer enabled and verified.
 
 ---
 

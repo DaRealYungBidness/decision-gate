@@ -21,8 +21,14 @@
 /// Internationalization helpers and message catalog.
 pub mod i18n;
 
+#[allow(dead_code, reason = "MCP client helpers are shared by CLI and interop tests.")]
+pub(crate) mod mcp_client;
+
 #[allow(dead_code, reason = "Interop helpers are used by the CLI binary and tests.")]
 pub mod interop;
+
+/// Security utilities (constant-time comparisons).
+pub mod security;
 
 /// CLI server bind policy helpers.
 pub mod serve_policy;

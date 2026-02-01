@@ -30,4 +30,12 @@
 // SECTION: Modules
 // ============================================================================
 
+mod auth;
+mod i18n;
 mod interop;
+mod mcp_client;
+mod protocol;
+mod resource_limits;
+mod serve_policy;
+mod support;
+mod timing;

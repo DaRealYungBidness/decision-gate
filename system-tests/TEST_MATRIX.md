@@ -94,6 +94,10 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `precheck_audit_hash_only` | operations | Precheck audit logs are hash-only by default. |
 | `cli_workflows_end_to_end` | operations | CLI serve/runpack/authoring/config/provider/interop flows succeed. |
 | `cli_rejects_non_loopback_bind` | operations | CLI rejects non-loopback binds without explicit allow flag. |
+| `cli_size_limits_enforced` | operations | CLI enforces input/output size limits with fail-closed behavior. |
+| `cli_auth_profile_bearer_token` | security | CLI auth profile supplies bearer token for MCP calls. |
+| `cli_auth_profile_cli_override` | security | CLI bearer token flag overrides auth profile credentials. |
+| `cli_config_env_override` | operations | CLI config validate honors DECISION_GATE_CONFIG env override. |
 | `precheck_read_only_does_not_mutate_run_state` | functional | Precheck leaves run state unchanged. |
 | `policy_denies_dispatch_targets` | security | Static policy engine denies disclosure and fails the run. |
 | `policy_error_fails_closed` | security | Policy engine errors fail closed with explicit reason. |
@@ -116,10 +120,12 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `registry_security_audit_events` | security | Registry/security audit events emitted for allow/deny. |
 | `schema_registry_cursor_rejects_invalid_inputs` | security | Malformed registry cursors/limits are rejected. |
 | `schema_registry_invalid_schema_and_precheck_rejected` | security | Invalid schemas and precheck payloads fail closed. |
+| `cli_auth_matrix` | security | CLI MCP client enforces bearer + mTLS subject auth. |
 | `sqlite_registry_and_runpack_persist_across_restart` | reliability | SQLite registry + run state persist across restarts with runpack export. |
 | `docs_config_toggles` | operations | Docs enable/disable toggles enforce visibility and availability. |
 | `server_tools_visibility_filtering` | security | Tool visibility allowlist/denylist filtering hides tool calls. |
 | `server_tools_visibility_defaults_and_auth_separation` | security | Auth allowlist does not alter tools/list visibility. |
+| `cli_mcp_tool_wrappers_conformance` | functional | CLI MCP tool wrappers execute against a live MCP server. |
 
 ## P2 (Non-Gated / Extended Coverage)
 | Test | Category | Purpose |
@@ -139,3 +145,7 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `sdk_gen_cli_generate_and_check` | operations | SDK generator CLI generate/check and drift detection. |
 | `provider_discovery_denylist_and_size_limits` | contract | Provider discovery denylist and size limits enforced. |
 | `docs_extra_paths_ingestion_limits` | operations | Docs extra_paths ingestion honors size and count limits. |
+| `cli_smoke_version` | smoke | CLI --version output is available and well-formed. |
+| `cli_transport_matrix` | mcp_transport | CLI MCP client parity across HTTP/SSE/stdio. |
+| `cli_golden_provider_list` | operations | CLI provider list output matches golden JSON fixture. |
+| `cli_i18n_catalan_disclaimer` | operations | CLI Catalan output includes machine-translation disclaimer. |
