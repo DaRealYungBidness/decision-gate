@@ -62,7 +62,7 @@ process is reached depends on the transport:
 - **HTTP on network**: DG _can_ listen on `0.0.0.0:8080` when deployed with a
   network-capable launcher. The OSS CLI allows non-loopback binds only with an
   explicit opt-in (`--allow-non-loopback` or `DECISION_GATE_ALLOW_NON_LOOPBACK=1`)
-  and TLS + non-local auth configured; enterprise or custom launchers can
+  and TLS (or upstream termination) + non-local auth configured; enterprise or custom launchers can
   enforce their own posture.
 
 In all three cases, DG is a server. MCP is just the protocol it speaks.

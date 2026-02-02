@@ -22,13 +22,19 @@ use decision_gate_core::DataShapeRef;
 use decision_gate_core::DataShapeVersion;
 use decision_gate_core::GateId;
 use decision_gate_core::GateSpec;
+use decision_gate_core::InMemoryDataShapeRegistry;
 use decision_gate_core::NamespaceId;
 use decision_gate_core::ProviderId;
+use decision_gate_core::RunState;
+use decision_gate_core::RunStateStore;
 use decision_gate_core::ScenarioId;
 use decision_gate_core::ScenarioSpec;
+use decision_gate_core::SharedDataShapeRegistry;
+use decision_gate_core::SharedRunStateStore;
 use decision_gate_core::SpecVersion;
 use decision_gate_core::StageId;
 use decision_gate_core::StageSpec;
+use decision_gate_core::StoreError;
 use decision_gate_core::TenantId;
 use decision_gate_core::TimeoutPolicy;
 use decision_gate_core::Timestamp;
@@ -38,6 +44,10 @@ use decision_gate_mcp::tools::ScenarioDefineRequest;
 use decision_gate_mcp::tools::ScenarioDefineResponse;
 use decision_gate_mcp::tools::SchemasRegisterRequest;
 use helpers::artifacts::TestReporter;
+use helpers::harness::allocate_bind_addr;
+use helpers::harness::base_http_config;
+use helpers::harness::spawn_mcp_server;
+use helpers::harness::spawn_mcp_server_with_overrides;
 use helpers::readiness::wait_for_stdio_ready;
 use helpers::stdio_client::StdioMcpClient;
 use ret_logic::Requirement;
@@ -97,6 +107,116 @@ type = "builtin"
     )?;
     drop(reporter);
     Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn http_health_endpoints_ok() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("http_health_endpoints_ok")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let config = base_http_config(&bind);
+    let server = spawn_mcp_server(config).await?;
+
+    let base_url = server.base_url().trim_end_matches("/rpc").to_string();
+    let client = reqwest::Client::new();
+
+    let health_url = format!("{base_url}/healthz");
+    let health_response = client.get(&health_url).send().await?;
+    let health_status = health_response.status();
+    let health_body: Value = health_response.json().await?;
+    if health_status != reqwest::StatusCode::OK {
+        return Err(format!("unexpected health status: {health_status}").into());
+    }
+    let Some(Value::String(status)) = health_body.get("status") else {
+        return Err("health response missing status".into());
+    };
+    if status != "ok" {
+        return Err(format!("unexpected health status value: {status}").into());
+    }
+
+    let ready_url = format!("{base_url}/readyz");
+    let ready_response = client.get(&ready_url).send().await?;
+    let ready_status = ready_response.status();
+    let ready_body: Value = ready_response.json().await?;
+    if ready_status != reqwest::StatusCode::OK {
+        return Err(format!("unexpected ready status: {ready_status}").into());
+    }
+    let Some(Value::String(status)) = ready_body.get("status") else {
+        return Err("ready response missing status".into());
+    };
+    if status != "ready" {
+        return Err(format!("unexpected ready status value: {status}").into());
+    }
+
+    reporter.finish(
+        "pass",
+        vec!["health endpoints return ok/ready JSON".to_string()],
+        vec!["summary.json".to_string(), "summary.md".to_string()],
+    )?;
+    drop(reporter);
+    server.shutdown().await;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn http_readiness_fails_when_store_unavailable() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("http_readiness_fails_when_store_unavailable")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let config = base_http_config(&bind);
+    let overrides = decision_gate_mcp::ServerOverrides {
+        run_state_store: Some(SharedRunStateStore::from_store(FailingRunStateStore)),
+        schema_registry: Some(SharedDataShapeRegistry::from_registry(
+            InMemoryDataShapeRegistry::new(),
+        )),
+        ..decision_gate_mcp::ServerOverrides::default()
+    };
+    let server = spawn_mcp_server_with_overrides(config, overrides).await?;
+
+    let base_url = server.base_url().trim_end_matches("/rpc").to_string();
+    let client = reqwest::Client::new();
+
+    let ready_url = format!("{base_url}/readyz");
+    let ready_response = client.get(&ready_url).send().await?;
+    let ready_status = ready_response.status();
+    let ready_body: Value = ready_response.json().await?;
+    if ready_status != reqwest::StatusCode::SERVICE_UNAVAILABLE {
+        return Err(format!("unexpected ready status: {ready_status}").into());
+    }
+    let Some(Value::String(status)) = ready_body.get("status") else {
+        return Err("ready response missing status".into());
+    };
+    if status != "not_ready" {
+        return Err(format!("unexpected ready status value: {status}").into());
+    }
+
+    reporter.finish(
+        "pass",
+        vec!["ready endpoint returns not_ready when store is unavailable".to_string()],
+        vec!["summary.json".to_string(), "summary.md".to_string()],
+    )?;
+    drop(reporter);
+    server.shutdown().await;
+    Ok(())
+}
+
+struct FailingRunStateStore;
+
+impl RunStateStore for FailingRunStateStore {
+    fn load(
+        &self,
+        _tenant_id: &TenantId,
+        _namespace_id: &NamespaceId,
+        _run_id: &decision_gate_core::RunId,
+    ) -> Result<Option<RunState>, StoreError> {
+        Ok(None)
+    }
+
+    fn save(&self, _state: &RunState) -> Result<(), StoreError> {
+        Ok(())
+    }
+
+    fn readiness(&self) -> Result<(), StoreError> {
+        Err(StoreError::Store("store unavailable".to_string()))
+    }
 }
 
 fn precheck_spec() -> ScenarioSpec {

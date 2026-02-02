@@ -117,8 +117,8 @@ const CATALOG_EN: &[(&str, &str)] = &[
     ),
     (
         "serve.warn.loopback_only_transport",
-        "Info: HTTP/SSE is bound to loopback only. Use --allow-non-loopback or {env}=1 with TLS + \
-         auth to expose it.",
+        "Info: HTTP/SSE is bound to loopback only. Use --allow-non-loopback or {env}=1 with TLS \
+         (or tls_termination=upstream) + auth to expose it.",
     ),
     ("output.stream.stdout", "stdout"),
     ("output.stream.stderr", "stderr"),
@@ -144,7 +144,7 @@ const CATALOG_EN: &[(&str, &str)] = &[
     ),
     (
         "serve.bind.non_loopback_tls_required",
-        "Refusing to bind to {bind}: server.tls must be configured for non-loopback.",
+        "Refusing to bind to {bind}: configure server.tls or set server.tls_termination=upstream.",
     ),
     (
         "serve.bind.non_loopback_mtls_client_ca_required",
@@ -175,6 +175,7 @@ const CATALOG_EN: &[(&str, &str)] = &[
         "enabled (client cert {client_cert}, client CA {client_ca})",
     ),
     ("serve.warn.network.tls_disabled", "disabled"),
+    ("serve.warn.network.tls_upstream", "upstream (terminated by proxy/ingress)"),
     ("serve.warn.network.required", "required"),
     ("serve.warn.network.not_required", "not required"),
     ("serve.warn.network.present", "present"),
@@ -314,7 +315,7 @@ const CATALOG_CA: &[(&str, &str)] = &[
     (
         "serve.warn.loopback_only_transport",
         "Informació: HTTP/SSE està lligat només al loopback. Utilitzeu --allow-non-loopback o \
-         {env}=1 amb TLS + auth per exposar-lo.",
+         {env}=1 amb TLS (o tls_termination=upstream) + auth per exposar-lo.",
     ),
     ("output.stream.stdout", "stdout"),
     ("output.stream.stderr", "stderr"),
@@ -340,7 +341,8 @@ const CATALOG_CA: &[(&str, &str)] = &[
     ),
     (
         "serve.bind.non_loopback_tls_required",
-        "Es rebutja bind a {bind}: server.tls s'ha de configurar per a no-loopback.",
+        "Es rebutja bind a {bind}: configureu server.tls o establiu \
+         server.tls_termination=upstream.",
     ),
     (
         "serve.bind.non_loopback_mtls_client_ca_required",
@@ -371,6 +373,7 @@ const CATALOG_CA: &[(&str, &str)] = &[
         "habilitat (certificat de client {client_cert}, CA de client {client_ca})",
     ),
     ("serve.warn.network.tls_disabled", "deshabilitat"),
+    ("serve.warn.network.tls_upstream", "upstream (terminat per proxy/ingress)"),
     ("serve.warn.network.required", "requerit"),
     ("serve.warn.network.not_required", "no requerit"),
     ("serve.warn.network.present", "present"),

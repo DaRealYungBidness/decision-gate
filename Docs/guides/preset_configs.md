@@ -14,17 +14,19 @@ Dependencies:
 
 ## At a Glance
 
-Decision Gate ships **three curated presets** to balance onboarding speed with
+Decision Gate ships **four curated presets** to balance onboarding speed with
 security posture. Pick one, run it, then graduate to the next.
 
 | Preset              | Intent                                                | Path                                       |
 | ------------------- | ----------------------------------------------------- | ------------------------------------------ |
 | Quickstart-Dev      | Lowest friction local onboarding                      | `configs/presets/quickstart-dev.toml`      |
 | Default-Recommended | Safe-by-default local usage                           | `configs/presets/default-recommended.toml` |
+| Container-Prod      | Containerized server baseline (bearer auth, upstream TLS) | `configs/presets/container-prod.toml`  |
 | Hardened            | Strong local security posture (bearer auth + signing) | `configs/presets/hardened.toml`            |
 
-**Important:** Every preset is runnable. For production exposure, add TLS and
-mTLS as described in `Docs/guides/security_guide.md`.
+**Important:** Every preset is runnable. For production exposure, use TLS
+(in-container or upstream termination) and mTLS as described in
+`Docs/guides/security_guide.md`.
 
 ---
 
@@ -187,6 +189,87 @@ type = "builtin"
 
 ---
 
+## Container-Prod (Container Baseline)
+
+Run it:
+
+```bash dg-run dg-level=manual
+DECISION_GATE_ALLOW_NON_LOOPBACK=1 cargo run -p decision-gate-cli -- serve \
+  --config configs/presets/container-prod.toml
+```
+
+Config:
+
+```toml dg-validate=config dg-level=fast
+# Decision Gate preset: Container-Prod
+# Production-oriented container configuration.
+# Requires explicit auth and upstream TLS termination.
+
+[server]
+transport = "http"
+bind = "0.0.0.0:8080"
+mode = "strict"
+tls_termination = "upstream"
+
+[server.auth]
+mode = "bearer_token"
+# Replace this token and update the principal subject hash below.
+bearer_tokens = ["dg-container-demo-token"]
+
+[[server.auth.principals]]
+# Subject is token:sha256(bearer_token). Update when rotating the token.
+subject = "token:5e268e45a49c26207274917a880f33eafbf6e98563170d0bfe1504408d33d18c"
+policy_class = "prod"
+
+[[server.auth.principals.roles]]
+name = "TenantAdmin"
+tenant_id = 1
+
+[namespace]
+# Disable the default namespace id=1; use a non-default namespace (e.g., 2).
+allow_default = false
+
+[trust]
+# Audit mode (no signature enforcement).
+default_policy = "audit"
+min_lane = "verified"
+
+[evidence]
+allow_raw_values = false
+require_provider_opt_in = true
+
+[schema_registry]
+type = "memory"
+
+[schema_registry.acl]
+allow_local_only = false
+require_signing = false
+
+[run_state_store]
+type = "memory"
+
+[[providers]]
+name = "time"
+type = "builtin"
+
+[[providers]]
+name = "env"
+type = "builtin"
+
+[[providers]]
+name = "json"
+type = "builtin"
+
+[[providers]]
+name = "http"
+type = "builtin"
+```
+
+**Risk posture:** explicit auth required; upstream TLS termination assumed.
+See `Docs/guides/container_deployment.md` for deployment guidance.
+
+---
+
 ## Hardened (Bearer Auth + Signing)
 
 Run it:
@@ -291,6 +374,7 @@ Each preset intentionally sets the same core sections so behavior is explicit:
 - **Namespace policy:** `namespace.allow_default`
 - **Trust posture:** `trust` and `dev.permissive`
 - **Durability:** `run_state_store` and `schema_registry` SQLite backends
+- **TLS termination:** `server.tls_termination` (server vs upstream)
 
 If you change one of these sections, update the preset and the corresponding
 expectations in `system-tests/tests/suites/presets.rs`.

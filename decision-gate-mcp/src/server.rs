@@ -43,10 +43,13 @@ use axum::http::header::WWW_AUTHENTICATE;
 use axum::response::IntoResponse;
 use axum::response::Sse;
 use axum::response::sse::Event;
+use axum::routing::get;
 use axum::routing::post;
 use decision_gate_contract::ToolName;
+use decision_gate_core::DataShapeRegistry;
 use decision_gate_core::InMemoryDataShapeRegistry;
 use decision_gate_core::InMemoryRunStateStore;
+use decision_gate_core::RunStateStore;
 use decision_gate_core::RunpackSecurityContext;
 use decision_gate_core::SharedDataShapeRegistry;
 use decision_gate_core::SharedRunStateStore;
@@ -138,6 +141,8 @@ pub struct McpServer {
     audit: Arc<dyn McpAuditSink>,
     /// Optional auth challenge header for unauthenticated responses.
     auth_challenge: Option<AuthChallenge>,
+    /// Readiness state for health probes.
+    readiness: Arc<ReadinessState>,
 }
 
 /// Optional overrides for enterprise deployments.
@@ -246,6 +251,7 @@ impl McpServer {
             Some(registry) => registry,
             None => build_schema_registry(&config)?,
         };
+        let readiness = Arc::new(ReadinessState::new(store.clone(), schema_registry.clone()));
         let provider_transports = build_provider_transports(&config);
         let schema_registry_limits = build_schema_registry_limits(&config)?;
         let default_namespace_tenants =
@@ -325,6 +331,7 @@ impl McpServer {
             metrics,
             audit,
             auth_challenge,
+            readiness,
         })
     }
 
@@ -361,16 +368,31 @@ impl McpServer {
                     Arc::clone(&self.audit),
                     self.auth_challenge.clone(),
                     &self.config.server,
+                    self.readiness,
                 )
                 .await
             }
             ServerTransport::Http => {
-                serve_http(self.config, self.router, self.metrics, self.audit, self.auth_challenge)
-                    .await
+                serve_http(
+                    self.config,
+                    self.router,
+                    self.metrics,
+                    self.audit,
+                    self.auth_challenge,
+                    self.readiness,
+                )
+                .await
             }
             ServerTransport::Sse => {
-                serve_sse(self.config, self.router, self.metrics, self.audit, self.auth_challenge)
-                    .await
+                serve_sse(
+                    self.config,
+                    self.router,
+                    self.metrics,
+                    self.audit,
+                    self.auth_challenge,
+                    self.readiness,
+                )
+                .await
             }
         }
     }
@@ -638,10 +660,12 @@ async fn serve_stdio(
     audit: Arc<dyn McpAuditSink>,
     auth_challenge: Option<AuthChallenge>,
     server: &crate::config::ServerConfig,
+    readiness: Arc<ReadinessState>,
 ) -> Result<(), McpServerError> {
     let mut reader = BufReader::new(std::io::stdin());
     let mut writer = std::io::stdout();
-    let state = build_server_state(router.clone(), server, metrics, audit, auth_challenge);
+    let state =
+        build_server_state(router.clone(), server, metrics, audit, auth_challenge, readiness);
     loop {
         let bytes = read_framed(&mut reader, server.max_body_bytes)?;
         let context = RequestContext::stdio().with_server_correlation_id(state.correlation.issue());
@@ -663,6 +687,7 @@ async fn serve_http(
     metrics: Arc<dyn McpMetrics>,
     audit: Arc<dyn McpAuditSink>,
     auth_challenge: Option<AuthChallenge>,
+    readiness: Arc<ReadinessState>,
 ) -> Result<(), McpServerError> {
     let bind = config
         .server
@@ -671,10 +696,18 @@ async fn serve_http(
         .ok_or_else(|| McpServerError::Config("bind address required".to_string()))?;
     let addr: SocketAddr =
         bind.parse().map_err(|_| McpServerError::Config("invalid bind address".to_string()))?;
-    let state =
-        Arc::new(build_server_state(router, &config.server, metrics, audit, auth_challenge));
+    let state = Arc::new(build_server_state(
+        router,
+        &config.server,
+        metrics,
+        audit,
+        auth_challenge,
+        readiness,
+    ));
     let app = Router::new()
         .route("/rpc", post(handle_http))
+        .route("/healthz", get(handle_health))
+        .route("/readyz", get(handle_ready))
         .layer(DefaultBodyLimit::max(config.server.max_body_bytes))
         .with_state(state);
     if let Some(tls) = &config.server.tls {
@@ -700,6 +733,7 @@ async fn serve_sse(
     metrics: Arc<dyn McpMetrics>,
     audit: Arc<dyn McpAuditSink>,
     auth_challenge: Option<AuthChallenge>,
+    readiness: Arc<ReadinessState>,
 ) -> Result<(), McpServerError> {
     let bind = config
         .server
@@ -708,10 +742,18 @@ async fn serve_sse(
         .ok_or_else(|| McpServerError::Config("bind address required".to_string()))?;
     let addr: SocketAddr =
         bind.parse().map_err(|_| McpServerError::Config("invalid bind address".to_string()))?;
-    let state =
-        Arc::new(build_server_state(router, &config.server, metrics, audit, auth_challenge));
+    let state = Arc::new(build_server_state(
+        router,
+        &config.server,
+        metrics,
+        audit,
+        auth_challenge,
+        readiness,
+    ));
     let app = Router::new()
         .route("/rpc", post(handle_sse))
+        .route("/healthz", get(handle_health))
+        .route("/readyz", get(handle_ready))
         .layer(DefaultBodyLimit::max(config.server.max_body_bytes))
         .with_state(state);
     if let Some(tls) = &config.server.tls {
@@ -727,6 +769,20 @@ async fn serve_sse(
         axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
             .await
             .map_err(|_| McpServerError::Transport("sse server failed".to_string()))
+    }
+}
+
+/// Health check endpoint for liveness probes.
+async fn handle_health() -> impl IntoResponse {
+    (StatusCode::OK, axum::Json(HealthResponse::ok()))
+}
+
+/// Readiness check endpoint for readiness probes.
+async fn handle_ready(State(state): State<Arc<ServerState>>) -> impl IntoResponse {
+    if state.readiness.check().is_ok() {
+        (StatusCode::OK, axum::Json(HealthResponse::ready()))
+    } else {
+        (StatusCode::SERVICE_UNAVAILABLE, axum::Json(HealthResponse::not_ready()))
     }
 }
 
@@ -749,6 +805,59 @@ struct ServerState {
     correlation: Arc<CorrelationIdGenerator>,
     /// Optional auth challenge header to send on unauthenticated responses.
     auth_challenge: Option<HeaderValue>,
+    /// Readiness state for probes.
+    readiness: Arc<ReadinessState>,
+}
+
+#[derive(Serialize)]
+struct HealthResponse {
+    status: &'static str,
+}
+
+impl HealthResponse {
+    const fn ok() -> Self {
+        Self {
+            status: "ok",
+        }
+    }
+
+    const fn ready() -> Self {
+        Self {
+            status: "ready",
+        }
+    }
+
+    const fn not_ready() -> Self {
+        Self {
+            status: "not_ready",
+        }
+    }
+}
+
+#[derive(Clone)]
+struct ReadinessState {
+    store: SharedRunStateStore,
+    registry: SharedDataShapeRegistry,
+}
+
+impl ReadinessState {
+    fn new(store: SharedRunStateStore, registry: SharedDataShapeRegistry) -> Self {
+        Self {
+            store,
+            registry,
+        }
+    }
+
+    fn check(&self) -> Result<(), ReadinessError> {
+        self.store.readiness().map_err(|_| ReadinessError::Store)?;
+        self.registry.readiness().map_err(|_| ReadinessError::Registry)?;
+        Ok(())
+    }
+}
+
+enum ReadinessError {
+    Store,
+    Registry,
 }
 
 fn build_server_state(
@@ -757,6 +866,7 @@ fn build_server_state(
     metrics: Arc<dyn McpMetrics>,
     audit: Arc<dyn McpAuditSink>,
     auth_challenge: Option<AuthChallenge>,
+    readiness: Arc<ReadinessState>,
 ) -> ServerState {
     let rate_limiter =
         server.limits.rate_limit.as_ref().map(|config| Arc::new(RateLimiter::new(config.clone())));
@@ -774,6 +884,7 @@ fn build_server_state(
         inflight,
         correlation: Arc::new(CorrelationIdGenerator::new("dg")),
         auth_challenge,
+        readiness,
     }
 }
 
@@ -1667,21 +1778,10 @@ fn emit_local_only_warning(server: &crate::config::ServerConfig) {
 /// Emits a warning when registry ACL bypass is enabled for local-only requests.
 fn emit_registry_acl_warning(config: &DecisionGateConfig) {
     if config.schema_registry.acl.allow_local_only {
-        let auth_mode = config
-            .server
-            .auth
-            .as_ref()
-            .map_or(ServerAuthMode::LocalOnly, |auth| auth.mode);
-        let level = if auth_mode == ServerAuthMode::LocalOnly {
-            "INFO"
-        } else {
-            "WARNING"
-        };
-        let note = if auth_mode == ServerAuthMode::LocalOnly {
-            " (local-only mode)"
-        } else {
-            ""
-        };
+        let auth_mode =
+            config.server.auth.as_ref().map_or(ServerAuthMode::LocalOnly, |auth| auth.mode);
+        let level = if auth_mode == ServerAuthMode::LocalOnly { "INFO" } else { "WARNING" };
+        let note = if auth_mode == ServerAuthMode::LocalOnly { " (local-only mode)" } else { "" };
         let _ = writeln!(
             std::io::stderr(),
             "decision-gate-mcp: {level}: schema_registry.acl.allow_local_only=true; local-only \
@@ -1712,21 +1812,9 @@ fn emit_dev_permissive_warning(config: &DecisionGateConfig) {
     } else {
         "dev.permissive=true"
     };
-    let auth_mode = config
-        .server
-        .auth
-        .as_ref()
-        .map_or(ServerAuthMode::LocalOnly, |auth| auth.mode);
-    let level = if auth_mode == ServerAuthMode::LocalOnly {
-        "INFO"
-    } else {
-        "WARNING"
-    };
-    let mode_note = if auth_mode == ServerAuthMode::LocalOnly {
-        " (local-only mode)"
-    } else {
-        ""
-    };
+    let auth_mode = config.server.auth.as_ref().map_or(ServerAuthMode::LocalOnly, |auth| auth.mode);
+    let level = if auth_mode == ServerAuthMode::LocalOnly { "INFO" } else { "WARNING" };
+    let mode_note = if auth_mode == ServerAuthMode::LocalOnly { " (local-only mode)" } else { "" };
     let mut ttl_note = String::new();
     if let (Some(ttl_days), Some(modified_at)) =
         (config.dev.permissive_ttl_days, config.source_modified_at)
@@ -1740,7 +1828,8 @@ fn emit_dev_permissive_warning(config: &DecisionGateConfig) {
     let _ = writeln!(
         std::io::stderr(),
         "decision-gate-mcp: {level}: dev-permissive enabled via {source}; asserted evidence \
-         allowed for non-exempt providers only; namespace defaults remain strict{ttl_note}{mode_note}"
+         allowed for non-exempt providers only; namespace defaults remain \
+         strict{ttl_note}{mode_note}"
     );
 }
 

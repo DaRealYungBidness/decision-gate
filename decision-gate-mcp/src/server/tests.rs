@@ -40,22 +40,29 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use axum::body::Bytes;
+use axum::extract::State;
 use axum::http::StatusCode;
+use axum::http::header::CONTENT_TYPE;
 use axum::http::header::WWW_AUTHENTICATE;
+use axum::response::IntoResponse;
 use decision_gate_core::InMemoryDataShapeRegistry;
 use decision_gate_core::InMemoryRunStateStore;
 use decision_gate_core::NamespaceId;
 use decision_gate_core::SharedDataShapeRegistry;
 use decision_gate_core::SharedRunStateStore;
+use decision_gate_core::StoreError;
 use decision_gate_core::TenantId;
 use serde_json::json;
 
 use super::JsonRpcResponse;
+use super::ReadinessState;
 use super::ServerState;
 use super::build_provider_transports;
 use super::build_response_headers;
 use super::build_schema_registry_limits;
 use super::build_server_state;
+use super::handle_health;
+use super::handle_ready;
 use super::parse_request;
 use super::read_framed;
 use crate::audit::McpAuditEvent;
@@ -120,6 +127,13 @@ impl McpMetrics for TestMetrics {
     }
 }
 
+fn readiness_for_tests() -> Arc<ReadinessState> {
+    Arc::new(ReadinessState::new(
+        SharedRunStateStore::from_store(InMemoryRunStateStore::new()),
+        SharedDataShapeRegistry::from_registry(InMemoryDataShapeRegistry::new()),
+    ))
+}
+
 #[derive(Default)]
 struct TestAudit {
     events: Mutex<Vec<McpAuditEvent>>,
@@ -171,6 +185,92 @@ fn sample_config() -> DecisionGateConfig {
         runpack_storage: None,
 
         source_modified_at: None,
+    }
+}
+
+// ============================================================================
+// SECTION: Health Checks
+// ============================================================================//
+
+#[tokio::test]
+async fn health_endpoint_ok() {
+    let response = handle_health().await.into_response();
+    assert_eq!(response.status(), StatusCode::OK);
+    let content_type = response.headers().get(CONTENT_TYPE).expect("content type");
+    assert_eq!(content_type, "application/json");
+}
+
+#[test]
+fn ready_endpoint_ok() {
+    let state = Arc::new(sample_server_state());
+    let response = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(handle_ready(State(state)))
+        .into_response();
+    assert_eq!(response.status(), StatusCode::OK);
+    let content_type = response.headers().get(CONTENT_TYPE).expect("content type");
+    assert_eq!(content_type, "application/json");
+}
+
+#[test]
+fn ready_endpoint_not_ready_when_store_unavailable() {
+    let store = SharedRunStateStore::from_store(FailingRunStateStore);
+    let registry = SharedDataShapeRegistry::from_registry(InMemoryDataShapeRegistry::new());
+    let readiness = Arc::new(ReadinessState::new(store, registry));
+    let config = sample_config();
+    let router = sample_router(&config);
+    let state = Arc::new(build_server_state(
+        router,
+        &config.server,
+        Arc::new(TestMetrics::default()),
+        Arc::new(McpNoopAuditSink),
+        None,
+        readiness,
+    ));
+    let response = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(handle_ready(State(state)))
+        .into_response();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let content_type = response.headers().get(CONTENT_TYPE).expect("content type");
+    assert_eq!(content_type, "application/json");
+}
+
+fn sample_server_state() -> ServerState {
+    let config = sample_config();
+    let router = sample_router(&config);
+    let readiness = Arc::new(ReadinessState::new(
+        SharedRunStateStore::from_store(InMemoryRunStateStore::new()),
+        SharedDataShapeRegistry::from_registry(InMemoryDataShapeRegistry::new()),
+    ));
+    build_server_state(
+        router,
+        &config.server,
+        Arc::new(TestMetrics::default()),
+        Arc::new(McpNoopAuditSink),
+        None,
+        readiness,
+    )
+}
+
+struct FailingRunStateStore;
+
+impl decision_gate_core::RunStateStore for FailingRunStateStore {
+    fn load(
+        &self,
+        _tenant_id: &TenantId,
+        _namespace_id: &NamespaceId,
+        _run_id: &decision_gate_core::RunId,
+    ) -> Result<Option<decision_gate_core::RunState>, StoreError> {
+        Ok(None)
+    }
+
+    fn save(&self, _state: &decision_gate_core::RunState) -> Result<(), StoreError> {
+        Ok(())
+    }
+
+    fn readiness(&self) -> Result<(), StoreError> {
+        Err(StoreError::Store("store unavailable".to_string()))
     }
 }
 
@@ -378,7 +478,14 @@ fn parse_request_rejects_payload_over_limit() {
     config.server.max_body_bytes = bytes.len() - 1;
     let metrics = Arc::new(TestMetrics::default());
     let audit = Arc::new(TestAudit::default());
-    let state = build_server_state(sample_router(&config), &config.server, metrics, audit, None);
+    let state = build_server_state(
+        sample_router(&config),
+        &config.server,
+        metrics,
+        audit,
+        None,
+        readiness_for_tests(),
+    );
     let context = RequestContext::stdio();
     let response = parse_request_sync(&state, &context, &bytes);
     assert_eq!(response.0, StatusCode::PAYLOAD_TOO_LARGE);
@@ -392,8 +499,14 @@ fn metrics_recorded_for_tools_list() {
     config.server.limits.max_inflight = 1;
     let metrics = Arc::new(TestMetrics::default());
     let audit = Arc::new(TestAudit::default());
-    let state =
-        build_server_state(sample_router(&config), &config.server, metrics.clone(), audit, None);
+    let state = build_server_state(
+        sample_router(&config),
+        &config.server,
+        metrics.clone(),
+        audit,
+        None,
+        readiness_for_tests(),
+    );
     let context = RequestContext::stdio();
     let payload = json!({
         "jsonrpc": "2.0",
@@ -428,7 +541,14 @@ fn resources_list_returns_embedded_docs() {
     let config = sample_config();
     let metrics = Arc::new(TestMetrics::default());
     let audit = Arc::new(TestAudit::default());
-    let state = build_server_state(sample_router(&config), &config.server, metrics, audit, None);
+    let state = build_server_state(
+        sample_router(&config),
+        &config.server,
+        metrics,
+        audit,
+        None,
+        readiness_for_tests(),
+    );
     let context = RequestContext::stdio();
     let payload = json!({
         "jsonrpc": "2.0",
@@ -451,7 +571,14 @@ fn resources_read_returns_markdown() {
     let config = sample_config();
     let metrics = Arc::new(TestMetrics::default());
     let audit = Arc::new(TestAudit::default());
-    let state = build_server_state(sample_router(&config), &config.server, metrics, audit, None);
+    let state = build_server_state(
+        sample_router(&config),
+        &config.server,
+        metrics,
+        audit,
+        None,
+        readiness_for_tests(),
+    );
     let context = RequestContext::stdio();
     let list_payload = json!({
         "jsonrpc": "2.0",
@@ -498,7 +625,8 @@ fn rate_limited_error_maps_to_json_rpc() {
         retry_after_ms: 1500,
     });
     let router = sample_router_with_overrides(&config, Some(docs_provider), None);
-    let state = build_server_state(router, &config.server, metrics, audit, None);
+    let state =
+        build_server_state(router, &config.server, metrics, audit, None, readiness_for_tests());
     let context = RequestContext::stdio();
     let payload = json!({
         "jsonrpc": "2.0",
@@ -534,8 +662,14 @@ fn metrics_recorded_for_unauthenticated_list() {
     });
     let metrics = Arc::new(TestMetrics::default());
     let audit = Arc::new(TestAudit::default());
-    let state =
-        build_server_state(sample_router(&config), &config.server, metrics.clone(), audit, None);
+    let state = build_server_state(
+        sample_router(&config),
+        &config.server,
+        metrics.clone(),
+        audit,
+        None,
+        readiness_for_tests(),
+    );
     let context = RequestContext::http_with_correlation(
         ServerTransport::Http,
         Some(std::net::IpAddr::from([127, 0, 0, 1])),
@@ -577,7 +711,14 @@ fn unauthorized_response_includes_www_authenticate_header() {
     });
     let metrics = Arc::new(TestMetrics::default());
     let audit = Arc::new(TestAudit::default());
-    let state = build_server_state(sample_router(&config), &config.server, metrics, audit, None);
+    let state = build_server_state(
+        sample_router(&config),
+        &config.server,
+        metrics,
+        audit,
+        None,
+        readiness_for_tests(),
+    );
     let context = RequestContext::http(
         ServerTransport::Http,
         Some(std::net::IpAddr::from([127, 0, 0, 1])),
@@ -609,7 +750,14 @@ fn rate_limit_rejects_after_threshold() {
     });
     let metrics = Arc::new(TestMetrics::default());
     let audit = Arc::new(TestAudit::default());
-    let state = build_server_state(sample_router(&config), &config.server, metrics, audit, None);
+    let state = build_server_state(
+        sample_router(&config),
+        &config.server,
+        metrics,
+        audit,
+        None,
+        readiness_for_tests(),
+    );
     let context = RequestContext::http(
         ServerTransport::Http,
         Some(std::net::IpAddr::from([127, 0, 0, 1])),
@@ -639,7 +787,14 @@ fn inflight_limit_rejects_when_exhausted() {
     config.server.limits.max_inflight = 1;
     let metrics = Arc::new(TestMetrics::default());
     let audit = Arc::new(TestAudit::default());
-    let state = build_server_state(sample_router(&config), &config.server, metrics, audit, None);
+    let state = build_server_state(
+        sample_router(&config),
+        &config.server,
+        metrics,
+        audit,
+        None,
+        readiness_for_tests(),
+    );
     assert_eq!(state.inflight.available_permits(), 1);
     let permit = state.inflight.try_acquire().expect("permit");
     assert_eq!(state.inflight.available_permits(), 0);
@@ -670,8 +825,14 @@ fn audit_records_evidence_redaction() {
     let config = sample_config();
     let metrics = Arc::new(TestMetrics::default());
     let audit = Arc::new(TestAudit::default());
-    let state =
-        build_server_state(sample_router(&config), &config.server, metrics, audit.clone(), None);
+    let state = build_server_state(
+        sample_router(&config),
+        &config.server,
+        metrics,
+        audit.clone(),
+        None,
+        readiness_for_tests(),
+    );
     let context = RequestContext::stdio();
     let payload = json!({
         "jsonrpc": "2.0",

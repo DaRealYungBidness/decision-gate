@@ -13,7 +13,7 @@ Dependencies:
   - system-tests/test_registry.toml
   - system-tests/test_gaps.toml
 ============================================================================
-Last Updated: 2026-02-01 (UTC)
+Last Updated: 2026-02-02 (UTC)
 ============================================================================
 -->
 
@@ -51,6 +51,9 @@ The agentic flow harness extends this model with canonical scenario packs that
 run across raw MCP, SDKs, and framework adapters. Scenario packs live under
 `system-tests/tests/fixtures/agentic/` and are mirrored into `examples/agentic/`
 for discoverability.
+
+Operational posture coverage includes HTTP liveness/readiness probes to ensure
+containerized deployments advertise correct health semantics.
 
 ---
 

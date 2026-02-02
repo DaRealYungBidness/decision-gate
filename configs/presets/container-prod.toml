@@ -1,0 +1,62 @@
+# Decision Gate preset: Container-Prod
+# Production-oriented container configuration.
+# Requires explicit auth and upstream TLS termination.
+
+[server]
+transport = "http"
+bind = "0.0.0.0:8080"
+mode = "strict"
+tls_termination = "upstream"
+
+[server.auth]
+mode = "bearer_token"
+# Replace this token and update the principal subject hash below.
+bearer_tokens = ["dg-container-demo-token"]
+
+[[server.auth.principals]]
+# Subject is token:sha256(bearer_token). Update when rotating the token.
+subject = "token:5e268e45a49c26207274917a880f33eafbf6e98563170d0bfe1504408d33d18c"
+policy_class = "prod"
+
+[[server.auth.principals.roles]]
+name = "TenantAdmin"
+tenant_id = 1
+
+[namespace]
+# Disable the default namespace id=1; use a non-default namespace (e.g., 2).
+allow_default = false
+
+[trust]
+# Audit mode (no signature enforcement).
+default_policy = "audit"
+min_lane = "verified"
+
+[evidence]
+allow_raw_values = false
+require_provider_opt_in = true
+
+[schema_registry]
+type = "memory"
+
+[schema_registry.acl]
+allow_local_only = false
+require_signing = false
+
+[run_state_store]
+type = "memory"
+
+[[providers]]
+name = "time"
+type = "builtin"
+
+[[providers]]
+name = "env"
+type = "builtin"
+
+[[providers]]
+name = "json"
+type = "builtin"
+
+[[providers]]
+name = "http"
+type = "builtin"

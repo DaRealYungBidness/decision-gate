@@ -68,7 +68,7 @@ Not in scope:
 
 ### E. Security Posture
 - [ ] Non-loopback binds require explicit opt-in with strong warnings.
-- [ ] TLS + non-local auth are required for non-loopback operation.
+- [ ] TLS or explicit upstream termination + non-local auth are required for non-loopback operation.
 - [ ] Example configs are safe-by-default.
 - [ ] No insecure defaults introduced in SDKs or examples.
 

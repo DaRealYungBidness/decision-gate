@@ -8,8 +8,8 @@
 
 //! ## Overview
 //! Provides safety checks for binding the MCP server to non-loopback addresses.
-//! The policy is fail-closed: explicit opt-in is required, and TLS + auth must
-//! be configured before network exposure is allowed.
+//! The policy is fail-closed: explicit opt-in is required, and TLS (or upstream
+//! TLS termination) + auth must be configured before network exposure is allowed.
 //!
 //! Security posture: fail closed on unsafe bind configuration; see
 //! `Docs/security/threat_model.md`.
@@ -24,6 +24,7 @@ use std::net::SocketAddr;
 use decision_gate_mcp::DecisionGateConfig;
 use decision_gate_mcp::config::ServerAuthMode;
 use decision_gate_mcp::config::ServerTlsConfig;
+use decision_gate_mcp::config::ServerTlsTermination;
 use decision_gate_mcp::config::ServerTransport;
 
 use crate::t;
@@ -52,6 +53,8 @@ pub struct BindOutcome {
     pub auth_mode: ServerAuthMode,
     /// TLS configuration when present.
     pub tls: Option<ServerTlsConfig>,
+    /// TLS termination mode for the server.
+    pub tls_termination: ServerTlsTermination,
     /// Whether audit logging is enabled.
     pub audit_enabled: bool,
     /// Whether rate limiting is enabled.
@@ -176,6 +179,7 @@ pub fn enforce_local_only(
     allow_non_loopback: bool,
 ) -> Result<BindOutcome, ServePolicyError> {
     let auth_mode = config.server.auth.as_ref().map_or(ServerAuthMode::LocalOnly, |auth| auth.mode);
+    let tls_termination = config.server.tls_termination;
     let audit_enabled = config.server.audit.enabled;
     let rate_limit_enabled = config.server.limits.rate_limit.is_some();
     match config.server.transport {
@@ -185,6 +189,7 @@ pub fn enforce_local_only(
             network_exposed: false,
             auth_mode,
             tls: config.server.tls.clone(),
+            tls_termination,
             audit_enabled,
             rate_limit_enabled,
         }),
@@ -203,6 +208,7 @@ pub fn enforce_local_only(
                     network_exposed: false,
                     auth_mode,
                     tls: config.server.tls.clone(),
+                    tls_termination,
                     audit_enabled,
                     rate_limit_enabled,
                 });
@@ -217,12 +223,15 @@ pub fn enforce_local_only(
                     bind: bind.to_string(),
                 });
             }
-            let tls = config.server.tls.as_ref().ok_or_else(|| {
-                ServePolicyError::NonLoopbackTlsRequired {
+            let tls = config.server.tls.as_ref();
+            if tls.is_none() && tls_termination != ServerTlsTermination::Upstream {
+                return Err(ServePolicyError::NonLoopbackTlsRequired {
                     bind: bind.to_string(),
-                }
-            })?;
-            if auth_mode == ServerAuthMode::Mtls {
+                });
+            }
+            if auth_mode == ServerAuthMode::Mtls
+                && let Some(tls) = tls
+            {
                 let missing_client_ca =
                     tls.client_ca_path.as_ref().is_none_or(|value| value.trim().is_empty());
                 if missing_client_ca {
@@ -242,6 +251,7 @@ pub fn enforce_local_only(
                 network_exposed: true,
                 auth_mode,
                 tls: config.server.tls.clone(),
+                tls_termination,
                 audit_enabled,
                 rate_limit_enabled,
             })

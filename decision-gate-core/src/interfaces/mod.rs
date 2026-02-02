@@ -274,6 +274,15 @@ pub trait RunStateStore {
     ///
     /// Returns [`StoreError`] when saving fails.
     fn save(&self, state: &RunState) -> Result<(), StoreError>;
+
+    /// Reports store readiness for liveness/readiness probes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the store is unavailable.
+    fn readiness(&self) -> Result<(), StoreError> {
+        Ok(())
+    }
 }
 
 // ============================================================================
@@ -334,6 +343,15 @@ pub trait DataShapeRegistry {
         cursor: Option<String>,
         limit: usize,
     ) -> Result<DataShapePage, DataShapeRegistryError>;
+
+    /// Reports registry readiness for liveness/readiness probes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DataShapeRegistryError`] when the registry is unavailable.
+    fn readiness(&self) -> Result<(), DataShapeRegistryError> {
+        Ok(())
+    }
 }
 
 // ============================================================================

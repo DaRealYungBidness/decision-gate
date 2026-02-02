@@ -1,0 +1,17 @@
+target
+.venv
+.git
+.gitignore
+.tmp
+.vscode
+.VSCodeCounter
+**/.DS_Store
+**/node_modules
+**/dist
+decision-gate.db
+decision-gate.db-shm
+decision-gate.db-wal
+decision-gate-registry.db
+decision-gate-registry.db-shm
+decision-gate-registry.db-wal
+*.log

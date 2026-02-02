@@ -248,6 +248,15 @@ impl SqliteRunStateStore {
             connection: Arc::new(Mutex::new(connection)),
         })
     }
+
+    fn check_connection(&self) -> Result<(), SqliteStoreError> {
+        let guard = self
+            .connection
+            .lock()
+            .map_err(|_| SqliteStoreError::Io("sqlite mutex poisoned".to_string()))?;
+        guard.execute("SELECT 1", []).map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+        Ok(())
+    }
 }
 
 impl RunStateStore for SqliteRunStateStore {
@@ -262,6 +271,10 @@ impl RunStateStore for SqliteRunStateStore {
 
     fn save(&self, state: &RunState) -> Result<(), StoreError> {
         self.save_state(state).map_err(StoreError::from)
+    }
+
+    fn readiness(&self) -> Result<(), StoreError> {
+        self.check_connection().map_err(StoreError::from)
     }
 }
 
@@ -480,6 +493,10 @@ impl DataShapeRegistry for SqliteRunStateStore {
             items: records,
             next_token,
         })
+    }
+
+    fn readiness(&self) -> Result<(), DataShapeRegistryError> {
+        self.check_connection().map_err(|err| DataShapeRegistryError::Io(err.to_string()))
     }
 }
 

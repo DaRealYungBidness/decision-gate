@@ -82,6 +82,7 @@ explicit requirements are satisfied.
 - Run the CLI:
   - `cargo run -p decision-gate-cli -- serve --config configs/presets/quickstart-dev.toml`
 - Preset configs: `configs/presets/` (see `Docs/guides/preset_configs.md`)
+- Container deployment: `Docs/guides/container_deployment.md`
 - Durable run state: configure `run_state_store` in `decision-gate.toml` to use
   the SQLite backend (see `Docs/configuration/decision-gate.toml.md`).
 
@@ -89,6 +90,7 @@ explicit requirements are satisfied.
 
 - Getting started: `Docs/guides/getting_started.md`
 - Preset configs: `Docs/guides/preset_configs.md`
+- Container deployment: `Docs/guides/container_deployment.md`
 - Configuration: `Docs/configuration/decision-gate.toml.md`
 - Provider development: `Docs/guides/provider_development.md`
 - Security guide: `Docs/guides/security_guide.md`

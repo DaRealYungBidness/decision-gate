@@ -26,6 +26,7 @@ Server transport, auth, limits, and audit settings.
 | --- | --- | --- | --- |
 | `transport` | "stdio" \| "http" \| "sse" | stdio | Transport protocol for MCP. |
 | `mode` | "strict" \| "dev_permissive" | strict | Operational mode for MCP (dev_permissive is legacy). |
+| `tls_termination` | "server" \| "upstream" | server | Where TLS is terminated for HTTP/SSE transport. |
 | `bind` | string | null | Bind address for HTTP/SSE transport. |
 | `max_body_bytes` | integer | 1048576 | Maximum JSON-RPC request size in bytes. |
 | `limits` | table | { max_inflight = 256 } | Request limits for MCP server. |
@@ -35,7 +36,7 @@ Server transport, auth, limits, and audit settings.
 | `feedback` | table | n/a | Feedback disclosure configuration for tool responses. |
 | `tools` | table | { mode = "filter", allowlist = [], denylist = [] } | Tool visibility configuration for MCP tool listings. |
 
-HTTP/SSE require `bind`; non-loopback requires explicit CLI opt-in plus TLS + non-local auth.
+HTTP/SSE require `bind`; non-loopback requires explicit CLI opt-in plus TLS or `tls_termination = "upstream"` + non-local auth.
 
 ### [server.auth]
 

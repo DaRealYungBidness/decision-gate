@@ -34,6 +34,13 @@ fn schema_defaults_match_runtime_defaults() -> TestResult {
     assert_default(&schema, "/properties/server/properties/transport/default", &transport)?;
     let mode = serde_json::to_value(config.server.mode).map_err(|err| err.to_string())?;
     assert_default(&schema, "/properties/server/properties/mode/default", &mode)?;
+    let tls_termination =
+        serde_json::to_value(config.server.tls_termination).map_err(|err| err.to_string())?;
+    assert_default(
+        &schema,
+        "/properties/server/properties/tls_termination/default",
+        &tls_termination,
+    )?;
     assert_default(
         &schema,
         "/properties/server/properties/max_body_bytes/default",

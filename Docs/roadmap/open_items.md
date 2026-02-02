@@ -43,8 +43,20 @@ explicitly revised.
 ### P0) Launch Blockers (World-Class Bar)
 **Status**: Launch-blocking until all gates pass.
 
-- Cross-OS determinism CI for golden runpacks (Linux + Windows byte-for-byte).
-- Metamorphic determinism suite wired to CI with concurrency coverage.
+- Foundational correctness remaining gates (summary; see
+  `Docs/roadmap/foundational_correctness_roadmap.md`).
+  This is the authoritative map of launch-blocking correctness work. Remaining
+  gaps are primarily around adversarial depth and cross-surface confidence:
+  metamorphic reordering (evidence + provider order), provider chaos testing
+  (slow-loris, truncation, redirect loops), legacy runpack compatibility
+  vectors, broader fuzzing + log-leak scanning, defined capacity thresholds,
+  Windows Quick Start validation + reproducible build guidance, and live-mode
+  agentic harness parity (report-only integration reality checks). These are
+  security- and trust-critical: without them, determinism, fail-closed
+  guarantees, and auditability regress under adversarial or high-load
+  conditions.
+- Metamorphic determinism reordering coverage (evidence arrival + provider order)
+  and CI wiring for concurrency cases.
 - Fuzzing expansion across ScenarioSpec, Evidence payloads, JSONPath, and
   comparator edge cases.
 - Chaos provider matrix (TLS oddities, redirect loops, slow-loris, truncation).
@@ -52,7 +64,12 @@ explicitly revised.
 - SQLite durability tests (crash/partial write/rollback recovery).
 - Log leakage scanning for secret exposure across error paths/panics.
 - Performance/scaling targets with at least one gated benchmark.
-- Agentic flow harness with canonical scenarios + replay verification.
+- Agentic flow harness live-mode (LLM provider swap, allowlisted network,
+  transcripts) + cross-OS CI parity for deterministic runs.
+- Agentic flow harness status + live-mode plan reference:
+  `Docs/roadmap/decision_gate_agentic_flow_harness_plan.md`.
+- CLI world-class readiness status + remaining gaps:
+  `Docs/roadmap/decision_gate_cli_world_class_readiness.md`.
 
 ### P1) Production Readiness
 - Reproducible build guidance + version stamping for CLI.
@@ -93,6 +110,31 @@ examples where AssetCore is referenced.
 - `Docs/integrations/assetcore/examples.md`
 - `Docs/integrations/assetcore/deployment.md`
 - `Docs/integrations/assetcore/README.md`
+
+5) AssetCore Example + Deployment Placeholders (Launch TODOs)
+**What**: Replace explicit TODO placeholders for AssetCore examples and
+deployment recipes with validated, OSS-safe guidance (or remove the sections
+entirely if they cannot be made public).
+**Why**: These placeholders are explicit pre-launch gaps and create a
+documentation trust risk. They also imply dependencies on private content,
+which violates the OSS boundary and can mislead adopters.
+**Status**: Open (tracked in `Docs/roadmap/todo_before_launch.md`).
+**Where**:
+- `Docs/integrations/assetcore/examples.md` (world-class example placeholder)
+- `Docs/integrations/assetcore/deployment.md` (deployment recipes TODO)
+- `Docs/roadmap/asc_dg_alignment_marketing_now.md` (example/deployment TODOs)
+
+5) Provider Contract Bulk Export (Deferred)
+**What**: A discovery endpoint/CLI command that exports *all* provider
+contracts or compiled check schemas in a single request.
+**Why**: Enables offline indexing, UI catalogs, and build-time caching without
+per-provider calls.
+**Security / risk**: High data-volume disclosure surface. Without explicit
+opt-in, pagination, and strict size limits, it can leak sensitive metadata,
+create denial-of-service vectors, and blow out LLM context windows. Must be
+gated by authz + allow/deny lists and protected by response byte caps.
+**Status**: Open (explicitly deferred; no `provider_contracts_export` tool or
+CLI command implemented).
 
 ## Completed Items (Reference)
 

@@ -208,7 +208,7 @@ default_policy = { require_signature = { keys = ["/etc/decision-gate/keys/cloud.
 - [ ] Config validates (`decision-gate config validate`)
 - [ ] Providers have valid `capabilities_path` files
 - [ ] `namespace.allow_default` set correctly for local-only usage
-- [ ] Auth + TLS configured for non-loopback binds
+- [ ] Auth + TLS (or `tls_termination = "upstream"`) configured for non-loopback binds
 - [ ] `trust.default_policy` and `min_lane` set for production
 - [ ] Evidence disclosure policy set (`allow_raw_values`, `require_provider_opt_in`)
 

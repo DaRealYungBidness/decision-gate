@@ -183,6 +183,7 @@ fn build_sections() -> Vec<SectionSpec> {
             fields: &[
                 "transport",
                 "mode",
+                "tls_termination",
                 "bind",
                 "max_body_bytes",
                 "limits",
@@ -204,7 +205,8 @@ fn build_sections() -> Vec<SectionSpec> {
                 },
             ],
             extra: Some(
-                "HTTP/SSE require `bind`; non-loopback requires explicit CLI opt-in plus TLS + non-local auth.",
+                "HTTP/SSE require `bind`; non-loopback requires explicit CLI opt-in plus TLS \
+or `tls_termination = \"upstream\"` + non-local auth.",
             ),
         },
         SectionSpec {

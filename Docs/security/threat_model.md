@@ -310,7 +310,7 @@ Decision Gate is composed of:
 ## Operational Requirements
 
 - Restrict MCP access to authenticated transports (mTLS, IPC ACLs, reverse
-  proxy auth) and enforce TLS for HTTP/SSE.
+  proxy auth) and enforce TLS for HTTP/SSE (or explicit upstream termination).
 - Configure `server.auth` for non-loopback deployments; rotate tokens and
   maintain tool allowlists.
 - Keep dev-permissive disabled in production; require verified trust lanes.

@@ -115,6 +115,42 @@ bearer_tokens = ["token"]
 }
 
 #[test]
+fn non_loopback_allows_upstream_tls() {
+    let config = load_config(
+        r#"
+[server]
+transport = "http"
+bind = "0.0.0.0:8080"
+tls_termination = "upstream"
+
+[server.auth]
+mode = "bearer_token"
+bearer_tokens = ["token"]
+"#,
+    );
+    let outcome = enforce_local_only(&config, true).expect("expected upstream tls success");
+    assert!(outcome.network_exposed);
+}
+
+#[test]
+fn mtls_allows_upstream_tls_without_client_ca() {
+    let config = load_config(
+        r#"
+[server]
+transport = "http"
+bind = "0.0.0.0:8080"
+tls_termination = "upstream"
+
+[server.auth]
+mode = "mtls"
+mtls_subjects = ["CN=test"]
+"#,
+    );
+    let outcome = enforce_local_only(&config, true).expect("expected upstream mtls success");
+    assert!(outcome.network_exposed);
+}
+
+#[test]
 fn mtls_requires_client_ca() {
     let config = load_config(
         r#"

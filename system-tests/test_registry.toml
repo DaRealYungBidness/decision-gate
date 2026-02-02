@@ -248,6 +248,36 @@ artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 10
 
 [[tests]]
+name = "preset_container_prod_http"
+category = "operations"
+priority = "P1"
+description = "Container-Prod preset enforces auth and runs scenario lifecycle."
+files = ["system-tests/tests/suites/presets.rs", "configs/presets/container-prod.toml"]
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact presets::preset_container_prod_http"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 10
+
+[[tests]]
+name = "http_health_endpoints_ok"
+category = "operations"
+priority = "P1"
+description = "HTTP health endpoints respond with ok/ready JSON."
+files = ["system-tests/tests/suites/operations.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact operations::http_health_endpoints_ok"
+artifacts = ["summary.json", "summary.md"]
+estimated_runtime_sec = 5
+
+[[tests]]
+name = "http_readiness_fails_when_store_unavailable"
+category = "operations"
+priority = "P1"
+description = "HTTP readiness returns not_ready when the run state store is unavailable."
+files = ["system-tests/tests/suites/operations.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact operations::http_readiness_fails_when_store_unavailable"
+artifacts = ["summary.json", "summary.md"]
+estimated_runtime_sec = 5
+
+[[tests]]
 name = "python_sdk_http_scenario_lifecycle"
 category = "functional"
 priority = "P1"

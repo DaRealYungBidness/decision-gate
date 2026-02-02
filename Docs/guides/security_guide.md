@@ -23,11 +23,12 @@ Dependencies:
 
 ## Preset Postures
 
-Decision Gate ships three presets (see [preset_configs.md](preset_configs.md)):
+Decision Gate ships four presets (see [preset_configs.md](preset_configs.md)):
 
 - **Quickstart-Dev:** local-only auth, registry local-only bypass, dev-permissive enabled.
 - **Default-Recommended:** local-only auth with explicit principal mappings; registry bypass off.
 - **Hardened:** bearer auth, default namespace disabled, schema signing required.
+- **Container-Prod:** bearer auth, upstream TLS termination, stateless defaults.
 
 These presets are intentionally explicit. If you change the posture (auth mode,
 namespace defaults, registry ACL, trust lanes), update the preset and re-run
@@ -70,10 +71,12 @@ Registry note:
 ### Non-Loopback Binding
 Binding HTTP/SSE to non-loopback requires **all** of:
 1. `--allow-non-loopback` or `DECISION_GATE_ALLOW_NON_LOOPBACK=1`
-2. `[server.tls]` configured
+2. `[server.tls]` configured **or** `server.tls_termination = "upstream"`
 3. Non-local auth (`bearer_token` or `mtls`)
 
-For `mtls`, `server.tls.client_ca_path` must be set and `require_client_cert = true`.
+For in-container `mtls`, `server.tls.client_ca_path` must be set and
+`require_client_cert = true`. For upstream TLS termination, enforce mTLS at
+the proxy and forward `x-decision-gate-client-subject`.
 
 ---
 

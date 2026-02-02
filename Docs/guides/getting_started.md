@@ -81,6 +81,7 @@ to keep the first run frictionless.
 Other presets:
 - **Default-Recommended:** local-only + explicit principal mapping.
 - **Hardened:** bearer auth + schema signing required.
+- **Container-Prod:** bearer auth + upstream TLS termination (container baseline).
 
 If you want to edit settings, copy the preset first:
 
@@ -90,7 +91,7 @@ cp configs/presets/quickstart-dev.toml decision-gate.toml
 
 Notes:
 - Default namespace id `1` is **blocked** unless `namespace.allow_default = true` **and** the tenant id is listed in `namespace.default_tenants`.
-- For non-loopback HTTP/SSE binds, Decision Gate requires `--allow-non-loopback` plus TLS and non-local auth. See [security_guide.md](security_guide.md).
+- For non-loopback HTTP/SSE binds, Decision Gate requires `--allow-non-loopback` plus TLS or `server.tls_termination = "upstream"` and non-local auth. See [security_guide.md](security_guide.md).
 - **Windows tip:** PowerShell/CMD do not support bash-style multiline `curl`. Use a single-line command or PowerShell's `@'... '@` here-string.
 
 ### Step 2: Start the MCP Server

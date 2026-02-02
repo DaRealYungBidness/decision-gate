@@ -9,7 +9,7 @@ Dependencies:
   - Docs/roadmap/decision_gate_world_class_onboarding_plan.md
   - Docs/security/threat_model.md
 ============================================================================
-Last Updated: 2026-01-31 (UTC)
+Last Updated: 2026-02-02 (UTC)
 ============================================================================
 -->
 
@@ -40,6 +40,32 @@ Out of scope:
 
 ---
 
+## Status Summary (as of 2026-02-02)
+
+**Implemented:**
+- Full MCP tool surface (generic `mcp tools` + typed tool wrappers).
+- Multi-transport MCP client (stdio/HTTP/SSE) with size limits and timeouts.
+- Auth flags + auth profiles (bearer token + client subject header).
+- Schema registry CLI (`schema register/list/get`).
+- Provider discovery CLI (`provider list/contract/check-schema`).
+- Docs search + resources (`docs search/list/read`).
+- Contract + SDK generator wrappers.
+- i18n readiness (`--lang` + `DECISION_GATE_LANG`, en/ca catalogs, parity tests).
+
+**Partial:**
+- Output format standardization (canonical JSON is common, but not universal).
+- CLI security posture is mostly enforced, but not uniformly documented or
+  enforced at the command level (e.g., evidence redaction is MCP-driven).
+- Auditable artifacts are available via runpacks, but CLI output signing is
+  not implemented.
+
+**Missing:**
+- Runpack storage integration in CLI (object-store export/verify).
+- Store administration CLI (`store list-runs/get-run/export-run/verify/prune`).
+- Broker test utilities CLI (`broker resolve/dispatch`).
+
+---
+
 ## Non-Negotiable Invariants
 
 1. **Full MCP parity**: the CLI must expose every tool listed in
@@ -55,280 +81,207 @@ Out of scope:
 
 ---
 
-## Open CLI Points and Closure Requirements
+## Open CLI Points and Closure Requirements (with Status)
 
 ### 1) Full MCP Tool Surface (Parity)
 
-**Open Point:** CLI currently exposes a subset of tools and does not provide a
-generic `tools/call` wrapper.
+**Status:** Implemented.
 
-**Closure Requirements:**
-- Add a `decision-gate mcp` client command group:
-  - `mcp tools list`
-  - `mcp tools call --tool <name> --input <json|file>`
-  - `mcp resources list`
-  - `mcp resources read --uri <resource>`
-- Provide one CLI subcommand per tool for typed UX (optional but preferred).
-- Validate input schemas using canonical JSON schemas when available.
-- Ensure tooling parity with the 18 tools in the contract.
+**Evidence (current files):**
+- `decision-gate-cli/src/main.rs` (MCP commands + typed tool wrappers)
+- `decision-gate-core/src/tooling.rs` (18 tools list)
 
-**Acceptance Criteria:**
-- `decision-gate mcp tools list` matches the MCP server list.
-- Each tool can be called with validated JSON input and deterministic output.
-- CLI coverage includes: scenario lifecycle, evidence query, providers list,
-  schema registry, precheck, runpack export/verify, and docs search.
+**Notes:**
+- Generic MCP client commands (`mcp tools list/call`, `mcp resources list/read`) exist.
+- Typed tool wrappers exist for all 18 tools.
+- Input schema validation is wired through contract schemas.
 
 ---
 
 ### 2) Multi-Transport Support (stdio/HTTP/SSE)
 
-**Open Point:** CLI interop uses HTTP only and does not support stdio or SSE.
+**Status:** Implemented.
 
-**Closure Requirements:**
-- Transport selection in CLI config or flags:
-  - stdio: launch or connect to stdio MCP server.
-  - HTTP: JSON-RPC via `POST /rpc`.
-  - SSE: JSON-RPC via `POST /rpc` with event-stream responses.
-- Enforce max body sizes and timeouts consistently per transport.
-- Support local-only policy gating for network transports.
+**Evidence (current files):**
+- `decision-gate-cli/src/mcp_client.rs`
+- `decision-gate-cli/src/main.rs`
 
-**Acceptance Criteria:**
-- End-to-end tool call succeeds on all transports.
-- Timeouts, size limits, and error decoding are identical across transports.
+**Notes:**
+- Transport selection is explicit via CLI flags.
+- Size limits and timeouts are enforced in the client.
+- Server-side non-loopback gating exists in `serve` (see `serve_policy.rs`).
 
 ---
 
 ### 3) Auth and Identity Support
 
-**Open Point:** CLI supports bearer token and a client subject header for interop
-only, not full auth surface across all commands.
+**Status:** Implemented.
 
-**Closure Requirements:**
-- Global auth flags and config integration for CLI client commands:
-  - Bearer token
-  - mTLS client subject header (proxy mode)
-- Ensure auth headers are never logged unless explicitly requested.
-- Provide `--auth-profile` for safe reuse of named auth settings in config.
+**Evidence (current files):**
+- `decision-gate-cli/src/main.rs` (auth flags + auth profile loading)
+- `decision-gate-cli/src/mcp_client.rs` (headers)
 
-**Acceptance Criteria:**
-- Auth behavior matches MCP server auth modes.
-- CLI never prints or logs credentials by default.
+**Notes:**
+- Bearer token and client subject headers are supported.
+- Auth profiles are loaded from config and tokens are redacted in debug output.
 
 ---
 
 ### 4) Schema Registry CLI
 
-**Open Point:** MCP exposes schema registry tools; CLI has no support.
+**Status:** Implemented.
 
-**Closure Requirements:**
-- `schema register`, `schema list`, `schema get` CLI commands.
-- JSON schema validation before registration where possible.
-- Support for schema signatures if enabled in config.
-
-**Acceptance Criteria:**
-- CLI can register, list, and fetch schemas with deterministic output.
-- ACLs and namespace constraints are enforced consistently with MCP.
+**Evidence (current files):**
+- `decision-gate-cli/src/main.rs` (`schema register/list/get`)
 
 ---
 
 ### 5) Providers List + Contract Inspection
 
-**Open Point:** CLI supports `provider_contract_get` and `provider_check_schema_get`,
-but not `providers_list`.
+**Status:** Implemented.
 
-**Closure Requirements:**
-- Add `provider list` to enumerate providers and their contract metadata.
-- Provide a summary view vs full JSON.
-
-**Acceptance Criteria:**
-- CLI matches `providers_list` output from MCP.
-- CLI includes deterministic ordering and stable formatting.
+**Evidence (current files):**
+- `decision-gate-cli/src/main.rs` (`provider list/contract/check-schema`)
 
 ---
 
 ### 6) Docs Search and Resources
 
-**Open Point:** MCP provides `decision_gate_docs_search` plus resources;
-CLI does not expose them.
+**Status:** Implemented.
 
-**Closure Requirements:**
-- `docs search` and `docs read` CLI commands.
-- Support query and max section count; default to safe caps.
-
-**Acceptance Criteria:**
-- Output mirrors MCP docs search results.
-- Empty query yields deterministic overview output.
+**Evidence (current files):**
+- `decision-gate-cli/src/main.rs` (`docs search/list/read`)
 
 ---
 
 ### 7) Runpack Storage Integration
 
-**Open Point:** MCP includes runpack storage hooks; CLI only writes local files.
+**Status:** Missing.
 
-**Closure Requirements:**
-- CLI support for object-store-backed runpack export and verification, when
-  configured.
-- Explicit opt-in for remote storage sinks.
+**Current behavior:**
+- CLI runpack export/verify use filesystem-only artifact sink/reader.
 
-**Acceptance Criteria:**
-- CLI can export runpack to local or configured storage and report the storage
-  URI deterministically.
-- Verification supports reading from the same storage backend.
+**Evidence (current files):**
+- `decision-gate-cli/src/main.rs` (`FileArtifactSink` / `FileArtifactReader`)
 
 ---
 
 ### 8) Store Administration (SQLite)
 
-**Open Point:** SQLite store is available but no CLI to inspect or validate.
+**Status:** Missing.
 
-**Closure Requirements:**
-- `store list-runs`, `store get-run`, `store export-run`, `store verify`.
-- Optional `store prune` respecting `max_versions` semantics.
-
-**Acceptance Criteria:**
-- CLI can list and fetch run state without violating size limits.
-- Hash verification matches core deterministic rules.
+**Current behavior:**
+- No `store` command group exists in the CLI.
 
 ---
 
 ### 9) Broker Test Utilities
 
-**Open Point:** Disclosure broker sources/sinks exist but no CLI for testing.
+**Status:** Missing.
 
-**Closure Requirements:**
-- `broker resolve` to fetch and validate `ContentRef` payloads.
-- `broker dispatch` to send packets to a sink.
-
-**Acceptance Criteria:**
-- CLI can resolve file/http/inline sources with strict size limits.
-- Dispatch uses deterministic envelopes and explicit targets.
+**Current behavior:**
+- No `broker` command group exists in the CLI.
 
 ---
 
 ### 10) Contract + SDK Generation Entry Points
 
-**Open Point:** Contract and SDK generators are separate binaries; no single
-operator entrypoint.
+**Status:** Implemented.
 
-**Closure Requirements:**
-- `decision-gate contract generate/check` wrappers.
-- `decision-gate sdk generate/check` wrappers.
-
-**Acceptance Criteria:**
-- CLI invokes the generators and validates outputs in-place.
-- Exit codes are stable for CI gating.
+**Evidence (current files):**
+- `decision-gate-cli/src/main.rs` (`contract generate/check`, `sdk generate/check`)
 
 ---
 
 ### 11) CLI UX and Output Standards
 
-**Open Point:** Output formats are inconsistent across commands.
+**Status:** Partial.
 
-**Closure Requirements:**
-- Default to canonical JSON for machine consumption.
-- `--format` flags for `json`, `markdown`, `text` where appropriate.
-- Always include correlation metadata when available.
-
-**Acceptance Criteria:**
-- Commands produce deterministic output order and formatting.
-- Structured output is stable across versions for CI parsing.
+**Current behavior:**
+- Canonical JSON output is used for many commands, but not all.
+- Several commands emit text output only (e.g., `config validate`, `runpack export`).
+- `--format` is not consistently available across commands.
 
 ---
 
 ### 12) Hardening and Security Posture
 
-**Open Point:** CLI lacks a unified security posture doc for operator use.
+**Status:** Partial.
 
-**Closure Requirements:**
-- Ensure all commands enforce size limits and safe file handling.
-- Explicit guardrails for non-loopback networking.
-- Redaction of raw evidence by default.
-- No implicit environment variable expansion for secrets unless requested.
-
-**Acceptance Criteria:**
-- CLI fails closed on invalid or oversized inputs.
-- Security warnings shown on network exposure.
+**Current behavior:**
+- Non-loopback bind guardrails exist for `serve`.
+- Size limits are enforced for file reads and MCP responses.
+- Evidence redaction is MCP-driven; CLI does not add extra redaction layers.
+- No dedicated CLI security posture doc exists yet.
 
 ---
 
 ### 13) Internationalization (i18n) Readiness
 
-**Open Point:** CLI has English-only catalog; no locale selection or parity checks.
+**Status:** Implemented.
 
-**Closure Requirements:**
-- Locale selection via `--lang` and `DECISION_GATE_LANG` with deterministic
-  fallback to `en`.
-- Separate locale catalogs with identical key sets.
-- Default warning banner when language is not English:
-  "Note: non-English output is machine-translated and may be inaccurate."
-- CI tests enforce:
-  - Every user-facing string uses `t!`.
-  - Locale catalogs have identical keys (no missing translations).
-  - English is the canonical fallback for missing keys.
-- Launch with two languages: `en` and `ca` (Catalan) as the test language.
-
-**Acceptance Criteria:**
-- CLI can switch to `ca` and emit translated output for all keys.
-- Any missing translation fails CI (no silent fallback except `en`).
-- Disclaimer is shown for all non-English locales.
+**Evidence (current files):**
+- `decision-gate-cli/src/i18n.rs` (en/ca catalogs)
+- `decision-gate-cli/src/tests/i18n.rs` (catalog parity tests)
+- `decision-gate-cli/src/main.rs` (disclaimer + language selection)
 
 ---
 
-## Quality Gates
+## Quality Gates (Current Status)
 
 ### Functional
-- Full MCP tool parity and resource coverage.
-- Multi-transport support with equivalent behavior.
-- Schema registry and provider listing support.
+- Full MCP tool parity and resource coverage. **Met**
+- Multi-transport support with equivalent behavior. **Met**
+- Schema registry and provider listing support. **Met**
 
 ### Security
-- All network actions require explicit opt-in and auth where configured.
-- Credentials never logged by default.
-- All input size limits enforced with clear error messages.
+- Network actions require explicit opt-in and auth where configured. **Partial**
+- Credentials never logged by default. **Met**
+- All input size limits enforced with clear error messages. **Met**
 
 ### Determinism
-- Canonical JSON output for all machine-readable responses.
-- Stable ordering for lists and transcripts.
+- Canonical JSON output for all machine-readable responses. **Partial**
+- Stable ordering for lists and transcripts. **Met**
 
 ### Internationalization
-- Locale key parity enforced across all catalogs.
-- Non-English disclaimer present and deterministic.
+- Locale key parity enforced across all catalogs. **Met**
+- Non-English disclaimer present and deterministic. **Met**
 
 ### Auditability
-- Correlation and request metadata preserved in outputs.
-- Optional JSON transcript output for all tool calls.
+- Correlation and request metadata preserved in outputs. **Partial**
+- Optional JSON transcript output for all tool calls. **Partial**
+- Signed/hashed CLI output artifacts. **Missing**
 
 ---
 
-## Testing and Validation Plan
+## Testing and Validation Plan (Current Status)
 
-1. **CLI conformance tests**: verify every tool command against a local MCP
-   server with deterministic fixtures.
-2. **Transport matrix**: stdio/HTTP/SSE parity tests.
-3. **Auth matrix**: local-only, bearer token, mTLS proxy subject.
-4. **Size-limit tests**: verify hard caps on input/output across commands.
-5. **Golden outputs**: snapshot tests for canonical JSON output.
-6. **i18n parity tests**: verify `en` and `ca` catalogs have identical keys and
-   all CLI strings route through `t!`.
+1. **CLI conformance tests**: present for MCP tool coverage. **Met**
+2. **Transport matrix**: stdio/HTTP/SSE parity tests exist. **Met**
+3. **Auth matrix**: CLI auth coverage exists. **Met**
+4. **Size-limit tests**: CLI limits are tested. **Met**
+5. **Golden outputs**: CLI golden outputs present. **Met**
+6. **i18n parity tests**: en/ca parity tests exist. **Met**
 
 ---
 
 ## Release Readiness Checklist (CLI)
 
-- [ ] All 18 tools exposed and validated.
-- [ ] Multi-transport client modes supported.
-- [ ] Auth profiles and safe defaults enforced.
-- [ ] Schema registry CLI complete.
-- [ ] Provider list and contract views complete.
-- [ ] Docs search CLI complete.
+- [x] All 18 tools exposed and validated.
+- [x] Multi-transport client modes supported.
+- [x] Auth profiles and safe defaults enforced.
+- [x] Schema registry CLI complete.
+- [x] Provider list and contract views complete.
+- [x] Docs search CLI complete.
 - [ ] Runpack storage integration complete.
 - [ ] Store admin CLI complete.
 - [ ] Broker test CLI complete.
-- [ ] Contract/SDK generators integrated.
-- [ ] Output formats deterministic + documented.
-- [ ] Security posture validated in tests.
-- [ ] i18n parity tests green (en + ca).
-- [ ] Non-English disclaimer enabled and verified.
+- [x] Contract/SDK generators integrated.
+- [~] Output formats deterministic + documented.
+- [~] Security posture validated in tests.
+- [x] i18n parity tests green (en + ca).
+- [x] Non-English disclaimer enabled and verified.
+- [ ] Signed/hashed CLI output artifacts.
 
 ---
 

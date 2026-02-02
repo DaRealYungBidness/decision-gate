@@ -1611,6 +1611,15 @@
             }
           ]
         },
+        "tls_termination": {
+          "default": "server",
+          "description": "Where TLS is terminated for HTTP/SSE transport.",
+          "enum": [
+            "server",
+            "upstream"
+          ],
+          "type": "string"
+        },
         "tools": {
           "additionalProperties": false,
           "description": "Tool visibility configuration for MCP tool listings.",

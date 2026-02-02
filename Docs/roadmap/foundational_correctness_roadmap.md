@@ -14,7 +14,7 @@ Dependencies:
   - Docs/architecture/decision_gate_evidence_trust_anchor_architecture.md
   - system-tests/test_registry.toml
 ============================================================================
-Last Updated: 2026-01-29 (UTC)
+Last Updated: 2026-02-02 (UTC)
 ============================================================================
 -->
 
@@ -96,7 +96,7 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 
 - System-tests suite: `system-tests/tests/suites/golden_runpacks.rs`.
 - Determinism replay suite: `system-tests/tests/suites/determinism.rs` (AssetCore fixture replay).
-- CI matrix job: Linux + Windows comparisons (still required; not wired in repo).
+- Cross-OS CI matrix: `.github/workflows/golden_runpack_cross_os.yml` runs on Linux + Windows.
 
 ---
 
@@ -339,7 +339,7 @@ safe logging across failure paths.
 
 - Agent loop examples in `examples/agent-loop/` and SDK examples
   (`examples/python/agent_loop.py`, `examples/typescript/agent_loop.ts`).
-- SDK example suite exercises agent loop flows but no unified harness.
+- SDK example suite exercises agent loop flows; deterministic harness covers multi-projection parity.
 - Deterministic agentic harness implemented in
   `system-tests/tests/suites/agentic_harness.rs`, backed by a registry in
   `system-tests/tests/fixtures/agentic/scenario_registry.toml`, canonical packs
@@ -363,7 +363,7 @@ safe logging across failure paths.
 | Gate | Requirement                      | Status | Evidence                                |
 | ---- | -------------------------------- | ------ | --------------------------------------- |
 | 1    | Golden runpack suite committed   | ✅     | Fixtures + `golden_runpacks` suite      |
-| 1    | Cross-OS determinism             | 🟡     | `golden_runpack_cross_os` + fixtures; CI matrix not wired |
+| 1    | Cross-OS determinism             | ✅     | `golden_runpack_cross_os` workflow + fixtures |
 | 2    | Metamorphic determinism          | 🟡     | Core evidence order + concurrent runs   |
 | 3    | Canonicalization contract tests  | ✅     | `decision-gate-core/tests/hashing.rs`   |
 | 4    | Trust lanes enforced             | ✅     | Core + system tests                     |
@@ -385,12 +385,10 @@ safe logging across failure paths.
 ## Phase A — Determinism & Runpacks
 
 **Current status:** golden fixtures + `golden_runpack_cross_os` suite exist; determinism replay
-suite present; cross-OS CI enforcement still missing.
+suite present; cross-OS CI enforcement is wired via `.github/workflows/golden_runpack_cross_os.yml`.
 
-1. Define golden scenario set and freeze inputs.
-2. Export runpacks on Linux + Windows.
-3. Commit runpacks and add cross-OS comparison test.
-4. Add CI job enforcing identical `root_hash` across OSes.
+1. Maintain golden fixtures when contract/runtime changes (`UPDATE_GOLDEN_RUNPACKS=1`).
+2. Keep cross-OS workflow green and investigate any manifest/hash drift.
 
 **Stop condition:** any mismatch in runpack root hash or manifest.
 
@@ -460,11 +458,11 @@ and reproducible build notes pending.
 
 ## Phase H — Agentic Harness
 
-**Current status:** agent loop examples + SDK example coverage; no unified harness or canonical
-scenario matrix.
+**Current status:** deterministic agentic harness + canonical scenarios are implemented and
+mirrored into examples; live-mode harness and cross-OS CI parity are still missing.
 
-1. Build harness simulating agent orchestration.
-2. Implement canonical scenarios and replay verification.
+1. Implement live-mode harness (LLM provider swap, allowlisted network, transcripts).
+2. Add cross-OS agentic harness parity in CI (Linux + Windows).
 
 **Stop condition:** harness scenario failure or nondeterministic runpack.
 

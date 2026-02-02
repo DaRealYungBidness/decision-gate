@@ -130,6 +130,12 @@ fn server_config_schema() -> Value {
                 "default": "strict",
                 "description": "Operational mode for MCP (dev_permissive is legacy)."
             },
+            "tls_termination": {
+                "type": "string",
+                "enum": ["server", "upstream"],
+                "default": "server",
+                "description": "Where TLS is terminated for HTTP/SSE transport."
+            },
             "bind": {
                 "oneOf": [
                     { "type": "null" },

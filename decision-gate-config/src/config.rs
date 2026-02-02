@@ -346,6 +346,9 @@ pub struct ServerConfig {
     /// Operational mode for the server.
     #[serde(default)]
     pub mode: ServerMode,
+    /// TLS termination mode for HTTP/SSE transports.
+    #[serde(default)]
+    pub tls_termination: ServerTlsTermination,
     /// Bind address for HTTP or SSE transports.
     #[serde(default)]
     pub bind: Option<String>,
@@ -377,6 +380,7 @@ impl Default for ServerConfig {
         Self {
             transport: ServerTransport::Stdio,
             mode: ServerMode::Strict,
+            tls_termination: ServerTlsTermination::Server,
             bind: None,
             max_body_bytes: default_max_body_bytes(),
             limits: ServerLimitsConfig::default(),
@@ -766,6 +770,17 @@ pub enum ServerTransport {
     Http,
     /// Use SSE transport for responses.
     Sse,
+}
+
+/// TLS termination mode for HTTP/SSE transports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ServerTlsTermination {
+    /// TLS is terminated by the Decision Gate server.
+    #[default]
+    Server,
+    /// TLS is terminated upstream (proxy/ingress/service mesh).
+    Upstream,
 }
 
 /// Inbound auth modes for MCP server tool calls.

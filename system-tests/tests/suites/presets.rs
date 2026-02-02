@@ -108,6 +108,57 @@ async fn preset_default_recommended_http() -> Result<(), Box<dyn std::error::Err
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn preset_container_prod_http() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("preset_container_prod_http")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let temp_dir = TempDir::new()?;
+    let mut config = load_preset("container-prod.toml")?;
+    configure_paths(&mut config, &bind, &temp_dir);
+    let token = config
+        .server
+        .auth
+        .as_ref()
+        .and_then(|auth| auth.bearer_tokens.first())
+        .cloned()
+        .ok_or("container preset missing bearer token")?;
+
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(Duration::from_secs(5))?.with_bearer_token(token);
+    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+
+    let unauthorized_client = server.client(Duration::from_secs(5))?;
+    let Err(err) = unauthorized_client.list_tools().await else {
+        return Err("expected unauthorized tools/list".into());
+    };
+    if !err.contains("unauthorized") {
+        return Err(format!("unexpected error: {err}").into());
+    }
+
+    let mut fixture = ScenarioFixture::time_after("preset-container", "run-1", 0);
+    let tenant_id = TenantId::new(NonZeroU64::new(1).ok_or("tenant id invalid")?);
+    let namespace_id = NamespaceId::new(NonZeroU64::new(2).ok_or("namespace id invalid")?);
+    fixture.tenant_id = tenant_id;
+    fixture.namespace_id = namespace_id;
+    fixture.spec.namespace_id = namespace_id;
+
+    run_basic_scenario(&client, &fixture).await?;
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["container-prod preset scenario passed; auth enforced".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+        ],
+    )?;
+    drop(reporter);
+    server.shutdown().await;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn preset_hardened_http() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("preset_hardened_http")?;
     let bind = allocate_bind_addr()?.to_string();

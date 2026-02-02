@@ -288,6 +288,10 @@ impl RunStateStore for SharedRunStateStore {
     fn save(&self, state: &RunState) -> Result<(), StoreError> {
         self.inner.save(state)
     }
+
+    fn readiness(&self) -> Result<(), StoreError> {
+        self.inner.readiness()
+    }
 }
 
 /// Shared data shape registry backed by an [`std::sync::Arc`] trait object.
@@ -341,6 +345,10 @@ impl DataShapeRegistry for SharedDataShapeRegistry {
         limit: usize,
     ) -> Result<DataShapePage, DataShapeRegistryError> {
         self.inner.list(tenant_id, namespace_id, cursor, limit)
+    }
+
+    fn readiness(&self) -> Result<(), DataShapeRegistryError> {
+        self.inner.readiness()
     }
 }
 

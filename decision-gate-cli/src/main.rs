@@ -221,7 +221,8 @@ struct ServeCommand {
     /// Optional config file path (defaults to decision-gate.toml or env override).
     #[arg(long, value_name = "PATH")]
     config: Option<PathBuf>,
-    /// Allow binding HTTP/SSE transports to non-loopback addresses (requires TLS + auth).
+    /// Allow binding HTTP/SSE transports to non-loopback addresses (requires TLS or upstream TLS +
+    /// auth).
     #[arg(long, action = ArgAction::SetTrue)]
     allow_non_loopback: bool,
 }
@@ -1063,9 +1064,8 @@ fn warn_network_exposure(outcome: &BindOutcome) -> CliResult<()> {
     let disabled = t!("serve.warn.network.disabled");
     let audit_status = if outcome.audit_enabled { enabled.clone() } else { disabled.clone() };
     let rate_limit_status = if outcome.rate_limit_enabled { enabled } else { disabled };
-    let tls_status = outcome.tls.as_ref().map_or_else(
-        || t!("serve.warn.network.tls_disabled"),
-        |tls| {
+    let tls_status = match (outcome.tls.as_ref(), outcome.tls_termination) {
+        (Some(tls), _) => {
             let client_cert = if tls.require_client_cert {
                 t!("serve.warn.network.required")
             } else {
@@ -1077,8 +1077,14 @@ fn warn_network_exposure(outcome: &BindOutcome) -> CliResult<()> {
                 t!("serve.warn.network.missing")
             };
             t!("serve.warn.network.tls_enabled", client_cert = client_cert, client_ca = client_ca)
-        },
-    );
+        }
+        (None, decision_gate_mcp::config::ServerTlsTermination::Upstream) => {
+            t!("serve.warn.network.tls_upstream")
+        }
+        (None, decision_gate_mcp::config::ServerTlsTermination::Server) => {
+            t!("serve.warn.network.tls_disabled")
+        }
+    };
     let auth_mode = match outcome.auth_mode {
         ServerAuthMode::LocalOnly => "local_only",
         ServerAuthMode::BearerToken => "bearer_token",

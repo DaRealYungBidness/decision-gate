@@ -21,6 +21,7 @@ use decision_gate_core::NamespaceId;
 use decision_gate_core::TenantId;
 use decision_gate_core::core::hashing::hash_bytes;
 use decision_gate_mcp::McpServer;
+use decision_gate_mcp::ServerOverrides;
 use decision_gate_mcp::config::AnchorPolicyConfig;
 use decision_gate_mcp::config::DecisionGateConfig;
 use decision_gate_mcp::config::DocsConfig;
@@ -42,6 +43,7 @@ use decision_gate_mcp::config::ServerFeedbackConfig;
 use decision_gate_mcp::config::ServerLimitsConfig;
 use decision_gate_mcp::config::ServerMode;
 use decision_gate_mcp::config::ServerTlsConfig;
+use decision_gate_mcp::config::ServerTlsTermination;
 use decision_gate_mcp::config::ServerToolsConfig;
 use decision_gate_mcp::config::ServerTransport;
 use decision_gate_mcp::config::TrustConfig;
@@ -128,6 +130,7 @@ pub fn base_http_config(bind: &str) -> DecisionGateConfig {
         server: ServerConfig {
             transport: ServerTransport::Http,
             mode: ServerMode::Strict,
+            tls_termination: ServerTlsTermination::Server,
             bind: Some(bind.to_string()),
             max_body_bytes: 1024 * 1024,
             limits: ServerLimitsConfig::default(),
@@ -234,6 +237,7 @@ pub fn base_sse_config(bind: &str) -> DecisionGateConfig {
         server: ServerConfig {
             transport: ServerTransport::Sse,
             mode: ServerMode::Strict,
+            tls_termination: ServerTlsTermination::Server,
             bind: Some(bind.to_string()),
             max_body_bytes: 1024 * 1024,
             limits: ServerLimitsConfig::default(),
@@ -397,6 +401,29 @@ pub async fn spawn_mcp_server(config: DecisionGateConfig) -> Result<McpServerHan
     let server = tokio::task::spawn_blocking(move || McpServer::from_config(config))
         .await
         .map_err(|err| format!("mcp server init join failed: {err}"))?;
+    release_reserved_port(&bind);
+    let server = server.map_err(|err| err.to_string())?;
+    let join = tokio::spawn(async move { server.serve().await });
+    Ok(McpServerHandle {
+        base_url,
+        join,
+    })
+}
+
+/// Spawns an MCP server with overrides in the background and returns a handle.
+pub async fn spawn_mcp_server_with_overrides(
+    config: DecisionGateConfig,
+    overrides: ServerOverrides,
+) -> Result<McpServerHandle, String> {
+    let bind =
+        config.server.bind.clone().ok_or_else(|| "missing bind for server config".to_string())?;
+    let scheme = if config.server.tls.is_some() { "https" } else { "http" };
+    let base_url = format!("{scheme}://{bind}/rpc");
+    let server = tokio::task::spawn_blocking(move || {
+        McpServer::from_config_with_overrides(config, overrides)
+    })
+    .await
+    .map_err(|err| format!("mcp server init join failed: {err}"))?;
     release_reserved_port(&bind);
     let server = server.map_err(|err| err.to_string())?;
     let join = tokio::spawn(async move { server.serve().await });

@@ -55,6 +55,7 @@ use decision_gate_mcp::config::ServerFeedbackConfig;
 use decision_gate_mcp::config::ServerLimitsConfig;
 use decision_gate_mcp::config::ServerMode;
 use decision_gate_mcp::config::ServerTlsConfig;
+use decision_gate_mcp::config::ServerTlsTermination;
 use decision_gate_mcp::config::ServerToolsConfig;
 use decision_gate_mcp::config::ServerTransport;
 use decision_gate_mcp::config::TrustConfig;
@@ -355,6 +356,7 @@ fn server_stdio_no_bind_required() {
     let config = ServerConfig {
         transport: ServerTransport::Stdio,
         mode: ServerMode::Strict,
+        tls_termination: ServerTlsTermination::Server,
         bind: None,
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -373,6 +375,7 @@ fn server_max_body_bytes_zero_rejected() {
     let config = ServerConfig {
         transport: ServerTransport::Stdio,
         mode: ServerMode::Strict,
+        tls_termination: ServerTlsTermination::Server,
         bind: None,
         max_body_bytes: 0,
         limits: ServerLimitsConfig::default(),
@@ -394,6 +397,7 @@ fn server_http_requires_bind() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
         mode: ServerMode::Strict,
+        tls_termination: ServerTlsTermination::Server,
         bind: None,
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -415,6 +419,7 @@ fn server_sse_requires_bind() {
     let config = ServerConfig {
         transport: ServerTransport::Sse,
         mode: ServerMode::Strict,
+        tls_termination: ServerTlsTermination::Server,
         bind: None,
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -436,6 +441,7 @@ fn server_http_loopback_allowed() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
         mode: ServerMode::Strict,
+        tls_termination: ServerTlsTermination::Server,
         bind: Some("127.0.0.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -566,6 +572,7 @@ fn server_http_ipv6_loopback_allowed() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
         mode: ServerMode::Strict,
+        tls_termination: ServerTlsTermination::Server,
         bind: Some("[::1]:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -584,6 +591,7 @@ fn server_http_non_loopback_rejected() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
         mode: ServerMode::Strict,
+        tls_termination: ServerTlsTermination::Server,
         bind: Some("0.0.0.0:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -605,6 +613,7 @@ fn server_http_external_ip_rejected() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
         mode: ServerMode::Strict,
+        tls_termination: ServerTlsTermination::Server,
         bind: Some("192.168.1.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -624,6 +633,7 @@ fn server_invalid_bind_format_rejected() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
         mode: ServerMode::Strict,
+        tls_termination: ServerTlsTermination::Server,
         bind: Some("not-an-address".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -645,6 +655,7 @@ fn server_empty_bind_rejected() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
         mode: ServerMode::Strict,
+        tls_termination: ServerTlsTermination::Server,
         bind: Some("   ".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -664,6 +675,7 @@ fn server_http_non_loopback_allowed_with_bearer_auth() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
         mode: ServerMode::Strict,
+        tls_termination: ServerTlsTermination::Server,
         bind: Some("0.0.0.0:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -688,6 +700,7 @@ fn server_stdio_rejects_bearer_auth() {
     let config = ServerConfig {
         transport: ServerTransport::Stdio,
         mode: ServerMode::Strict,
+        tls_termination: ServerTlsTermination::Server,
         bind: None,
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -713,6 +726,7 @@ fn server_auth_bearer_requires_token() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
         mode: ServerMode::Strict,
+        tls_termination: ServerTlsTermination::Server,
         bind: Some("127.0.0.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -738,6 +752,7 @@ fn server_auth_rejects_unknown_tool_in_allowlist() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
         mode: ServerMode::Strict,
+        tls_termination: ServerTlsTermination::Server,
         bind: Some("127.0.0.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -763,6 +778,7 @@ fn server_auth_mtls_requires_subjects() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
         mode: ServerMode::Strict,
+        tls_termination: ServerTlsTermination::Server,
         bind: Some("127.0.0.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -788,6 +804,7 @@ fn server_limits_rejects_zero_inflight() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
         mode: ServerMode::Strict,
+        tls_termination: ServerTlsTermination::Server,
         bind: Some("127.0.0.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig {
@@ -810,6 +827,7 @@ fn server_rate_limit_rejects_zero_requests() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
         mode: ServerMode::Strict,
+        tls_termination: ServerTlsTermination::Server,
         bind: Some("127.0.0.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig {
@@ -836,6 +854,7 @@ fn server_tls_rejects_empty_paths() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
         mode: ServerMode::Strict,
+        tls_termination: ServerTlsTermination::Server,
         bind: Some("127.0.0.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -860,6 +879,7 @@ fn server_stdio_rejects_tls() {
     let config = ServerConfig {
         transport: ServerTransport::Stdio,
         mode: ServerMode::Strict,
+        tls_termination: ServerTlsTermination::Server,
         bind: None,
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
@@ -884,6 +904,7 @@ fn server_audit_rejects_empty_path() {
     let config = ServerConfig {
         transport: ServerTransport::Http,
         mode: ServerMode::Strict,
+        tls_termination: ServerTlsTermination::Server,
         bind: Some("127.0.0.1:8080".to_string()),
         max_body_bytes: 1024 * 1024,
         limits: ServerLimitsConfig::default(),
