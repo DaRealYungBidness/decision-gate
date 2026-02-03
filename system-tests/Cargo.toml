@@ -13,32 +13,32 @@ publish = false
 autotests = false
 
 [dependencies]
-axum = { version = "0.8", features = ["json"] }
-aws-config = "1.1"
-aws-sdk-s3 = "1.121.0"
-base64 = "0.22"
-decision-gate-config = { path = "../decision-gate-config", version = "0.1.0" }
-decision-gate-contract = { path = "../decision-gate-contract", version = "0.1.0" }
-decision-gate-core = { path = "../decision-gate-core", version = "0.1.0" }
-decision-gate-cli = { path = "../decision-gate-cli", version = "0.1.0" }
-decision-gate-broker = { path = "../decision-gate-broker", version = "0.1.0" }
-decision-gate-mcp = { path = "../decision-gate-mcp", version = "0.1.0" }
-decision-gate-store-sqlite = { path = "../decision-gate-store-sqlite", version = "0.1.0" }
-ed25519-dalek = { version = "2.1", features = ["std"] }
-jsonschema = "0.40"
-rcgen = "0.14"
-reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "webpki-roots"] }
-rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs"] }
-ret-logic = { path = "../ret-logic", version = "0.1.0" }
-serde = { version = "1.0", features = ["derive"] }
-serde_jcs = "0.1"
-serde_json = "1.0"
-tempfile = "3.10"
-testcontainers = "0.26"
-tokio = { version = "1.49", features = ["io-util", "macros", "rt-multi-thread", "sync", "time"] }
-tokio-stream = "0.1"
-toml = "0.9"
-url = "2.5"
+axum = { workspace = true, features = ["json"] }
+aws-config = { workspace = true }
+aws-sdk-s3 = { workspace = true }
+base64 = { workspace = true }
+decision-gate-config = { workspace = true }
+decision-gate-contract = { workspace = true }
+decision-gate-core = { workspace = true }
+decision-gate-cli = { workspace = true }
+decision-gate-broker = { workspace = true }
+decision-gate-mcp = { workspace = true }
+decision-gate-store-sqlite = { workspace = true }
+ed25519-dalek = { workspace = true, features = ["std"] }
+jsonschema = { workspace = true }
+rcgen = { workspace = true }
+reqwest = { workspace = true, default-features = false, features = ["json", "rustls", "webpki-roots"] }
+rustls = { workspace = true, default-features = false, features = ["aws_lc_rs"] }
+ret-logic = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_jcs = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+testcontainers = { workspace = true }
+tokio = { workspace = true, features = ["io-util", "macros", "rt-multi-thread", "sync", "time"] }
+tokio-stream = { workspace = true }
+toml = { workspace = true }
+url = { workspace = true }
 
 [lints]
 workspace = true

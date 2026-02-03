@@ -12,22 +12,22 @@ edition = "2024"
 rust-version = "1.92"
 
 [dependencies]
-decision-gate-core = { path = "../decision-gate-core", version = "0.1.0" }
-jsonpath_lib = "0.3"
-reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls", "webpki-roots"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-serde_yaml = "0.9"
-time = { version = "0.3.46", features = ["formatting", "parsing"] }
+decision-gate-core = { workspace = true }
+jsonpath_lib = { workspace = true }
+reqwest = { workspace = true, default-features = false, features = ["blocking", "rustls", "webpki-roots"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+time = { workspace = true, features = ["formatting", "parsing"] }
 
 [dev-dependencies]
-ret-logic = { path = "../ret-logic", version = "0.1.0" }
-tempfile = "3.10"
-tiny_http = "0.12"
-proptest = "1.4"
-rcgen = "0.14"
-rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs"] }
-rustls-pki-types = { version = "1.14", features = ["std"] }
+ret-logic = { workspace = true }
+tempfile = { workspace = true }
+tiny_http = { workspace = true }
+proptest = { workspace = true }
+rcgen = { workspace = true }
+rustls = { workspace = true, default-features = false, features = ["aws_lc_rs"] }
+rustls-pki-types = { workspace = true, features = ["std"] }
 
 [lints]
 workspace = true

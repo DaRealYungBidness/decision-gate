@@ -50,7 +50,57 @@ version = "0.1.0"
 license = "Apache-2.0"
 
 [workspace.dependencies]
+async-trait = "0.1"
+aws-config = "1.1"
+aws-sdk-s3 = "1.121.0"
+axum = "0.8"
+axum-server = "0.8"
+base64 = "0.22"
+bigdecimal = "0.4"
+bytes = "1.9"
+cap-std = "4.0.0"
+cap-primitives = "4.0.0"
+clap = "4.5.56"
+decision-gate-broker = { path = "decision-gate-broker", version = "0.1.0" }
+decision-gate-cli = { path = "decision-gate-cli", version = "0.1.0" }
+decision-gate-config = { path = "decision-gate-config", version = "0.1.0" }
+decision-gate-contract = { path = "decision-gate-contract", version = "0.1.0" }
+decision-gate-core = { path = "decision-gate-core", version = "0.1.0" }
+decision-gate-mcp = { path = "decision-gate-mcp", version = "0.1.0" }
+decision-gate-providers = { path = "decision-gate-providers", version = "0.1.0" }
+decision-gate-sdk-gen = { path = "decision-gate-sdk-gen", version = "0.1.0" }
+decision-gate-store-sqlite = { path = "decision-gate-store-sqlite", version = "0.1.0" }
+ed25519-dalek = "2.1"
+http-body-util = "0.1"
+hyper = "1.5"
+hyper-util = "0.1"
+jsonpath_lib = "0.3"
+jsonschema = "0.40"
+proptest = "1.5"
 rand = "0.8.5"
+rcgen = "0.14"
+reqwest = { version = "0.13", default-features = false }
+ret-logic = { path = "ret-logic", version = "0.1.0" }
+ron = "0.12"
+rusqlite = "0.38"
+rustls = { version = "0.23", default-features = false }
+rustls-pki-types = "1.14"
+serde = "1.0"
+serde_jcs = "0.1"
+serde_json = "1.0"
+serde_yaml = "0.9"
+sha2 = "0.10"
+smallvec = "1.13.0"
+subtle = "2.5"
+tempfile = "3.10"
+testcontainers = "0.26"
+thiserror = "2.0"
+time = "0.3.46"
+tiny_http = "0.12"
+tokio = "1.49"
+tokio-stream = "0.1"
+toml = "0.9"
+url = "2.5"
 [profile.release]
 opt-level = 3
 lto = "fat"

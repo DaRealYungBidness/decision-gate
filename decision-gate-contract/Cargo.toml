@@ -1,8 +1,9 @@
 # Copyright (c) 2026 Michael Campbell. All rights reserved.
-# Decision Gate Contract manifest (self-contained for stand-alone publishing)
+# Decision Gate Contract manifest (workspace-aligned dependencies)
 # ============================================================================
 # Lint settings are defined here for standalone builds; workspace profiles
 # are owned by the workspace root when building inside the workspace.
+# Dependency versions are sourced from workspace metadata when available.
 # ============================================================================
 
 [package]
@@ -17,20 +18,20 @@ name = "decision-gate-contract"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "4.5.56", features = ["derive"] }
-decision-gate-config = { path = "../decision-gate-config", version = "0.1.0" }
-decision-gate-core = { path = "../decision-gate-core", version = "0.1.0" }
-jsonschema = "0.40"
-ron = "0.12"
-ret-logic = { path = "../ret-logic", version = "0.1.0" }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-serde_jcs = "0.1"
-thiserror = "2.0"
+clap = { workspace = true, features = ["derive"] }
+decision-gate-config = { workspace = true }
+decision-gate-core = { workspace = true }
+jsonschema = { workspace = true }
+ron = { workspace = true }
+ret-logic = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_jcs = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
-tempfile = "3.10"
-url = "2.5"
+tempfile = { workspace = true }
+url = { workspace = true }
 
 [lints.rust]
 unsafe_code = "deny"

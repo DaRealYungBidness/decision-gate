@@ -9,12 +9,12 @@ edition = "2024"
 rust-version = "1.92"
 
 [dependencies]
-decision-gate-core = { path = "../../decision-gate-core", version = "0.1.0" }
-decision-gate-broker = { path = "../../decision-gate-broker", version = "0.1.0" }
-ret-logic = { path = "../../ret-logic", version = "0.1.0" }
-serde_json = "1.0"
-tempfile = "3.10"
-url = "2.5"
+decision-gate-core = { workspace = true }
+decision-gate-broker = { workspace = true }
+ret-logic = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+url = { workspace = true }
 
 [lints]
 workspace = true

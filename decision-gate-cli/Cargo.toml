@@ -16,32 +16,32 @@ name = "decision-gate"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "4.5.56", features = ["derive"] }
-base64 = "0.22"
-decision-gate-broker = { path = "../decision-gate-broker", version = "0.1.0" }
-decision-gate-contract = { path = "../decision-gate-contract", version = "0.1.0" }
-decision-gate-config = { path = "../decision-gate-config", version = "0.1.0" }
-decision-gate-core = { path = "../decision-gate-core", version = "0.1.0" }
-decision-gate-mcp = { path = "../decision-gate-mcp", version = "0.1.0" }
-decision-gate-sdk-gen = { path = "../decision-gate-sdk-gen", version = "0.1.0" }
-decision-gate-store-sqlite = { path = "../decision-gate-store-sqlite", version = "0.1.0" }
-ed25519-dalek = { version = "2.1", features = ["std"] }
-jsonschema = "0.30"
-reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "webpki-roots"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-serde_jcs = "0.1"
-subtle = "2.5"
-thiserror = "2.0"
-tokio = { version = "1.49", features = ["macros", "rt-multi-thread"] }
-toml = "0.8"
+clap = { workspace = true, features = ["derive"] }
+base64 = { workspace = true }
+decision-gate-broker = { workspace = true }
+decision-gate-contract = { workspace = true }
+decision-gate-config = { workspace = true }
+decision-gate-core = { workspace = true }
+decision-gate-mcp = { workspace = true }
+decision-gate-sdk-gen = { workspace = true }
+decision-gate-store-sqlite = { workspace = true }
+ed25519-dalek = { workspace = true, features = ["std"] }
+jsonschema = { workspace = true }
+reqwest = { workspace = true, default-features = false, features = ["json", "rustls", "webpki-roots"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_jcs = { workspace = true }
+subtle = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+toml = { workspace = true }
 
 [dev-dependencies]
-bytes = "1.9"
-http-body-util = "0.1"
-hyper = "1.5"
-hyper-util = { version = "0.1", features = ["tokio"] }
-proptest = "1.5"
+bytes = { workspace = true }
+http-body-util = { workspace = true }
+hyper = { workspace = true }
+hyper-util = { workspace = true, features = ["tokio"] }
+proptest = { workspace = true }
 
 [lints]
 workspace = true

@@ -12,17 +12,17 @@ edition = "2024"
 rust-version = "1.92"
 
 [dependencies]
-ret-logic = { path = "../ret-logic", version = "0.1.0" }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-serde_jcs = "0.1"
-sha2 = "0.10"
-thiserror = "2.0"
-bigdecimal = "0.4"
-time = { version = "0.3.46", features = ["parsing"] }
+ret-logic = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_jcs = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+bigdecimal = { workspace = true }
+time = { workspace = true, features = ["parsing"] }
 
 [dev-dependencies]
-proptest = "1.4"
+proptest = { workspace = true }
 
 [lints]
 workspace = true
