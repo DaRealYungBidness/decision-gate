@@ -32,7 +32,9 @@ def load_json(path: str) -> Any:
 
 def replace_placeholder(value: Any, placeholder: str, replacement: str) -> Any:
     if isinstance(value, dict):
-        return {key: replace_placeholder(val, placeholder, replacement) for key, val in value.items()}
+        return {
+            key: replace_placeholder(val, placeholder, replacement) for key, val in value.items()
+        }
     if isinstance(value, list):
         return [replace_placeholder(item, placeholder, replacement) for item in value]
     if isinstance(value, str) and placeholder in value:

@@ -25,6 +25,15 @@ address it without compromising correctness or auditability.
 
 I read everything, but I cannot promise timelines or outcomes.
 
+## Issue templates
+
+If you open an issue in GitHub, please use the issue templates:
+
+- Bug report: [`.github/ISSUE_TEMPLATE/bug_report.md`](.github/ISSUE_TEMPLATE/bug_report.md)
+- Feature request: [`.github/ISSUE_TEMPLATE/feature_request.md`](.github/ISSUE_TEMPLATE/feature_request.md)
+
+If you cannot use the templates, follow the same headings in the relevant file.
+
 ## Bug reports (what to include)
 
 Please include as much of the following as you can:
@@ -47,6 +56,16 @@ please include:
 - Any security or determinism tradeoffs you are aware of.
 
 This helps me evaluate whether the request fits the core model.
+
+## Current focus areas (Updated 2026-02-03 UTC)
+
+If you want to help test, the current focus areas live in:
+
+- `Docs/roadmap/README.md`
+- `Docs/roadmap/foundational_correctness_roadmap.md`
+
+When you open an issue with test results, include the focus area, exact steps,
+and your environment details.
 
 ## Security
 

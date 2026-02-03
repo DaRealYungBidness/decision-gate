@@ -145,7 +145,7 @@ passes. Use explicit features or the registry-driven runner.
 
 - `cargo test -p system-tests --features system-tests`
 - `cargo nextest run -p system-tests --features system-tests`
-- `python scripts/test_runner.py --priority P0`
+- `python scripts/system_tests/test_runner.py --priority P0`
 
 `cargo nextest` defaults are tuned in `.config/nextest.toml`, including emitting
 failure output at the end of the run for easier triage.
@@ -161,12 +161,12 @@ Tests should be registered and coverage docs regenerated when changes occur.
 | --- | --- | --- |
 | System test contract | `system-tests/AGENTS.md` | Determinism and audit requirements. |
 | Usage and workflow | `system-tests/README.md` | Running tests and artifact contract. |
-| Agentic harness bootstrap | `scripts/agentic_harness_bootstrap.sh` | Installs Python deps for agentic driver matrix. |
-| Agentic harness runner | `scripts/agentic_harness.sh` | Deterministic entry point for agentic flow harness. |
-| Adapter smoke tests | `scripts/adapter_tests.sh` | Installs adapter deps, runs conformance, and executes adapter examples. |
-| Adapter conformance | `scripts/adapter_conformance.py` | Verifies adapter tool surfaces match MCP tooling.json. |
-| Adapter roundtrip | `scripts/adapter_roundtrip.py` | Runs per-tool roundtrip calls through each adapter against live MCP server. |
-| Adapter typecheck | `scripts/typecheck_adapters.sh` | Runs Pyright strict typing gate for adapters + adapter scripts. |
+| Agentic harness bootstrap | `scripts/agentic/agentic_harness_bootstrap.sh` | Installs Python deps for agentic driver matrix. |
+| Agentic harness runner | `scripts/agentic/agentic_harness.sh` | Deterministic entry point for agentic flow harness. |
+| Adapter smoke tests | `scripts/adapters/adapter_tests.sh` | Installs adapter deps, runs conformance, and executes adapter examples. |
+| Adapter conformance | `scripts/adapters/adapter_conformance.py` | Verifies adapter tool surfaces match MCP tooling.json. |
+| Adapter roundtrip | `scripts/adapters/adapter_roundtrip.py` | Runs per-tool roundtrip calls through each adapter against live MCP server. |
+| Adapter typecheck | `scripts/adapters/typecheck_adapters.sh` | Runs Pyright strict typing gate for adapters + adapter scripts. |
 | Coverage matrix | `system-tests/TEST_MATRIX.md` | P0/P1/P2 summary. |
 | Test registry | `system-tests/test_registry.toml` | Inventory + metadata. |
 | Gap tracking | `system-tests/test_gaps.toml` | Missing coverage + acceptance criteria. |

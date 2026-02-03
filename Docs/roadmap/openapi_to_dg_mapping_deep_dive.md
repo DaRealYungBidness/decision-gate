@@ -29,7 +29,7 @@ obstacles and a phased approach, but the work is deferred for now.
 - It is a multi-surface change (schema parsing, registry, builder UX, and
   contracts), not a single feature drop.
 - It intersects with existing roadmap priorities (trust lanes, schema registry,
-  builder plan, and world-class readiness). See references below.
+  builder plan, and high-bar readiness). See references below.
 - The highest risk is correctness drift when schemas are ambiguous or untyped
   (a common case for real-world OpenAPI documents).
 

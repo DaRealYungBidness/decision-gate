@@ -6,6 +6,12 @@
 
 ---
 
+## Standards (Read First)
+Before making changes, read and follow:
+- `Docs/standards/codebase_engineering_standards.md`
+- `Docs/standards/codebase_formatting_standards.md`
+- `Docs/standards/doc_formatting_standards.md`
+
 ## 0) TL;DR (one screen)
 
 - **Decision Gate is not an agent framework:** it ingests triggers, evaluates gates, and
@@ -19,8 +25,6 @@
 - **Precheck:** read-only evaluation path must not mutate run state.
 - **Docs/tooltips alignment:** after behavior or schema changes, update contract
   tooltips and regenerate `Docs/generated/decision-gate`.
-- **Style:** follow **Docs/standards/codebase_formatting_standards.md**.
-- **Engineering standards:** follow **Docs/standards/codebase_engineering_standards.md**.
 - **Threat model:** consult **Docs/security/threat_model.md**; note
   `Threat Model Delta: none` when applicable.
 
@@ -66,4 +70,5 @@
 
 - Docs/standards/codebase_formatting_standards.md
 - Docs/standards/codebase_engineering_standards.md
+- Docs/standards/doc_formatting_standards.md
 - Docs/security/threat_model.md

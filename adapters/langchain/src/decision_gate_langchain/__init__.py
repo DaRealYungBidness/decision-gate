@@ -4,7 +4,11 @@
 # Description: LangChain tool wrappers for Decision Gate SDK calls.
 # ============================================================================
 
-from .tools import DecisionGateToolConfig, build_decision_gate_tools, build_decision_gate_tools_from_config
+from .tools import (
+    DecisionGateToolConfig,
+    build_decision_gate_tools,
+    build_decision_gate_tools_from_config,
+)
 
 __all__ = [
     "DecisionGateToolConfig",

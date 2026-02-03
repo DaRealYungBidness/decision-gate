@@ -1,6 +1,6 @@
 # Decision Gate System-Test Registry
 # Maps system-tests to categories and priorities.
-# Used by: scripts/test_runner.py, scripts/coverage_report.py
+# Used by: scripts/system_tests/test_runner.py, scripts/system_tests/coverage_report.py
 
 # =============================================================================
 # Test Categories

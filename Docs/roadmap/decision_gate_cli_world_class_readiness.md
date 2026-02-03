@@ -1,25 +1,24 @@
 <!--
 Docs/roadmap/decision_gate_cli_world_class_readiness.md
 ============================================================================
-Document: Decision Gate CLI World-Class Readiness Plan
-Description: CLI-focused roadmap to reach FAANG/hyperscaler/DoD readiness.
+Document: Decision Gate CLI High-Bar Readiness Plan
+Description: CLI-focused roadmap to reach strict-environment readiness.
 Purpose: Close all open CLI gaps with security- and audit-grade guarantees.
 Dependencies:
   - Docs/generated/decision-gate/tooling.json
-  - Docs/roadmap/decision_gate_world_class_onboarding_plan.md
   - Docs/security/threat_model.md
 ============================================================================
 Last Updated: 2026-02-03 (UTC)
 ============================================================================
 -->
 
-# Decision Gate CLI World-Class Readiness Plan
+# Decision Gate CLI High-Bar Readiness Plan
 
 ## Executive Intent
 
 Deliver a CLI that is feature-complete relative to the MCP tool surface, secure
 by default, deterministic in output, and auditable under hostile review. The
-CLI must hold up to FAANG/hyperscaler/DoD scrutiny and adversarial analysis.
+CLI must hold up to strict-environment scrutiny and adversarial analysis.
 
 This plan focuses only on the CLI experience and adjacent operator workflows.
 
@@ -40,7 +39,7 @@ Out of scope:
 
 ---
 
-## Status Summary (as of 2026-02-02)
+## Status Summary (as of 2026-02-03)
 
 **Implemented:**
 - Full MCP tool surface (generic `mcp tools` + typed tool wrappers).

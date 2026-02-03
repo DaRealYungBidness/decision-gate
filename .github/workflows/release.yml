@@ -49,13 +49,15 @@ jobs:
           echo "DG_CLIPPY=true" >> "$GITHUB_ENV"
       - name: Install cargo-deny
         run: cargo install cargo-deny --locked
+      - name: Install cargo-sbom
+        run: cargo install cargo-sbom --locked
       - name: Cargo deny
         run: |
           cargo deny check
           echo "DG_CARGO_DENY=true" >> "$GITHUB_ENV"
       - name: Generation drift
         run: |
-          scripts/generate_all.sh --check
+          scripts/ci/generate_all.sh --check
           echo "DG_GENERATE_ALL=true" >> "$GITHUB_ENV"
       - name: Unit tests
         run: |
@@ -63,11 +65,11 @@ jobs:
           echo "DG_UNIT_TESTS=true" >> "$GITHUB_ENV"
       - name: System tests (P0)
         run: |
-          python scripts/test_runner.py --priority P0 --run-root .tmp/system-tests/release-p0
+          python scripts/system_tests/test_runner.py --priority P0 --run-root .tmp/system-tests/release-p0
           echo "DG_SYSTEM_TESTS_P0=true" >> "$GITHUB_ENV"
       - name: System tests (P1)
         run: |
-          python scripts/test_runner.py --priority P1 --run-root .tmp/system-tests/release-p1
+          python scripts/system_tests/test_runner.py --priority P1 --run-root .tmp/system-tests/release-p1
           echo "DG_SYSTEM_TESTS_P1=true" >> "$GITHUB_ENV"
       - name: Upload system test artifacts
         if: always()
@@ -77,8 +79,13 @@ jobs:
           path: .tmp/system-tests
       - name: Packaging dry run
         run: |
-          scripts/package_dry_run.sh --all
+          scripts/ci/package_dry_run.sh --all
           echo "DG_PACKAGE_DRY_RUN=true" >> "$GITHUB_ENV"
+      - name: Generate SBOM (dependencies)
+        run: |
+          scripts/ci/sbom.sh --output .tmp/ci/sbom/decision-gate.sbom.spdx.json
+          echo "DG_SBOM=true" >> "$GITHUB_ENV"
+          echo "DG_SBOM_PATH=.tmp/ci/sbom/decision-gate.sbom.spdx.json" >> "$GITHUB_ENV"
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Build amd64 image for smoke test
@@ -142,6 +149,7 @@ jobs:
                   "tag_matches_version": os.environ.get("DG_TAG_MATCH") == "true",
                   "sha": os.environ.get("DG_SHA"),
                   "generated_at": int(time.time() * 1000),
+                  "sbom_path": os.environ.get("DG_SBOM_PATH"),
               },
               "checks": {
                   "fmt": env_bool("DG_FMT"),
@@ -151,6 +159,7 @@ jobs:
                   "unit_tests": env_bool("DG_UNIT_TESTS"),
                   "system_tests_p0": env_bool("DG_SYSTEM_TESTS_P0"),
                   "system_tests_p1": env_bool("DG_SYSTEM_TESTS_P1"),
+                  "sbom": env_bool("DG_SBOM"),
                   "package_dry_run": env_bool("DG_PACKAGE_DRY_RUN"),
                   "docker_smoke": env_bool("DG_DOCKER_SMOKE"),
               },
@@ -165,7 +174,7 @@ jobs:
           echo "DG_EVIDENCE_FILE=.tmp/ci/release_evidence.json" >> "$GITHUB_ENV"
       - name: Decision Gate release eligibility
         run: |
-          bash scripts/ci_release_gate.sh \
+          bash scripts/ci/ci_release_gate.sh \
             --evidence-file "$DG_EVIDENCE_FILE" \
             --output-dir .tmp/ci/release-runpack \
             --config configs/presets/ci-release-gate.toml
@@ -177,4 +186,5 @@ jobs:
           path: |
             .tmp/ci/release_evidence.json
             .tmp/ci/release-runpack
+            .tmp/ci/sbom
           if-no-files-found: warn

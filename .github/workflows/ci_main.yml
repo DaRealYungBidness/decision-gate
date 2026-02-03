@@ -29,7 +29,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Run system tests (P0)
-        run: python scripts/test_runner.py --priority P0 --run-root .tmp/system-tests/p0
+        run: python scripts/system_tests/test_runner.py --priority P0 --run-root .tmp/system-tests/p0
       - name: Upload system test artifacts (P0)
         if: always()
         uses: actions/upload-artifact@v4
@@ -58,7 +58,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Run system tests (P1)
-        run: python scripts/test_runner.py --priority P1 --run-root .tmp/system-tests/p1
+        run: python scripts/system_tests/test_runner.py --priority P1 --run-root .tmp/system-tests/p1
       - name: Upload system test artifacts (P1)
         if: always()
         uses: actions/upload-artifact@v4

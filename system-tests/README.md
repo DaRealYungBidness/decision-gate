@@ -110,11 +110,11 @@ without explicit opt-in fails closed to avoid silently overwriting diagnostics.
 
 ## Testing Utilities
 
-Helper scripts live in `scripts/` at the repo root:
+Helper scripts live in `scripts/system_tests/` at the repo root:
 
 ```bash
-python3 scripts/test_runner.py --priority P0
-python3 scripts/coverage_report.py generate
+python3 scripts/system_tests/test_runner.py --priority P0
+python3 scripts/system_tests/coverage_report.py generate
 ```
 
 ## References

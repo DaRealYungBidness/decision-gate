@@ -92,13 +92,9 @@ def main() -> int:
     token = os.environ.get("DG_TOKEN")
     validate_enabled = os.environ.get("DG_VALIDATE") == "1"
 
-    spec = load_env_json("DG_SCENARIO_SPEC") or default_time_after_spec(
-        "example-ci-gate", 0
-    )
+    spec = load_env_json("DG_SCENARIO_SPEC") or default_time_after_spec("example-ci-gate", 0)
     scenario_id = spec["scenario_id"]
-    run_config = load_env_json("DG_RUN_CONFIG") or default_run_config(
-        scenario_id, "run-ci-1"
-    )
+    run_config = load_env_json("DG_RUN_CONFIG") or default_run_config(scenario_id, "run-ci-1")
     started_at = load_env_json("DG_STARTED_AT") or {"kind": "logical", "value": 1}
 
     client = DecisionGateClient(endpoint=endpoint, auth_token=token)

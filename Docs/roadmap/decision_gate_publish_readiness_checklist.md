@@ -3,11 +3,10 @@ Docs/roadmap/decision_gate_publish_readiness_checklist.md
 ============================================================================
 Document: Decision Gate Publish Readiness Checklist
 Description: Manual sign-off checklist before any public SDK or adapter release.
-Purpose: Enforce world-class quality, security, and determinism before publish.
+Purpose: Enforce high-bar quality, security, and determinism before publish.
 Dependencies:
   - Docs/roadmap/README.md
   - Docs/roadmap/foundational_correctness_roadmap.md
-  - Docs/business/decision_gate_integration_landscape.md
 ============================================================================
 -->
 
@@ -59,12 +58,12 @@ Not in scope:
 - [ ] System tests pass (P0 and P1 as defined in `system-tests/test_registry.toml`).
 - [ ] All examples are runnable and validated via system tests.
 - [ ] Example outputs validate against generated schemas.
-- [ ] Adapter examples pass under `scripts/adapter_tests.sh` (when deps installed).
+- [ ] Adapter examples pass under `scripts/adapters/adapter_tests.sh` (when deps installed).
 
 ### D. Packaging Dry-Run (No Publish)
-- [ ] `scripts/package_dry_run.sh --python` passes (build + install + import).
-- [ ] `scripts/package_dry_run.sh --typescript` passes (tsc + pack + import).
-- [ ] `scripts/verify_all.sh --package-dry-run` passes end-to-end.
+- [ ] `scripts/ci/package_dry_run.sh --python` passes (build + install + import).
+- [ ] `scripts/ci/package_dry_run.sh --typescript` passes (tsc + pack + import).
+- [ ] `scripts/ci/verify_all.sh --package-dry-run` passes end-to-end.
 
 ### E. Security Posture
 - [ ] Non-loopback binds require explicit opt-in with strong warnings.
@@ -73,7 +72,6 @@ Not in scope:
 - [ ] No insecure defaults introduced in SDKs or examples.
 
 ### F. Documentation Accuracy
-- [ ] `Docs/business/decision_gate_integration_landscape.md` matches reality.
 - [ ] Roadmap docs reflect the current state of completion.
 - [ ] Generated artifacts referenced in docs exist on disk.
 

@@ -1,1 +1,0 @@
-[{"correlation_id":null,"decided_at":{"kind":"unix_millis","value":1710000000000},"decision_id":"decision-1","outcome":{"kind":"complete","stage_id":"main"},"seq":1,"stage_id":"main","trigger_id":"trigger-1"}]

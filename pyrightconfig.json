@@ -3,8 +3,8 @@
   "pythonVersion": "3.10",
   "include": [
     "adapters",
-    "scripts/adapter_conformance.py",
-    "scripts/adapter_roundtrip.py"
+    "scripts/adapters/adapter_conformance.py",
+    "scripts/adapters/adapter_roundtrip.py"
   ],
   "extraPaths": [
     "sdks/python",

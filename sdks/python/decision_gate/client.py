@@ -113,13 +113,9 @@ class DecisionGateClient(GeneratedDecisionGateClient):
         }
         data = json.dumps(payload).encode("utf-8")
         headers = self._build_headers()
-        request = urllib.request.Request(
-            self._endpoint, data=data, headers=headers, method="POST"
-        )
+        request = urllib.request.Request(self._endpoint, data=data, headers=headers, method="POST")
         try:
-            with urllib.request.urlopen(
-                request, timeout=self._timeout_sec
-            ) as response:
+            with urllib.request.urlopen(request, timeout=self._timeout_sec) as response:
                 status_code = response.status
                 body = response.read().decode("utf-8")
         except urllib.error.HTTPError as exc:
@@ -163,9 +159,7 @@ class DecisionGateClient(GeneratedDecisionGateClient):
         result_value = response_payload.get("result")
         if not isinstance(result_value, dict):
             raise DecisionGateProtocolError("missing JSON-RPC result")
-        result = _ensure_json_object(
-            result_value, error_message="invalid JSON-RPC result shape"
-        )
+        result = _ensure_json_object(result_value, error_message="invalid JSON-RPC result shape")
         content = result.get("content")
         if not isinstance(content, list) or not content:
             raise DecisionGateProtocolError("missing JSON-RPC content")

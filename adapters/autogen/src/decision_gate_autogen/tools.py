@@ -75,7 +75,9 @@ class FunctionToolLike(Protocol):
     name: str
 
 
-def _maybe_validate(enabled: bool, validator: Callable[[TRequest], None], payload: TRequest) -> None:
+def _maybe_validate(
+    enabled: bool, validator: Callable[[TRequest], None], payload: TRequest
+) -> None:
     if enabled:
         validator(payload)
 
@@ -235,9 +237,7 @@ def build_decision_gate_tools(
 
     def decision_gate_schemas_get(request: dict[str, JsonValue]) -> SchemasGetResponse:
         """Fetch a registered data shape schema."""
-        typed: SchemasGetRequest = _coerce_request(
-            request, validate_schemas_get_request, validate
-        )
+        typed: SchemasGetRequest = _coerce_request(request, validate_schemas_get_request, validate)
         return client.schemas_get(typed)
 
     def decision_gate_docs_search(

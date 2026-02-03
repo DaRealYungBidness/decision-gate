@@ -3,11 +3,17 @@ System Tests Agent Instructions
 ============================================================================
 Document: Decision Gate System-Tests Agent Guide
 Description: Standards for writing and maintaining system-tests.
-Purpose: Keep system-test behavior deterministic, auditable, and world-class.
+Purpose: Keep system-test behavior deterministic, auditable, and rigorous.
 ============================================================================
 -->
 
 # Decision Gate System-Tests Agent Guide
+
+## Standards (Read First)
+Before making changes, read and follow:
+- `Docs/standards/codebase_engineering_standards.md`
+- `Docs/standards/codebase_formatting_standards.md`
+- `Docs/standards/doc_formatting_standards.md`
 
 ## Mission
 System-tests are the highest-rigor, end-to-end validation layer for Decision Gate.
@@ -51,7 +57,7 @@ Allowed:
 When you add, rename, or remove a test:
 - Register it in `system-tests/test_registry.toml`.
 - Add/update gaps in `system-tests/test_gaps.toml` if coverage is missing.
-- Regenerate coverage docs: `python scripts/coverage_report.py generate`.
+- Regenerate coverage docs: `python scripts/system_tests/coverage_report.py generate`.
 - Update `system-tests/README.md` and `system-tests/TEST_MATRIX.md` tables if referenced.
 - Keep tests deterministic (no wall-clock time) and emit required artifacts.
 - Reuse helpers in `system-tests/tests/helpers` rather than building ad-hoc harnesses.
@@ -95,3 +101,4 @@ cargo nextest run -p system-tests --features system-tests
 - `Docs/security/threat_model.md`
 - `Docs/standards/codebase_engineering_standards.md`
 - `Docs/standards/codebase_formatting_standards.md`
+- `Docs/standards/doc_formatting_standards.md`

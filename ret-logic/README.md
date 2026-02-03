@@ -5,10 +5,11 @@
 
 Crate: [`ret-logic`](Cargo.toml)
 
-RET stands for **Requirement Evaluation Tree**.
+RET stands for **Requirement Evaluation Tree**. (Canonical) Alternative forms: RET Trees/RETT.
 
 > **"I ABSTRACT, I ABSTRACT SOME MORE.
 > I'M SUPPOSED TO STOP BUT I CAN'T."**
+>
 > - _Michael "Yung Bidness" Campbell, in reverence of Roy Jones Jr., on the eternal return of recursive formalism and falsity of premature abstraction_
 
 A domain-agnostic requirement evaluation engine that separates propositional

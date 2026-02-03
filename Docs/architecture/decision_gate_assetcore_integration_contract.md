@@ -16,8 +16,8 @@ Dependencies:
 ## Overview
 This document is the canonical, implementation-ready contract for integrating
 Decision Gate (DG) with Asset Core (ASC). It defines the boundaries, authority,
-and evidence semantics needed to preserve independence while enabling world-class
-overlap.
+and evidence semantics needed to preserve independence while enabling
+high-confidence overlap.
 
 **Design intent**: DG remains a standalone control plane. ASC remains a standalone
 world-state substrate. Integration is optional and explicit.

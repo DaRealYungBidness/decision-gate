@@ -1,1 +1,0 @@
-[{"event":{"correlation_id":null,"kind":"agent_request_next","namespace_id":1,"payload":null,"run_id":"research-run-1","source_id":"claude-agent","tenant_id":1,"time":{"kind":"unix_millis","value":1710000000000},"trigger_id":"trigger-research-1"},"seq":1}]

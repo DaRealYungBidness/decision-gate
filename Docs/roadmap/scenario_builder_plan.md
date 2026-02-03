@@ -212,7 +212,7 @@ Phase 6: Tests
 - Integration tests that `scenario_define` accepts builder output.
 - Precheck tests for asserted payload mapping and strict validation errors.
 
-## Decisions (World-Class Rigor)
+## Decisions (Rigor)
 
 - Offline-only inputs: the builder must never query MCP at runtime. All inputs
   are local, versioned artifacts (provider contracts, config snapshot, data

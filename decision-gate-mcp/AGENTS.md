@@ -6,6 +6,12 @@
 
 ---
 
+## Standards (Read First)
+Before making changes, read and follow:
+- `Docs/standards/codebase_engineering_standards.md`
+- `Docs/standards/codebase_formatting_standards.md`
+- `Docs/standards/doc_formatting_standards.md`
+
 ## 0) TL;DR
 
 - **No divergent logic:** MCP must call the core control plane.
@@ -37,6 +43,9 @@
 - System tests in `system-tests/` for end-to-end auth and rate limits.
 
 ## 5) References
+- Docs/standards/codebase_engineering_standards.md
+- Docs/standards/codebase_formatting_standards.md
+- Docs/standards/doc_formatting_standards.md
 - Docs/security/threat_model.md
 - Docs/roadmap/trust_lanes_registry_plan.md
 - decision-gate-core/AGENTS.md

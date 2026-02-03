@@ -23,7 +23,7 @@ Last Updated: 2026-02-03 (UTC)
 ## Purpose
 
 This roadmap defines **launch-blocking, gate-based** correctness requirements
-for Decision Gate OSS. The goal is to reach a world-class bar in determinism,
+for Decision Gate OSS. The goal is to reach a high bar in determinism,
 fail-closed security, auditability, and cross-OS reproducibility **before any
 external launch**.
 
@@ -46,7 +46,7 @@ external launch**.
 2. **Fail-closed** semantics everywhere.
 3. **Auditability** via runpacks + canonical hashing.
 4. **No enterprise contamination** in OSS crates.
-5. **World-class adversarial posture** (nation-state + hostile auditors).
+5. **High-bar adversarial posture** (nation-state + hostile auditors).
 
 ---
 

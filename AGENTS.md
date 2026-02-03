@@ -9,6 +9,12 @@ Purpose: Keep architecture references current as implementation changes.
 
 # Decision Gate Agent Notes
 
+## Standards (Read First)
+Before making changes, read and follow:
+- `Docs/standards/codebase_engineering_standards.md`
+- `Docs/standards/codebase_formatting_standards.md`
+- `Docs/standards/doc_formatting_standards.md`
+
 ## Architecture Docs (Current-State)
 
 These documents describe the *current* implementation. When code changes

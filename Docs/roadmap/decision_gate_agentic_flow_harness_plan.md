@@ -7,7 +7,6 @@ Description: Clear status of what's implemented vs missing, plus the
 Purpose: Make launch cleanup obvious while preserving live-mode intent.
 Dependencies:
   - Docs/roadmap/foundational_correctness_roadmap.md
-  - Docs/business/decision_gate_integration_landscape.md
   - Docs/security/threat_model.md
   - system-tests/TEST_MATRIX.md
 ============================================================================
@@ -25,7 +24,7 @@ This doc is status-first. It answers:
 
 ---
 
-## Status Summary (as of 2026-02-02)
+## Status Summary (as of 2026-02-03)
 
 **Implemented (deterministic harness is real and enforced):**
 
@@ -54,7 +53,7 @@ that reference it.
 - `system-tests/tests/suites/agentic_harness.rs`
 - `system-tests/tests/agentic.rs`
 - `system-tests/test_registry.toml` (`agentic_flow_harness_deterministic`)
-- `scripts/agentic_harness.sh` (deterministic runner)
+- `scripts/agentic/agentic_harness.sh` (deterministic runner)
 
 **Scenario registry + packs + drivers**
 
@@ -64,7 +63,7 @@ that reference it.
 
 **Scripts + bootstrap + deps**
 
-- `scripts/agentic_harness_bootstrap.sh`
+- `scripts/agentic/agentic_harness_bootstrap.sh`
 - `system-tests/requirements-agentic.txt`
 
 **Mirrored examples**
@@ -104,7 +103,7 @@ that reference it.
 
 **How to run**
 
-- `scripts/agentic_harness.sh --mode=deterministic`
+- `scripts/agentic/agentic_harness.sh --mode=deterministic`
 - System test entrypoint:
   `cargo test -p system-tests --features system-tests --test agentic -- --exact agentic_harness::agentic_flow_harness_deterministic`
 
@@ -130,7 +129,7 @@ These are the concrete gaps for live-mode.
 **Runner + execution**
 
 - Add a live-mode runner (LLM calls, allowlisted network access).
-- Allow both deterministic and live in `scripts/agentic_harness.sh`.
+- Allow both deterministic and live in `scripts/agentic/agentic_harness.sh`.
 
 **Registry schema (live controls)**
 Add or enforce fields such as:

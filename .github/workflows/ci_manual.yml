@@ -37,7 +37,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Run system tests
-        run: python scripts/test_runner.py --priority ${{ inputs.priority }} --run-root .tmp/system-tests/${{ inputs.priority }}
+        run: python scripts/system_tests/test_runner.py --priority ${{ inputs.priority }} --run-root .tmp/system-tests/${{ inputs.priority }}
       - name: Upload system test artifacts
         if: always()
         uses: actions/upload-artifact@v4

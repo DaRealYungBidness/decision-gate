@@ -9,18 +9,19 @@
   - `.github/workflows/release.yml` (tag-driven release validation pipeline)
   - `.github/workflows/publish.yml` (manual publish pipeline)
   - `.github/workflows/golden_runpack_cross_os.yml` (cross-OS golden runpack test)
-- Local CI-style entrypoints live under `scripts/` and cover generation drift checks, Rust tests,
-  packaging dry runs, adapter smoke tests, and system-test orchestration.
+- Local CI-style entrypoints live under `scripts/ci/`, with supporting helpers in
+  `scripts/docs/`, `scripts/system_tests/`, and `scripts/adapters/`.
 - System-tests are registry driven. Coverage and infrastructure docs are generated from the registry.
 - There are no scheduled (nightly) CI jobs yet.
 - `cargo-deny` is configured (`deny.toml`) and enforced in CI.
 - Release validation includes a Decision Gate release eligibility runpack.
+- Release validation generates a dependency SBOM (Rust deps only).
 - There are no long-running fuzzing harnesses in place yet; current "fuzz" coverage is deterministic
   system-tests only.
 
-## Why This Plan Is "World-Class"
+## Why This Plan Is Rigorous
 
-World-class here means: an outside reviewer can see intentional, repeatable, evidence-driven gates
+Rigorous here means: an outside reviewer can see intentional, repeatable, evidence-driven gates
 that favor correctness and supply-chain hygiene over convenience.
 
 - **Deterministic and auditable**: generator drift checks and pinned toolchains reduce surprises.
@@ -39,18 +40,20 @@ that favor correctness and supply-chain hygiene over convenience.
 - **Docker**: build on PR; push only via manual publish workflow.
 - **Multi-arch images**: build `linux/amd64` and `linux/arm64`; smoke-test `amd64` only and document
   the arm64 testing limitation.
+- **SBOM**: generate a dependency SBOM on release tags; container SBOM/provenance deferred.
 
 ## Existing CI-Capable Scripts
 
-| Script                       | Purpose                            | Typical usage                                 | Notes                                                                                                                     |
-| ---------------------------- | ---------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `scripts/generate_all.sh`    | Contract + SDK generation pipeline | `scripts/generate_all.sh --check`             | Verifies generated artifacts match committed outputs.                                                                     |
-| `scripts/verify_all.sh`      | Primary local CI gate              | `scripts/verify_all.sh`                       | Runs generation check + `cargo test --workspace --exclude system-tests`; optional system tests, packaging, adapter tests. |
-| `scripts/package_dry_run.sh` | Packaging verification             | `scripts/package_dry_run.sh --all`            | Builds and installs Python + TypeScript SDKs without publishing.                                                          |
-| `scripts/adapter_tests.sh`   | Adapter smoke tests                | `scripts/adapter_tests.sh --all`              | Spawns a local MCP server (unless endpoint provided) and runs framework examples in a venv.                               |
-| `scripts/test_runner.py`     | System-test runner                 | `python scripts/test_runner.py --priority P0` | Registry-driven, supports parallelism, timeouts, and artifact capture.                                                    |
-| `scripts/coverage_report.py` | Coverage and infra docs            | `python scripts/coverage_report.py generate`  | Writes `Docs/testing/decision_gate_test_coverage.md` and `Docs/testing/test_infrastructure_guide.md`.                     |
-| `scripts/gap_tracker.py`     | Coverage gap management            | `python scripts/gap_tracker.py list`          | Lists, closes, or generates task prompts for system-test gaps.                                                            |
+| Script                                    | Purpose                            | Typical usage                                              | Notes                                                                                                                           |
+| ----------------------------------------- | ---------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/ci/generate_all.sh`              | Contract + SDK generation pipeline | `scripts/ci/generate_all.sh --check`                       | Verifies generated artifacts match committed outputs.                                                                           |
+| `scripts/ci/verify_all.sh`                | Primary local CI gate              | `scripts/ci/verify_all.sh`                                 | Runs generation check + `cargo test --workspace --exclude system-tests`; optional system tests, packaging, adapter tests, SBOM. |
+| `scripts/ci/sbom.sh`                      | Dependency SBOM generator          | `scripts/ci/sbom.sh`                                       | Generates a dependency SBOM (Rust deps) using cargo-sbom; used in release pipeline.                                             |
+| `scripts/ci/package_dry_run.sh`           | Packaging verification             | `scripts/ci/package_dry_run.sh --all`                      | Builds and installs Python + TypeScript SDKs without publishing.                                                                |
+| `scripts/adapters/adapter_tests.sh`       | Adapter smoke tests                | `scripts/adapters/adapter_tests.sh --all`                  | Spawns a local MCP server (unless endpoint provided) and runs framework examples in a venv.                                     |
+| `scripts/system_tests/test_runner.py`     | System-test runner                 | `python scripts/system_tests/test_runner.py --priority P0` | Registry-driven, supports parallelism, timeouts, and artifact capture.                                                          |
+| `scripts/system_tests/coverage_report.py` | Coverage and infra docs            | `python scripts/system_tests/coverage_report.py generate`  | Writes `Docs/testing/decision_gate_test_coverage.md` and `Docs/testing/test_infrastructure_guide.md`.                           |
+| `scripts/system_tests/gap_tracker.py`     | Coverage gap management            | `python scripts/system_tests/gap_tracker.py list`          | Lists, closes, or generates task prompts for system-test gaps.                                                                  |
 
 ## Formal CI Flow (Implemented)
 
@@ -59,25 +62,26 @@ that favor correctness and supply-chain hygiene over convenience.
 - **Format:** `cargo +nightly fmt --all -- --check`
 - **Lint:** `cargo clippy --all-targets --all-features -D warnings`
 - **Supply-chain policy:** `cargo deny check`
-- **Generation drift:** `scripts/generate_all.sh --check`
+- **Generation drift:** `scripts/ci/generate_all.sh --check`
 - **Unit tests:** `cargo test --workspace --exclude system-tests`
-- **Docs run (fast):** `python scripts/docs_verify.py --run --level=fast` (requires `PyYAML`)
+- **Docs run (fast):** `python scripts/docs/docs_verify.py --run --level=fast` (guides + SDK READMEs; requires `PyYAML`)
 - **Cross-OS gate:** keep `golden_runpack_cross_os` as a dedicated required workflow
 
 ### Main Gate (Required)
 
-- **System tests P0:** `python scripts/test_runner.py --priority P0`
-- **System tests P1:** `python scripts/test_runner.py --priority P1`
+- **System tests P0:** `python scripts/system_tests/test_runner.py --priority P0`
+- **System tests P1:** `python scripts/system_tests/test_runner.py --priority P1`
 
 ### Manual Heavy Gate (On Demand)
 
-- **System tests P2:** `python scripts/test_runner.py --priority P2`
+- **System tests P2:** `python scripts/system_tests/test_runner.py --priority P2`
 
 ### Release Pipeline (Tag-Driven)
 
 - Triggered by pushing a version tag (e.g., `v0.1.0`).
 - Re-run main-level checks to ensure release readiness.
 - Build artifacts locally (packaging dry-runs) to validate release readiness.
+- Generate a dependency SBOM (Rust deps only; container SBOM/provenance deferred).
 - Evaluate release eligibility with Decision Gate and export a runpack artifact.
 - Publishing is delegated to the manual publish workflow.
 
@@ -110,7 +114,7 @@ arm64 builds without local ARM hardware. The repo should clearly document archit
 - Require supply-chain policy checks (`cargo-deny`).
 - Require system-test P0 + P1 on `main`.
 - Keep system-test artifacts as CI outputs (manifest + per-test logs).
-- Align CI behavior with `scripts/verify_all.sh` to keep local and CI gates consistent.
+- Align CI behavior with `scripts/ci/verify_all.sh` to keep local and CI gates consistent.
 
 ## Optional Fast Linkers (Local Opt-In)
 
@@ -138,4 +142,4 @@ approach is **opt-in** via local configuration:
 - Scheduled/nightly CI runs for P2, adapter tests, and packaging checks.
 - Extended system-test coverage and additional adapters in CI.
 - Fuzzing: only add once high-leverage fuzz targets are identified.
-- SBOM/provenance enhancements (e.g., attestations, signed releases).
+- Full supply-chain attestations (container SBOM, signatures, provenance).

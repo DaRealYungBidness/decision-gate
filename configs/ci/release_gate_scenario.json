@@ -18,6 +18,7 @@
               { "Condition": "unit_tests_ok" },
               { "Condition": "system_tests_p0_ok" },
               { "Condition": "system_tests_p1_ok" },
+              { "Condition": "sbom_ok" },
               { "Condition": "package_ok" },
               { "Condition": "docker_smoke_ok" },
               { "Condition": "tag_matches_version_ok" }
@@ -103,6 +104,17 @@
         "provider_id": "json",
         "check_id": "path",
         "params": { "file": "{{EVIDENCE_FILE}}", "jsonpath": "$.checks.system_tests_p1" }
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": []
+    },
+    {
+      "condition_id": "sbom_ok",
+      "query": {
+        "provider_id": "json",
+        "check_id": "path",
+        "params": { "file": "{{EVIDENCE_FILE}}", "jsonpath": "$.checks.sbom" }
       },
       "comparator": "equals",
       "expected": true,

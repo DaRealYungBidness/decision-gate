@@ -6,14 +6,18 @@
 
 ---
 
+## Standards (Read First)
+Before making changes, read and follow:
+- `Docs/standards/codebase_engineering_standards.md`
+- `Docs/standards/codebase_formatting_standards.md`
+- `Docs/standards/doc_formatting_standards.md`
+
 ## 0) TL;DR (one screen)
 
 - **Universal algebra only:** AND/OR/NOT/RequireGroup stay domain-agnostic.
 - **Performance posture:** zero allocations in hot paths; prefer SoA readers.
 - **Tri-state is opt-in:** boolean evaluation remains the default fast path.
 - **No Decision Gate policy bleed:** evidence anchoring, runpack, and disclosure policy live in Decision Gate.
-- **Style:** follow **Docs/standards/codebase_formatting_standards.md** headers and sections.
-- **Engineering standards:** follow **Docs/standards/codebase_engineering_standards.md**.
 - **Threat model:** consult **Docs/security/threat_model.md**; note `Threat Model Delta: none`
   if no update is needed.
 
@@ -57,4 +61,5 @@
 
 - Docs/standards/codebase_formatting_standards.md
 - Docs/standards/codebase_engineering_standards.md
+- Docs/standards/doc_formatting_standards.md
 - Docs/security/threat_model.md

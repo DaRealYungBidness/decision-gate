@@ -68,8 +68,8 @@ decision-gate --help
 cargo run -p decision-gate-cli -- --help
 ```
 
-**One-command smoke test:** `scripts/quickstart.sh` (bash/WSL) or
-`scripts/quickstart.ps1` (PowerShell) runs the full define → start → next →
+**One-command smoke test:** `scripts/bootstrap/quickstart.sh` (bash/WSL) or
+`scripts/bootstrap/quickstart.ps1` (PowerShell) runs the full define → start → next →
 runpack → precheck flow with unique IDs.
 
 ### Step 1: Choose a Preset

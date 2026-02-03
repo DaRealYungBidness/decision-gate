@@ -111,33 +111,23 @@ class DecisionGateToolConfig:
 
 
 class _PrecheckInput(BaseModel):
-    request: dict[str, JsonValue] = Field(
-        ..., description="Decision Gate precheck request."
-    )
+    request: dict[str, JsonValue] = Field(..., description="Decision Gate precheck request.")
 
 
 class _ScenarioNextInput(BaseModel):
-    request: dict[str, JsonValue] = Field(
-        ..., description="Decision Gate scenario_next request."
-    )
+    request: dict[str, JsonValue] = Field(..., description="Decision Gate scenario_next request.")
 
 
 class _ScenarioStatusInput(BaseModel):
-    request: dict[str, JsonValue] = Field(
-        ..., description="Decision Gate scenario_status request."
-    )
+    request: dict[str, JsonValue] = Field(..., description="Decision Gate scenario_status request.")
 
 
 class _ScenarioDefineInput(BaseModel):
-    request: dict[str, JsonValue] = Field(
-        ..., description="Decision Gate scenario_define request."
-    )
+    request: dict[str, JsonValue] = Field(..., description="Decision Gate scenario_define request.")
 
 
 class _ScenarioStartInput(BaseModel):
-    request: dict[str, JsonValue] = Field(
-        ..., description="Decision Gate scenario_start request."
-    )
+    request: dict[str, JsonValue] = Field(..., description="Decision Gate scenario_start request.")
 
 
 class _ScenarioTriggerInput(BaseModel):
@@ -147,39 +137,27 @@ class _ScenarioTriggerInput(BaseModel):
 
 
 class _ScenarioSubmitInput(BaseModel):
-    request: dict[str, JsonValue] = Field(
-        ..., description="Decision Gate scenario_submit request."
-    )
+    request: dict[str, JsonValue] = Field(..., description="Decision Gate scenario_submit request.")
 
 
 class _ScenariosListInput(BaseModel):
-    request: dict[str, JsonValue] = Field(
-        ..., description="Decision Gate scenarios_list request."
-    )
+    request: dict[str, JsonValue] = Field(..., description="Decision Gate scenarios_list request.")
 
 
 class _EvidenceQueryInput(BaseModel):
-    request: dict[str, JsonValue] = Field(
-        ..., description="Decision Gate evidence_query request."
-    )
+    request: dict[str, JsonValue] = Field(..., description="Decision Gate evidence_query request.")
 
 
 class _RunpackExportInput(BaseModel):
-    request: dict[str, JsonValue] = Field(
-        ..., description="Decision Gate runpack_export request."
-    )
+    request: dict[str, JsonValue] = Field(..., description="Decision Gate runpack_export request.")
 
 
 class _RunpackVerifyInput(BaseModel):
-    request: dict[str, JsonValue] = Field(
-        ..., description="Decision Gate runpack_verify request."
-    )
+    request: dict[str, JsonValue] = Field(..., description="Decision Gate runpack_verify request.")
 
 
 class _ProvidersListInput(BaseModel):
-    request: dict[str, JsonValue] = Field(
-        ..., description="Decision Gate providers_list request."
-    )
+    request: dict[str, JsonValue] = Field(..., description="Decision Gate providers_list request.")
 
 
 class _ProviderContractGetInput(BaseModel):
@@ -201,15 +179,11 @@ class _SchemasRegisterInput(BaseModel):
 
 
 class _SchemasListInput(BaseModel):
-    request: dict[str, JsonValue] = Field(
-        ..., description="Decision Gate schemas_list request."
-    )
+    request: dict[str, JsonValue] = Field(..., description="Decision Gate schemas_list request.")
 
 
 class _SchemasGetInput(BaseModel):
-    request: dict[str, JsonValue] = Field(
-        ..., description="Decision Gate schemas_get request."
-    )
+    request: dict[str, JsonValue] = Field(..., description="Decision Gate schemas_get request.")
 
 
 class _DocsSearchInput(BaseModel):

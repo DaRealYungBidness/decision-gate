@@ -91,9 +91,7 @@ def main() -> int:
     validate_enabled = os.environ.get("DG_VALIDATE") == "1"
 
     agent_id = os.environ.get("DG_AGENT_ID", "agent-alpha")
-    spec = load_env_json("DG_SCENARIO_SPEC") or default_time_after_spec(
-        "example-agent-loop", 0
-    )
+    spec = load_env_json("DG_SCENARIO_SPEC") or default_time_after_spec("example-agent-loop", 0)
     scenario_id = spec["scenario_id"]
     run_config = load_env_json("DG_RUN_CONFIG") or default_run_config(
         scenario_id, "run-agent-1", agent_id

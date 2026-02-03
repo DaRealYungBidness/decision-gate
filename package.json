@@ -9,7 +9,7 @@
   "scripts": {
     "docs:lint": "markdownlint-cli2 --config .markdownlint.json \"Docs/**/*.md\" \"README.md\"",
     "docs:lint:fix": "markdownlint-cli2 --fix --config .markdownlint.json \"Docs/**/*.md\" \"README.md\"",
-    "docs:linkify": "python3 scripts/docs_linkify_refs.py --write",
-    "docs:linkify:check": "python3 scripts/docs_linkify_refs.py"
+    "docs:linkify": "python3 scripts/docs/docs_linkify_refs.py --write",
+    "docs:linkify:check": "python3 scripts/docs/docs_linkify_refs.py"
   }
 }

@@ -24,5 +24,6 @@ I will acknowledge reports when I can; response time is best-effort.
 
 ## Supply Chain & Compliance Roadmap
 
-- SBOM/provenance are planned but not yet provided.
+- Dependency SBOMs (Rust deps) are generated for release tags; container SBOMs and
+  signed provenance are still planned.
 - FIPS-validated crypto is not currently supported; it is on the long-term roadmap.

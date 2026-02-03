@@ -268,7 +268,7 @@ Provider-specific anchor requirements.
 
 | Field | Type | Required | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `provider_id` | string | yes | n/a | Provider identifier requiring anchors (unique, trimmed). |
+| `provider_id` | string | yes | n/a | Provider identifier requiring anchors. |
 | `anchor_type` | string | yes | n/a | Anchor type identifier expected in results. |
 | `required_fields` | array | yes | n/a | Required fields in anchor_value. |
 
@@ -502,22 +502,17 @@ Provider entries register built-in or MCP providers.
 
 | Field | Type | Required | Default | Notes |
 | --- | --- | --- | --- | --- |
-| `name` | string | yes | n/a | Provider identifier (unique; built-in names are reserved). |
+| `name` | string | yes | n/a | Provider identifier. |
 | `type` | "builtin" \| "mcp" | yes | n/a | Provider kind. |
-| `command` | array | no | [] | MCP only (stdio). |
-| `url` | string | no | null | MCP only (HTTP URL). |
-| `allow_insecure_http` | bool | no | false | MCP only; allow http:// URLs. |
-| `capabilities_path` | string | no | null | MCP only; required contract path. |
-| `auth` | table | no | null | MCP only; bearer token config. |
+| `command` | array | no | [] |  |
+| `url` | string | no | null | Provider HTTP URL. |
+| `allow_insecure_http` | bool | no | false | Allow http:// URLs for MCP providers. |
+| `capabilities_path` | string | no | null | Path to provider capability contract JSON. |
+| `auth` | table | no | null |  |
 | `trust` | unknown | no | null | Default trust policy for providers. |
 | `allow_raw` | bool | no | false | Allow raw evidence disclosure for this provider. |
 | `timeouts` | table | no | { connect_timeout_ms = 2000, request_timeout_ms = 10000 } | HTTP timeout overrides for MCP providers. |
-| `config` | json | no | null | Built-in only; provider-specific config blob. |
-
-Provider name rules:
-
-- Names must be **unique** across all `[[providers]]` entries.
-- Built-in identifiers (`time`, `env`, `json`, `http`) are **reserved** and may only be used with `type = "builtin"`.
+| `config` | json | no | null | Provider-specific config blob. |
 
 `auth` form:
 

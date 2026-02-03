@@ -74,7 +74,9 @@ TRequest = TypeVar("TRequest")
 ToolDecorator = Callable[[Callable[..., object]], object]
 
 
-def _maybe_validate(enabled: bool, validator: Callable[[TRequest], None], payload: TRequest) -> None:
+def _maybe_validate(
+    enabled: bool, validator: Callable[[TRequest], None], payload: TRequest
+) -> None:
     if enabled:
         validator(payload)
 

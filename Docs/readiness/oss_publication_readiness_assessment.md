@@ -539,8 +539,8 @@ Decision Gate has **comprehensive documentation** covering architecture, securit
 
 **Quickstart Scripts**:
 
-- `scripts/quickstart.sh` (bash/WSL)
-- `scripts/quickstart.ps1` (PowerShell)
+- `scripts/bootstrap/quickstart.sh` (bash/WSL)
+- `scripts/bootstrap/quickstart.ps1` (PowerShell)
 
 ### API Documentation: B- (Needs Improvement)
 
@@ -894,7 +894,7 @@ EXPOSE 8080
 - Format check: cargo +nightly fmt --all -- --check
 - Clippy: clippy --all-targets --all-features -D warnings
 - Dependency audit: cargo deny check
-- Code generation drift: scripts/generate_all.sh --check
+- Code generation drift: scripts/ci/generate_all.sh --check
 - Unit tests: cargo test --workspace --exclude system-tests
 - Docker build validation (amd64 only)
 ```
@@ -1137,22 +1137,22 @@ unknown-registry = "deny"    # Only crates.io
 
 **Overall**: No critical security issues. Known issues are dev-only or cosmetic.
 
-### SBOM & Provenance: C (Roadmap Item)
+### SBOM & Provenance: B (Partial)
 
 **Current State**:
 
-- No SBOM generation ❌
+- Dependency SBOM generated on release tags (Rust deps only) ✅
 - No provenance tracking ❌
 - Cargo.lock provides dependency tracking ✅
 
 **Roadmap** ([SECURITY.md](../SECURITY.md)):
 
-- SBOM generation planned (not yet implemented)
+- Container SBOMs, signatures, and provenance are planned
 - FIPS-validated crypto planned (not yet available)
 
 **Impact**: **Low for OSS launch**. SBOM is nice-to-have, not required for initial publication.
 
-**Recommendation**: Add SBOM generation before enterprise deployments in air-gapped environments.
+**Recommendation**: Add container SBOMs and signed provenance before enterprise deployments in air-gapped environments.
 
 ### Supply Chain Summary
 
@@ -1163,7 +1163,7 @@ unknown-registry = "deny"    # Only crates.io
 | Dependency Footprint  | A+    | Minimal, essential crates only (no bloat)                   |
 | Supply Chain Security | A     | cargo-deny, advisory scanning, license enforcement          |
 | Known Issues          | B+    | 1 dev-only license exception, 1 cosmetic duplication        |
-| SBOM & Provenance     | C     | Not yet implemented (roadmap item)                          |
+| SBOM & Provenance     | B     | Dependency SBOM on release tags; provenance pending         |
 
 **Industry Benchmark**: **Meets/exceeds standards**. Current dependencies with automated supply chain security. SBOM is nice-to-have for OSS.
 
@@ -1210,7 +1210,7 @@ Decision Gate has **clear governance model** (solo maintainer, no PRs) with **mi
 - Zero Trust posture
 - Private security reporting to support@assetcore.io
 - Subject line: "DG SECURITY"
-- Supply chain roadmap (SBOM, FIPS planned)
+- Supply chain roadmap (container SBOM, provenance, FIPS planned)
 
 **Quality**: **Good**. Clear reporting process with responsible disclosure.
 
@@ -1592,10 +1592,10 @@ Decision Gate demonstrates **strong alignment** with industry best practices acr
 - ✅ Cargo.lock (dependency pinning)
 - ✅ cargo-deny (advisory scanning)
 - ✅ License enforcement
-- ❌ No SBOM generation
+- ✅ Dependency SBOM on release tags (Rust deps only)
 - ❌ No signed provenance
 
-**Recommendation**: Add SBOM generation and signed provenance for SLSA Level 2 compliance (already on roadmap).
+**Recommendation**: Add container SBOMs and signed provenance for SLSA Level 2 compliance (already on roadmap).
 
 ### GitHub Community Health: C
 
@@ -1748,11 +1748,11 @@ Decision Gate demonstrates **strong alignment** with industry best practices acr
 
 **Deductions**:
 
-- No SBOM generation (-6 points)
+- SBOM is dependency-only (no container SBOM) (-2 points)
 - 1 dev-only license exception (-3 points)
 - No signed provenance (-3 points)
 
-**Status**: **Ready for publication**. SBOM is roadmap item, not blocker.
+**Status**: **Ready for publication**. Full supply-chain artifacts remain a roadmap item.
 
 #### Community Infrastructure: 60/100 (C) ⚠️
 
@@ -1791,7 +1791,7 @@ Decision Gate demonstrates **strong alignment** with industry best practices acr
 - [ ] Publish rustdoc to docs.rs - **1 day**
 - [ ] Add Prometheus metrics - **1 week**
 - [ ] Add health check endpoints - **2 days**
-- [ ] Generate SBOM - **1 week**
+- [ ] Expand SBOM (container + provenance) - **1 week**
 - [ ] Add feature request template - **1 hour**
 
 ### Publication Timeline Recommendation
@@ -2444,29 +2444,29 @@ async fn health_ready() -> Result<StatusCode, StatusCode> {
 }
 ```
 
-#### 10. Generate SBOM (Software Bill of Materials) 📦
+#### 10. Expand SBOM Coverage (Containers + Provenance) 📦
 
 **Why**: Supply chain transparency, enterprise compliance
 
 **Effort**: 1 week
 
-**Tools**: `cargo-sbom` or `syft`
+**Tools**: `cargo-sbom` (deps) + `syft` (containers)
 
-**Implementation**:
+**Implementation** (dependency SBOM already generated in release pipeline):
 
 ```bash
-# Generate SBOM in SPDX format
+# Generate dependency SBOM in SPDX format
 cargo install cargo-sbom
 cargo sbom > sbom.spdx.json
 
-# Or use syft
+# Container SBOM (optional, future)
 syft packages . -o spdx-json > sbom.spdx.json
 ```
 
 **Include in Release Artifacts**:
 
-- Attach sbom.spdx.json to GitHub releases
-- Document in SECURITY.md
+- Attach SBOM(s) to GitHub releases
+- Document coverage (deps vs container) in SECURITY.md
 
 #### 11. Unify base64 Dependency Versions 🔧
 
@@ -2495,7 +2495,7 @@ syft packages . -o spdx-json > sbom.spdx.json
 | **P2**   | Feature Request Template | 1h     | Low      | No       |
 | **P3**   | Prometheus Metrics       | 1w     | Low      | No       |
 | **P3**   | Health Endpoints         | 2d     | Low      | No       |
-| **P3**   | SBOM Generation          | 1w     | Low      | No       |
+| **P3**   | SBOM Expansion           | 1w     | Low      | No       |
 | **P3**   | Unify base64             | 4h     | Very Low | No       |
 
 **Total Effort for P1 Items**: ~5 hours (1 day of focused work)

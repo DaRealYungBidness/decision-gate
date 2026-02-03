@@ -64,14 +64,15 @@ explicit requirements are satisfied.
 
 ## Quick Start
 
-- Regenerate artifacts: `scripts/generate_all.sh`
-- Verify all (non-system tests): `scripts/verify_all.sh`
-- Verify all + system tests: `scripts/verify_all.sh --system-tests=p0`
+- Regenerate artifacts: `scripts/ci/generate_all.sh`
+- Verify all (non-system tests): `scripts/ci/verify_all.sh`
+- Verify all + system tests: `scripts/ci/verify_all.sh --system-tests=p0`
 - Run core tests: `cargo test -p decision-gate-core`
 - Run broker tests: `cargo test -p decision-gate-broker`
 - One-command quickstart smoke test:
-  - Bash/WSL: `scripts/quickstart.sh`
-  - PowerShell: `scripts/quickstart.ps1`
+  - Bash/WSL: `scripts/bootstrap/quickstart.sh`
+  - PowerShell: `scripts/bootstrap/quickstart.ps1`
+- Scripts index: `scripts/README.md`
 - Run examples:
   - `cargo run -p decision-gate-example-minimal`
   - `cargo run -p decision-gate-example-file-disclosure`

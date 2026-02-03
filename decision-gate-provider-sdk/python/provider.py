@@ -56,6 +56,7 @@ class FrameError(Exception):
 # SECTION: Entry Point
 # ============================================================================
 
+
 def main() -> None:
     """Entry point for the MCP stdio loop."""
     stdin = sys.stdin.buffer
@@ -81,6 +82,7 @@ def main() -> None:
 # ============================================================================
 # SECTION: Framing
 # ============================================================================
+
 
 def read_frame(stream: Any) -> Optional[bytes]:
     """Reads a Content-Length framed payload from stdio."""
@@ -128,6 +130,7 @@ def discard_bytes(stream: Any, count: int) -> None:
 # SECTION: JSON-RPC Handling
 # ============================================================================
 
+
 def parse_request(payload: bytes) -> Optional[Dict[str, Any]]:
     """Parses a JSON-RPC request payload."""
     try:
@@ -159,6 +162,7 @@ def handle_request(request: Dict[str, Any]) -> Dict[str, Any]:
 # ============================================================================
 # SECTION: Evidence Logic
 # ============================================================================
+
 
 def handle_tool_call(request: Dict[str, Any]) -> Dict[str, Any]:
     """Handles the evidence_query tool call."""
@@ -212,6 +216,7 @@ def handle_evidence_query(query: Dict[str, Any], _context: Dict[str, Any]) -> Di
 # ============================================================================
 # SECTION: JSON-RPC Output
 # ============================================================================
+
 
 def build_error_response(request_id: Any, code: int, message: str) -> Dict[str, Any]:
     """Builds a JSON-RPC error response."""

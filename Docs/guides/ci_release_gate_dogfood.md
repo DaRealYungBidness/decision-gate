@@ -2,10 +2,10 @@
 ci_release_gate_dogfood.md
 ============================================================================
 Document: Decision Gate CI Release Gate Dogfooding
-Description: World-class CI release eligibility gating using Decision Gate.
+Description: Rigorous CI release eligibility gating using Decision Gate.
 Purpose: Explain the evidence bundle, policy, and runpack artifacts.
 Dependencies:
-  - scripts/ci_release_gate.sh
+  - scripts/ci/ci_release_gate.sh
   - configs/ci/release_gate_scenario.json
   - configs/presets/ci-release-gate.toml
   - Docs/ci_current_state_and_plan.md
@@ -18,7 +18,7 @@ This guide documents how Decision Gate dogfoods itself by gating release
 eligibility using deterministic CI evidence. The goal is to demonstrate a
 real, auditable policy layer without replacing the CI system.
 
-## Why This Is World-Class
+## Why This Is Rigorous
 
 - **Separation of concerns**: CI executes tests; Decision Gate evaluates the
   policy and emits a deterministic decision.
@@ -36,6 +36,7 @@ The release tag workflow validates that a release is eligible based on:
 - System tests P0 and P1
 - `cargo-deny`
 - Generator drift checks
+- Dependency SBOM (Rust deps only)
 - Packaging dry runs (Python + TypeScript)
 - Docker smoke test
 - Tag/version consistency (tag matches workspace version)
@@ -56,7 +57,8 @@ Example (shape only):
     "version": "0.1.0",
     "tag_matches_version": true,
     "sha": "<git sha>",
-    "generated_at": 1710000000000
+    "generated_at": 1710000000000,
+    "sbom_path": ".tmp/ci/sbom/decision-gate.sbom.spdx.json"
   },
   "checks": {
     "fmt": true,
@@ -66,6 +68,7 @@ Example (shape only):
     "unit_tests": true,
     "system_tests_p0": true,
     "system_tests_p1": true,
+    "sbom": true,
     "package_dry_run": true,
     "docker_smoke": true
   }
@@ -91,17 +94,20 @@ The scenario is instantiated at runtime by replacing the template placeholders:
 The release workflow performs the following sequence:
 
 1. Runs CI checks (fmt, clippy, tests, deny, packaging, smoke test).
-2. Writes the evidence bundle.
-3. Starts a local MCP server with `configs/presets/ci-release-gate.toml`.
-4. Evaluates the scenario using the evidence bundle.
-5. Exports and verifies a runpack.
-6. Uploads artifacts:
+2. Generates a dependency SBOM (Rust deps only; container SBOM/provenance are
+   not yet emitted).
+3. Writes the evidence bundle.
+4. Starts a local MCP server with `configs/presets/ci-release-gate.toml`.
+5. Evaluates the scenario using the evidence bundle.
+6. Exports and verifies a runpack.
+7. Uploads artifacts:
    - Evidence bundle
    - Runpack
+   - Dependency SBOM
    - Decision payload and summary
    - Artifact name: `decision-gate-release-gate`
 
-The implementation lives in `scripts/ci_release_gate.sh` and is called by the
+The implementation lives in `scripts/ci/ci_release_gate.sh` and is called by the
 release workflow.
 
 ## How Publishing Is Guarded
@@ -127,6 +133,7 @@ Path("/tmp/release_evidence.json").write_text(json.dumps({
         "tag_matches_version": True,
         "sha": "local",
         "generated_at": 0,
+        "sbom_path": "/tmp/decision-gate.sbom.spdx.json",
     },
     "checks": {
         "fmt": True,
@@ -136,13 +143,14 @@ Path("/tmp/release_evidence.json").write_text(json.dumps({
         "unit_tests": True,
         "system_tests_p0": True,
         "system_tests_p1": True,
+        "sbom": True,
         "package_dry_run": True,
         "docker_smoke": True,
     },
 }, indent=2))
 PY
 
-bash scripts/ci_release_gate.sh \
+bash scripts/ci/ci_release_gate.sh \
   --evidence-file /tmp/release_evidence.json \
   --output-dir /tmp/release-runpack \
   --config configs/presets/ci-release-gate.toml
@@ -162,4 +170,4 @@ show the denial reason.
 
 - `Docs/ci_current_state_and_plan.md`
 - `configs/ci/release_gate_scenario.json`
-- `scripts/ci_release_gate.sh`
+- `scripts/ci/ci_release_gate.sh`

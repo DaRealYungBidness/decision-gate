@@ -72,6 +72,8 @@ from decision_gate import (
 )
 
 TRequest = TypeVar("TRequest")
+
+
 class BaseToolLike(Protocol):
     name: str
 
@@ -87,7 +89,9 @@ def _tool(
     return cast(Callable[[Callable[..., object]], BaseToolLike], decorator)
 
 
-def _maybe_validate(enabled: bool, validator: Callable[[TRequest], None], payload: TRequest) -> None:
+def _maybe_validate(
+    enabled: bool, validator: Callable[[TRequest], None], payload: TRequest
+) -> None:
     if enabled:
         validator(payload)
 
@@ -95,9 +99,7 @@ def _maybe_validate(enabled: bool, validator: Callable[[TRequest], None], payloa
 class DecisionGateToolArgs(BaseModel):
     """LangChain args schema wrapper for JSON payloads."""
 
-    request: dict[str, JsonValue] = Field(
-        ..., description="Decision Gate tool request payload."
-    )
+    request: dict[str, JsonValue] = Field(..., description="Decision Gate tool request payload.")
 
 
 @dataclass(frozen=True)

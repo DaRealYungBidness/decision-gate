@@ -5,6 +5,12 @@
 
 ---
 
+## Standards (Read First)
+Before making changes, read and follow:
+- `Docs/standards/codebase_engineering_standards.md`
+- `Docs/standards/codebase_formatting_standards.md`
+- `Docs/standards/doc_formatting_standards.md`
+
 ## 0) TL;DR
 
 - **CLI is a wrapper:** no business logic divergence from core.
@@ -32,5 +38,8 @@ cargo test -p decision-gate-cli
 ```
 
 ## 5) References
+- Docs/standards/codebase_engineering_standards.md
+- Docs/standards/codebase_formatting_standards.md
+- Docs/standards/doc_formatting_standards.md
 - decision-gate-mcp/README.md
 - decision-gate-core/AGENTS.md

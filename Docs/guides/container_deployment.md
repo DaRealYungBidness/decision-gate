@@ -43,14 +43,14 @@ Multi-arch build (amd64 + arm64):
 
 ```bash dg-run dg-level=manual
 IMAGE_REPO=ghcr.io/your-org/decision-gate IMAGE_TAG=dev \
-  scripts/build_container.sh
+  scripts/container/build_container.sh
 ```
 
 Push multi-arch:
 
 ```bash dg-run dg-level=manual
 IMAGE_REPO=ghcr.io/your-org/decision-gate IMAGE_TAG=dev PUSH=1 \
-  scripts/build_container.sh
+  scripts/container/build_container.sh
 ```
 
 Notes:
@@ -68,8 +68,8 @@ Local/dev:
 Release:
 - `ghcr.io/<org>/decision-gate:vX.Y.Z` (immutable release tag).
 - `ghcr.io/<org>/decision-gate:latest` (points at most recent release).
-- Supply-chain artifacts (SBOM, signatures, provenance) are published for
-  release tags only.
+- A dependency SBOM (Rust deps) is published for release tags.
+- Container SBOMs, signatures, and provenance are not yet emitted in OSS.
 
 ## Configuration
 
@@ -239,10 +239,10 @@ For SQLite durability, replace `emptyDir` with a persistent volume claim.
 
 ## Supply-Chain Artifacts (Optional but Recommended)
 
-Decision Gate OSS publishes SBOMs, signed container images, and build
-provenance for official releases. These artifacts reflect the build inputs at
-release time and are provided for transparency. They do not constitute a
-vulnerability-free guarantee or regulated compliance certification.
+Decision Gate OSS currently publishes a dependency SBOM (Rust deps) for release
+tags. Container SBOMs, signatures, and provenance are not yet emitted in OSS.
+The commands below are optional examples if you want to add those artifacts in
+your own release pipeline.
 
 SBOM (example using `syft`):
 
