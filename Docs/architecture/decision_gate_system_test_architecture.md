@@ -51,6 +51,10 @@ The agentic flow harness extends this model with canonical scenario packs that
 run across raw MCP, SDKs, and framework adapters. Scenario packs live under
 `system-tests/tests/fixtures/agentic/` and are mirrored into `examples/agentic/`
 for discoverability.
+Runpack hash expectations are OS-aware when necessary; harnesses may supply
+`runpack_root_hash.<os>.txt` alongside the default `runpack_root_hash.txt` to
+capture platform-specific but deterministic hashes (for example, Windows vs.
+Unix serialization differences).
 
 Operational posture coverage includes HTTP liveness/readiness probes to ensure
 containerized deployments advertise correct health semantics.
@@ -71,6 +75,10 @@ System-tests must mirror production behavior and remain deterministic:
 - SDK client and example tests rely on Python 3 and Node (18+ with
   `--experimental-strip-types`); tests skip with explicit summaries if runtimes
   are unavailable.
+- Optional agentic adapter drivers (LangChain/CrewAI/AutoGen/OpenAI Agents)
+  downgrade adapter failures to skips unless
+  `DECISION_GATE_STRICT_AGENTIC_ADAPTERS=1` is set, keeping OSS runs deterministic
+  without requiring optional dependencies.
 
 [F:system-tests/AGENTS.md L12-L57](system-tests/AGENTS.md#L12-L57)[F:system-tests/README.md L30-L61](system-tests/README.md#L30-L61)
 
@@ -114,10 +122,14 @@ coverage gaps.
 ## Artifacts and Determinism
 
 Every system test writes deterministic artifacts under a per-test run root. The
-run root is supplied by `DECISION_GATE_SYSTEM_TEST_RUN_ROOT` and each test must
-emit canonical JSON artifacts plus a tool transcript. Run roots must be unique
-and the harness fails closed if the target directory already exists unless
-`DECISION_GATE_SYSTEM_TEST_ALLOW_OVERWRITE=1` is set.
+run root is supplied by `DECISION_GATE_SYSTEM_TEST_RUN_ROOT`; when unset, tests
+default to `target/system-tests/<run-id>/<test-name>` under the workspace root.
+When executing under `nextest`, the `<run-id>` is `NEXTEST_RUN_ID`, which keeps
+all binaries in a single run tree. Each test must emit canonical JSON artifacts
+plus a tool transcript. Run roots must be unique and the harness fails closed
+if the target directory already exists unless
+`DECISION_GATE_SYSTEM_TEST_ALLOW_OVERWRITE=1` is set. Failing tests also emit a
+one-line stderr summary that includes the artifact root for rapid triage.
 
 Deterministic HTTP fixtures (for example the agentic harness HTTP stub) use
 stable, scenario-derived ports to prevent runpack hash drift; the port can be
@@ -134,6 +146,9 @@ passes. Use explicit features or the registry-driven runner.
 - `cargo test -p system-tests --features system-tests`
 - `cargo nextest run -p system-tests --features system-tests`
 - `python scripts/test_runner.py --priority P0`
+
+`cargo nextest` defaults are tuned in `.config/nextest.toml`, including emitting
+failure output at the end of the run for easier triage.
 
 Tests should be registered and coverage docs regenerated when changes occur.
 [F:system-tests/README.md L38-L59](system-tests/README.md#L38-L59)

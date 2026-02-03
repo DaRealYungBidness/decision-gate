@@ -22,6 +22,10 @@ mod cli_auth;
 mod config_defaults;
 #[path = "suites/config_validation.rs"]
 mod config_validation;
+#[path = "suites/evidence_fuzz.rs"]
+mod evidence_fuzz;
+#[path = "suites/log_leak_scan.rs"]
+mod log_leak_scan;
 #[path = "suites/mcp_auth.rs"]
 mod mcp_auth;
 #[path = "suites/namespace_defaults.rs"]

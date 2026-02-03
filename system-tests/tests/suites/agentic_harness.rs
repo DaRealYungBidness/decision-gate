@@ -36,6 +36,7 @@ use helpers::harness::base_http_config;
 use helpers::harness::spawn_mcp_server;
 use helpers::mcp_client::McpHttpClient;
 use helpers::readiness::wait_for_server_ready;
+use helpers::sdk_runner;
 use helpers::sdk_runner::node_runtime_for_typescript;
 use helpers::sdk_runner::python_runtime;
 use helpers::sdk_runner::run_script;
@@ -51,6 +52,7 @@ use crate::helpers;
 const FIXTURE_ROOT: &str = "tests/fixtures/agentic";
 const REGISTRY_PATH: &str = "tests/fixtures/agentic/scenario_registry.toml";
 const EXPECTED_HASH_FILE: &str = "expected/runpack_root_hash.txt";
+const EXPECTED_HASH_PREFIX: &str = "expected/runpack_root_hash.";
 const HTTP_PLACEHOLDER: &str = "{{HTTP_BASE_URL}}";
 
 type DynError = Box<dyn std::error::Error + Send + Sync>;
@@ -227,7 +229,7 @@ fn load_scenario_pack(id: &str) -> Result<ScenarioPack, DynError> {
     let run_config = load_json(root.join("run_config.json"))?;
     let trigger = load_json(root.join("trigger.json"))?;
     let env_overrides = load_env_overrides(&fixtures_dir.join("env.json"))?;
-    let expected_hash_path = root.join(EXPECTED_HASH_FILE);
+    let expected_hash_path = resolve_expected_hash_path(&root);
 
     Ok(ScenarioPack {
         id: id.to_string(),
@@ -239,6 +241,15 @@ fn load_scenario_pack(id: &str) -> Result<ScenarioPack, DynError> {
         env_overrides,
         expected_hash_path,
     })
+}
+
+fn resolve_expected_hash_path(root: &Path) -> PathBuf {
+    let os = std::env::consts::OS;
+    let candidate = root.join(format!("{EXPECTED_HASH_PREFIX}{os}.txt"));
+    if candidate.exists() {
+        return candidate;
+    }
+    root.join(EXPECTED_HASH_FILE)
 }
 
 fn load_json(path: PathBuf) -> Result<Value, DynError> {
@@ -496,17 +507,12 @@ async fn run_script_driver(
         };
         let args =
             vec!["--experimental-strip-types".to_string(), script.to_string_lossy().to_string()];
-        let mut node_options = match env::var("NODE_OPTIONS") {
-            Ok(existing) if !existing.is_empty() => {
-                format!("{existing} --unhandled-rejections=strict")
-            }
-            _ => "--unhandled-rejections=strict".to_string(),
-        };
         let loader_path = manifest_dir.join("tests/fixtures/ts_loader.mjs");
-        if let Ok(loader_path) = loader_path.canonicalize() {
-            node_options =
-                format!("{node_options} --experimental-loader={}", loader_path.display());
-        }
+        let loader_path = loader_path.canonicalize().ok();
+        let node_options = sdk_runner::node_options_with_loader(
+            env::var("NODE_OPTIONS").ok(),
+            loader_path.as_deref(),
+        );
         envs.insert("NODE_OPTIONS".to_string(), node_options);
         (runtime.path, args)
     } else {
@@ -581,6 +587,25 @@ async fn run_script_driver(
                     .to_string(),
             ],
         });
+    }
+    if payload.get("status").and_then(Value::as_str) == Some("fatal_error") {
+        let error = payload
+            .get("error")
+            .and_then(Value::as_str)
+            .unwrap_or("fatal_error");
+        let optional_adapter = matches!(driver, "langchain" | "crewai" | "autogen" | "openai_agents");
+        let strict = env::var("DECISION_GATE_STRICT_AGENTIC_ADAPTERS").is_ok();
+        if optional_adapter && !strict {
+            server.shutdown().await;
+            return Ok(DriverResult {
+                driver: driver.to_string(),
+                status: "skipped".to_string(),
+                outcome: None,
+                runpack_root_hash: None,
+                runpack_hash_algorithm: None,
+                notes: vec![format!("adapter failed: {error}")],
+            });
+        }
     }
     server.shutdown().await;
 

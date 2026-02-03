@@ -256,6 +256,17 @@ struct McpProcess {
     stdout: BufReader<ChildStdout>,
 }
 
+impl Drop for McpProcess {
+    fn drop(&mut self) {
+        match self.child.try_wait() {
+            Ok(Some(_)) => return,
+            Ok(None) | Err(_) => {}
+        }
+        let _ = self.child.kill();
+        let _ = self.child.try_wait();
+    }
+}
+
 impl McpProviderClient {
     /// Builds an MCP provider client from the configured transport settings.
     ///

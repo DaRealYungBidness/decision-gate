@@ -366,12 +366,13 @@ async fn run_example_script(
         .map_err(|err| format!("example path missing: {} ({err})", script.display()))?;
     if script.extension().and_then(|ext| ext.to_str()) == Some("ts") {
         let args = vec!["--experimental-strip-types".to_string(), script.display().to_string()];
-        let node_options = match std::env::var("NODE_OPTIONS") {
-            Ok(existing) if !existing.is_empty() => {
-                format!("{existing} --unhandled-rejections=strict")
-            }
-            _ => "--unhandled-rejections=strict".to_string(),
-        };
+        let loader_path =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/ts_loader.mjs");
+        let loader_path = loader_path.canonicalize().ok();
+        let node_options = sdk_runner::node_options_with_loader(
+            std::env::var("NODE_OPTIONS").ok(),
+            loader_path.as_deref(),
+        );
         envs.insert("NODE_OPTIONS".to_string(), node_options);
         return Ok(
             sdk_runner::run_script(interpreter, &args, &envs, Duration::from_secs(25)).await?

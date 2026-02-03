@@ -223,6 +223,52 @@ fn json_provider_sets_evidence_metadata() {
     assert!(evidence_ref.uri.contains("data.json"));
 }
 
+/// Deterministic `JSONPath` corpus fuzzing: invalid/edge paths fail closed.
+#[test]
+fn json_provider_jsonpath_corpus_fuzz() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("data.json");
+    fs::write(&path, r#"{"nested":{"value":"ok"}, "items":[{"id":1},{"id":2}], "empty": []}"#)
+        .unwrap();
+
+    let provider = JsonProvider::new(JsonProviderConfig {
+        root: Some(dir.path().to_path_buf()),
+        ..JsonProviderConfig::default()
+    });
+
+    let corpus = vec![
+        "$.nested.value",
+        "$.items[*].id",
+        "$.items[10].id",
+        "$.missing",
+        "$..[",
+        "$..",
+        "$['unterminated",
+        "$.items[",
+        "$..[?(@.id == 1)]",
+        "$.items[*].id[",
+        "$.items[*].missing",
+        "$..*",
+    ];
+
+    for path_expr in corpus {
+        let query = EvidenceQuery {
+            provider_id: ProviderId::new("json"),
+            check_id: "path".to_string(),
+            params: Some(json!({"file": "data.json", "jsonpath": path_expr})),
+        };
+        let result = provider.query(&query, &sample_context()).unwrap();
+        if let Some(error) = result.error {
+            assert!(
+                error.code == "invalid_jsonpath" || error.code == "jsonpath_not_found",
+                "unexpected jsonpath error code {} for {}",
+                error.code,
+                path_expr
+            );
+        }
+    }
+}
+
 // ============================================================================
 // SECTION: Adversarial Tests - Path Traversal Prevention
 // ============================================================================

@@ -24,6 +24,10 @@ time = { version = "0.3.46", features = ["formatting", "parsing"] }
 ret-logic = { path = "../ret-logic", version = "0.1.0" }
 tempfile = "3.10"
 tiny_http = "0.12"
+proptest = "1.4"
+rcgen = "0.14"
+rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs"] }
+rustls-pki-types = { version = "1.14", features = ["std"] }
 
 [lints]
 workspace = true

@@ -218,16 +218,29 @@ fn read_response_limited(
     response: &mut reqwest::blocking::Response,
     max_bytes: usize,
 ) -> Result<Vec<u8>, EvidenceError> {
-    let mut buf = Vec::new();
-    let limit = max_bytes.saturating_add(1);
-    let limit = u64::try_from(limit)
+    let expected_len = response.content_length();
+    let max_bytes_u64 = u64::try_from(max_bytes)
         .map_err(|_| EvidenceError::Provider("response size limit exceeds u64".to_string()))?;
+    if let Some(expected) = expected_len
+        && expected > max_bytes_u64
+    {
+        return Err(EvidenceError::Provider("http response exceeds size limit".to_string()));
+    }
+    let mut buf = Vec::new();
+    let limit = max_bytes_u64.saturating_add(1);
     let mut handle = response.take(limit);
     handle
         .read_to_end(&mut buf)
         .map_err(|_| EvidenceError::Provider("failed to read response".to_string()))?;
     if buf.len() > max_bytes {
         return Err(EvidenceError::Provider("http response exceeds size limit".to_string()));
+    }
+    if let Some(expected) = expected_len {
+        let expected = usize::try_from(expected)
+            .map_err(|_| EvidenceError::Provider("invalid response length".to_string()))?;
+        if buf.len() < expected {
+            return Err(EvidenceError::Provider("http response truncated".to_string()));
+        }
     }
     Ok(buf)
 }

@@ -811,22 +811,26 @@ struct ServerState {
 
 #[derive(Serialize)]
 struct HealthResponse {
+    /// Response status label for probe endpoints.
     status: &'static str,
 }
 
 impl HealthResponse {
+    /// Builds an "ok" health response.
     const fn ok() -> Self {
         Self {
             status: "ok",
         }
     }
 
+    /// Builds a "ready" health response.
     const fn ready() -> Self {
         Self {
             status: "ready",
         }
     }
 
+    /// Builds a "`not_ready`" health response.
     const fn not_ready() -> Self {
         Self {
             status: "not_ready",
@@ -834,20 +838,25 @@ impl HealthResponse {
     }
 }
 
+/// Aggregates dependencies needed for readiness probes.
 #[derive(Clone)]
 struct ReadinessState {
+    /// Run state store for readiness checks.
     store: SharedRunStateStore,
+    /// Data shape registry for readiness checks.
     registry: SharedDataShapeRegistry,
 }
 
 impl ReadinessState {
-    fn new(store: SharedRunStateStore, registry: SharedDataShapeRegistry) -> Self {
+    /// Constructs readiness state from store + registry dependencies.
+    const fn new(store: SharedRunStateStore, registry: SharedDataShapeRegistry) -> Self {
         Self {
             store,
             registry,
         }
     }
 
+    /// Executes store + registry readiness checks.
     fn check(&self) -> Result<(), ReadinessError> {
         self.store.readiness().map_err(|_| ReadinessError::Store)?;
         self.registry.readiness().map_err(|_| ReadinessError::Registry)?;
@@ -855,11 +864,15 @@ impl ReadinessState {
     }
 }
 
+/// Readiness failure sources.
 enum ReadinessError {
+    /// Store readiness failure.
     Store,
+    /// Registry readiness failure.
     Registry,
 }
 
+/// Builds shared server state used by HTTP/SSE handlers.
 fn build_server_state(
     router: ToolRouter,
     server: &crate::config::ServerConfig,

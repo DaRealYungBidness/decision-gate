@@ -17,11 +17,15 @@ path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4.5.56", features = ["derive"] }
+base64 = "0.22"
+decision-gate-broker = { path = "../decision-gate-broker", version = "0.1.0" }
 decision-gate-contract = { path = "../decision-gate-contract", version = "0.1.0" }
 decision-gate-config = { path = "../decision-gate-config", version = "0.1.0" }
 decision-gate-core = { path = "../decision-gate-core", version = "0.1.0" }
 decision-gate-mcp = { path = "../decision-gate-mcp", version = "0.1.0" }
 decision-gate-sdk-gen = { path = "../decision-gate-sdk-gen", version = "0.1.0" }
+decision-gate-store-sqlite = { path = "../decision-gate-store-sqlite", version = "0.1.0" }
+ed25519-dalek = { version = "2.1", features = ["std"] }
 jsonschema = "0.30"
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "webpki-roots"] }
 serde = { version = "1.0", features = ["derive"] }

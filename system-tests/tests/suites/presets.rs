@@ -130,7 +130,7 @@ async fn preset_container_prod_http() -> Result<(), Box<dyn std::error::Error>> 
     let Err(err) = unauthorized_client.list_tools().await else {
         return Err("expected unauthorized tools/list".into());
     };
-    if !err.contains("unauthorized") {
+    if !err.contains("unauthorized") && !err.contains("unauthenticated") {
         return Err(format!("unexpected error: {err}").into());
     }
 

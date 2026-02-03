@@ -19,6 +19,7 @@ use std::time::Duration;
 
 use tokio::process::Command;
 use tokio::time::timeout;
+use url::Url;
 
 pub struct ScriptOutput {
     pub status: std::process::ExitStatus,
@@ -29,6 +30,21 @@ pub struct ScriptOutput {
 pub struct RuntimeCheck {
     pub path: PathBuf,
     pub notes: Vec<String>,
+}
+
+pub fn node_options_with_loader(existing: Option<String>, loader_path: Option<&Path>) -> String {
+    let mut options = match existing {
+        Some(value) if !value.is_empty() => format!("{value} --unhandled-rejections=strict"),
+        _ => "--unhandled-rejections=strict".to_string(),
+    };
+    if let Some(path) = loader_path {
+        let loader_arg = match Url::from_file_path(path) {
+            Ok(url) => url.to_string(),
+            Err(_) => path.display().to_string(),
+        };
+        options = format!("{options} --experimental-loader={loader_arg}");
+    }
+    options
 }
 
 pub fn python_runtime() -> Result<RuntimeCheck, String> {
@@ -82,6 +98,16 @@ fn resolve_runtime(candidates: &[&str], args: &[&str]) -> Result<RuntimeCheck, S
     for candidate in candidates {
         match std::process::Command::new(candidate).args(args).output() {
             Ok(output) if output.status.success() => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let combined = format!("{stdout}{stderr}");
+                if combined.contains("Microsoft Store")
+                    || combined.contains("App execution aliases")
+                    || combined.contains("Python was not found")
+                {
+                    notes.push(format!("{candidate} resolved to a placeholder stub"));
+                    continue;
+                }
                 return Ok(RuntimeCheck {
                     path: PathBuf::from(candidate),
                     notes,

@@ -1247,13 +1247,17 @@ dependencies = [
 name = "decision-gate-cli"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "bytes",
  "clap",
+ "decision-gate-broker",
  "decision-gate-config",
  "decision-gate-contract",
  "decision-gate-core",
  "decision-gate-mcp",
  "decision-gate-sdk-gen",
+ "decision-gate-store-sqlite",
+ "ed25519-dalek",
  "http-body-util",
  "hyper 1.8.1",
  "hyper-util",
@@ -1306,6 +1310,7 @@ name = "decision-gate-core"
 version = "0.1.0"
 dependencies = [
  "bigdecimal",
+ "proptest",
  "ret-logic",
  "serde",
  "serde_jcs",
@@ -1413,8 +1418,12 @@ version = "0.1.0"
 dependencies = [
  "decision-gate-core",
  "jsonpath_lib",
+ "proptest",
+ "rcgen",
  "reqwest 0.13.1",
  "ret-logic",
+ "rustls 0.23.36",
+ "rustls-pki-types",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -1438,6 +1447,7 @@ name = "decision-gate-store-sqlite"
 version = "0.1.0"
 dependencies = [
  "decision-gate-core",
+ "proptest",
  "rusqlite",
  "serde",
  "serde_json",
@@ -4122,6 +4132,7 @@ dependencies = [
  "tempfile",
  "testcontainers",
  "tokio",
+ "tokio-stream",
  "toml 0.9.11+spec-1.1.0",
  "url",
 ]

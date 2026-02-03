@@ -1,3 +1,4 @@
+//! Metamorphic determinism tests for Decision Gate core.
 // decision-gate-core/tests/metamorphic_determinism.rs
 // ============================================================================
 // Module: Metamorphic Determinism Tests
@@ -234,5 +235,131 @@ fn gate_eval_evidence_order_is_canonical() -> Result<(), Box<dyn std::error::Err
         return Err(format!("expected canonical evidence order, got {evidence:?}").into());
     }
 
+    Ok(())
+}
+
+#[test]
+fn gate_eval_evidence_order_canonical_across_requirement_permutations()
+-> Result<(), Box<dyn std::error::Error>> {
+    let permutations = [
+        vec!["third", "first", "second"],
+        vec!["second", "third", "first"],
+        vec!["first", "third", "second"],
+    ];
+    for (index, order) in permutations.iter().enumerate() {
+        let scenario_id = ScenarioId::new(format!("metamorphic-order-{index}"));
+        let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+        let condition_ids =
+            [ConditionId::new("first"), ConditionId::new("second"), ConditionId::new("third")];
+
+        let mut conditions = vec![
+            build_test_condition(&condition_ids[2], "third"),
+            build_test_condition(&condition_ids[0], "first"),
+            build_test_condition(&condition_ids[1], "second"),
+        ];
+        if index % 2 == 0 {
+            conditions.swap(0, 1);
+        }
+
+        let requirement = ret_logic::Requirement::and(
+            order
+                .iter()
+                .map(|id| ret_logic::Requirement::condition(ConditionId::new(*id)))
+                .collect(),
+        );
+
+        let spec = ScenarioSpec {
+            scenario_id: scenario_id.clone(),
+            namespace_id,
+            spec_version: SpecVersion::new("1"),
+            stages: vec![StageSpec {
+                stage_id: StageId::new("stage-1"),
+                entry_packets: Vec::new(),
+                gates: vec![GateSpec {
+                    gate_id: GateId::new("gate-1"),
+                    requirement,
+                    trust: None,
+                }],
+                advance_to: AdvanceTo::Terminal,
+                timeout: None,
+                on_timeout: decision_gate_core::TimeoutPolicy::Fail,
+            }],
+            conditions,
+            policies: Vec::new(),
+            schemas: Vec::new(),
+            default_tenant_id: None,
+        };
+
+        assert_gate_eval_order(&spec, &["first", "second", "third"])?;
+    }
+    Ok(())
+}
+
+fn build_test_condition(condition_id: &ConditionId, check_id: &str) -> ConditionSpec {
+    ConditionSpec {
+        condition_id: condition_id.clone(),
+        query: EvidenceQuery {
+            provider_id: ProviderId::new("test"),
+            check_id: check_id.to_string(),
+            params: None,
+        },
+        comparator: Comparator::Equals,
+        expected: Some(json!(true)),
+        policy_tags: Vec::new(),
+        trust: None,
+    }
+}
+
+fn assert_gate_eval_order(
+    spec: &ScenarioSpec,
+    expected: &[&str],
+) -> Result<(), Box<dyn std::error::Error>> {
+    let store = InMemoryRunStateStore::new();
+    let config = ControlPlaneConfig::default();
+    let control = ControlPlane::new(
+        spec.clone(),
+        TestEvidenceProvider,
+        NoopDispatcher,
+        store.clone(),
+        Some(PermitAllPolicy),
+        config,
+    )?;
+    let run_config = RunConfig {
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: spec.namespace_id,
+        run_id: decision_gate_core::RunId::new("run-1"),
+        scenario_id: spec.scenario_id.clone(),
+        dispatch_targets: Vec::new(),
+        policy_tags: Vec::new(),
+    };
+    control.start_run(run_config.clone(), Timestamp::Logical(1), false)?;
+    let trigger = TriggerEvent {
+        run_id: run_config.run_id.clone(),
+        tenant_id: run_config.tenant_id,
+        namespace_id: run_config.namespace_id,
+        trigger_id: TriggerId::new("trigger-1"),
+        kind: TriggerKind::ExternalEvent,
+        time: Timestamp::Logical(2),
+        source_id: "metamorphic".to_string(),
+        payload: None,
+        correlation_id: None,
+    };
+    let _ = control.trigger(&trigger)?;
+
+    let state = store
+        .load(&run_config.tenant_id, &run_config.namespace_id, &run_config.run_id)?
+        .ok_or("missing run state")?;
+    let evidence = state
+        .gate_evals
+        .first()
+        .ok_or("missing gate eval")?
+        .evidence
+        .iter()
+        .map(|record| record.condition_id.as_str().to_string())
+        .collect::<Vec<_>>();
+    let expected_vec = expected.iter().map(ToString::to_string).collect::<Vec<_>>();
+    if evidence != expected_vec {
+        return Err(format!("expected canonical evidence order, got {evidence:?}").into());
+    }
     Ok(())
 }

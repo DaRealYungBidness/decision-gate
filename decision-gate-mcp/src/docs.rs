@@ -715,7 +715,9 @@ fn overview_result(docs: &[DocEntry], limit: u32) -> SearchResult {
 
 /// Normalizes the requested section limit into a bounded usize.
 fn sections_limit_to_usize(limit: u32) -> usize {
-    usize::try_from(limit).unwrap_or(ABSOLUTE_MAX_SECTIONS as usize)
+    usize::try_from(limit).unwrap_or_else(|_| {
+        usize::try_from(ABSOLUTE_MAX_SECTIONS).map_or(usize::MAX, |value| value)
+    })
 }
 
 /// Splits a document into heading-based sections.

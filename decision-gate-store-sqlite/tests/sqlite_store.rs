@@ -29,6 +29,9 @@
 // SECTION: Imports
 // ============================================================================
 
+use std::path::PathBuf;
+use std::process::Command;
+
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::NamespaceId;
 use decision_gate_core::PacketPayload;
@@ -245,6 +248,58 @@ fn sqlite_store_rejects_oversized_state_on_save() {
 
     let result = store.save(&state);
     assert!(matches!(result, Err(StoreError::Invalid(_))));
+}
+
+#[test]
+fn sqlite_store_crash_rolls_back_uncommitted_transaction() {
+    let temp = TempDir::new().unwrap();
+    let path = temp.path().join("crash.sqlite");
+    let binary = env!("CARGO_BIN_EXE_sqlite_crash_writer");
+    let status =
+        Command::new(binary).arg(&path).arg("run-crash").status().expect("launch crash writer");
+    assert!(!status.success(), "crash writer should abort");
+
+    let store = store_for(&path);
+    let loaded = store
+        .load(
+            &TenantId::from_raw(1).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            &RunId::new("run-crash"),
+        )
+        .unwrap();
+    assert!(loaded.is_none(), "uncommitted run should not persist");
+}
+
+#[test]
+fn sqlite_store_truncated_database_fails_closed() {
+    let temp = TempDir::new().unwrap();
+    let path = temp.path().join("truncate.sqlite");
+    let store = store_for(&path);
+    let state = sample_state("run-1");
+    store.save(&state).unwrap();
+
+    let file = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+    file.set_len(64).unwrap();
+    let wal_path = PathBuf::from(format!("{}-wal", path.display()));
+    let shm_path = PathBuf::from(format!("{}-shm", path.display()));
+    let _ = std::fs::remove_file(wal_path);
+    let _ = std::fs::remove_file(shm_path);
+
+    let config = SqliteStoreConfig {
+        path,
+        busy_timeout_ms: 1_000,
+        journal_mode: decision_gate_store_sqlite::SqliteStoreMode::Delete,
+        sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
+        max_versions: None,
+    };
+    if let Ok(store) = SqliteRunStateStore::new(config) {
+        let result = store.load(
+            &TenantId::from_raw(1).expect("nonzero tenantid"),
+            &NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            &RunId::new("run-1"),
+        );
+        assert!(result.is_err(), "expected failure loading truncated database");
+    }
 }
 
 #[test]

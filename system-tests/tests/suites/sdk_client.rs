@@ -287,7 +287,9 @@ async fn typescript_sdk_bearer_auth_enforced() -> Result<(), Box<dyn std::error:
     let token = "sdk-token-2";
     let config = base_http_config_with_bearer(&bind, token);
     let server = spawn_mcp_server(config).await?;
-    let client = server.client(Duration::from_secs(5))?;
+    let client = server
+        .client(Duration::from_secs(5))?
+        .with_bearer_token(token.to_string());
     wait_for_server_ready(&client, Duration::from_secs(5)).await?;
 
     let fixture = ScenarioFixture::time_after("ts-sdk-auth", "run-ts-2", 0);
@@ -374,17 +376,12 @@ async fn run_sdk_script(
         .map_err(|err| format!("fixture path missing: {} ({err})", script.display()))?;
     if script.extension().and_then(|ext| ext.to_str()) == Some("ts") {
         let args = vec!["--experimental-strip-types".to_string(), script.display().to_string()];
-        let mut node_options = match std::env::var("NODE_OPTIONS") {
-            Ok(existing) if !existing.is_empty() => {
-                format!("{existing} --unhandled-rejections=strict")
-            }
-            _ => "--unhandled-rejections=strict".to_string(),
-        };
         let loader_path = fixture_path("tests/fixtures/ts_loader.mjs");
-        if let Ok(loader_path) = loader_path.canonicalize() {
-            node_options =
-                format!("{node_options} --experimental-loader={}", loader_path.display());
-        }
+        let loader_path = loader_path.canonicalize().ok();
+        let node_options = sdk_runner::node_options_with_loader(
+            std::env::var("NODE_OPTIONS").ok(),
+            loader_path.as_deref(),
+        );
         envs.insert("NODE_OPTIONS".to_string(), node_options);
         return Ok(
             sdk_runner::run_script(interpreter, &args, &envs, Duration::from_secs(20)).await?

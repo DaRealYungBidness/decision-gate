@@ -24,6 +24,8 @@ pub mod store;
 // ============================================================================
 
 pub use store::MAX_STATE_BYTES;
+pub use store::RunSummary;
+pub use store::RunVersionSummary;
 pub use store::SqliteRunStateStore;
 pub use store::SqliteStoreConfig;
 pub use store::SqliteStoreError;

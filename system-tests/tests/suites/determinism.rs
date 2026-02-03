@@ -217,10 +217,11 @@ fn build_fixtures(fixture_map: &FixtureMap) -> Vec<ProviderFixture> {
         .iter()
         .enumerate()
         .map(|(index, fixture)| {
+            let world_seq = u64::try_from(index).expect("fixture index fits in u64") + 1;
             let anchor_value = json!({
                 "assetcore.namespace_id": namespace_id,
                 "assetcore.commit_id": commit_id,
-                "assetcore.world_seq": index as u64 + 1
+                "assetcore.world_seq": world_seq
             });
             ProviderFixture {
                 check_id: fixture.check_id.clone(),

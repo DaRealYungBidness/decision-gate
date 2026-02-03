@@ -231,6 +231,36 @@ pub struct SqliteRunStateStore {
     connection: Arc<Mutex<Connection>>,
 }
 
+/// Summary metadata for a stored run.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RunSummary {
+    /// Tenant identifier.
+    pub tenant_id: TenantId,
+    /// Namespace identifier.
+    pub namespace_id: NamespaceId,
+    /// Run identifier.
+    pub run_id: RunId,
+    /// Latest stored version.
+    pub latest_version: i64,
+    /// Timestamp when the latest version was saved.
+    pub saved_at: i64,
+}
+
+/// Summary metadata for a specific run state version.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RunVersionSummary {
+    /// Stored version number.
+    pub version: i64,
+    /// Timestamp when the version was saved.
+    pub saved_at: i64,
+    /// Stored state hash.
+    pub state_hash: String,
+    /// Stored hash algorithm label.
+    pub hash_algorithm: String,
+    /// Stored payload length in bytes.
+    pub state_bytes: usize,
+}
+
 impl SqliteRunStateStore {
     /// Opens an `SQLite`-backed run state store.
     ///
@@ -249,12 +279,19 @@ impl SqliteRunStateStore {
         })
     }
 
+    /// Verifies the store can execute a simple SQL statement.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SqliteStoreError`] if the mutex is poisoned or the query fails.
     fn check_connection(&self) -> Result<(), SqliteStoreError> {
-        let guard = self
-            .connection
-            .lock()
-            .map_err(|_| SqliteStoreError::Io("sqlite mutex poisoned".to_string()))?;
-        guard.execute("SELECT 1", []).map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+        {
+            let guard = self
+                .connection
+                .lock()
+                .map_err(|_| SqliteStoreError::Io("sqlite mutex poisoned".to_string()))?;
+            guard.execute("SELECT 1", []).map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+        }
         Ok(())
     }
 }
@@ -625,6 +662,251 @@ impl SqliteRunStateStore {
         }
         Ok(())
     }
+
+    /// Lists runs stored in the `SQLite` database (optionally filtered).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SqliteStoreError`] if the database query fails or stored IDs
+    /// cannot be parsed.
+    pub fn list_runs(
+        &self,
+        tenant_id: Option<TenantId>,
+        namespace_id: Option<NamespaceId>,
+    ) -> Result<Vec<RunSummary>, SqliteStoreError> {
+        let guard = self
+            .connection
+            .lock()
+            .map_err(|_| SqliteStoreError::Db("mutex poisoned".to_string()))?;
+        let mut stmt = guard
+            .prepare(
+                "SELECT runs.tenant_id, runs.namespace_id, runs.run_id, runs.latest_version, \
+                 run_state_versions.saved_at
+                 FROM runs
+                 JOIN run_state_versions
+                   ON runs.tenant_id = run_state_versions.tenant_id
+                  AND runs.namespace_id = run_state_versions.namespace_id
+                  AND runs.run_id = run_state_versions.run_id
+                  AND runs.latest_version = run_state_versions.version",
+            )
+            .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+        let rows = stmt
+            .query_map([], |row| {
+                let tenant: String = row.get(0)?;
+                let namespace: String = row.get(1)?;
+                let run_id: String = row.get(2)?;
+                let latest_version: i64 = row.get(3)?;
+                let saved_at: i64 = row.get(4)?;
+                Ok((tenant, namespace, run_id, latest_version, saved_at))
+            })
+            .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+        let mut results = Vec::new();
+        for row in rows {
+            let (tenant_raw, namespace_raw, run_raw, latest_version, saved_at) =
+                row.map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+            let tenant = parse_tenant_id_str(&tenant_raw)?;
+            let namespace = parse_namespace_id_str(&namespace_raw)?;
+            if let Some(expected) = tenant_id
+                && tenant != expected
+            {
+                continue;
+            }
+            if let Some(expected) = namespace_id
+                && namespace != expected
+            {
+                continue;
+            }
+            results.push(RunSummary {
+                tenant_id: tenant,
+                namespace_id: namespace,
+                run_id: RunId::new(run_raw),
+                latest_version,
+                saved_at,
+            });
+        }
+        drop(stmt);
+        drop(guard);
+        results.sort_by(|a, b| b.saved_at.cmp(&a.saved_at));
+        Ok(results)
+    }
+
+    /// Lists all stored versions for a run.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SqliteStoreError`] if the query fails or stored IDs cannot be
+    /// parsed.
+    pub fn list_run_versions(
+        &self,
+        tenant_id: TenantId,
+        namespace_id: NamespaceId,
+        run_id: &RunId,
+    ) -> Result<Vec<RunVersionSummary>, SqliteStoreError> {
+        let guard = self
+            .connection
+            .lock()
+            .map_err(|_| SqliteStoreError::Db("mutex poisoned".to_string()))?;
+        let mut stmt = guard
+            .prepare(
+                "SELECT version, saved_at, state_hash, hash_algorithm, length(state_json) FROM \
+                 run_state_versions WHERE tenant_id = ?1 AND namespace_id = ?2 AND run_id = ?3 \
+                 ORDER BY version DESC",
+            )
+            .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+        let rows = stmt
+            .query_map(
+                params![tenant_id.to_string(), namespace_id.to_string(), run_id.as_str()],
+                |row| {
+                    let version: i64 = row.get(0)?;
+                    let saved_at: i64 = row.get(1)?;
+                    let state_hash: String = row.get(2)?;
+                    let hash_algorithm: String = row.get(3)?;
+                    let length: i64 = row.get(4)?;
+                    Ok((version, saved_at, state_hash, hash_algorithm, length))
+                },
+            )
+            .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+        let mut results = Vec::new();
+        for row in rows {
+            let (version, saved_at, state_hash, hash_algorithm, length) =
+                row.map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+            let length = usize::try_from(length).map_err(|_| {
+                SqliteStoreError::Invalid(format!(
+                    "negative run state length for run {}",
+                    run_id.as_str()
+                ))
+            })?;
+            results.push(RunVersionSummary {
+                version,
+                saved_at,
+                state_hash,
+                hash_algorithm,
+                state_bytes: length,
+            });
+        }
+        drop(stmt);
+        drop(guard);
+        Ok(results)
+    }
+
+    /// Loads a specific run state version.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SqliteStoreError`] if the version is invalid, the payload is
+    /// corrupt, or the stored hash does not match the payload.
+    pub fn load_version(
+        &self,
+        tenant_id: TenantId,
+        namespace_id: NamespaceId,
+        run_id: &RunId,
+        version: i64,
+    ) -> Result<Option<RunState>, SqliteStoreError> {
+        if version < 1 {
+            return Err(SqliteStoreError::Invalid("version must be >= 1".to_string()));
+        }
+        let payload = fetch_run_state_payload_version(
+            self.connection.as_ref(),
+            tenant_id,
+            namespace_id,
+            run_id,
+            version,
+        )?;
+        let Some(payload) = payload else {
+            return Ok(None);
+        };
+        let algorithm = parse_hash_algorithm(&payload.hash_algorithm)?;
+        let expected = hash_bytes(algorithm, &payload.bytes);
+        if expected.value != payload.hash_value {
+            return Err(SqliteStoreError::Corrupt(format!(
+                "hash mismatch for run {}",
+                run_id.as_str()
+            )));
+        }
+        let state: RunState = serde_json::from_slice(&payload.bytes)
+            .map_err(|err| SqliteStoreError::Invalid(err.to_string()))?;
+        if state.run_id.as_str() != run_id.as_str() {
+            return Err(SqliteStoreError::Invalid(
+                "run_id mismatch between key and payload".to_string(),
+            ));
+        }
+        if state.tenant_id != tenant_id || state.namespace_id != namespace_id {
+            return Err(SqliteStoreError::Invalid(
+                "tenant/namespace mismatch between key and payload".to_string(),
+            ));
+        }
+        Ok(Some(state))
+    }
+
+    /// Prunes older run state versions, keeping the most recent `keep` entries.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SqliteStoreError`] if `keep` is less than 1 or if the database
+    /// query fails.
+    pub fn prune_versions(
+        &self,
+        tenant_id: TenantId,
+        namespace_id: NamespaceId,
+        run_id: &RunId,
+        keep: u64,
+    ) -> Result<u64, SqliteStoreError> {
+        if keep == 0 {
+            return Err(SqliteStoreError::Invalid("keep must be >= 1".to_string()));
+        }
+        let delete_count = {
+            let mut guard = self
+                .connection
+                .lock()
+                .map_err(|_| SqliteStoreError::Db("mutex poisoned".to_string()))?;
+            let tx = guard.transaction().map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+            let versions = {
+                let mut stmt = tx
+                    .prepare(
+                        "SELECT version FROM run_state_versions WHERE tenant_id = ?1 AND \
+                         namespace_id = ?2 AND run_id = ?3 ORDER BY version DESC",
+                    )
+                    .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+                let rows = stmt
+                    .query_map(
+                        params![tenant_id.to_string(), namespace_id.to_string(), run_id.as_str()],
+                        |row| row.get::<_, i64>(0),
+                    )
+                    .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+                let mut versions = Vec::new();
+                for row in rows {
+                    versions.push(row.map_err(|err| SqliteStoreError::Db(err.to_string()))?);
+                }
+                versions
+            };
+            let keep_usize = usize::try_from(keep).map_err(|_| {
+                SqliteStoreError::Invalid(format!("keep value out of range: {keep}"))
+            })?;
+            let delete = versions.into_iter().skip(keep_usize).collect::<Vec<_>>();
+            for version in &delete {
+                tx.execute(
+                    "DELETE FROM run_state_versions WHERE tenant_id = ?1 AND namespace_id = ?2 \
+                     AND run_id = ?3 AND version = ?4",
+                    params![
+                        tenant_id.to_string(),
+                        namespace_id.to_string(),
+                        run_id.as_str(),
+                        version
+                    ],
+                )
+                .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+            }
+            tx.commit().map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+            drop(guard);
+            u64::try_from(delete.len()).map_err(|_| {
+                SqliteStoreError::Invalid(format!(
+                    "pruned version count exceeds u64: {}",
+                    delete.len()
+                ))
+            })?
+        };
+        Ok(delete_count)
+    }
 }
 
 // ============================================================================
@@ -929,6 +1211,79 @@ fn fetch_run_state_payload(
     };
     drop(guard);
     Ok(payload)
+}
+
+/// Fetches a specific run state payload for the provided run identifiers.
+fn fetch_run_state_payload_version(
+    connection: &Mutex<Connection>,
+    tenant_id: TenantId,
+    namespace_id: NamespaceId,
+    run_id: &RunId,
+    version: i64,
+) -> Result<Option<RunStatePayload>, SqliteStoreError> {
+    let payload = {
+        let mut guard =
+            connection.lock().map_err(|_| SqliteStoreError::Db("mutex poisoned".to_string()))?;
+        let tx = guard.transaction().map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+        let row = tx
+            .query_row(
+                "SELECT state_json, state_hash, hash_algorithm FROM run_state_versions WHERE \
+                 tenant_id = ?1 AND namespace_id = ?2 AND run_id = ?3 AND version = ?4",
+                params![tenant_id.to_string(), namespace_id.to_string(), run_id.as_str(), version],
+                |row| {
+                    let bytes: Vec<u8> = row.get(0)?;
+                    let hash: String = row.get(1)?;
+                    let algorithm: String = row.get(2)?;
+                    Ok((bytes, hash, algorithm))
+                },
+            )
+            .optional()
+            .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+        let Some((bytes, hash, algorithm)) = row else {
+            return Ok(None);
+        };
+        if bytes.len() > MAX_STATE_BYTES {
+            return Err(SqliteStoreError::Invalid(format!(
+                "run state payload exceeds size limit for run {}",
+                run_id.as_str()
+            )));
+        }
+        let payload = RunStatePayload {
+            bytes,
+            hash_value: hash,
+            hash_algorithm: algorithm,
+        };
+        drop(tx);
+        drop(guard);
+        Ok(Some(payload))
+    }?;
+    Ok(payload)
+}
+
+/// Parses a tenant ID string stored in the database.
+///
+/// # Errors
+///
+/// Returns [`SqliteStoreError`] if the value is not a nonzero unsigned integer.
+fn parse_tenant_id_str(value: &str) -> Result<TenantId, SqliteStoreError> {
+    let raw: u64 = value
+        .parse()
+        .map_err(|_| SqliteStoreError::Invalid(format!("invalid tenant_id value: {value}")))?;
+    TenantId::from_raw(raw)
+        .ok_or_else(|| SqliteStoreError::Invalid(format!("tenant_id must be nonzero: {value}")))
+}
+
+/// Parses a namespace ID string stored in the database.
+///
+/// # Errors
+///
+/// Returns [`SqliteStoreError`] if the value is not a nonzero unsigned integer.
+fn parse_namespace_id_str(value: &str) -> Result<NamespaceId, SqliteStoreError> {
+    let raw: u64 = value
+        .parse()
+        .map_err(|_| SqliteStoreError::Invalid(format!("invalid namespace_id value: {value}")))?;
+    NamespaceId::from_raw(raw)
+        .ok_or_else(|| SqliteStoreError::Invalid(format!("namespace_id must be nonzero: {value}")))
 }
 
 /// Parses a pagination cursor payload.

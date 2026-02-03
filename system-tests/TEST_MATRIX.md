@@ -28,6 +28,17 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `sse_payload_too_large_rejected` | operations | SSE rejects oversized JSON-RPC payloads before parsing. |
 | `idempotent_trigger` | reliability | Duplicate trigger IDs do not create new decisions. |
 | `provider_time_after` | providers | Time provider check executes as expected. |
+| `metamorphic_concurrent_runs_identical_runpacks` | reliability | Concurrent runs yield identical runpack hashes. |
+| `metamorphic_evidence_order_canonical_in_runpack` | reliability | Gate eval evidence ordering is canonical in runpacks. |
+| `evidence_query_fuzz_inputs_fail_closed` | security | Malformed evidence_query payloads fail closed. |
+| `log_leak_scan_redacts_secrets` | security | Secrets do not appear in stderr or audit logs. |
+| `http_provider_slow_loris_fails_closed` | providers | HTTP provider fails closed on slow-loris responses. |
+| `http_provider_truncated_response_fails_closed` | providers | HTTP provider rejects truncated responses. |
+| `http_provider_redirect_loop_not_followed` | providers | HTTP provider does not follow redirect loops. |
+| `time_provider_timezone_offset_parsing` | providers | Time provider parses timezone offsets. |
+| `time_provider_epoch_boundary` | providers | Time provider handles epoch boundary timestamps. |
+| `mcp_provider_signature_key_not_authorized` | providers | MCP provider rejects unauthorized signature keys. |
+| `mcp_provider_signature_verification_failed` | providers | MCP provider rejects invalid signatures. |
 
 ## P1 (High Value)
 | Test | Category | Purpose |

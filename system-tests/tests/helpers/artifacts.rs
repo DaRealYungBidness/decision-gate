@@ -6,6 +6,7 @@
 // Dependencies: system-tests, serde, serde_jcs
 // ============================================================================
 
+use std::env;
 use std::fmt::Write;
 use std::fs;
 use std::io;
@@ -31,11 +32,24 @@ struct TestSummary {
     artifacts: Vec<String>,
 }
 
+fn workspace_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .map_or_else(
+            || PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+            |parent| parent.to_path_buf(),
+        )
+}
+
 fn default_run_root(test_name: &str) -> PathBuf {
+    let base = workspace_root().join("target/system-tests");
+    if let Ok(run_id) = env::var("NEXTEST_RUN_ID") {
+        return base.join(run_id).join(test_name);
+    }
     static RUN_COUNTER: AtomicU64 = AtomicU64::new(1);
     let run_id = RUN_COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id();
-    PathBuf::from("target/system-tests").join(format!("run_{pid}_{run_id}")).join(test_name)
+    base.join(format!("run_{pid}_{run_id}")).join(test_name)
 }
 
 static ENV_LOCK: Mutex<()> = Mutex::new(());
@@ -143,6 +157,7 @@ impl TestReporter {
     }
 
     /// Writes the final summary for the test.
+    #[allow(clippy::print_stderr, reason = "Failure summaries are emitted for system-test triage.")]
     pub fn finish(
         &mut self,
         status: &str,
@@ -162,6 +177,15 @@ impl TestReporter {
         self.artifacts.write_json("summary.json", &summary)?;
         self.artifacts.write_text("summary.md", &summary_markdown(&summary))?;
         self.finalized = true;
+        if status != "pass" {
+            eprintln!(
+                "[system-tests] {} status={} notes={:?} artifacts_root={}",
+                self.test_name,
+                status,
+                summary.notes,
+                self.artifacts.root().display()
+            );
+        }
         Ok(())
     }
 }

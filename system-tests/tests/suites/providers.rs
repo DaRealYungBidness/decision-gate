@@ -37,6 +37,7 @@ use decision_gate_core::ConditionSpec;
 use decision_gate_core::DecisionOutcome;
 use decision_gate_core::EvidenceAnchor;
 use decision_gate_core::EvidenceQuery;
+use decision_gate_core::EvidenceSignature;
 use decision_gate_core::GateId;
 use decision_gate_core::GateSpec;
 use decision_gate_core::NamespaceId;
@@ -55,6 +56,9 @@ use decision_gate_core::Timestamp;
 use decision_gate_core::TriggerId;
 use decision_gate_core::TriggerKind;
 use decision_gate_core::TrustLane;
+use decision_gate_core::hashing::HashAlgorithm;
+use decision_gate_core::hashing::HashDigest;
+use decision_gate_core::hashing::canonical_json_bytes;
 use decision_gate_core::hashing::hash_bytes;
 use decision_gate_core::runtime::TriggerResult;
 use decision_gate_mcp::config::AnchorProviderConfig;
@@ -68,6 +72,7 @@ use decision_gate_mcp::tools::ScenarioDefineResponse;
 use decision_gate_mcp::tools::ScenarioStartRequest;
 use decision_gate_mcp::tools::ScenarioStatusRequest;
 use decision_gate_mcp::tools::ScenarioTriggerRequest;
+use ed25519_dalek::Signer;
 use helpers::artifacts::TestReporter;
 use helpers::harness::allocate_bind_addr;
 use helpers::harness::base_http_config;
@@ -238,11 +243,38 @@ async fn spawn_http_test_server() -> Result<HttpTestServerHandle, Box<dyn std::e
         (StatusCode::FOUND, [(LOCATION, HeaderValue::from_static("/redirect"))])
     }
 
+    async fn redirect_loop_handler() -> impl IntoResponse {
+        (StatusCode::FOUND, [(LOCATION, HeaderValue::from_static("/redirect-loop"))])
+    }
+
+    async fn truncate_handler() -> impl IntoResponse {
+        let mut response = axum::response::Response::new(axum::body::Body::from("partial"));
+        *response.status_mut() = StatusCode::OK;
+        response
+            .headers_mut()
+            .insert(axum::http::header::CONTENT_LENGTH, HeaderValue::from_static("1024"));
+        response
+    }
+
+    async fn slow_loris_handler() -> impl IntoResponse {
+        let (tx, rx) = tokio::sync::mpsc::channel::<Result<Bytes, std::io::Error>>(4);
+        tokio::spawn(async move {
+            let _ = tx.send(Ok(Bytes::from_static(b"h"))).await;
+            tokio::time::sleep(Duration::from_millis(250)).await;
+            let _ = tx.send(Ok(Bytes::from_static(b"ello"))).await;
+        });
+        let stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+        axum::response::Response::new(axum::body::Body::from_stream(stream))
+    }
+
     let app = Router::new()
         .route("/ok", get(ok_handler))
         .route("/large", get(large_handler))
         .route("/slow", get(slow_handler))
-        .route("/redirect", get(redirect_handler));
+        .route("/redirect", get(redirect_handler))
+        .route("/redirect-loop", get(redirect_loop_handler))
+        .route("/truncated", get(truncate_handler))
+        .route("/slow-loris", get(slow_loris_handler));
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;
@@ -268,6 +300,19 @@ fn create_symlink(src: &Path, dst: &Path) -> io::Result<()> {
 #[cfg(windows)]
 fn create_symlink(src: &Path, dst: &Path) -> io::Result<()> {
     std::os::windows::fs::symlink_file(src, dst)
+}
+
+fn symlink_error_is_skip(err: &io::Error) -> bool {
+    if matches!(err.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::Unsupported) {
+        return true;
+    }
+    #[cfg(windows)]
+    {
+        if matches!(err.raw_os_error(), Some(1314)) {
+            return true;
+        }
+    }
+    false
 }
 
 #[derive(Debug, Deserialize)]
@@ -382,6 +427,29 @@ fn tool_result_for_value(value: Value) -> Value {
         evidence_ref: None,
         evidence_anchor: None,
         signature: None,
+        content_type: Some("application/json".to_string()),
+    };
+    serde_json::to_value(ToolCallResult {
+        content: vec![ToolContent::Json {
+            json: Box::new(result),
+        }],
+    })
+    .unwrap_or(Value::Null)
+}
+
+fn tool_result_with_signature(
+    value: Value,
+    evidence_hash: HashDigest,
+    signature: EvidenceSignature,
+) -> Value {
+    let result = decision_gate_core::EvidenceResult {
+        value: Some(decision_gate_core::EvidenceValue::Json(value)),
+        lane: TrustLane::Verified,
+        error: None,
+        evidence_hash: Some(evidence_hash),
+        evidence_ref: None,
+        evidence_anchor: None,
+        signature: Some(signature),
         content_type: Some("application/json".to_string()),
     };
     serde_json::to_value(ToolCallResult {
@@ -656,7 +724,7 @@ async fn json_provider_rejects_symlink_escape() -> Result<(), Box<dyn std::error
     fs::write(&outside_path, r#"{"ok":true}"#)?;
     let link_path = root_dir.path().join("link.json");
     if let Err(err) = create_symlink(&outside_path, &link_path) {
-        if matches!(err.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::Unsupported) {
+        if symlink_error_is_skip(&err) {
             reporter.finish(
                 "skip",
                 vec![format!("symlink creation unavailable: {err}")],
@@ -1134,7 +1202,10 @@ async fn http_provider_timeout_enforced() -> Result<(), Box<dyn std::error::Erro
     let input = serde_json::to_value(&request)?;
     let response: EvidenceQueryResponse = client.call_tool_typed("evidence_query", input).await?;
     let error = response.result.error.ok_or("missing error metadata")?;
-    if !error.message.contains("timed out") && !error.message.contains("http request failed") {
+    if !error.message.contains("timed out")
+        && !error.message.contains("http request failed")
+        && !error.message.contains("failed to read response")
+    {
         return Err(format!("expected timeout or request failed, got {}", error.message).into());
     }
 
@@ -1142,6 +1213,150 @@ async fn http_provider_timeout_enforced() -> Result<(), Box<dyn std::error::Erro
     reporter.finish(
         "pass",
         vec!["http provider request timeouts are enforced".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+        ],
+    )?;
+    drop(reporter);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn http_provider_slow_loris_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("http_provider_slow_loris_fails_closed")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let mut config = base_http_config(&bind);
+    enable_raw_evidence(&mut config);
+
+    let http_config = http_provider_config(true, 25, 1024, None)?;
+    set_provider_config(&mut config, "http", http_config)?;
+
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(Duration::from_secs(5))?;
+    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+
+    let http_server = spawn_http_test_server().await?;
+    let fixture = ScenarioFixture::time_after("http-slow-loris", "run-1", 0);
+    let request = EvidenceQueryRequest {
+        query: EvidenceQuery {
+            provider_id: ProviderId::new("http"),
+            check_id: "body_hash".to_string(),
+            params: Some(json!({ "url": http_server.url("/slow-loris") })),
+        },
+        context: fixture.evidence_context("http-trigger", Timestamp::Logical(1)),
+    };
+    let input = serde_json::to_value(&request)?;
+    let response: EvidenceQueryResponse = client.call_tool_typed("evidence_query", input).await?;
+    let error = response.result.error.ok_or("missing error metadata")?;
+    if !error.message.contains("timed out")
+        && !error.message.contains("http request failed")
+        && !error.message.contains("failed to read response")
+    {
+        return Err(format!("expected timeout or request failed, got {}", error.message).into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["http provider fails closed on slow-loris responses".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+        ],
+    )?;
+    drop(reporter);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn http_provider_truncated_response_fails_closed() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("http_provider_truncated_response_fails_closed")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let mut config = base_http_config(&bind);
+    enable_raw_evidence(&mut config);
+
+    let http_config = http_provider_config(true, 5_000, 1024, None)?;
+    set_provider_config(&mut config, "http", http_config)?;
+
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(Duration::from_secs(5))?;
+    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+
+    let http_server = spawn_http_test_server().await?;
+    let fixture = ScenarioFixture::time_after("http-truncate", "run-1", 0);
+    let request = EvidenceQueryRequest {
+        query: EvidenceQuery {
+            provider_id: ProviderId::new("http"),
+            check_id: "body_hash".to_string(),
+            params: Some(json!({ "url": http_server.url("/truncated") })),
+        },
+        context: fixture.evidence_context("http-trigger", Timestamp::Logical(1)),
+    };
+    let input = serde_json::to_value(&request)?;
+    let response: EvidenceQueryResponse = client.call_tool_typed("evidence_query", input).await?;
+    let error = response.result.error.ok_or("missing error metadata")?;
+    if !error.message.contains("truncated") && !error.message.contains("http request failed") {
+        return Err(format!("expected truncation error, got {}", error.message).into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["http provider rejects truncated responses".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+        ],
+    )?;
+    drop(reporter);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn http_provider_redirect_loop_not_followed() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("http_provider_redirect_loop_not_followed")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let mut config = base_http_config(&bind);
+    enable_raw_evidence(&mut config);
+
+    let http_config = http_provider_config(true, 5_000, 1024, None)?;
+    set_provider_config(&mut config, "http", http_config)?;
+
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(Duration::from_secs(5))?;
+    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+
+    let http_server = spawn_http_test_server().await?;
+    let fixture = ScenarioFixture::time_after("http-redirect-loop", "run-1", 0);
+    let request = EvidenceQueryRequest {
+        query: EvidenceQuery {
+            provider_id: ProviderId::new("http"),
+            check_id: "status".to_string(),
+            params: Some(json!({ "url": http_server.url("/redirect-loop") })),
+        },
+        context: fixture.evidence_context("http-trigger", Timestamp::Logical(1)),
+    };
+    let input = serde_json::to_value(&request)?;
+    let response: EvidenceQueryResponse = client.call_tool_typed("evidence_query", input).await?;
+    if response.result.error.is_some() {
+        return Err("unexpected error for redirect-loop response".into());
+    }
+    let Some(decision_gate_core::EvidenceValue::Json(value)) = response.result.value else {
+        return Err("missing status value for redirect-loop".into());
+    };
+    let status = value.as_u64().ok_or("invalid status code type")?;
+    if status != 302 {
+        return Err(format!("expected redirect status 302, got {status}").into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["http provider does not follow redirect loops".to_string()],
         vec![
             "summary.json".to_string(),
             "summary.md".to_string(),
@@ -1577,6 +1792,100 @@ async fn time_provider_invalid_rfc3339_rejected() -> Result<(), Box<dyn std::err
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn time_provider_timezone_offset_parsing() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("time_provider_timezone_offset_parsing")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let mut config = base_http_config(&bind);
+    enable_raw_evidence(&mut config);
+
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(Duration::from_secs(5))?;
+    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+
+    let fixture = ScenarioFixture::time_after("time-timezone", "run-1", 0);
+    let request = EvidenceQueryRequest {
+        query: EvidenceQuery {
+            provider_id: ProviderId::new("time"),
+            check_id: "after".to_string(),
+            params: Some(json!({ "timestamp": "2024-01-01T00:00:00-05:00" })),
+        },
+        context: fixture.evidence_context("time-trigger", Timestamp::UnixMillis(1_704_088_800_000)),
+    };
+    let input = serde_json::to_value(&request)?;
+    let response: EvidenceQueryResponse = client.call_tool_typed("evidence_query", input).await?;
+    if response.result.error.is_some() {
+        return Err("unexpected error for timezone rfc3339 parsing".into());
+    }
+    let Some(decision_gate_core::EvidenceValue::Json(value)) = response.result.value else {
+        return Err("missing time check value".into());
+    };
+    let result = value.as_bool().ok_or("expected boolean result")?;
+    if !result {
+        return Err("expected after check to be true for timezone offset".into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["time provider parses timezone offsets correctly".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+        ],
+    )?;
+    drop(reporter);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn time_provider_epoch_boundary() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("time_provider_epoch_boundary")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let mut config = base_http_config(&bind);
+    enable_raw_evidence(&mut config);
+
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(Duration::from_secs(5))?;
+    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+
+    let fixture = ScenarioFixture::time_after("time-epoch", "run-1", 0);
+    let request = EvidenceQueryRequest {
+        query: EvidenceQuery {
+            provider_id: ProviderId::new("time"),
+            check_id: "after".to_string(),
+            params: Some(json!({ "timestamp": "1970-01-01T00:00:00Z" })),
+        },
+        context: fixture.evidence_context("time-trigger", Timestamp::UnixMillis(1)),
+    };
+    let input = serde_json::to_value(&request)?;
+    let response: EvidenceQueryResponse = client.call_tool_typed("evidence_query", input).await?;
+    if response.result.error.is_some() {
+        return Err("unexpected error for epoch boundary check".into());
+    }
+    let Some(decision_gate_core::EvidenceValue::Json(value)) = response.result.value else {
+        return Err("missing time check value".into());
+    };
+    let result = value.as_bool().ok_or("expected boolean result")?;
+    if !result {
+        return Err("expected after check to be true at epoch boundary".into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["time provider handles epoch boundary timestamps".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+        ],
+    )?;
+    drop(reporter);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn mcp_provider_malformed_jsonrpc_response() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("mcp_provider_malformed_jsonrpc_response")?;
     let bind = allocate_bind_addr()?.to_string();
@@ -1931,6 +2240,179 @@ async fn mcp_provider_missing_signature_rejected() -> Result<(), Box<dyn std::er
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn mcp_provider_signature_key_not_authorized() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("mcp_provider_signature_key_not_authorized")?;
+    let bind = allocate_bind_addr()?.to_string();
+
+    let signing_key = ed25519_dalek::SigningKey::from_bytes(&[9u8; 32]);
+    let digest = hash_bytes(HashAlgorithm::Sha256, b"payload");
+    let message = canonical_json_bytes(&digest)?;
+    let signature_bytes = signing_key.sign(&message).to_bytes().to_vec();
+    let signature = EvidenceSignature {
+        scheme: "ed25519".to_string(),
+        key_id: "not-authorized".to_string(),
+        signature: signature_bytes,
+    };
+
+    let digest_clone = digest.clone();
+    let signature_clone = signature.clone();
+    let app = Router::new().route(
+        "/rpc",
+        post(move |bytes: Bytes| {
+            let digest = digest_clone.clone();
+            let signature = signature_clone.clone();
+            async move {
+                let id = jsonrpc_id_from_bytes(&bytes);
+                axum::Json(jsonrpc_success(
+                    id,
+                    tool_result_with_signature(json!(true), digest, signature),
+                ))
+            }
+        }),
+    );
+    let provider = spawn_mcp_provider(app).await?;
+    let capabilities_path = write_echo_contract(&reporter, "mcp-signed-key")?;
+    let mut config =
+        config_with_provider(&bind, "mcp-signed-key", provider.base_url(), &capabilities_path);
+    enable_raw_evidence(&mut config);
+
+    let key_dir = tempdir()?;
+    let key_path = key_dir.path().join("ed25519.pub");
+    let verifying_key = signing_key.verifying_key();
+    fs::write(&key_path, verifying_key.to_bytes())?;
+
+    let provider_config = config
+        .providers
+        .iter_mut()
+        .find(|provider| provider.name == "mcp-signed-key")
+        .ok_or("missing provider config")?;
+    provider_config.trust = Some(TrustPolicy::RequireSignature {
+        keys: vec![key_path.to_string_lossy().to_string()],
+    });
+
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(Duration::from_secs(5))?;
+    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+
+    let fixture = ScenarioFixture::time_after("mcp-signed-key", "run-1", 0);
+    let request = EvidenceQueryRequest {
+        query: EvidenceQuery {
+            provider_id: ProviderId::new("mcp-signed-key"),
+            check_id: "echo".to_string(),
+            params: Some(json!({ "value": true })),
+        },
+        context: fixture.evidence_context("mcp-trigger", Timestamp::Logical(1)),
+    };
+    let input = serde_json::to_value(&request)?;
+    let response: EvidenceQueryResponse = client.call_tool_typed("evidence_query", input).await?;
+    let error = response.result.error.ok_or("missing error metadata")?;
+    if !error.message.contains("signature key not authorized") {
+        return Err(format!("expected signature key not authorized, got {}", error.message).into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["MCP provider rejects unauthorized signature key".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+            "echo_provider_contract.json".to_string(),
+        ],
+    )?;
+    drop(reporter);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn mcp_provider_signature_verification_failed() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("mcp_provider_signature_verification_failed")?;
+    let bind = allocate_bind_addr()?.to_string();
+
+    let key_dir = tempdir()?;
+    let key_path = key_dir.path().join("ed25519.pub");
+    let signing_key = ed25519_dalek::SigningKey::from_bytes(&[11u8; 32]);
+    let digest = hash_bytes(HashAlgorithm::Sha256, b"payload");
+    let verifying_key = signing_key.verifying_key();
+    fs::write(&key_path, verifying_key.to_bytes())?;
+    let signature = EvidenceSignature {
+        scheme: "ed25519".to_string(),
+        key_id: key_path.to_string_lossy().to_string(),
+        signature: vec![0u8; 64],
+    };
+
+    let digest_clone = digest.clone();
+    let signature_clone = signature.clone();
+    let app = Router::new().route(
+        "/rpc",
+        post(move |bytes: Bytes| {
+            let digest = digest_clone.clone();
+            let signature = signature_clone.clone();
+            async move {
+                let id = jsonrpc_id_from_bytes(&bytes);
+                axum::Json(jsonrpc_success(
+                    id,
+                    tool_result_with_signature(json!(true), digest, signature),
+                ))
+            }
+        }),
+    );
+    let provider = spawn_mcp_provider(app).await?;
+    let capabilities_path = write_echo_contract(&reporter, "mcp-signed-bad")?;
+    let mut config =
+        config_with_provider(&bind, "mcp-signed-bad", provider.base_url(), &capabilities_path);
+    enable_raw_evidence(&mut config);
+
+    let provider_config = config
+        .providers
+        .iter_mut()
+        .find(|provider| provider.name == "mcp-signed-bad")
+        .ok_or("missing provider config")?;
+    provider_config.trust = Some(TrustPolicy::RequireSignature {
+        keys: vec![key_path.to_string_lossy().to_string()],
+    });
+
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(Duration::from_secs(5))?;
+    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+
+    let fixture = ScenarioFixture::time_after("mcp-signed-bad", "run-1", 0);
+    let request = EvidenceQueryRequest {
+        query: EvidenceQuery {
+            provider_id: ProviderId::new("mcp-signed-bad"),
+            check_id: "echo".to_string(),
+            params: Some(json!({ "value": true })),
+        },
+        context: fixture.evidence_context("mcp-trigger", Timestamp::Logical(1)),
+    };
+    let input = serde_json::to_value(&request)?;
+    let response: EvidenceQueryResponse = client.call_tool_typed("evidence_query", input).await?;
+    let error = response.result.error.ok_or("missing error metadata")?;
+    if !error.message.contains("signature verification failed")
+        && !error.message.contains("invalid signature bytes")
+    {
+        return Err(
+            format!("expected signature verification failure, got {}", error.message).into()
+        );
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["MCP provider rejects invalid signatures".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+            "echo_provider_contract.json".to_string(),
+        ],
+    )?;
+    drop(reporter);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn mcp_provider_contract_mismatch_rejected() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("mcp_provider_contract_mismatch_rejected")?;
     let bind = allocate_bind_addr()?.to_string();
@@ -2143,10 +2625,11 @@ async fn assetcore_interop_fixtures() -> Result<(), Box<dyn std::error::Error>> 
         .iter()
         .enumerate()
         .map(|(index, fixture)| {
+            let world_seq = u64::try_from(index).expect("fixture index fits in u64") + 1;
             let anchor_value = json!({
                 "assetcore.namespace_id": namespace_id,
                 "assetcore.commit_id": commit_id,
-                "assetcore.world_seq": index as u64 + 1
+                "assetcore.world_seq": world_seq
             });
             ProviderFixture {
                 check_id: fixture.check_id.clone(),

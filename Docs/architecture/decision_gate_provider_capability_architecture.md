@@ -12,7 +12,7 @@ Dependencies:
   - decision-gate-mcp/src/evidence.rs
   - decision-gate-mcp/src/tools.rs
 ============================================================================
-Last Updated: 2026-01-26 (UTC)
+Last Updated: 2026-02-03 (UTC)
 ============================================================================
 -->
 
@@ -112,11 +112,15 @@ Evidence federation combines built-in providers and MCP providers:
 
 - Built-ins are registered via the provider registry.
 - MCP providers are instantiated with stdio or HTTP transport.
+- Stdio provider processes are terminated on drop to avoid orphaned provider
+  runtimes during shutdown or test teardown.
 - Provider policies (trust + allow_raw) are applied per provider.
 - Evidence results may include **structured error metadata** (`code`, `message`,
   `details`) to support deterministic recovery loops.
+- HTTP evidence providers enforce timeouts, disallow redirects, apply response
+  size limits, and fail closed on truncated bodies (Content-Length mismatch).
 
-[F:decision-gate-mcp/src/evidence.rs L137-L209](decision-gate-mcp/src/evidence.rs#L137-L209)[F:decision-gate-mcp/src/evidence.rs L220-L244](decision-gate-mcp/src/evidence.rs#L220-L244)
+[F:decision-gate-mcp/src/evidence.rs L137-L209](decision-gate-mcp/src/evidence.rs#L137-L209)[F:decision-gate-mcp/src/evidence.rs L220-L244](decision-gate-mcp/src/evidence.rs#L220-L244)[F:decision-gate-providers/src/http.rs L90-L266](decision-gate-providers/src/http.rs#L90-L266)
 
 Trust policy enforcement (signature verification) runs per provider response.
 [F:decision-gate-mcp/src/evidence.rs L639-L689](decision-gate-mcp/src/evidence.rs#L639-L689)

@@ -49,6 +49,9 @@ Out of scope:
 - Schema registry CLI (`schema register/list/get`).
 - Provider discovery CLI (`provider list/contract/check-schema`).
 - Docs search + resources (`docs search/list/read`).
+- Runpack storage integration (`runpack export --storage`, `runpack verify --storage`).
+- Store administration CLI (`store list/get/export/verify/prune`).
+- Broker utilities CLI (`broker resolve/dispatch`).
 - Contract + SDK generator wrappers.
 - i18n readiness (`--lang` + `DECISION_GATE_LANG`, en/ca catalogs, parity tests).
 
@@ -56,13 +59,11 @@ Out of scope:
 - Output format standardization (canonical JSON is common, but not universal).
 - CLI security posture is mostly enforced, but not uniformly documented or
   enforced at the command level (e.g., evidence redaction is MCP-driven).
-- Auditable artifacts are available via runpacks, but CLI output signing is
-  not implemented.
+- Auditable artifacts are available via runpacks; CLI output signing is now
+  supported for store/broker outputs, but not yet across every command.
 
 **Missing:**
-- Runpack storage integration in CLI (object-store export/verify).
-- Store administration CLI (`store list-runs/get-run/export-run/verify/prune`).
-- Broker test utilities CLI (`broker resolve/dispatch`).
+- CLI security posture documentation (command-by-command hardening notes).
 
 ---
 
@@ -156,31 +157,32 @@ Out of scope:
 
 ### 7) Runpack Storage Integration
 
-**Status:** Missing.
+**Status:** Implemented.
 
 **Current behavior:**
-- CLI runpack export/verify use filesystem-only artifact sink/reader.
+- CLI runpack export/verify use filesystem artifacts by default and can
+  optionally upload/read from object storage with `--storage`.
 
 **Evidence (current files):**
-- `decision-gate-cli/src/main.rs` (`FileArtifactSink` / `FileArtifactReader`)
+- `decision-gate-cli/src/main.rs` (`ObjectStoreRunpackBackend`, `--storage`).
 
 ---
 
 ### 8) Store Administration (SQLite)
 
-**Status:** Missing.
+**Status:** Implemented.
 
 **Current behavior:**
-- No `store` command group exists in the CLI.
+- `store list/get/export/verify/prune` is available for SQLite stores.
 
 ---
 
 ### 9) Broker Test Utilities
 
-**Status:** Missing.
+**Status:** Implemented.
 
 **Current behavior:**
-- No `broker` command group exists in the CLI.
+- `broker resolve/dispatch` is available for local testing.
 
 ---
 

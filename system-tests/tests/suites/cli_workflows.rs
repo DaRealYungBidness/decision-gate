@@ -58,7 +58,6 @@ impl CliServer {
     }
 }
 
-
 fn write_cli_config(path: &Path, bind: &str) -> Result<(), String> {
     let contents = format!(
         r#"[server]
@@ -93,7 +92,6 @@ type = "builtin"
     );
     fs::write(path, contents).map_err(|err| format!("write config: {err}"))
 }
-
 
 #[tokio::test(flavor = "multi_thread")]
 #[allow(clippy::too_many_lines, reason = "End-to-end CLI workflow stays linear for auditability.")]

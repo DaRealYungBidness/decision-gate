@@ -114,7 +114,7 @@ impl S3Fixture {
     }
 
     async fn seed_bucket(&self) -> Result<(), String> {
-        let client = self.client().await?;
+        let client: Client = self.client().await?;
         let _ = client.create_bucket().bucket(self.bucket.clone()).send().await;
         Ok(())
     }

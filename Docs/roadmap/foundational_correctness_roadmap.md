@@ -367,12 +367,12 @@ safe logging across failure paths.
 | 2    | Metamorphic determinism          | 🟡     | Core evidence order + concurrent runs   |
 | 3    | Canonicalization contract tests  | ✅     | `decision-gate-core/tests/hashing.rs`   |
 | 4    | Trust lanes enforced             | ✅     | Core + system tests                     |
-| 5    | Provider hardening (built-ins)   | 🟡     | Unit + system tests; chaos gaps remain  |
+| 5    | Provider hardening (built-ins)   | ✅     | Unit + system tests + chaos matrix      |
 | 5    | External MCP adversarial harness | 🟡     | MCP provider + templates + timeouts     |
 | 6    | Runpack integrity                | ✅     | Core + MCP IO + CLI + system tests      |
 | 6    | Runpack backward compatibility   | ❌     | Add legacy vectors                      |
-| 7    | Fuzzing breadth                  | 🟡     | Anchor + schema registry fuzz           |
-| 7    | Log leakage scanning             | 🟡     | Audit redaction checks; no global scan  |
+| 7    | Fuzzing breadth                  | ✅     | ScenarioSpec + evidence + comparator + JSONPath + anchor + schema registry |
+| 7    | Log leakage scanning             | ✅     | `log_leak_scan` suite + audit checks    |
 | 8    | Performance smoke                | ✅     | Ignored test                            |
 | 8    | Capacity targets                 | ❌     | Stress tests only; no thresholds        |
 | 9    | Docs + CLI usability             | 🟡     | CLI + SDK + contract suites; docs gaps  |
@@ -405,33 +405,32 @@ reordering/shuffle scenarios yet.
 ## Phase C — Provider Hardening + Chaos
 
 **Current status:** broad unit + system coverage for built-ins and MCP providers; chaos matrix
-and fuzz gaps remain.
+and JSONPath fuzzing are implemented (TLS oddities, redirect loops, slow-loris,
+mid-stream truncation).
 
-1. Add chaos/fault injection matrix (TLS oddities, redirect loops, slow-loris,
-   mid-stream truncation).
-2. Extend JSONPath fuzzing for JSON provider.
-3. Extend MCP provider schema/namespace/hash mismatches.
+1. Maintain chaos/fault injection matrix coverage as providers evolve.
+2. Maintain JSONPath fuzzing corpus for the JSON provider.
+3. Extend MCP provider schema/namespace/hash mismatches as new cases appear.
 
 **Stop condition:** any fail-open behavior or missing error metadata.
 
 ## Phase D — Runpack Compatibility + Durability
 
-**Current status:** runpack IO + sqlite persistence tests exist; legacy vectors + crash/rollback
-durability tests missing.
+**Current status:** runpack IO + sqlite persistence tests exist; crash/rollback durability
+tests are implemented; legacy vectors are still missing.
 
 1. Add legacy runpack vectors and verify compatibility.
-2. Add sqlite durability tests (crash/partial write/rollback).
 
 **Stop condition:** verification regression or data loss scenario.
 
 ## Phase E — Fuzzing + Log Safety
 
-**Current status:** anchor/schema registry fuzz cases + audit redaction checks exist; no broad
-fuzz harness or log-leak scanner.
+**Current status:** deterministic fuzz coverage exists for ScenarioSpec, Evidence payloads,
+comparators, JSONPath, anchors, and schema registry; log-leak scanner is implemented.
+Long-running fuzz harnesses and nightly runners are still missing.
 
-1. Add fuzz harnesses for ScenarioSpec, Evidence payloads, Provider responses.
-2. Wire PR (short) + nightly (long) runners.
-3. Add log leakage scanning for secrets in error paths.
+1. Add long-running fuzz harnesses and wire nightly runners (optional).
+2. Expand fuzz corpora as new edge cases appear.
 
 **Stop condition:** untriaged crash or nondeterministic outcome.
 

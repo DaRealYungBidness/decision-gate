@@ -34,16 +34,27 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::OnceLock;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use clap::ArgAction;
 use clap::Args;
 use clap::CommandFactory;
 use clap::Parser;
 use clap::Subcommand;
 use clap::ValueEnum;
+use decision_gate_broker::CallbackSink;
+use decision_gate_broker::CompositeBroker;
+use decision_gate_broker::FileSource;
+use decision_gate_broker::HttpSource;
+use decision_gate_broker::HttpSourcePolicy;
+use decision_gate_broker::InlineSource;
+use decision_gate_broker::Source;
 use decision_gate_cli::i18n::Locale;
 use decision_gate_cli::i18n::set_locale;
 use decision_gate_cli::serve_policy::ALLOW_NON_LOOPBACK_ENV;
@@ -57,12 +68,24 @@ use decision_gate_contract::AuthoringFormat;
 use decision_gate_contract::authoring;
 use decision_gate_contract::tooling::tool_contracts;
 use decision_gate_contract::types::ToolContract;
+use decision_gate_core::Artifact;
+use decision_gate_core::ArtifactReader;
+use decision_gate_core::ArtifactSink;
+use decision_gate_core::ContentRef;
 use decision_gate_core::DataShapeId;
 use decision_gate_core::DataShapeVersion;
+use decision_gate_core::DispatchReceipt;
+use decision_gate_core::DispatchTarget;
+use decision_gate_core::Dispatcher;
 use decision_gate_core::HashAlgorithm;
+use decision_gate_core::HashDigest;
 use decision_gate_core::NamespaceId;
+use decision_gate_core::PacketEnvelope;
+use decision_gate_core::PacketPayload;
 use decision_gate_core::RunConfig;
+use decision_gate_core::RunId;
 use decision_gate_core::RunState;
+use decision_gate_core::RunStateStore;
 use decision_gate_core::RunStatus;
 use decision_gate_core::RunpackManifest;
 use decision_gate_core::ScenarioSpec;
@@ -72,6 +95,8 @@ use decision_gate_core::TriggerEvent;
 use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
 use decision_gate_core::hashing::HashError;
 use decision_gate_core::hashing::canonical_json_bytes_with_limit;
+use decision_gate_core::hashing::hash_bytes;
+use decision_gate_core::hashing::hash_canonical_json;
 use decision_gate_core::runtime::MAX_RUNPACK_ARTIFACT_BYTES;
 use decision_gate_core::runtime::RunpackBuilder;
 use decision_gate_core::runtime::RunpackVerifier;
@@ -84,6 +109,15 @@ use decision_gate_mcp::McpServer;
 use decision_gate_mcp::capabilities::CapabilityRegistry;
 use decision_gate_mcp::config::ServerAuthMode;
 use decision_gate_mcp::config::ServerTransport;
+use decision_gate_mcp::runpack_object_store::ObjectStoreRunpackBackend;
+use decision_gate_mcp::runpack_object_store::RunpackObjectKey;
+use decision_gate_store_sqlite::RunSummary;
+use decision_gate_store_sqlite::SqliteRunStateStore;
+use decision_gate_store_sqlite::SqliteStoreConfig;
+use decision_gate_store_sqlite::SqliteStoreMode;
+use decision_gate_store_sqlite::SqliteSyncMode;
+use ed25519_dalek::Signer;
+use ed25519_dalek::SigningKey;
 use interop::InteropConfig;
 use interop::InteropTransport;
 use interop::run_interop;
@@ -126,6 +160,10 @@ const MAX_INTEROP_TRIGGER_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;
 const MAX_MCP_INPUT_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;
 /// Maximum size of auth profile config files.
 const MAX_AUTH_CONFIG_BYTES: usize = 1024 * 1024;
+/// Maximum size for signing key material.
+const MAX_SIGNING_KEY_BYTES: usize = 8 * 1024;
+/// Default busy timeout used when no store config is provided.
+const DEFAULT_SQLITE_BUSY_TIMEOUT_MS: u64 = 5_000;
 /// Environment variable for CLI locale selection.
 const LANG_ENV: &str = "DECISION_GATE_LANG";
 
@@ -183,11 +221,23 @@ enum Commands {
         #[command(subcommand)]
         command: SchemaCommand,
     },
+    /// Run state store administration utilities.
+    Store {
+        /// Selected store subcommand.
+        #[command(subcommand)]
+        command: StoreCommand,
+    },
     /// Documentation utilities.
     Docs {
         /// Selected docs subcommand.
         #[command(subcommand)]
         command: DocsCommand,
+    },
+    /// Broker utilities for resolving and dispatching payloads.
+    Broker {
+        /// Selected broker subcommand.
+        #[command(subcommand)]
+        command: BrokerCommand,
     },
     /// Interop evaluation utilities.
     Interop {
@@ -282,6 +332,21 @@ enum SchemaCommand {
     Get(SchemaGetCommand),
 }
 
+/// Run state store subcommands.
+#[derive(Subcommand, Debug)]
+enum StoreCommand {
+    /// List stored runs.
+    List(StoreListCommand),
+    /// Fetch a stored run state.
+    Get(StoreGetCommand),
+    /// Export a stored run state to disk.
+    Export(StoreExportCommand),
+    /// Verify a stored run state hash/integrity.
+    Verify(StoreVerifyCommand),
+    /// Prune older run state versions.
+    Prune(StorePruneCommand),
+}
+
 /// Documentation subcommands.
 #[derive(Subcommand, Debug)]
 enum DocsCommand {
@@ -291,6 +356,15 @@ enum DocsCommand {
     List(DocsListCommand),
     /// Read a documentation resource.
     Read(DocsReadCommand),
+}
+
+/// Broker subcommands.
+#[derive(Subcommand, Debug)]
+enum BrokerCommand {
+    /// Resolve a content reference via broker sources.
+    Resolve(BrokerResolveCommand),
+    /// Dispatch a payload via broker sources/sinks.
+    Dispatch(BrokerDispatchCommand),
 }
 
 /// Provider contract subcommands.
@@ -395,6 +469,216 @@ struct SchemaGetCommand {
     /// Schema version.
     #[arg(long = "schema-version", value_name = "VERSION")]
     version: String,
+}
+
+/// Store location inputs for `SQLite`-backed store operations.
+#[derive(Args, Debug, Clone)]
+struct StoreLocationArgs {
+    /// Optional config file path (defaults to decision-gate.toml or env override).
+    #[arg(long, value_name = "PATH")]
+    config: Option<PathBuf>,
+    /// Optional direct `SQLite` store path (overrides config).
+    #[arg(long = "store-path", value_name = "PATH")]
+    store_path: Option<PathBuf>,
+}
+
+/// Output artifacts for hashing and signing.
+#[derive(Args, Debug, Clone)]
+struct OutputArtifactsArgs {
+    /// Optional output path for a JSON hash digest of the command output.
+    #[arg(long = "hash-out", value_name = "PATH")]
+    hash_out: Option<PathBuf>,
+    /// Optional output path for a JSON signature of the command output.
+    #[arg(long = "signature-out", value_name = "PATH")]
+    signature_out: Option<PathBuf>,
+    /// Optional signing key path (ed25519 private key, raw 32 bytes or base64).
+    #[arg(long = "signing-key", value_name = "PATH")]
+    signing_key: Option<PathBuf>,
+}
+
+/// Output formats for structured CLI commands.
+#[derive(ValueEnum, Copy, Clone, Debug)]
+enum OutputFormat {
+    /// Canonical JSON output.
+    Json,
+    /// Human-readable text output.
+    Text,
+}
+
+/// Arguments for `store list`.
+#[derive(Args, Debug)]
+struct StoreListCommand {
+    /// Store location settings.
+    #[command(flatten)]
+    location: StoreLocationArgs,
+    /// Optional tenant identifier filter.
+    #[arg(long, value_name = "TENANT_ID")]
+    tenant_id: Option<u64>,
+    /// Optional namespace identifier filter.
+    #[arg(long, value_name = "NAMESPACE_ID")]
+    namespace_id: Option<u64>,
+    /// Output format for store listings.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
+    format: OutputFormat,
+    /// Optional hash/signature outputs.
+    #[command(flatten)]
+    output: OutputArtifactsArgs,
+}
+
+/// Arguments for `store get`.
+#[derive(Args, Debug)]
+struct StoreGetCommand {
+    /// Store location settings.
+    #[command(flatten)]
+    location: StoreLocationArgs,
+    /// Tenant identifier.
+    #[arg(long, value_name = "TENANT_ID")]
+    tenant_id: u64,
+    /// Namespace identifier.
+    #[arg(long, value_name = "NAMESPACE_ID")]
+    namespace_id: u64,
+    /// Run identifier.
+    #[arg(long, value_name = "RUN_ID")]
+    run_id: String,
+    /// Optional version override.
+    #[arg(long, value_name = "VERSION")]
+    version: Option<i64>,
+    /// Optional hash/signature outputs.
+    #[command(flatten)]
+    output: OutputArtifactsArgs,
+}
+
+/// Arguments for `store export`.
+#[derive(Args, Debug)]
+struct StoreExportCommand {
+    /// Store location settings.
+    #[command(flatten)]
+    location: StoreLocationArgs,
+    /// Tenant identifier.
+    #[arg(long, value_name = "TENANT_ID")]
+    tenant_id: u64,
+    /// Namespace identifier.
+    #[arg(long, value_name = "NAMESPACE_ID")]
+    namespace_id: u64,
+    /// Run identifier.
+    #[arg(long, value_name = "RUN_ID")]
+    run_id: String,
+    /// Optional version override.
+    #[arg(long, value_name = "VERSION")]
+    version: Option<i64>,
+    /// Output file path for the run state JSON.
+    #[arg(long, value_name = "PATH")]
+    output: PathBuf,
+    /// Optional hash/signature outputs.
+    #[command(flatten)]
+    artifacts: OutputArtifactsArgs,
+}
+
+/// Arguments for `store verify`.
+#[derive(Args, Debug)]
+struct StoreVerifyCommand {
+    /// Store location settings.
+    #[command(flatten)]
+    location: StoreLocationArgs,
+    /// Tenant identifier.
+    #[arg(long, value_name = "TENANT_ID")]
+    tenant_id: u64,
+    /// Namespace identifier.
+    #[arg(long, value_name = "NAMESPACE_ID")]
+    namespace_id: u64,
+    /// Run identifier.
+    #[arg(long, value_name = "RUN_ID")]
+    run_id: String,
+    /// Optional version override.
+    #[arg(long, value_name = "VERSION")]
+    version: Option<i64>,
+    /// Output format for verification summaries.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
+    format: OutputFormat,
+    /// Optional hash/signature outputs.
+    #[command(flatten)]
+    output: OutputArtifactsArgs,
+}
+
+/// Arguments for `store prune`.
+#[derive(Args, Debug)]
+struct StorePruneCommand {
+    /// Store location settings.
+    #[command(flatten)]
+    location: StoreLocationArgs,
+    /// Tenant identifier.
+    #[arg(long, value_name = "TENANT_ID")]
+    tenant_id: u64,
+    /// Namespace identifier.
+    #[arg(long, value_name = "NAMESPACE_ID")]
+    namespace_id: u64,
+    /// Run identifier.
+    #[arg(long, value_name = "RUN_ID")]
+    run_id: String,
+    /// Number of versions to keep.
+    #[arg(long, value_name = "COUNT")]
+    keep: u64,
+    /// Dry-run without deleting records.
+    #[arg(long, action = ArgAction::SetTrue)]
+    dry_run: bool,
+    /// Output format for prune summaries.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
+    format: OutputFormat,
+    /// Optional hash/signature outputs.
+    #[command(flatten)]
+    output: OutputArtifactsArgs,
+}
+
+/// Arguments for `broker resolve`.
+#[derive(Args, Debug)]
+struct BrokerResolveCommand {
+    /// JSON input containing a `ContentRef`.
+    #[arg(long, value_name = "PATH")]
+    input: PathBuf,
+    /// Optional root directory for file:// resolution.
+    #[arg(long, value_name = "DIR")]
+    file_root: Option<PathBuf>,
+    /// Optional HTTP allowlist host entry (repeatable).
+    #[arg(long = "allow-host", value_name = "HOST")]
+    allow_hosts: Vec<String>,
+    /// Optional HTTP denylist host entry (repeatable).
+    #[arg(long = "deny-host", value_name = "HOST")]
+    deny_hosts: Vec<String>,
+    /// Allow private/link-local IPs for HTTP resolution.
+    #[arg(long, action = ArgAction::SetTrue)]
+    allow_private: bool,
+    /// Output format for resolution results.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
+    format: OutputFormat,
+    /// Optional hash/signature outputs.
+    #[command(flatten)]
+    output: OutputArtifactsArgs,
+}
+
+/// Arguments for `broker dispatch`.
+#[derive(Args, Debug)]
+struct BrokerDispatchCommand {
+    /// JSON input containing target/envelope/payload.
+    #[arg(long, value_name = "PATH")]
+    input: PathBuf,
+    /// Optional root directory for file:// resolution.
+    #[arg(long, value_name = "DIR")]
+    file_root: Option<PathBuf>,
+    /// Optional HTTP allowlist host entry (repeatable).
+    #[arg(long = "allow-host", value_name = "HOST")]
+    allow_hosts: Vec<String>,
+    /// Optional HTTP denylist host entry (repeatable).
+    #[arg(long = "deny-host", value_name = "HOST")]
+    deny_hosts: Vec<String>,
+    /// Allow private/link-local IPs for HTTP resolution.
+    #[arg(long, action = ArgAction::SetTrue)]
+    allow_private: bool,
+    /// Output format for dispatch receipts.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
+    format: OutputFormat,
+    /// Optional hash/signature outputs.
+    #[command(flatten)]
+    output: OutputArtifactsArgs,
 }
 
 /// Arguments for `docs search`.
@@ -865,6 +1149,10 @@ struct RunpackExportCommand {
     /// Path to the run state JSON file.
     #[arg(long, value_name = "PATH")]
     state: PathBuf,
+    /// Optional config file path for runpack storage (defaults to decision-gate.toml or env
+    /// override).
+    #[arg(long, value_name = "PATH")]
+    config: Option<PathBuf>,
     /// Output directory for runpack artifacts.
     #[arg(long, value_name = "DIR")]
     output_dir: PathBuf,
@@ -874,6 +1162,9 @@ struct RunpackExportCommand {
     /// Include an offline verification report artifact.
     #[arg(long, action = ArgAction::SetTrue)]
     with_verification: bool,
+    /// Upload the runpack to the configured storage backend (object store).
+    #[arg(long, action = ArgAction::SetTrue)]
+    storage: bool,
     /// Override `generated_at` timestamp (unix milliseconds).
     #[arg(long, value_name = "UNIX_MS")]
     generated_at_unix_ms: Option<i64>,
@@ -888,6 +1179,13 @@ struct RunpackVerifyCommand {
     /// Root directory for runpack artifacts (defaults to manifest directory).
     #[arg(long, value_name = "DIR")]
     runpack_dir: Option<PathBuf>,
+    /// Optional config file path for runpack storage (defaults to decision-gate.toml or env
+    /// override).
+    #[arg(long, value_name = "PATH")]
+    config: Option<PathBuf>,
+    /// Verify runpack artifacts from the configured storage backend (object store).
+    #[arg(long, action = ArgAction::SetTrue)]
+    storage: bool,
     /// Output format for the verification report.
     #[arg(long, value_enum, default_value_t = VerifyFormat::Json)]
     format: VerifyFormat,
@@ -979,9 +1277,15 @@ async fn run() -> CliResult<ExitCode> {
         Commands::Schema {
             command,
         } => command_schema(command).await,
+        Commands::Store {
+            command,
+        } => command_store(command),
         Commands::Docs {
             command,
         } => command_docs(command).await,
+        Commands::Broker {
+            command,
+        } => command_broker(command),
         Commands::Interop {
             command,
         } => command_interop(command).await,
@@ -1354,6 +1658,368 @@ async fn command_schema_get(command: SchemaGetCommand) -> CliResult<ExitCode> {
 }
 
 // ============================================================================
+// SECTION: Store Commands
+// ============================================================================
+
+/// Dispatches store administration subcommands.
+fn command_store(command: StoreCommand) -> CliResult<ExitCode> {
+    match command {
+        StoreCommand::List(command) => command_store_list(&command),
+        StoreCommand::Get(command) => command_store_get(&command),
+        StoreCommand::Export(command) => command_store_export(&command),
+        StoreCommand::Verify(command) => command_store_verify(&command),
+        StoreCommand::Prune(command) => command_store_prune(&command),
+    }
+}
+
+/// Executes `store list`.
+fn command_store_list(command: &StoreListCommand) -> CliResult<ExitCode> {
+    let store = open_sqlite_store(&command.location)?;
+    let tenant_id = command.tenant_id.map(parse_tenant_id).transpose()?;
+    let namespace_id = command.namespace_id.map(parse_namespace_id).transpose()?;
+    let runs = store
+        .list_runs(tenant_id, namespace_id)
+        .map_err(|err| CliError::new(t!("store.list.failed", error = err)))?;
+    let output = StoreListOutput {
+        runs,
+    };
+    let text = render_store_list_text(&output);
+    emit_structured_output(&output, command.format, &command.output, text)?;
+    Ok(ExitCode::SUCCESS)
+}
+
+/// Executes `store get`.
+fn command_store_get(command: &StoreGetCommand) -> CliResult<ExitCode> {
+    let store = open_sqlite_store(&command.location)?;
+    let tenant_id = parse_tenant_id(command.tenant_id)?;
+    let namespace_id = parse_namespace_id(command.namespace_id)?;
+    let run_id = RunId::new(command.run_id.clone());
+    let state = if let Some(version) = command.version {
+        store
+            .load_version(tenant_id, namespace_id, &run_id, version)
+            .map_err(|err| CliError::new(t!("store.get.failed", error = err)))?
+    } else {
+        store
+            .load(&tenant_id, &namespace_id, &run_id)
+            .map_err(|err| CliError::new(t!("store.get.failed", error = err)))?
+    };
+    let Some(state) = state else {
+        return Err(CliError::new(t!("store.get.not_found", run_id = run_id.as_str())));
+    };
+    let bytes = canonical_output_bytes(&state)?;
+    write_stdout_bytes_with_newline(&bytes)?;
+    write_output_artifacts_bytes(&bytes, &command.output)?;
+    Ok(ExitCode::SUCCESS)
+}
+
+/// Executes `store export`.
+fn command_store_export(command: &StoreExportCommand) -> CliResult<ExitCode> {
+    let store = open_sqlite_store(&command.location)?;
+    let tenant_id = parse_tenant_id(command.tenant_id)?;
+    let namespace_id = parse_namespace_id(command.namespace_id)?;
+    let run_id = RunId::new(command.run_id.clone());
+    let state = if let Some(version) = command.version {
+        store
+            .load_version(tenant_id, namespace_id, &run_id, version)
+            .map_err(|err| CliError::new(t!("store.get.failed", error = err)))?
+    } else {
+        store
+            .load(&tenant_id, &namespace_id, &run_id)
+            .map_err(|err| CliError::new(t!("store.get.failed", error = err)))?
+    };
+    let Some(state) = state else {
+        return Err(CliError::new(t!("store.get.not_found", run_id = run_id.as_str())));
+    };
+    let bytes = canonical_output_bytes(&state)?;
+    fs::write(&command.output, &bytes).map_err(|err| {
+        CliError::new(t!("store.export.write_failed", path = command.output.display(), error = err))
+    })?;
+    write_output_artifacts_bytes(&bytes, &command.artifacts)?;
+    write_stdout_line(&t!("store.export.ok", path = command.output.display()))
+        .map_err(|err| CliError::new(output_error("stdout", &err)))?;
+    Ok(ExitCode::SUCCESS)
+}
+
+/// Executes `store verify`.
+fn command_store_verify(command: &StoreVerifyCommand) -> CliResult<ExitCode> {
+    let store = open_sqlite_store(&command.location)?;
+    let tenant_id = parse_tenant_id(command.tenant_id)?;
+    let namespace_id = parse_namespace_id(command.namespace_id)?;
+    let run_id = RunId::new(command.run_id.clone());
+    let versions = store
+        .list_run_versions(tenant_id, namespace_id, &run_id)
+        .map_err(|err| CliError::new(t!("store.verify.failed", error = err)))?;
+    if versions.is_empty() {
+        return Err(CliError::new(t!("store.get.not_found", run_id = run_id.as_str())));
+    }
+    let summary = if let Some(version) = command.version {
+        versions
+            .iter()
+            .find(|entry| entry.version == version)
+            .ok_or_else(|| CliError::new(t!("store.verify.version_missing", version = version)))?
+            .clone()
+    } else {
+        versions.first().cloned().ok_or_else(|| CliError::new(t!("store.verify.no_versions")))?
+    };
+    let state = store
+        .load_version(tenant_id, namespace_id, &run_id, summary.version)
+        .map_err(|err| CliError::new(t!("store.verify.failed", error = err)))?
+        .ok_or_else(|| CliError::new(t!("store.get.not_found", run_id = run_id.as_str())))?;
+    let algorithm = parse_hash_algorithm_label(&summary.hash_algorithm)?;
+    let computed = hash_canonical_json(algorithm, &state)
+        .map_err(|err| CliError::new(t!("store.verify.failed", error = err)))?;
+    let stored = HashDigest {
+        algorithm,
+        value: summary.state_hash.clone(),
+    };
+    let status = if stored.value == computed.value {
+        StoreVerifyStatus::Pass
+    } else {
+        StoreVerifyStatus::Fail
+    };
+    let output = StoreVerifyOutput {
+        tenant_id,
+        namespace_id,
+        run_id,
+        version: summary.version,
+        status,
+        stored_hash: stored,
+        computed_hash: computed,
+        state_bytes: summary.state_bytes,
+        saved_at: summary.saved_at,
+    };
+    let text = render_store_verify_text(&output);
+    emit_structured_output(&output, command.format, &command.output, text)?;
+    let exit_code = match output.status {
+        StoreVerifyStatus::Pass => ExitCode::SUCCESS,
+        StoreVerifyStatus::Fail => ExitCode::FAILURE,
+    };
+    Ok(exit_code)
+}
+
+/// Executes `store prune`.
+fn command_store_prune(command: &StorePruneCommand) -> CliResult<ExitCode> {
+    if command.keep == 0 {
+        return Err(CliError::new(t!("store.prune.keep_invalid")));
+    }
+    let store = open_sqlite_store(&command.location)?;
+    let tenant_id = parse_tenant_id(command.tenant_id)?;
+    let namespace_id = parse_namespace_id(command.namespace_id)?;
+    let run_id = RunId::new(command.run_id.clone());
+    let pruned = if command.dry_run {
+        let versions = store
+            .list_run_versions(tenant_id, namespace_id, &run_id)
+            .map_err(|err| CliError::new(t!("store.prune.failed", error = err)))?;
+        let total = versions.len();
+        let keep = usize::try_from(command.keep)
+            .map_err(|_| CliError::new(t!("store.prune.keep_invalid")))?;
+        u64::try_from(total.saturating_sub(keep)).map_err(|_| {
+            CliError::new(t!("store.prune.failed", error = "pruned count exceeds u64"))
+        })?
+    } else {
+        store
+            .prune_versions(tenant_id, namespace_id, &run_id, command.keep)
+            .map_err(|err| CliError::new(t!("store.prune.failed", error = err)))?
+    };
+    let output = StorePruneOutput {
+        tenant_id,
+        namespace_id,
+        run_id,
+        keep: command.keep,
+        pruned,
+        dry_run: command.dry_run,
+    };
+    let text = render_store_prune_text(&output);
+    emit_structured_output(&output, command.format, &command.output, text)?;
+    Ok(ExitCode::SUCCESS)
+}
+
+/// Resolves the `SQLite` store configuration for CLI operations.
+fn resolve_sqlite_store_config(location: &StoreLocationArgs) -> CliResult<SqliteStoreConfig> {
+    if let Some(store_path) = &location.store_path {
+        if let Some(config_path) = location.config.as_deref() {
+            let config = DecisionGateConfig::load(Some(config_path))
+                .map_err(|err| CliError::new(t!("config.load_failed", error = err)))?;
+            if config.run_state_store.store_type != config::RunStateStoreType::Sqlite {
+                return Err(CliError::new(t!("store.config.unsupported_backend")));
+            }
+            let sqlite_config = SqliteStoreConfig {
+                path: store_path.clone(),
+                busy_timeout_ms: config.run_state_store.busy_timeout_ms,
+                journal_mode: config.run_state_store.journal_mode,
+                sync_mode: config.run_state_store.sync_mode,
+                max_versions: config.run_state_store.max_versions,
+            };
+            return Ok(sqlite_config);
+        }
+        return Ok(SqliteStoreConfig {
+            path: store_path.clone(),
+            busy_timeout_ms: DEFAULT_SQLITE_BUSY_TIMEOUT_MS,
+            journal_mode: SqliteStoreMode::default(),
+            sync_mode: SqliteSyncMode::default(),
+            max_versions: None,
+        });
+    }
+    let config = DecisionGateConfig::load(location.config.as_deref())
+        .map_err(|err| CliError::new(t!("config.load_failed", error = err)))?;
+    if config.run_state_store.store_type != config::RunStateStoreType::Sqlite {
+        return Err(CliError::new(t!("store.config.unsupported_backend")));
+    }
+    let path = config
+        .run_state_store
+        .path
+        .clone()
+        .ok_or_else(|| CliError::new(t!("store.config.missing_path")))?;
+    Ok(SqliteStoreConfig {
+        path,
+        busy_timeout_ms: config.run_state_store.busy_timeout_ms,
+        journal_mode: config.run_state_store.journal_mode,
+        sync_mode: config.run_state_store.sync_mode,
+        max_versions: config.run_state_store.max_versions,
+    })
+}
+
+/// Opens the `SQLite` store for CLI administration.
+fn open_sqlite_store(location: &StoreLocationArgs) -> CliResult<SqliteRunStateStore> {
+    let config = resolve_sqlite_store_config(location)?;
+    SqliteRunStateStore::new(config)
+        .map_err(|err| CliError::new(t!("store.open_failed", error = err)))
+}
+
+/// Output for `store list`.
+#[derive(Serialize)]
+struct StoreListOutput {
+    /// Runs returned by the listing operation.
+    runs: Vec<RunSummary>,
+}
+
+/// Verification status for stored run states.
+#[derive(Serialize, Copy, Clone)]
+#[serde(rename_all = "snake_case")]
+enum StoreVerifyStatus {
+    /// Stored hash matches computed hash.
+    Pass,
+    /// Stored hash does not match computed hash.
+    Fail,
+}
+
+/// Output for `store verify`.
+#[derive(Serialize)]
+struct StoreVerifyOutput {
+    /// Tenant identifier.
+    tenant_id: TenantId,
+    /// Namespace identifier.
+    namespace_id: NamespaceId,
+    /// Run identifier.
+    run_id: RunId,
+    /// Stored version number.
+    version: i64,
+    /// Verification status.
+    status: StoreVerifyStatus,
+    /// Hash stored alongside the run state.
+    stored_hash: HashDigest,
+    /// Hash computed from the run state payload.
+    computed_hash: HashDigest,
+    /// Size of the stored run state in bytes.
+    state_bytes: usize,
+    /// Timestamp when the run state was saved.
+    saved_at: i64,
+}
+
+/// Output for `store prune`.
+#[derive(Serialize)]
+struct StorePruneOutput {
+    /// Tenant identifier.
+    tenant_id: TenantId,
+    /// Namespace identifier.
+    namespace_id: NamespaceId,
+    /// Run identifier.
+    run_id: RunId,
+    /// Number of versions retained.
+    keep: u64,
+    /// Number of versions pruned.
+    pruned: u64,
+    /// Whether the prune was a dry run.
+    dry_run: bool,
+}
+
+/// Renders store list output in text form.
+fn render_store_list_text(output: &StoreListOutput) -> String {
+    let mut buffer = String::new();
+    buffer.push_str(&t!("store.list.header"));
+    buffer.push('\n');
+    if output.runs.is_empty() {
+        buffer.push_str(&t!("store.list.none"));
+        buffer.push('\n');
+        return buffer;
+    }
+    for run in &output.runs {
+        buffer.push_str(&t!(
+            "store.list.entry",
+            tenant_id = run.tenant_id.get(),
+            namespace_id = run.namespace_id.get(),
+            run_id = run.run_id.as_str(),
+            version = run.latest_version,
+            saved_at = run.saved_at
+        ));
+        buffer.push('\n');
+    }
+    buffer
+}
+
+/// Renders store verification output in text form.
+fn render_store_verify_text(output: &StoreVerifyOutput) -> String {
+    let status = match output.status {
+        StoreVerifyStatus::Pass => t!("store.verify.status.pass"),
+        StoreVerifyStatus::Fail => t!("store.verify.status.fail"),
+    };
+    let mut buffer = String::new();
+    buffer.push_str(&t!("store.verify.header"));
+    buffer.push('\n');
+    buffer.push_str(&t!(
+        "store.verify.summary",
+        status = status,
+        version = output.version,
+        saved_at = output.saved_at
+    ));
+    buffer.push('\n');
+    buffer.push_str(&t!(
+        "store.verify.hash",
+        label = t!("store.verify.hash.stored"),
+        value = output.stored_hash.value
+    ));
+    buffer.push('\n');
+    buffer.push_str(&t!(
+        "store.verify.hash",
+        label = t!("store.verify.hash.computed"),
+        value = output.computed_hash.value
+    ));
+    buffer.push('\n');
+    buffer.push_str(&t!("store.verify.bytes", bytes = output.state_bytes));
+    buffer.push('\n');
+    buffer
+}
+
+/// Renders store prune output in text form.
+fn render_store_prune_text(output: &StorePruneOutput) -> String {
+    t!(
+        "store.prune.summary",
+        run_id = output.run_id.as_str(),
+        keep = output.keep,
+        pruned = output.pruned,
+        dry_run = output.dry_run
+    )
+}
+
+/// Parses a hash algorithm label string.
+fn parse_hash_algorithm_label(label: &str) -> CliResult<HashAlgorithm> {
+    match label {
+        "sha256" => Ok(HashAlgorithm::Sha256),
+        _ => Err(CliError::new(t!("store.verify.hash_algorithm_invalid", value = label))),
+    }
+}
+
+// ============================================================================
 // SECTION: Docs Commands
 // ============================================================================
 
@@ -1409,6 +2075,445 @@ async fn command_docs_read(command: DocsReadCommand) -> CliResult<ExitCode> {
     let output = serde_json::json!({ "contents": contents });
     write_json_value(&output)?;
     Ok(ExitCode::SUCCESS)
+}
+
+// ============================================================================
+// SECTION: Broker Commands
+// ============================================================================
+
+/// Dispatches broker subcommands.
+fn command_broker(command: BrokerCommand) -> CliResult<ExitCode> {
+    match command {
+        BrokerCommand::Resolve(command) => command_broker_resolve(&command),
+        BrokerCommand::Dispatch(command) => command_broker_dispatch(&command),
+    }
+}
+
+/// Executes `broker resolve`.
+fn command_broker_resolve(command: &BrokerResolveCommand) -> CliResult<ExitCode> {
+    let kind = t!("broker.input.kind.resolve");
+    let input: BrokerResolveInput = read_broker_json(&command.input, &kind)?;
+    let (content_ref, input_content_type) = input.into_parts();
+    let sources = build_broker_sources(
+        command.file_root.clone(),
+        &command.allow_hosts,
+        &command.deny_hosts,
+        command.allow_private,
+    )?;
+    let source = resolve_broker_source(&sources, &content_ref.uri)?;
+    let resolved = source
+        .fetch(&content_ref)
+        .map_err(|err| CliError::new(t!("broker.resolve.failed", error = err)))?;
+    if let (Some(expected), Some(actual)) = (&input_content_type, &resolved.content_type)
+        && !content_type_matches(expected, actual)
+    {
+        return Err(CliError::new(t!(
+            "broker.resolve.content_type_mismatch",
+            expected = expected,
+            actual = actual
+        )));
+    }
+    let effective_content_type = input_content_type.or_else(|| resolved.content_type.clone());
+    let (payload, inferred_content_type) = resolve_payload_output(
+        &resolved.bytes,
+        &content_ref.content_hash,
+        effective_content_type.as_deref(),
+    )?;
+    let output = BrokerResolveOutput {
+        uri: content_ref.uri.clone(),
+        content_hash: content_ref.content_hash.clone(),
+        content_type: inferred_content_type.or(effective_content_type),
+        payload,
+        bytes: resolved.bytes.len(),
+    };
+    let text = render_broker_resolve_text(&output);
+    emit_structured_output(&output, command.format, &command.output, text)?;
+    Ok(ExitCode::SUCCESS)
+}
+
+/// Executes `broker dispatch`.
+fn command_broker_dispatch(command: &BrokerDispatchCommand) -> CliResult<ExitCode> {
+    let kind = t!("broker.input.kind.dispatch");
+    let input: BrokerDispatchInput = read_broker_json(&command.input, &kind)?;
+    let sources = build_broker_sources(
+        command.file_root.clone(),
+        &command.allow_hosts,
+        &command.deny_hosts,
+        command.allow_private,
+    )?;
+    let capture = std::sync::Arc::new(std::sync::Mutex::new(None::<DispatchCapture>));
+    let counter = std::sync::Arc::new(AtomicU64::new(0));
+    let capture_ref = std::sync::Arc::clone(&capture);
+    let counter_ref = std::sync::Arc::clone(&counter);
+    let sink = CallbackSink::new(move |target, payload| {
+        let seq = counter_ref.fetch_add(1, Ordering::Relaxed) + 1;
+        let receipt = DispatchReceipt {
+            dispatch_id: format!("cli-{seq}"),
+            target: target.clone(),
+            receipt_hash: payload.envelope.content_hash.clone(),
+            dispatched_at: Timestamp::Logical(seq),
+            dispatcher: "decision-gate-cli".to_string(),
+        };
+        {
+            let mut guard = capture_ref.lock().map_err(|_| {
+                decision_gate_broker::SinkError::DeliveryFailed("capture poisoned".to_string())
+            })?;
+            *guard = Some(DispatchCapture {
+                payload: payload.clone(),
+            });
+        }
+        Ok(receipt)
+    });
+    let broker = CompositeBroker::builder()
+        .source("file", sources.file)
+        .source("inline", sources.inline)
+        .source("http", sources.http.clone())
+        .source("https", sources.http)
+        .sink(sink)
+        .build()
+        .map_err(|err| CliError::new(t!("broker.dispatch.failed", error = err)))?;
+    let receipt = broker
+        .dispatch(&input.target, &input.envelope, &input.payload)
+        .map_err(|err| CliError::new(t!("broker.dispatch.failed", error = err)))?;
+    let captured = {
+        let mut guard = capture
+            .lock()
+            .map_err(|_| CliError::new(t!("broker.dispatch.failed", error = "capture poisoned")))?;
+        guard.take().ok_or_else(|| {
+            CliError::new(t!("broker.dispatch.failed", error = "no payload captured"))
+        })?
+    };
+    let output = BrokerDispatchOutput {
+        receipt,
+        content_type: captured.payload.envelope.content_type.clone(),
+        content_hash: captured.payload.envelope.content_hash.clone(),
+        payload_bytes: captured.payload.len(),
+    };
+    let text = render_broker_dispatch_text(&output);
+    emit_structured_output(&output, command.format, &command.output, text)?;
+    Ok(ExitCode::SUCCESS)
+}
+
+/// Input payload for broker resolve.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum BrokerResolveInput {
+    /// Content reference without an explicit content type override.
+    ContentRef(ContentRef),
+    /// Content reference with an optional content type override.
+    WithType {
+        /// Content reference to resolve.
+        content_ref: ContentRef,
+        /// Optional content type override.
+        content_type: Option<String>,
+    },
+}
+
+impl BrokerResolveInput {
+    /// Splits the input into a content reference and optional content type.
+    fn into_parts(self) -> (ContentRef, Option<String>) {
+        match self {
+            Self::ContentRef(content_ref) => (content_ref, None),
+            Self::WithType {
+                content_ref,
+                content_type,
+            } => (content_ref, content_type),
+        }
+    }
+}
+
+/// Input payload for broker dispatch.
+#[derive(Deserialize)]
+struct BrokerDispatchInput {
+    /// Dispatch target for the payload.
+    target: DispatchTarget,
+    /// Packet envelope metadata.
+    envelope: PacketEnvelope,
+    /// Packet payload to dispatch.
+    payload: PacketPayload,
+}
+
+/// Output payload kind for broker resolve.
+#[derive(Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum BrokerPayloadOutput {
+    /// JSON payload.
+    Json {
+        /// JSON value payload.
+        value: Value,
+    },
+    /// Base64-encoded payload.
+    Bytes {
+        /// Base64-encoded bytes.
+        base64: String,
+    },
+}
+
+/// Output for `broker resolve`.
+#[derive(Serialize)]
+struct BrokerResolveOutput {
+    /// Resolved URI.
+    uri: String,
+    /// Content hash for the resolved payload.
+    content_hash: HashDigest,
+    /// Resolved content type, if known.
+    content_type: Option<String>,
+    /// Payload output with type information.
+    payload: BrokerPayloadOutput,
+    /// Payload size in bytes.
+    bytes: usize,
+}
+
+/// Output for `broker dispatch`.
+#[derive(Serialize)]
+struct BrokerDispatchOutput {
+    /// Dispatch receipt metadata.
+    receipt: DispatchReceipt,
+    /// Content type used for the dispatch.
+    content_type: String,
+    /// Content hash for the dispatched payload.
+    content_hash: HashDigest,
+    /// Payload size in bytes.
+    payload_bytes: usize,
+}
+
+/// Captured dispatch payload + receipt.
+#[derive(Clone)]
+struct DispatchCapture {
+    /// Captured payload dispatched by the broker.
+    payload: decision_gate_broker::Payload,
+}
+
+/// Broker source registry for CLI commands.
+struct BrokerSources {
+    /// File source for broker resolution.
+    file: FileSource,
+    /// HTTP/HTTPS source for broker resolution.
+    http: HttpSource,
+    /// Inline source for broker resolution.
+    inline: InlineSource,
+}
+
+/// Builds broker sources for CLI commands.
+fn build_broker_sources(
+    file_root: Option<PathBuf>,
+    allow_hosts: &[String],
+    deny_hosts: &[String],
+    allow_private: bool,
+) -> CliResult<BrokerSources> {
+    let file = file_root.map_or_else(FileSource::unrestricted, FileSource::new);
+    let mut policy = HttpSourcePolicy::new();
+    if !allow_hosts.is_empty() {
+        policy = policy.allow_hosts(allow_hosts);
+    }
+    if !deny_hosts.is_empty() {
+        policy = policy.deny_hosts(deny_hosts);
+    }
+    if allow_private {
+        policy = policy.allow_private_networks();
+    }
+    let http = HttpSource::with_policy(policy)
+        .map_err(|err| CliError::new(t!("broker.http.init_failed", error = err)))?;
+    Ok(BrokerSources {
+        file,
+        http,
+        inline: InlineSource::new(),
+    })
+}
+
+/// Resolves the broker source for a URI.
+fn resolve_broker_source<'a>(sources: &'a BrokerSources, uri: &str) -> CliResult<&'a dyn Source> {
+    let scheme = uri.split(':').next().unwrap_or_default();
+    let base = scheme.split('+').next().unwrap_or(scheme);
+    match base {
+        "file" => Ok(&sources.file),
+        "http" | "https" => Ok(&sources.http),
+        "inline" => Ok(&sources.inline),
+        _ => Err(CliError::new(t!("broker.resolve.unsupported_scheme", scheme = base))),
+    }
+}
+
+/// Resolves payload output with hash verification.
+fn resolve_payload_output(
+    bytes: &[u8],
+    expected: &HashDigest,
+    content_type: Option<&str>,
+) -> CliResult<(BrokerPayloadOutput, Option<String>)> {
+    let algorithm = expected.algorithm;
+    if let Some(content_type) = content_type {
+        if is_json_content_type(content_type) {
+            let value = serde_json::from_slice::<Value>(bytes).map_err(|err| {
+                CliError::new(t!("broker.resolve.json_parse_failed", error = err))
+            })?;
+            let digest = hash_canonical_json(algorithm, &value)
+                .map_err(|err| CliError::new(t!("broker.resolve.hash_failed", error = err)))?;
+            if digest.value != expected.value {
+                return Err(CliError::new(t!(
+                    "broker.resolve.hash_mismatch",
+                    expected = expected.value,
+                    actual = digest.value
+                )));
+            }
+            return Ok((
+                BrokerPayloadOutput::Json {
+                    value,
+                },
+                Some(content_type.to_string()),
+            ));
+        }
+        let digest = hash_bytes(algorithm, bytes);
+        if digest.value != expected.value {
+            return Err(CliError::new(t!(
+                "broker.resolve.hash_mismatch",
+                expected = expected.value,
+                actual = digest.value
+            )));
+        }
+        return Ok((
+            BrokerPayloadOutput::Bytes {
+                base64: BASE64.encode(bytes),
+            },
+            Some(content_type.to_string()),
+        ));
+    }
+
+    if let Ok(value) = serde_json::from_slice::<Value>(bytes)
+        && let Ok(digest) = hash_canonical_json(algorithm, &value)
+        && digest.value == expected.value
+    {
+        return Ok((
+            BrokerPayloadOutput::Json {
+                value,
+            },
+            Some("application/json".to_string()),
+        ));
+    }
+
+    let digest = hash_bytes(algorithm, bytes);
+    if digest.value == expected.value {
+        return Ok((
+            BrokerPayloadOutput::Bytes {
+                base64: BASE64.encode(bytes),
+            },
+            None,
+        ));
+    }
+
+    Err(CliError::new(t!(
+        "broker.resolve.hash_mismatch",
+        expected = expected.value,
+        actual = digest.value
+    )))
+}
+
+/// Returns true when the content type indicates JSON.
+fn is_json_content_type(content_type: &str) -> bool {
+    let normalized = normalize_content_type(content_type);
+    normalized == "application/json" || normalized.ends_with("+json")
+}
+
+/// Returns true when two content types are compatible.
+fn content_type_matches(expected: &str, actual: &str) -> bool {
+    let expected = normalize_content_type(expected);
+    let actual = normalize_content_type(actual);
+    if expected == actual {
+        return true;
+    }
+    is_json_content_type(&expected) && is_json_content_type(&actual)
+}
+
+/// Normalizes a content type string to its base value.
+fn normalize_content_type(content_type: &str) -> String {
+    content_type.split(';').next().unwrap_or(content_type).trim().to_ascii_lowercase()
+}
+
+/// Renders broker resolve output in text form.
+fn render_broker_resolve_text(output: &BrokerResolveOutput) -> String {
+    let content_type =
+        output.content_type.clone().unwrap_or_else(|| t!("broker.resolve.content_type.unknown"));
+    let mut buffer = String::new();
+    buffer.push_str(&t!("broker.resolve.header"));
+    buffer.push('\n');
+    buffer.push_str(&t!("broker.resolve.uri", uri = output.uri.as_str()));
+    buffer.push('\n');
+    buffer.push_str(&t!("broker.resolve.content_type", content_type = content_type));
+    buffer.push('\n');
+    buffer.push_str(&t!("broker.resolve.hash", value = output.content_hash.value));
+    buffer.push('\n');
+    buffer.push_str(&t!("broker.resolve.bytes", bytes = output.bytes));
+    buffer.push('\n');
+    match &output.payload {
+        BrokerPayloadOutput::Json {
+            value,
+        } => {
+            if let Ok(json) = serde_json::to_string_pretty(value) {
+                buffer.push_str(&json);
+                buffer.push('\n');
+            }
+        }
+        BrokerPayloadOutput::Bytes {
+            base64,
+        } => {
+            buffer.push_str(base64);
+            buffer.push('\n');
+        }
+    }
+    buffer
+}
+
+/// Renders broker dispatch output in text form.
+fn render_broker_dispatch_text(output: &BrokerDispatchOutput) -> String {
+    let mut buffer = String::new();
+    buffer.push_str(&t!("broker.dispatch.header"));
+    buffer.push('\n');
+    buffer.push_str(&t!(
+        "broker.dispatch.receipt",
+        dispatch_id = output.receipt.dispatch_id,
+        dispatcher = output.receipt.dispatcher
+    ));
+    buffer.push('\n');
+    buffer.push_str(&t!(
+        "broker.dispatch.target",
+        target = serde_json::to_string(&output.receipt.target).unwrap_or_default()
+    ));
+    buffer.push('\n');
+    buffer.push_str(&t!("broker.dispatch.content_type", content_type = output.content_type));
+    buffer.push('\n');
+    buffer.push_str(&t!("broker.dispatch.hash", value = output.content_hash.value));
+    buffer.push('\n');
+    buffer.push_str(&t!("broker.dispatch.bytes", bytes = output.payload_bytes));
+    buffer.push('\n');
+    buffer
+}
+
+/// Reads a JSON payload for broker commands.
+fn read_broker_json<T: DeserializeOwned>(path: &Path, kind: &str) -> CliResult<T> {
+    let bytes = read_bytes_with_limit(path, MAX_MCP_INPUT_BYTES).map_err(|err| match err {
+        ReadLimitError::Io(err) => CliError::new(t!(
+            "broker.input.read_failed",
+            kind = kind,
+            path = path.display(),
+            error = err
+        )),
+        ReadLimitError::TooLarge {
+            size,
+            limit,
+        } => CliError::new(t!(
+            "input.read_too_large",
+            kind = kind,
+            path = path.display(),
+            size = size,
+            limit = limit
+        )),
+    })?;
+    serde_json::from_slice(&bytes).map_err(|err| {
+        CliError::new(t!(
+            "broker.input.parse_failed",
+            kind = kind,
+            path = path.display(),
+            error = err
+        ))
+    })
 }
 
 // ============================================================================
@@ -1823,7 +2928,7 @@ fn command_runpack_export(command: &RunpackExportCommand) -> CliResult<ExitCode>
             ))
         })?;
     let builder = RunpackBuilder::default();
-    if command.with_verification {
+    let manifest = if command.with_verification {
         let reader = FileArtifactReader::new(command.output_dir.clone()).map_err(|err| {
             CliError::new(t!(
                 "runpack.verify.reader_failed",
@@ -1831,16 +2936,28 @@ fn command_runpack_export(command: &RunpackExportCommand) -> CliResult<ExitCode>
                 error = err
             ))
         })?;
-        let (_manifest, report) = builder
+        let (manifest, report) = builder
             .build_with_verification(&mut sink, &reader, &spec, &state, generated_at)
             .map_err(|err| CliError::new(t!("runpack.export.build_failed", error = err)))?;
         let status = format_verification_status(report.status);
         write_stdout_line(&t!("runpack.export.verification_status", status = status))
             .map_err(|err| CliError::new(output_error("stdout", &err)))?;
+        manifest
     } else {
-        let _manifest = builder
+        builder
             .build(&mut sink, &spec, &state, generated_at)
-            .map_err(|err| CliError::new(t!("runpack.export.build_failed", error = err)))?;
+            .map_err(|err| CliError::new(t!("runpack.export.build_failed", error = err)))?
+    };
+
+    if command.storage {
+        let storage_uri = upload_runpack_to_object_store(
+            &manifest,
+            &command.output_dir,
+            &command.manifest_name,
+            command.config.as_deref(),
+        )?;
+        write_stdout_line(&t!("runpack.export.storage_ok", uri = storage_uri))
+            .map_err(|err| CliError::new(output_error("stdout", &err)))?;
     }
 
     write_stdout_line(&t!("runpack.export.ok", path = manifest_path.display()))
@@ -1851,15 +2968,29 @@ fn command_runpack_export(command: &RunpackExportCommand) -> CliResult<ExitCode>
 /// Executes the runpack verification command.
 fn command_runpack_verify(command: RunpackVerifyCommand) -> CliResult<ExitCode> {
     let manifest: RunpackManifest = read_manifest_json(&command.manifest, MAX_MANIFEST_BYTES)?;
-    let runpack_dir = resolve_runpack_dir(&command.manifest, command.runpack_dir)?;
-    let reader = FileArtifactReader::new(runpack_dir.clone()).map_err(|err| {
-        CliError::new(t!("runpack.verify.reader_failed", path = runpack_dir.display(), error = err))
-    })?;
-
     let verifier = RunpackVerifier::new(DEFAULT_HASH_ALGORITHM);
-    let report = verifier
-        .verify_manifest(&reader, &manifest)
-        .map_err(|err| CliError::new(t!("runpack.verify.failed", error = err)))?;
+    let report = if command.storage {
+        let backend = resolve_runpack_object_store_backend(command.config.as_deref())?;
+        let key = runpack_object_key_from_manifest(&manifest);
+        let reader = backend
+            .reader(&key)
+            .map_err(|err| CliError::new(t!("runpack.verify.failed", error = err)))?;
+        verifier
+            .verify_manifest(&reader, &manifest)
+            .map_err(|err| CliError::new(t!("runpack.verify.failed", error = err)))?
+    } else {
+        let runpack_dir = resolve_runpack_dir(&command.manifest, command.runpack_dir)?;
+        let reader = FileArtifactReader::new(runpack_dir.clone()).map_err(|err| {
+            CliError::new(t!(
+                "runpack.verify.reader_failed",
+                path = runpack_dir.display(),
+                error = err
+            ))
+        })?;
+        verifier
+            .verify_manifest(&reader, &manifest)
+            .map_err(|err| CliError::new(t!("runpack.verify.failed", error = err)))?
+    };
 
     let output = render_verification_report(command.format, &report)?;
     write_stdout_line(&output).map_err(|err| CliError::new(output_error("stdout", &err)))?;
@@ -2035,6 +3166,69 @@ fn resolve_generated_at(override_unix_ms: Option<i64>) -> CliResult<Timestamp> {
     let millis = i64::try_from(duration.as_millis())
         .map_err(|_| CliError::new(t!("runpack.export.time.overflow")))?;
     Ok(Timestamp::UnixMillis(millis))
+}
+
+/// Resolves the runpack object store backend from config.
+fn resolve_runpack_object_store_backend(
+    config_path: Option<&Path>,
+) -> CliResult<ObjectStoreRunpackBackend> {
+    let config = DecisionGateConfig::load(config_path)
+        .map_err(|err| CliError::new(t!("config.load_failed", error = err)))?;
+    let Some(storage) = &config.runpack_storage else {
+        return Err(CliError::new(t!("runpack.storage.missing")));
+    };
+    match storage {
+        config::RunpackStorageConfig::ObjectStore(storage) => {
+            ObjectStoreRunpackBackend::new(storage)
+                .map_err(|err| CliError::new(t!("runpack.storage.init_failed", error = err)))
+        }
+    }
+}
+
+/// Builds the object-store key from a runpack manifest.
+fn runpack_object_key_from_manifest(manifest: &RunpackManifest) -> RunpackObjectKey {
+    RunpackObjectKey {
+        tenant_id: manifest.tenant_id,
+        namespace_id: manifest.namespace_id,
+        scenario_id: manifest.scenario_id.clone(),
+        run_id: manifest.run_id.clone(),
+        spec_hash: manifest.spec_hash.clone(),
+    }
+}
+
+/// Uploads a runpack to configured object storage.
+fn upload_runpack_to_object_store(
+    manifest: &RunpackManifest,
+    output_dir: &Path,
+    manifest_name: &str,
+    config_path: Option<&Path>,
+) -> CliResult<String> {
+    let backend = resolve_runpack_object_store_backend(config_path)?;
+    let key = runpack_object_key_from_manifest(manifest);
+    let reader = FileArtifactReader::new(output_dir.to_path_buf())
+        .map_err(|err| CliError::new(t!("runpack.storage.upload_failed", error = err)))?;
+    let mut sink = backend
+        .sink(&key, manifest_name)
+        .map_err(|err| CliError::new(t!("runpack.storage.upload_failed", error = err)))?;
+    for artifact in &manifest.artifacts {
+        let bytes = reader
+            .read_with_limit(&artifact.path, MAX_RUNPACK_ARTIFACT_BYTES)
+            .map_err(|err| CliError::new(t!("runpack.storage.upload_failed", error = err)))?;
+        let payload = Artifact {
+            kind: artifact.kind,
+            path: artifact.path.clone(),
+            content_type: artifact.content_type.clone(),
+            bytes,
+            required: artifact.required,
+        };
+        sink.write(&payload)
+            .map_err(|err| CliError::new(t!("runpack.storage.upload_failed", error = err)))?;
+    }
+    sink.finalize(manifest)
+        .map_err(|err| CliError::new(t!("runpack.storage.upload_failed", error = err)))?;
+    backend
+        .storage_uri(&key)
+        .map_err(|err| CliError::new(t!("runpack.storage.upload_failed", error = err)))
 }
 
 /// Renders a verification report in the requested format.
@@ -2598,6 +3792,13 @@ fn write_stdout_bytes(bytes: &[u8]) -> std::io::Result<()> {
     stdout.write_all(bytes)
 }
 
+/// Writes raw bytes to stdout with a trailing newline.
+fn write_stdout_bytes_with_newline(bytes: &[u8]) -> CliResult<()> {
+    let mut buffer = bytes.to_vec();
+    buffer.push(b'\n');
+    write_stdout_bytes(&buffer).map_err(|err| CliError::new(output_error("stdout", &err)))
+}
+
 /// Writes canonical JSON to stdout with a size limit.
 fn write_canonical_json<T: Serialize>(value: &T, max_bytes: usize) -> CliResult<()> {
     let mut bytes = canonical_json_bytes_with_limit(value, max_bytes).map_err(|err| {
@@ -2625,6 +3826,143 @@ fn write_json_value(value: &Value) -> CliResult<()> {
         .map_err(|err| CliError::new(t!("mcp.client.json_failed", error = err)))?;
     bytes.push(b'\n');
     write_stdout_bytes(&bytes).map_err(|err| CliError::new(output_error("stdout", &err)))
+}
+
+/// Computes canonical JSON bytes for output rendering.
+fn canonical_output_bytes<T: Serialize>(value: &T) -> CliResult<Vec<u8>> {
+    serde_jcs::to_vec(value).map_err(|err| CliError::new(t!("mcp.client.json_failed", error = err)))
+}
+
+/// Emits structured output with optional hash/signature artifacts.
+fn emit_structured_output<T: Serialize>(
+    value: &T,
+    format: OutputFormat,
+    artifacts: &OutputArtifactsArgs,
+    text: String,
+) -> CliResult<()> {
+    let bytes = canonical_output_bytes(value)?;
+    match format {
+        OutputFormat::Json => {
+            write_stdout_bytes_with_newline(&bytes)?;
+        }
+        OutputFormat::Text => {
+            let mut output = text;
+            if !output.ends_with('\n') {
+                output.push('\n');
+            }
+            write_stdout_bytes(output.as_bytes())
+                .map_err(|err| CliError::new(output_error("stdout", &err)))?;
+        }
+    }
+    write_output_artifacts_bytes(&bytes, artifacts)?;
+    Ok(())
+}
+
+/// Output signature metadata for hashed CLI outputs.
+#[derive(Serialize)]
+struct OutputSignature {
+    /// Signature scheme name.
+    scheme: String,
+    /// Signing key identifier.
+    key_id: String,
+    /// Base64-encoded signature.
+    signature: String,
+    /// Hash of the signed payload.
+    hash: HashDigest,
+}
+
+/// Writes output hash/signature artifacts when requested.
+fn write_output_artifacts_bytes(bytes: &[u8], artifacts: &OutputArtifactsArgs) -> CliResult<()> {
+    if artifacts.hash_out.is_none()
+        && artifacts.signature_out.is_none()
+        && artifacts.signing_key.is_none()
+    {
+        return Ok(());
+    }
+    if artifacts.signature_out.is_some() && artifacts.signing_key.is_none() {
+        return Err(CliError::new(t!("output.signature.key_required")));
+    }
+    if artifacts.signing_key.is_some() && artifacts.signature_out.is_none() {
+        return Err(CliError::new(t!("output.signature.out_required")));
+    }
+    let digest = hash_bytes(DEFAULT_HASH_ALGORITHM, bytes);
+    if let Some(path) = &artifacts.hash_out {
+        write_output_artifact(path, "hash", &digest)?;
+    }
+    if let Some(path) = &artifacts.signature_out {
+        let key_path = artifacts
+            .signing_key
+            .as_ref()
+            .ok_or_else(|| CliError::new(t!("output.signature.key_required")))?;
+        let signing_key = load_signing_key(key_path)?;
+        let signature = signing_key.sign(bytes);
+        let key_id = BASE64.encode(signing_key.verifying_key().to_bytes());
+        let output = OutputSignature {
+            scheme: "ed25519".to_string(),
+            key_id,
+            signature: BASE64.encode(signature.to_bytes()),
+            hash: digest,
+        };
+        write_output_artifact(path, "signature", &output)?;
+    }
+    Ok(())
+}
+
+/// Writes a canonical JSON artifact to disk.
+fn write_output_artifact<T: Serialize>(path: &Path, kind: &str, value: &T) -> CliResult<()> {
+    let bytes = serde_jcs::to_vec(value).map_err(|err| {
+        CliError::new(t!("output.artifact.serialize_failed", kind = kind, error = err))
+    })?;
+    fs::write(path, bytes).map_err(|err| {
+        CliError::new(t!(
+            "output.artifact.write_failed",
+            kind = kind,
+            path = path.display(),
+            error = err
+        ))
+    })?;
+    Ok(())
+}
+
+/// Loads a signing key from disk.
+fn load_signing_key(path: &Path) -> CliResult<SigningKey> {
+    let bytes = read_bytes_with_limit(path, MAX_SIGNING_KEY_BYTES).map_err(|err| match err {
+        ReadLimitError::Io(err) => CliError::new(t!(
+            "output.signature.key_read_failed",
+            path = path.display(),
+            error = err
+        )),
+        ReadLimitError::TooLarge {
+            size,
+            limit,
+        } => CliError::new(t!(
+            "input.read_too_large",
+            kind = t!("output.signature.key_kind"),
+            path = path.display(),
+            size = size,
+            limit = limit
+        )),
+    })?;
+    if bytes.len() == 32 {
+        let key: [u8; 32] = bytes
+            .as_slice()
+            .try_into()
+            .map_err(|_| CliError::new(t!("output.signature.key_invalid")))?;
+        return Ok(SigningKey::from_bytes(&key));
+    }
+    let text = std::str::from_utf8(&bytes)
+        .map_err(|_| CliError::new(t!("output.signature.key_invalid")))?;
+    let decoded = BASE64
+        .decode(text.trim().as_bytes())
+        .map_err(|_| CliError::new(t!("output.signature.key_invalid")))?;
+    if decoded.len() != 32 {
+        return Err(CliError::new(t!("output.signature.key_invalid")));
+    }
+    let key: [u8; 32] = decoded
+        .as_slice()
+        .try_into()
+        .map_err(|_| CliError::new(t!("output.signature.key_invalid")))?;
+    Ok(SigningKey::from_bytes(&key))
 }
 
 /// Renders provider list output in text form.

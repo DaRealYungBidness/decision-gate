@@ -123,6 +123,17 @@ impl ProviderProcess {
     }
 }
 
+impl Drop for ProviderProcess {
+    fn drop(&mut self) {
+        match self.child.try_wait() {
+            Ok(Some(_)) => return,
+            Ok(None) | Err(_) => {}
+        }
+        let _ = self.child.kill();
+        let _ = self.child.try_wait();
+    }
+}
+
 fn write_frame(writer: &mut ChildStdin, payload: &Value) -> Result<(), String> {
     let data = serde_json::to_vec(payload).map_err(|err| format!("serialize request: {err}"))?;
     write_raw_frame(writer, &data)
@@ -395,10 +406,13 @@ fn oversized_payload() -> Vec<u8> {
     bytes
 }
 
-fn python_command() -> Vec<String> {
+fn python_command(runtime: &Path) -> Vec<String> {
     vec![
-        "python3".to_string(),
-        repo_root().join("decision-gate-provider-sdk/python/provider.py").display().to_string(),
+        runtime.display().to_string(),
+        repo_root()
+            .join("decision-gate-provider-sdk/python/provider.py")
+            .display()
+            .to_string(),
     ]
 }
 
@@ -499,7 +513,7 @@ async fn provider_template_python() -> Result<(), Box<dyn std::error::Error>> {
     };
     let mut notes = runtime.notes;
     notes.push(format!("python runtime: {}", runtime.path.display()));
-    run_template_test("python", python_command(), notes).await
+    run_template_test("python", python_command(&runtime.path), notes).await
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -566,7 +580,7 @@ async fn provider_template_error_fails_closed() -> Result<(), Box<dyn std::error
     reporter.artifacts().write_json("runtime_notes.json", &notes)?;
     reporter.artifacts().write_json("tool_transcript.json", &Vec::<Value>::new())?;
 
-    run_template_with_server(python_command(), "error", true).await?;
+    run_template_with_server(python_command(&runtime.path), "error", true).await?;
 
     reporter.finish(
         "pass",
