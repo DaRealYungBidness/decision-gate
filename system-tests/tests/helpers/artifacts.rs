@@ -35,10 +35,7 @@ struct TestSummary {
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
-        .map_or_else(
-            || PathBuf::from(env!("CARGO_MANIFEST_DIR")),
-            |parent| parent.to_path_buf(),
-        )
+        .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")), |parent| parent.to_path_buf())
 }
 
 fn default_run_root(test_name: &str) -> PathBuf {

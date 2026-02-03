@@ -1,0 +1,46 @@
+name: ci-manual
+
+on:
+  workflow_dispatch:
+    inputs:
+      priority:
+        description: System-test priority to run
+        required: true
+        default: P2
+        type: choice
+        options:
+          - P2
+          - P1
+          - P0
+
+permissions:
+  contents: read
+
+jobs:
+  system-tests:
+    name: system-tests-${{ inputs.priority }}
+    runs-on: ubuntu-latest
+    env:
+      RUST_BACKTRACE: "1"
+      CARGO_TERM_COLOR: "always"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.92.0"
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run system tests
+        run: python scripts/test_runner.py --priority ${{ inputs.priority }} --run-root .tmp/system-tests/${{ inputs.priority }}
+      - name: Upload system test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: system-tests-${{ inputs.priority }}
+          path: .tmp/system-tests/${{ inputs.priority }}

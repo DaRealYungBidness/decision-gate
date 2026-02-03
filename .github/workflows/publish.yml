@@ -1,0 +1,149 @@
+name: publish-manual
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: What to publish
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - crates
+          - python
+          - typescript
+          - docker
+
+permissions:
+  contents: read
+  actions: read
+  packages: write
+
+jobs:
+  publish:
+    name: publish
+    runs-on: ubuntu-latest
+    env:
+      RUST_BACKTRACE: "1"
+      CARGO_TERM_COLOR: "always"
+      IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/decision-gate
+    steps:
+      - name: Verify release validation succeeded
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const sha = context.sha;
+            const workflowId = "release.yml";
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner,
+              repo,
+              workflow_id: workflowId,
+              per_page: 30,
+            });
+            const match = runs.data.workflow_runs.find(run => run.head_sha === sha);
+            if (!match) {
+              core.setFailed(`No successful ${workflowId} run found for commit ${sha}.`);
+              return;
+            }
+            if (match.conclusion !== "success") {
+              core.setFailed(`${workflowId} did not succeed (conclusion: ${match.conclusion}).`);
+              return;
+            }
+      - name: Ensure tag ref
+        run: |
+          if [[ "${{ github.ref_type }}" != "tag" ]]; then
+            echo "ERROR: publish workflow must run on a tag ref."
+            exit 1
+          fi
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.92.0"
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: https://registry.npmjs.org
+      - name: Publish Rust crates
+        if: inputs.target == 'all' || inputs.target == 'crates'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: |
+          if [[ -z "${CARGO_REGISTRY_TOKEN}" ]]; then
+            echo "ERROR: CRATES_IO_TOKEN is not set."
+            exit 1
+          fi
+          set -euo pipefail
+          crates=(
+            ret-logic
+            decision-gate-core
+            decision-gate-store-sqlite
+            decision-gate-config
+            decision-gate-providers
+            decision-gate-contract
+            decision-gate-broker
+            decision-gate-mcp
+          )
+          for crate in "${crates[@]}"; do
+            cargo publish -p "$crate" --locked
+          done
+      - name: Publish Python SDK
+        if: inputs.target == 'all' || inputs.target == 'python'
+        working-directory: sdks/python
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          if [[ -z "${TWINE_PASSWORD}" ]]; then
+            echo "ERROR: PYPI_TOKEN is not set."
+            exit 1
+          fi
+          python -m pip install --upgrade pip build twine
+          python -m build --sdist --wheel --outdir dist
+          python -m twine upload --non-interactive dist/*
+      - name: Publish TypeScript SDK
+        if: inputs.target == 'all' || inputs.target == 'typescript'
+        working-directory: sdks/typescript
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [[ -z "${NODE_AUTH_TOKEN}" ]]; then
+            echo "ERROR: NPM_TOKEN is not set."
+            exit 1
+          fi
+          npm install
+          npm run build
+          npm publish --access public
+      - name: Set up QEMU
+        if: inputs.target == 'all' || inputs.target == 'docker'
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        if: inputs.target == 'all' || inputs.target == 'docker'
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        if: inputs.target == 'all' || inputs.target == 'docker'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push multi-arch image
+        if: inputs.target == 'all' || inputs.target == 'docker'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:${{ github.ref_name }}

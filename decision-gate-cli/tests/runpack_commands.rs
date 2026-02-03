@@ -78,6 +78,15 @@ fn write_json(path: &Path, value: &impl serde::Serialize) {
     fs::write(path, bytes).expect("write json");
 }
 
+fn assert_pretty_json(path: &Path) {
+    let text = fs::read_to_string(path).expect("read pretty json");
+    assert!(text.ends_with('\n'), "expected trailing newline in pretty json");
+    let trimmed = text.trim();
+    if trimmed != "[]" && trimmed != "{}" {
+        assert!(text.contains("  "), "expected indentation in pretty json");
+    }
+}
+
 fn minimal_spec() -> ScenarioSpec {
     ScenarioSpec {
         scenario_id: ScenarioId::new("scenario"),
@@ -272,6 +281,42 @@ fn cli_runpack_verify_outputs_markdown_report() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Decision Gate Runpack Verification"));
     assert!(stdout.contains("Status: pass"));
+
+    cleanup(&root);
+}
+
+// ============================================================================
+// SECTION: Runpack Pretty Tests
+// ============================================================================
+
+/// Verifies runpack pretty output writes formatted JSON artifacts.
+#[test]
+fn cli_runpack_pretty_outputs_formatted_json() {
+    let root = temp_root("pretty");
+    let manifest = export_runpack(&root);
+    let pretty_dir = root.join("pretty");
+
+    let output = Command::new(decision_gate_bin())
+        .args([
+            "runpack",
+            "pretty",
+            "--manifest",
+            manifest.to_string_lossy().as_ref(),
+            "--output-dir",
+            pretty_dir.to_string_lossy().as_ref(),
+        ])
+        .output()
+        .expect("runpack pretty");
+
+    assert!(output.status.success(), "pretty failed: {}", String::from_utf8_lossy(&output.stderr));
+
+    let manifest_out = pretty_dir.join("runpack.json");
+    assert!(manifest_out.exists(), "pretty manifest missing");
+    assert_pretty_json(&manifest_out);
+
+    let gate_evals = pretty_dir.join("artifacts").join("gate_evals.json");
+    assert!(gate_evals.exists(), "pretty gate_evals missing");
+    assert_pretty_json(&gate_evals);
 
     cleanup(&root);
 }

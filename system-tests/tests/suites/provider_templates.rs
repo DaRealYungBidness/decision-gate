@@ -409,10 +409,7 @@ fn oversized_payload() -> Vec<u8> {
 fn python_command(runtime: &Path) -> Vec<String> {
     vec![
         runtime.display().to_string(),
-        repo_root()
-            .join("decision-gate-provider-sdk/python/provider.py")
-            .display()
-            .to_string(),
+        repo_root().join("decision-gate-provider-sdk/python/provider.py").display().to_string(),
     ]
 }
 

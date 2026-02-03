@@ -23,6 +23,10 @@ try:
     import tomllib  # Python 3.11+
 except ModuleNotFoundError:  # pragma: no cover
     tomllib = None
+try:
+    import yaml  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover
+    yaml = None
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -353,6 +357,11 @@ def run_parse(block: Block) -> None:
         if tomllib is None:
             raise RuntimeError("Python 3.11+ required for toml parsing.")
         tomllib.loads(block.content)
+        return
+    if block.lang in ("yaml", "yml"):
+        if yaml is None:
+            raise RuntimeError("PyYAML required for yaml parsing. Install with: python3 -m pip install pyyaml")
+        list(yaml.safe_load_all(block.content))
         return
     raise RuntimeError(f"dg-parse unsupported for language '{block.lang}'")
 

@@ -1,0 +1,54 @@
+# Decision Gate preset: CI Release Gate
+# Local-only MCP server for CI release eligibility evaluation.
+
+[server]
+transport = "http"
+bind = "127.0.0.1:4010"
+mode = "strict"
+
+[server.auth]
+mode = "local_only"
+
+[namespace]
+allow_default = true
+default_tenants = [1]
+
+[trust]
+# Audit mode; deterministic evidence only.
+default_policy = "audit"
+min_lane = "verified"
+
+[evidence]
+allow_raw_values = false
+require_provider_opt_in = true
+
+[schema_registry]
+type = "sqlite"
+path = ".tmp/ci-release-gate/registry.db"
+
+[schema_registry.acl]
+allow_local_only = true
+require_signing = false
+
+[run_state_store]
+type = "sqlite"
+path = ".tmp/ci-release-gate/runstate.db"
+journal_mode = "wal"
+sync_mode = "full"
+busy_timeout_ms = 5000
+
+[[providers]]
+name = "time"
+type = "builtin"
+
+[[providers]]
+name = "env"
+type = "builtin"
+
+[[providers]]
+name = "json"
+type = "builtin"
+
+[[providers]]
+name = "http"
+type = "builtin"

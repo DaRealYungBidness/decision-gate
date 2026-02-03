@@ -54,7 +54,7 @@ Notes:
 
 **Replace the default corpus with a custom directory:**
 
-```toml
+```toml dg-parse dg-level=fast
 [docs]
 enabled = true
 enable_search = true
@@ -69,7 +69,7 @@ max_sections = 10
 
 **Extend the default corpus with a few extra files:**
 
-```toml
+```toml dg-parse dg-level=fast
 [docs]
 enabled = true
 enable_search = true
@@ -89,7 +89,7 @@ Behavior to expect:
 
 Docs search is a tool. If you filter tools, make sure it is visible:
 
-```toml
+```toml dg-parse dg-level=fast
 [server.tools]
 mode = "filter"
 allowlist = ["decision_gate_docs_search", "scenario_define", "scenario_start"]
@@ -112,7 +112,7 @@ Warnings about skipped docs are printed to stderr.
 
 **Search (tools/call):**
 
-```json
+```json dg-parse dg-level=fast
 {
   "jsonrpc": "2.0",
   "id": 1,
@@ -126,13 +126,13 @@ Warnings about skipped docs are printed to stderr.
 
 **Resources list (resources/list):**
 
-```json
+```json dg-parse dg-level=fast
 { "jsonrpc": "2.0", "id": 2, "method": "resources/list" }
 ```
 
 **Resources read (resources/read):**
 
-```json
+```json dg-parse dg-level=fast
 {
   "jsonrpc": "2.0",
   "id": 3,
@@ -150,4 +150,3 @@ Warnings about skipped docs are printed to stderr.
 - **Server fails on startup:** a path in `docs.extra_paths` is missing.
 - **Tool missing from tools/list:** check `[docs]` toggles and `[server.tools]`.
 - **Resource read fails:** ensure the URI matches `resources/list`.
-

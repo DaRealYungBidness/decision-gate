@@ -35,16 +35,17 @@ The built-in `json` provider reads local JSON/YAML files and evaluates JSONPath 
 
 JSONPath extracts values from a JSON document.
 
-| JSONPath | Meaning | Example |
-|----------|---------|---------|
-| `$` | Root object | `$` (entire document) |
-| `.field` | Access object field | `$.version` -> `"1.2.3"` |
-| `.nested.field` | Access nested field | `$.summary.failed` -> `0` |
-| `[index]` | Array element | `$.items[0]` -> first item |
-| `[*]` | All array elements | `$.items[*].id` -> all IDs |
-| `..field` | Recursive descent | `$..errors` -> all `errors` fields |
+| JSONPath        | Meaning             | Example                            |
+| --------------- | ------------------- | ---------------------------------- |
+| `$`             | Root object         | `$` (entire document)              |
+| `.field`        | Access object field | `$.version` -> `"1.2.3"`           |
+| `.nested.field` | Access nested field | `$.summary.failed` -> `0`          |
+| `[index]`       | Array element       | `$.items[0]` -> first item         |
+| `[*]`           | All array elements  | `$.items[*].id` -> all IDs         |
+| `..field`       | Recursive descent   | `$..errors` -> all `errors` fields |
 
 **Example JSON document:**
+
 ```json dg-parse dg-level=fast
 {
   "version": "1.0",
@@ -57,6 +58,7 @@ JSONPath extracts values from a JSON document.
 ```
 
 **Example queries:**
+
 - `$.version` -> `"1.0"`
 - `$.summary.failed` -> `0`
 - `$.items[*].id` -> `[1, 2]`
@@ -97,6 +99,7 @@ All file/JSONPath errors are returned via `EvidenceResult.error` (not JSON-RPC e
 ```
 
 Example condition:
+
 ```json dg-parse dg-level=fast
 {
   "condition_id": "tests_ok",
@@ -120,6 +123,7 @@ These are **examples**, not standards. Use them as starting points.
 ### Template 1: Test Results
 
 **Tool output (example):**
+
 ```json dg-parse dg-level=fast
 {
   "summary": { "failed": 0, "passed": 128 },
@@ -129,6 +133,7 @@ These are **examples**, not standards. Use them as starting points.
 ```
 
 **Condition:**
+
 ```json dg-parse dg-level=fast
 {
   "condition_id": "tests_ok",
@@ -144,20 +149,24 @@ These are **examples**, not standards. Use them as starting points.
 ```
 
 **Type mismatch (exact behavior):**
+
 ```json dg-parse dg-level=fast
 { "summary": { "failed": "0" } }
 ```
+
 - Evidence value is **string**; expected is **number**.
 - `equals` returns **false** (not `unknown`).
 
 ### Template 2: Coverage Threshold
 
 **Tool output (example):**
+
 ```json dg-parse dg-level=fast
 { "coverage": { "percent": 92 } }
 ```
 
 **Condition:**
+
 ```json dg-parse dg-level=fast
 {
   "condition_id": "coverage_ok",
@@ -173,20 +182,24 @@ These are **examples**, not standards. Use them as starting points.
 ```
 
 **Type mismatch for ordering comparators:**
+
 ```json dg-parse dg-level=fast
 { "coverage": { "percent": "92%" } }
 ```
+
 - Evidence value is **string**, not a number or RFC3339 date.
 - `greater_than_or_equal` returns **unknown**.
 
 ### Template 3: Security Scan Summary
 
 **Tool output (example):**
+
 ```json dg-parse dg-level=fast
 { "summary": { "critical": 0, "high": 0, "medium": 2 } }
 ```
 
 **Condition:**
+
 ```json dg-parse dg-level=fast
 {
   "condition_id": "no_critical",
@@ -204,11 +217,13 @@ These are **examples**, not standards. Use them as starting points.
 ### Template 4: Review Approval Count
 
 **Tool output (example):**
+
 ```json dg-parse dg-level=fast
 { "reviews": { "approvals": 2 } }
 ```
 
 **Condition:**
+
 ```json dg-parse dg-level=fast
 {
   "condition_id": "approvals_ok",
@@ -226,11 +241,13 @@ These are **examples**, not standards. Use them as starting points.
 ### Template 5: Explicit Boolean Flags
 
 **Tool output (example):**
+
 ```json dg-parse dg-level=fast
 { "checks": { "lint_ok": true, "format_ok": true } }
 ```
 
 **Condition:**
+
 ```json dg-parse dg-level=fast
 {
   "condition_id": "lint_ok",
@@ -252,6 +269,7 @@ These are **examples**, not standards. Use them as starting points.
 ### Use `evidence_query` for Provider Errors
 
 `scenario_next` does **not** return evidence values or provider errors by default. If feedback is permitted, `scenario_next` can return trace/evidence summaries. To debug JSON evidence:
+
 1. Call `evidence_query` with the same `query` and any valid `context`.
 2. Inspect `EvidenceResult.error` and `evidence_anchor`.
 

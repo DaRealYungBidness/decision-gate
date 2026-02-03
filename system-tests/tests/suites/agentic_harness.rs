@@ -589,11 +589,9 @@ async fn run_script_driver(
         });
     }
     if payload.get("status").and_then(Value::as_str) == Some("fatal_error") {
-        let error = payload
-            .get("error")
-            .and_then(Value::as_str)
-            .unwrap_or("fatal_error");
-        let optional_adapter = matches!(driver, "langchain" | "crewai" | "autogen" | "openai_agents");
+        let error = payload.get("error").and_then(Value::as_str).unwrap_or("fatal_error");
+        let optional_adapter =
+            matches!(driver, "langchain" | "crewai" | "autogen" | "openai_agents");
         let strict = env::var("DECISION_GATE_STRICT_AGENTIC_ADAPTERS").is_ok();
         if optional_adapter && !strict {
             server.shutdown().await;

@@ -287,9 +287,7 @@ async fn typescript_sdk_bearer_auth_enforced() -> Result<(), Box<dyn std::error:
     let token = "sdk-token-2";
     let config = base_http_config_with_bearer(&bind, token);
     let server = spawn_mcp_server(config).await?;
-    let client = server
-        .client(Duration::from_secs(5))?
-        .with_bearer_token(token.to_string());
+    let client = server.client(Duration::from_secs(5))?.with_bearer_token(token.to_string());
     wait_for_server_ready(&client, Duration::from_secs(5)).await?;
 
     let fixture = ScenarioFixture::time_after("ts-sdk-auth", "run-ts-2", 0);

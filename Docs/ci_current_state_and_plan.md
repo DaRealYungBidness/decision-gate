@@ -2,13 +2,19 @@
 
 ## Current State (2026-02-03)
 
-- There is one CI workflow in the repo: `.github/workflows/golden_runpack_cross_os.yml` runs a
-  cross-OS golden runpack test on Linux and Windows for pushes and PRs.
+- CI workflows are now in place:
+  - `.github/workflows/ci_pr.yml` (PR gate)
+  - `.github/workflows/ci_main.yml` (main gate: P0 + P1)
+  - `.github/workflows/ci_manual.yml` (manual P2 runs)
+  - `.github/workflows/release.yml` (tag-driven release validation pipeline)
+  - `.github/workflows/publish.yml` (manual publish pipeline)
+  - `.github/workflows/golden_runpack_cross_os.yml` (cross-OS golden runpack test)
 - Local CI-style entrypoints live under `scripts/` and cover generation drift checks, Rust tests,
   packaging dry runs, adapter smoke tests, and system-test orchestration.
 - System-tests are registry driven. Coverage and infrastructure docs are generated from the registry.
 - There are no scheduled (nightly) CI jobs yet.
-- `cargo-deny` is configured (`deny.toml`) but is not wired into CI yet.
+- `cargo-deny` is configured (`deny.toml`) and enforced in CI.
+- Release validation includes a Decision Gate release eligibility runpack.
 - There are no long-running fuzzing harnesses in place yet; current "fuzz" coverage is deterministic
   system-tests only.
 
@@ -30,7 +36,7 @@ that favor correctness and supply-chain hygiene over convenience.
 - **P2 system tests** are **manual** (workflow dispatch); no scheduled/nightly jobs yet.
 - **Cross-OS golden runpack** remains a separate, required workflow.
 - **Releases are tag-driven** only (e.g., `v0.1.0`), not on every merge to `main`.
-- **Docker**: build on PR; build + push on release tags.
+- **Docker**: build on PR; push only via manual publish workflow.
 - **Multi-arch images**: build `linux/amd64` and `linux/arm64`; smoke-test `amd64` only and document
   the arm64 testing limitation.
 
@@ -46,7 +52,7 @@ that favor correctness and supply-chain hygiene over convenience.
 | `scripts/coverage_report.py` | Coverage and infra docs            | `python scripts/coverage_report.py generate`  | Writes `Docs/testing/decision_gate_test_coverage.md` and `Docs/testing/test_infrastructure_guide.md`.                     |
 | `scripts/gap_tracker.py`     | Coverage gap management            | `python scripts/gap_tracker.py list`          | Lists, closes, or generates task prompts for system-test gaps.                                                            |
 
-## Formal CI Flow (Planned)
+## Formal CI Flow (Implemented)
 
 ### PR Gate (Fast, Required)
 
@@ -55,6 +61,7 @@ that favor correctness and supply-chain hygiene over convenience.
 - **Supply-chain policy:** `cargo deny check`
 - **Generation drift:** `scripts/generate_all.sh --check`
 - **Unit tests:** `cargo test --workspace --exclude system-tests`
+- **Docs run (fast):** `python scripts/docs_verify.py --run --level=fast` (requires `PyYAML`)
 - **Cross-OS gate:** keep `golden_runpack_cross_os` as a dedicated required workflow
 
 ### Main Gate (Required)
@@ -69,14 +76,22 @@ that favor correctness and supply-chain hygiene over convenience.
 ### Release Pipeline (Tag-Driven)
 
 - Triggered by pushing a version tag (e.g., `v0.1.0`).
-- Re-run main-level checks or require the last main run to be green.
-- Build and publish artifacts (Rust crates, SDKs) once the packaging dry-runs are green.
-- Build and push Docker images (multi-arch).
+- Re-run main-level checks to ensure release readiness.
+- Build artifacts locally (packaging dry-runs) to validate release readiness.
+- Evaluate release eligibility with Decision Gate and export a runpack artifact.
+- Publishing is delegated to the manual publish workflow.
+
+### Manual Publish (On Demand)
+
+- Triggered manually on a tag ref via `.github/workflows/publish.yml`.
+- Supports publishing Rust crates, Python SDK, TypeScript SDK, and Docker images.
+- Requires explicit registry tokens; missing tokens fail the workflow early.
+- Verifies the tag release validation workflow completed successfully before publishing.
 
 ## Docker + Multi-Arch Guidance
 
 - **PRs:** build only (no push) to validate Dockerfile integrity.
-- **Release tags:** build + push with buildx for `linux/amd64` and `linux/arm64`.
+- **Publish workflow:** build + push with buildx for `linux/amd64` and `linux/arm64`.
 - **Smoke tests:** run on `amd64` only; explicitly document that arm64 is built in CI but not fully
   integration-tested yet.
 
@@ -109,13 +124,14 @@ approach is **opt-in** via local configuration:
   `RUSTFLAGS="-C linker=lld-link"` on Windows.
 - **Graceful fallback:** Builds should succeed without these settings; CI should not depend on them.
 
-## Implementation Map (Planned)
+## Implementation Map (Implemented)
 
 - Keep: `.github/workflows/golden_runpack_cross_os.yml` (cross-OS required check)
 - Add: `.github/workflows/ci_pr.yml` (PR gate)
 - Add: `.github/workflows/ci_main.yml` (main gate: P0 + P1)
 - Add: `.github/workflows/ci_manual.yml` (manual P2 runs)
-- Add: `.github/workflows/release.yml` (tag-driven releases)
+- Add: `.github/workflows/release.yml` (tag-driven release validation)
+- Add: `.github/workflows/publish.yml` (manual publish pipeline)
 
 ## Deferred Work (Explicit)
 

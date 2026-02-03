@@ -39,6 +39,7 @@ The installed binary name is `decision-gate`. When run via Cargo, use:
 - `serve` - start the MCP server using `decision-gate.toml`.
 - `runpack export` - build a runpack from a scenario spec and run state.
 - `runpack verify` - verify a runpack manifest against artifacts.
+- `runpack pretty` - render a human-readable view of runpack JSON artifacts.
 - `authoring validate` - validate `ScenarioSpec` authoring inputs (JSON/RON).
 - `authoring normalize` - normalize authoring inputs to canonical JSON.
 - `config validate` - validate `decision-gate.toml`.
@@ -92,6 +93,14 @@ Verify a runpack manifest:
 ```bash
 cargo run -p decision-gate-cli -- runpack verify \
   --manifest ./runpack/runpack.json
+```
+
+Render a human-readable runpack view:
+
+```bash
+cargo run -p decision-gate-cli -- runpack pretty \
+  --manifest ./runpack/runpack.json \
+  --output-dir ./runpack-pretty
 ```
 
 Normalize authoring input (RON -> JSON):

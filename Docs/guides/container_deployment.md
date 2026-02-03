@@ -184,7 +184,7 @@ Both endpoints return HTTP 200 with a JSON payload.
 
 ## Kubernetes Example
 
-```yaml
+```yaml dg-parse dg-level=fast
 apiVersion: apps/v1
 kind: Deployment
 metadata:

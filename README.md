@@ -97,6 +97,7 @@ explicit requirements are satisfied.
 - Integration patterns: `Docs/guides/integration_patterns.md`
 - JSON evidence playbook: `Docs/guides/json_evidence_playbook.md`
 - LLM-native playbook: `Docs/guides/llm_native_playbook.md`
+- CI release gate dogfood: `Docs/guides/ci_release_gate_dogfood.md`
 - AssetCore integration hub: `Docs/integrations/assetcore/`
 - Hosted docs mirror + expanded explanations: [assetcore.io/docs/decision-gate](https://assetcore.io/docs/decision-gate)
 - Architecture:
@@ -109,6 +110,10 @@ explicit requirements are satisfied.
   - `Docs/architecture/decision_gate_scenario_state_architecture.md`
   - `Docs/architecture/decision_gate_provider_capability_architecture.md`
   - `Docs/architecture/decision_gate_system_test_architecture.md`
+
+CI dogfooding note: the release tag workflow evaluates a Decision Gate policy
+over CI evidence and exports a runpack for audit. See
+`Docs/guides/ci_release_gate_dogfood.md`.
 
 ## AssetCore Integration
 

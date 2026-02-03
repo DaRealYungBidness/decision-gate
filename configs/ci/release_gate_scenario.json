@@ -1,0 +1,148 @@
+{
+  "scenario_id": "{{SCENARIO_ID}}",
+  "namespace_id": 1,
+  "spec_version": "v1",
+  "stages": [
+    {
+      "stage_id": "main",
+      "entry_packets": [],
+      "gates": [
+        {
+          "gate_id": "release-eligible",
+          "requirement": {
+            "And": [
+              { "Condition": "fmt_ok" },
+              { "Condition": "clippy_ok" },
+              { "Condition": "cargo_deny_ok" },
+              { "Condition": "generate_ok" },
+              { "Condition": "unit_tests_ok" },
+              { "Condition": "system_tests_p0_ok" },
+              { "Condition": "system_tests_p1_ok" },
+              { "Condition": "package_ok" },
+              { "Condition": "docker_smoke_ok" },
+              { "Condition": "tag_matches_version_ok" }
+            ]
+          }
+        }
+      ],
+      "advance_to": { "kind": "terminal" },
+      "timeout": null,
+      "on_timeout": "fail"
+    }
+  ],
+  "conditions": [
+    {
+      "condition_id": "fmt_ok",
+      "query": {
+        "provider_id": "json",
+        "check_id": "path",
+        "params": { "file": "{{EVIDENCE_FILE}}", "jsonpath": "$.checks.fmt" }
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": []
+    },
+    {
+      "condition_id": "clippy_ok",
+      "query": {
+        "provider_id": "json",
+        "check_id": "path",
+        "params": { "file": "{{EVIDENCE_FILE}}", "jsonpath": "$.checks.clippy" }
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": []
+    },
+    {
+      "condition_id": "cargo_deny_ok",
+      "query": {
+        "provider_id": "json",
+        "check_id": "path",
+        "params": { "file": "{{EVIDENCE_FILE}}", "jsonpath": "$.checks.cargo_deny" }
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": []
+    },
+    {
+      "condition_id": "generate_ok",
+      "query": {
+        "provider_id": "json",
+        "check_id": "path",
+        "params": { "file": "{{EVIDENCE_FILE}}", "jsonpath": "$.checks.generate_all" }
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": []
+    },
+    {
+      "condition_id": "unit_tests_ok",
+      "query": {
+        "provider_id": "json",
+        "check_id": "path",
+        "params": { "file": "{{EVIDENCE_FILE}}", "jsonpath": "$.checks.unit_tests" }
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": []
+    },
+    {
+      "condition_id": "system_tests_p0_ok",
+      "query": {
+        "provider_id": "json",
+        "check_id": "path",
+        "params": { "file": "{{EVIDENCE_FILE}}", "jsonpath": "$.checks.system_tests_p0" }
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": []
+    },
+    {
+      "condition_id": "system_tests_p1_ok",
+      "query": {
+        "provider_id": "json",
+        "check_id": "path",
+        "params": { "file": "{{EVIDENCE_FILE}}", "jsonpath": "$.checks.system_tests_p1" }
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": []
+    },
+    {
+      "condition_id": "package_ok",
+      "query": {
+        "provider_id": "json",
+        "check_id": "path",
+        "params": { "file": "{{EVIDENCE_FILE}}", "jsonpath": "$.checks.package_dry_run" }
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": []
+    },
+    {
+      "condition_id": "docker_smoke_ok",
+      "query": {
+        "provider_id": "json",
+        "check_id": "path",
+        "params": { "file": "{{EVIDENCE_FILE}}", "jsonpath": "$.checks.docker_smoke" }
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": []
+    },
+    {
+      "condition_id": "tag_matches_version_ok",
+      "query": {
+        "provider_id": "json",
+        "check_id": "path",
+        "params": { "file": "{{EVIDENCE_FILE}}", "jsonpath": "$.release.tag_matches_version" }
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": []
+    }
+  ],
+  "policies": [],
+  "schemas": [],
+  "default_tenant_id": 1
+}

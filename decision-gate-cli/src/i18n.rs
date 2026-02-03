@@ -214,6 +214,22 @@ const CATALOG_EN: &[(&str, &str)] = &[
     ("runpack.verify.md.errors_header", "## Errors"),
     ("runpack.verify.md.error_line", "- {error}"),
     ("runpack.verify.md.no_errors", "- None"),
+    (
+        "runpack.pretty.output_dir_failed",
+        "Failed to create pretty output directory {path}: {error}",
+    ),
+    ("runpack.pretty.manifest_name_missing", "Runpack manifest path is missing a filename: {path}"),
+    (
+        "runpack.pretty.manifest_render_failed",
+        "Failed to render runpack manifest JSON for {path}: {error}",
+    ),
+    ("runpack.pretty.reader_failed", "Failed to open runpack directory {path}: {error}"),
+    ("runpack.pretty.sink_failed", "Failed to initialize pretty output directory {path}: {error}"),
+    ("runpack.pretty.read_failed", "Failed to read runpack artifact {path}: {error}"),
+    ("runpack.pretty.parse_failed", "Failed to parse JSON artifact {path}: {error}"),
+    ("runpack.pretty.render_failed", "Failed to render JSON artifact {path}: {error}"),
+    ("runpack.pretty.write_failed", "Failed to write pretty artifact {path}: {error}"),
+    ("runpack.pretty.ok", "Pretty runpack written to {path} (json: {json}, skipped: {skipped})"),
     ("authoring.read_failed", "Failed to read authoring input at {path}: {error}"),
     ("authoring.kind.input", "authoring input"),
     (
@@ -498,6 +514,34 @@ const CATALOG_CA: &[(&str, &str)] = &[
     ("runpack.verify.md.errors_header", "## Errors"),
     ("runpack.verify.md.error_line", "- {error}"),
     ("runpack.verify.md.no_errors", "- Cap"),
+    (
+        "runpack.pretty.output_dir_failed",
+        "No s'ha pogut crear el directori de sortida formatada {path}: {error}",
+    ),
+    ("runpack.pretty.manifest_name_missing", "El manifest del runpack no té nom de fitxer: {path}"),
+    (
+        "runpack.pretty.manifest_render_failed",
+        "No s'ha pogut renderitzar el JSON del manifest {path}: {error}",
+    ),
+    (
+        "runpack.pretty.reader_failed",
+        "No s'ha pogut obrir el directori del runpack {path}: {error}",
+    ),
+    (
+        "runpack.pretty.sink_failed",
+        "No s'ha pogut inicialitzar el directori de sortida {path}: {error}",
+    ),
+    ("runpack.pretty.read_failed", "No s'ha pogut llegir l'artefacte del runpack {path}: {error}"),
+    (
+        "runpack.pretty.parse_failed",
+        "No s'ha pogut analitzar el JSON de l'artefacte {path}: {error}",
+    ),
+    (
+        "runpack.pretty.render_failed",
+        "No s'ha pogut renderitzar el JSON de l'artefacte {path}: {error}",
+    ),
+    ("runpack.pretty.write_failed", "No s'ha pogut escriure l'artefacte formatat {path}: {error}"),
+    ("runpack.pretty.ok", "Runpack formatat escrit a {path} (json: {json}, omesos: {skipped})"),
     ("authoring.read_failed", "No s'ha pogut llegir l'entrada d'autoria a {path}: {error}"),
     ("authoring.kind.input", "entrada d'autoria"),
     (

@@ -284,6 +284,8 @@ enum RunpackCommand {
     Export(RunpackExportCommand),
     /// Verify a runpack manifest against its artifacts.
     Verify(RunpackVerifyCommand),
+    /// Render a human-readable runpack view (pretty JSON output).
+    Pretty(RunpackPrettyCommand),
 }
 
 /// Authoring subcommands.
@@ -1191,6 +1193,20 @@ struct RunpackVerifyCommand {
     format: VerifyFormat,
 }
 
+/// Arguments for runpack pretty output.
+#[derive(Args, Debug)]
+struct RunpackPrettyCommand {
+    /// Path to the runpack manifest JSON file.
+    #[arg(long, value_name = "PATH")]
+    manifest: PathBuf,
+    /// Root directory for runpack artifacts (defaults to manifest directory).
+    #[arg(long, value_name = "DIR")]
+    runpack_dir: Option<PathBuf>,
+    /// Output directory for pretty runpack artifacts.
+    #[arg(long, value_name = "DIR")]
+    output_dir: PathBuf,
+}
+
 /// Output formats for verification reports.
 #[derive(ValueEnum, Copy, Clone, Debug)]
 enum VerifyFormat {
@@ -1428,6 +1444,7 @@ fn command_runpack(command: RunpackCommand) -> CliResult<ExitCode> {
     match command {
         RunpackCommand::Export(command) => command_runpack_export(&command),
         RunpackCommand::Verify(command) => command_runpack_verify(command),
+        RunpackCommand::Pretty(command) => command_runpack_pretty(command),
     }
 }
 
@@ -3003,6 +3020,97 @@ fn command_runpack_verify(command: RunpackVerifyCommand) -> CliResult<ExitCode> 
     Ok(exit_code)
 }
 
+/// Executes the runpack pretty output command.
+fn command_runpack_pretty(command: RunpackPrettyCommand) -> CliResult<ExitCode> {
+    let manifest: RunpackManifest = read_manifest_json(&command.manifest, MAX_MANIFEST_BYTES)?;
+    let runpack_dir = resolve_runpack_dir(&command.manifest, command.runpack_dir)?;
+    fs::create_dir_all(&command.output_dir).map_err(|err| {
+        CliError::new(t!(
+            "runpack.pretty.output_dir_failed",
+            path = command.output_dir.display(),
+            error = err
+        ))
+    })?;
+
+    let manifest_name = command
+        .manifest
+        .file_name()
+        .ok_or_else(|| {
+            CliError::new(t!(
+                "runpack.pretty.manifest_name_missing",
+                path = command.manifest.display()
+            ))
+        })?
+        .to_string_lossy()
+        .to_string();
+    let manifest_out = command.output_dir.join(&manifest_name);
+    let mut pretty_manifest = serde_json::to_string_pretty(&manifest).map_err(|err| {
+        CliError::new(t!(
+            "runpack.pretty.manifest_render_failed",
+            path = command.manifest.display(),
+            error = err
+        ))
+    })?;
+    pretty_manifest.push('\n');
+    fs::write(&manifest_out, pretty_manifest).map_err(|err| {
+        CliError::new(t!("runpack.pretty.write_failed", path = manifest_out.display(), error = err))
+    })?;
+
+    let reader = FileArtifactReader::new(runpack_dir.clone()).map_err(|err| {
+        CliError::new(t!("runpack.pretty.reader_failed", path = runpack_dir.display(), error = err))
+    })?;
+    let mut sink =
+        FileArtifactSink::new(command.output_dir.clone(), &manifest_name).map_err(|err| {
+            CliError::new(t!(
+                "runpack.pretty.sink_failed",
+                path = command.output_dir.display(),
+                error = err
+            ))
+        })?;
+
+    let mut json_count = 0usize;
+    let mut skipped_count = 0usize;
+    for artifact in &manifest.artifacts {
+        if !artifact_is_json(artifact) {
+            skipped_count = skipped_count.saturating_add(1);
+            continue;
+        }
+
+        let bytes =
+            reader.read_with_limit(&artifact.path, MAX_RUNPACK_ARTIFACT_BYTES).map_err(|err| {
+                CliError::new(t!("runpack.pretty.read_failed", path = artifact.path, error = err))
+            })?;
+        let value: Value = serde_json::from_slice(&bytes).map_err(|err| {
+            CliError::new(t!("runpack.pretty.parse_failed", path = artifact.path, error = err))
+        })?;
+        let mut pretty_json = serde_json::to_string_pretty(&value).map_err(|err| {
+            CliError::new(t!("runpack.pretty.render_failed", path = artifact.path, error = err))
+        })?;
+        pretty_json.push('\n');
+        let payload = Artifact {
+            kind: artifact.kind,
+            path: artifact.path.clone(),
+            content_type: artifact.content_type.clone(),
+            bytes: pretty_json.into_bytes(),
+            required: artifact.required,
+        };
+        sink.write(&payload).map_err(|err| {
+            CliError::new(t!("runpack.pretty.write_failed", path = payload.path, error = err))
+        })?;
+        json_count = json_count.saturating_add(1);
+    }
+
+    write_stdout_line(&t!(
+        "runpack.pretty.ok",
+        path = command.output_dir.display(),
+        json = json_count,
+        skipped = skipped_count
+    ))
+    .map_err(|err| CliError::new(output_error("stdout", &err)))?;
+
+    Ok(ExitCode::SUCCESS)
+}
+
 // ============================================================================
 // SECTION: Runpack Helpers
 // ============================================================================
@@ -3149,6 +3257,20 @@ fn resolve_runpack_dir(manifest: &Path, override_dir: Option<PathBuf>) -> CliRes
     std::env::current_dir().map_err(|err| {
         CliError::new(t!("runpack.verify.reader_failed", path = manifest.display(), error = err))
     })
+}
+
+/// Determines whether a runpack artifact should be treated as JSON.
+fn artifact_is_json(artifact: &decision_gate_core::ArtifactRecord) -> bool {
+    if let Some(content_type) = &artifact.content_type {
+        let main = content_type.split(';').next().unwrap_or("").trim().to_ascii_lowercase();
+        if main == "application/json" || main == "text/json" || main.ends_with("+json") {
+            return true;
+        }
+    }
+    Path::new(&artifact.path)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
 }
 
 /// Determines the `generated_at` timestamp for runpack export.
