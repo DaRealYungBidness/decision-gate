@@ -182,6 +182,7 @@ allow_raw = true
 ```
 
 `allow_raw` is a per-provider **config** flag (not part of the provider contract).
+Provider names are unique; built-in identifiers (`time`, `env`, `json`, `http`) are reserved.
 
 ---
 

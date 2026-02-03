@@ -14,7 +14,7 @@ Dependencies:
   - Docs/architecture/decision_gate_evidence_trust_anchor_architecture.md
   - system-tests/test_registry.toml
 ============================================================================
-Last Updated: 2026-02-02 (UTC)
+Last Updated: 2026-02-03 (UTC)
 ============================================================================
 -->
 
@@ -190,23 +190,22 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 
 **Coverage (so far)**
 
-- JSON provider: unit tests for path traversal, size limits, invalid JSON/YAML, JSONPath errors
-  (`decision-gate-providers/tests/json_provider.rs`) + system-test symlink escape coverage.
-- HTTP provider: HTTPS enforcement, allowlist/SSRF prevention, redirect handling, timeouts,
-  response size limits, TLS failure, and body hash check tests.
+- JSON provider: unit tests for path traversal, size limits, invalid JSON/YAML, JSONPath fuzz
+  (`decision-gate-providers/tests/json_provider.rs`, `decision-gate-providers/tests/proptest_json.rs`)
+  + system-test symlink escape coverage.
+- HTTP provider: HTTPS enforcement, allowlist/SSRF prevention, redirect handling/loops, timeouts,
+  response size limits, TLS failure, slow-loris, truncation, and body hash check tests.
 - Env provider: missing keys, allow/deny list, key/value size limits.
-- Time provider: logical/Unix enforcement + RFC3339 parsing/invalid inputs.
+- Time provider: logical/Unix enforcement + RFC3339 parsing/invalid inputs + timezone offsets +
+  epoch boundary cases.
 - MCP provider: malformed JSON-RPC, text/empty results, flaky responses, namespace mismatch,
-  missing signature, contract mismatch, timeout enforcement.
+  missing/unauthorized/invalid signatures, contract mismatch, timeout enforcement.
 - Provider templates: tools/list + tools/call + header/body size limits + fail-closed framing.
 - Provider discovery: HTTP + stdio discovery tools, denylist enforcement, response size limits.
 
 **Missing / gaps**
 
-- JSONPath fuzz/property tests beyond fixed vectors.
-- HTTP chaos matrix (slow-loris, mid-stream truncation, redirect loops).
-- Time provider boundary + timezone edge cases.
-- MCP provider signature/hash tamper cases beyond missing signature.
+- MCP provider evidence hash tamper cases (digest mismatch vs signed payload).
 
 ---
 
@@ -253,6 +252,8 @@ safe logging across failure paths.
 - Anchor fuzz cases for malformed/oversize anchors (`system-tests/tests/suites/anchor_fuzz.rs`).
 - Schema registry cursor/schema validation fuzz cases (`system-tests/tests/suites/schema_registry_fuzz.rs`).
 - Audit log redaction + hash-only precheck audit events (partial log safety).
+- Log leakage scanning for secrets across error paths/panics
+  (`system-tests/tests/suites/log_leak_scan.rs`).
 
 **Execution tiers**
 
@@ -308,7 +309,7 @@ safe logging across failure paths.
 **Missing / gaps**
 
 - Quick Start validation on Windows (manual today).
-- Reproducible build guidance + version stamping (see `Docs/roadmap/open_items.md`).
+- Reproducible build guidance + version stamping (see `Docs/roadmap/README.md`).
 
 ---
 

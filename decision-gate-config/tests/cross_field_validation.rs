@@ -260,7 +260,7 @@ fn namespace_authority_none_rejects_assetcore_config() -> TestResult {
 fn request_timeout_must_exceed_connect_timeout() -> TestResult {
     let mut config = common::minimal_config().map_err(|err| err.to_string())?;
     config.providers = vec![ProviderConfig {
-        name: "test".to_string(),
+        name: "time".to_string(),
         provider_type: ProviderType::Builtin,
         command: Vec::new(),
         url: None,
@@ -283,7 +283,7 @@ fn request_timeout_must_exceed_connect_timeout() -> TestResult {
 fn request_timeout_equal_to_connect_timeout() -> TestResult {
     let mut config = common::minimal_config().map_err(|err| err.to_string())?;
     config.providers = vec![ProviderConfig {
-        name: "test".to_string(),
+        name: "time".to_string(),
         provider_type: ProviderType::Builtin,
         command: Vec::new(),
         url: None,

@@ -113,12 +113,23 @@ impl ProviderRegistry {
     }
 
     /// Registers a new provider under the given identifier.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EvidenceError`] when the provider identifier is already registered.
     pub fn register_provider(
         &mut self,
         provider_id: impl Into<String>,
         provider: impl EvidenceProvider + Send + Sync + 'static,
-    ) {
-        self.providers.insert(provider_id.into(), Box::new(provider));
+    ) -> Result<(), EvidenceError> {
+        let provider_id = provider_id.into();
+        if self.providers.contains_key(&provider_id) {
+            return Err(EvidenceError::Provider(format!(
+                "provider already registered: {provider_id}"
+            )));
+        }
+        self.providers.insert(provider_id, Box::new(provider));
+        Ok(())
     }
 
     /// Registers built-in providers with default configuration.
@@ -127,11 +138,11 @@ impl ProviderRegistry {
     ///
     /// Returns [`EvidenceError`] when provider initialization fails.
     pub fn register_builtin_providers(&mut self) -> Result<(), EvidenceError> {
-        self.register_provider("time", TimeProvider::new(TimeProviderConfig::default()));
-        self.register_provider("env", EnvProvider::new(EnvProviderConfig::default()));
-        self.register_provider("json", JsonProvider::new(JsonProviderConfig::default()));
+        self.register_provider("time", TimeProvider::new(TimeProviderConfig::default()))?;
+        self.register_provider("env", EnvProvider::new(EnvProviderConfig::default()))?;
+        self.register_provider("json", JsonProvider::new(JsonProviderConfig::default()))?;
         let http = HttpProvider::new(HttpProviderConfig::default())?;
-        self.register_provider("http", http);
+        self.register_provider("http", http)?;
         Ok(())
     }
 

@@ -1,16 +1,16 @@
 <!--
-Docs/security/audits/OSS_launch.md
+Docs/security/audits/OSS_launch_1.md
 ============================================================================
-Document: OSS Launch Audit Findings
+Document: OSS Launch Audit Findings (Pass 1)
 Description: Track security and test gaps for OSS launch readiness.
 Purpose: Record per-crate follow-ups that exceed a single pass.
 Dependencies:
   - Docs/security/threat_model.md
-  - Docs/security/audit.md
+  - Docs/security/audits/OSS_launch_0.md
 ============================================================================
 -->
 
-# OSS Launch Audit
+# OSS Launch Audit (Pass 1)
 
 ## decision-gate-core
 

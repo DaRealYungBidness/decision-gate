@@ -100,23 +100,24 @@ jobs:
         run: |
           mkdir -p .tmp/ci
           VERSION="$(python3 - <<'PY'
-from pathlib import Path
-version = None
-in_section = False
-for line in Path("Cargo.toml").read_text().splitlines():
-    stripped = line.strip()
-    if stripped.startswith("[") and stripped.endswith("]"):
-        in_section = stripped == "[workspace.package]"
-        continue
-    if in_section and stripped.startswith("version"):
-        _, value = stripped.split("=", 1)
-        version = value.strip().strip('"')
-        break
-if not version:
-    raise SystemExit("workspace.package version not found")
-print(version)
-PY
-)"
+          from pathlib import Path
+
+          version = None
+          in_section = False
+          for line in Path("Cargo.toml").read_text().splitlines():
+              stripped = line.strip()
+              if stripped.startswith("[") and stripped.endswith("]"):
+                  in_section = stripped == "[workspace.package]"
+                  continue
+              if in_section and stripped.startswith("version"):
+                  _, value = stripped.split("=", 1)
+                  version = value.strip().strip('"')
+                  break
+          if not version:
+              raise SystemExit("workspace.package version not found")
+          print(version)
+          PY
+          )"
           TAG_STRIPPED="${DG_TAG#v}"
           if [[ "$TAG_STRIPPED" == "$VERSION" ]]; then
             DG_TAG_MATCH="true"
@@ -125,40 +126,40 @@ PY
           fi
           export DG_VERSION="$VERSION"
           export DG_TAG_MATCH="$DG_TAG_MATCH"
-          python3 - <<PY
-import json
-import os
-import time
-from pathlib import Path
+          python3 - <<'PY'
+          import json
+          import os
+          import time
+          from pathlib import Path
 
-def env_bool(name: str) -> bool:
-    return os.environ.get(name, \"false\").lower() == \"true\"
+          def env_bool(name: str) -> bool:
+              return os.environ.get(name, "false").lower() == "true"
 
-evidence = {
-    \"release\": {
-        \"tag\": os.environ.get(\"DG_TAG\"),
-        \"version\": os.environ.get(\"DG_VERSION\"),
-        \"tag_matches_version\": os.environ.get(\"DG_TAG_MATCH\") == \"true\",
-        \"sha\": os.environ.get(\"DG_SHA\"),
-        \"generated_at\": int(time.time() * 1000),
-    },
-    \"checks\": {
-        \"fmt\": env_bool(\"DG_FMT\"),
-        \"clippy\": env_bool(\"DG_CLIPPY\"),
-        \"cargo_deny\": env_bool(\"DG_CARGO_DENY\"),
-        \"generate_all\": env_bool(\"DG_GENERATE_ALL\"),
-        \"unit_tests\": env_bool(\"DG_UNIT_TESTS\"),
-        \"system_tests_p0\": env_bool(\"DG_SYSTEM_TESTS_P0\"),
-        \"system_tests_p1\": env_bool(\"DG_SYSTEM_TESTS_P1\"),
-        \"package_dry_run\": env_bool(\"DG_PACKAGE_DRY_RUN\"),
-        \"docker_smoke\": env_bool(\"DG_DOCKER_SMOKE\"),
-    },
-}
+          evidence = {
+              "release": {
+                  "tag": os.environ.get("DG_TAG"),
+                  "version": os.environ.get("DG_VERSION"),
+                  "tag_matches_version": os.environ.get("DG_TAG_MATCH") == "true",
+                  "sha": os.environ.get("DG_SHA"),
+                  "generated_at": int(time.time() * 1000),
+              },
+              "checks": {
+                  "fmt": env_bool("DG_FMT"),
+                  "clippy": env_bool("DG_CLIPPY"),
+                  "cargo_deny": env_bool("DG_CARGO_DENY"),
+                  "generate_all": env_bool("DG_GENERATE_ALL"),
+                  "unit_tests": env_bool("DG_UNIT_TESTS"),
+                  "system_tests_p0": env_bool("DG_SYSTEM_TESTS_P0"),
+                  "system_tests_p1": env_bool("DG_SYSTEM_TESTS_P1"),
+                  "package_dry_run": env_bool("DG_PACKAGE_DRY_RUN"),
+                  "docker_smoke": env_bool("DG_DOCKER_SMOKE"),
+              },
+          }
 
-path = Path(\".tmp/ci/release_evidence.json\")
-path.write_text(json.dumps(evidence, indent=2))
-print(f\"Wrote {path}\")
-PY
+          path = Path(".tmp/ci/release_evidence.json")
+          path.write_text(json.dumps(evidence, indent=2))
+          print(f"Wrote {path}")
+          PY
           echo "DG_VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "DG_TAG_MATCH=$DG_TAG_MATCH" >> "$GITHUB_ENV"
           echo "DG_EVIDENCE_FILE=.tmp/ci/release_evidence.json" >> "$GITHUB_ENV"

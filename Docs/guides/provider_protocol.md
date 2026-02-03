@@ -55,6 +55,8 @@ capabilities_path = "contracts/cloud.json"
 ```
 
 Built-in providers use `type = "builtin"` and are **not** MCP servers.
+Provider names must be unique; built-in identifiers (`time`, `env`, `json`, `http`)
+are reserved and cannot be used by MCP providers.
 
 ---
 

@@ -225,6 +225,7 @@ Provider terminology:
 
 - **Provider**: an evidence source (built-in or external MCP server) that answers evidence queries.
 - **Provider entry**: a `[[providers]]` config entry in `decision-gate.toml` that registers a provider.
+- **Provider name rules**: provider names are unique and built-in identifiers (`time`, `env`, `json`, `http`) are reserved (MCP providers cannot use them).
 
 ## Evidence Sourcing Model
 

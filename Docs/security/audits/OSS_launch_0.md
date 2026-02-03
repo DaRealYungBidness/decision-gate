@@ -1,8 +1,8 @@
 <!--
-Docs/security/audit.md
+Docs/security/audits/OSS_launch_0.md
 ============================================================================
-Document: Decision Gate Security Audit Log
-Description: Track security issues, findings, and remediation status.
+Document: OSS Launch Audit Findings (Pass 0)
+Description: Baseline security audit findings for OSS launch readiness.
 Purpose: Provide per-crate security findings with status and next steps.
 Dependencies:
   - Docs/security/threat_model.md
@@ -10,7 +10,7 @@ Dependencies:
 ============================================================================
 -->
 
-# Security Audit
+# OSS Launch Audit (Pass 0)
 
 ## Overview
 This document tracks security findings by crate or subsystem. Each item should

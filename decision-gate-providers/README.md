@@ -40,6 +40,9 @@ The built-in providers cover the most common evidence sources:
 - **json**: JSON/YAML file reads with optional JSONPath selection.
 - **http**: bounded HTTP GET checks (status and body hash).
 
+Provider identifiers are reserved for built-ins, and the registry rejects duplicate
+registrations to prevent silent overrides.
+
 These providers are used directly by `decision-gate-mcp` and can also be
 embedded in custom control-plane integrations.
 

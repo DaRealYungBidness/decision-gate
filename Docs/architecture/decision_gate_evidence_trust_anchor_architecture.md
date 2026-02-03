@@ -14,7 +14,7 @@ Dependencies:
   - decision-gate-mcp/src/tools.rs
   - decision-gate-config/src/config.rs
 ============================================================================
-Last Updated: 2026-01-26 (UTC)
+Last Updated: 2026-02-03 (UTC)
 ============================================================================
 -->
 
@@ -126,8 +126,9 @@ If raw values are not allowed, the tool response redacts `value` and
 Anchor policy configuration is expressed in MCP config as
 `anchors.providers[{provider_id, anchor_type, required_fields}]`. The config is
 validated and converted into the runtime `EvidenceAnchorPolicy` used by the
-control plane and runpack verifier.
-[F:decision-gate-config/src/config.rs L979-L1054](decision-gate-config/src/config.rs#L979-L1054)
+control plane and runpack verifier. Provider ids must be **unique** and
+trimmed to prevent ambiguous anchor enforcement.
+[F:decision-gate-config/src/config.rs L1378-L1466](decision-gate-config/src/config.rs#L1378-L1466)
 
 ---
 

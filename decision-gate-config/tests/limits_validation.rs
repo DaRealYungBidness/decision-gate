@@ -542,7 +542,7 @@ fn rate_limit_max_entries_exceeds_max_65537() -> TestResult {
 fn provider_connect_timeout_at_min_100() -> TestResult {
     let mut config = common::minimal_config().map_err(|err| err.to_string())?;
     config.providers = vec![ProviderConfig {
-        name: "test".to_string(),
+        name: "time".to_string(),
         provider_type: ProviderType::Builtin,
         command: Vec::new(),
         url: None,
@@ -565,7 +565,7 @@ fn provider_connect_timeout_at_min_100() -> TestResult {
 fn provider_connect_timeout_below_min_99() -> TestResult {
     let mut config = common::minimal_config().map_err(|err| err.to_string())?;
     config.providers = vec![ProviderConfig {
-        name: "test".to_string(),
+        name: "time".to_string(),
         provider_type: ProviderType::Builtin,
         command: Vec::new(),
         url: None,
@@ -591,7 +591,7 @@ fn provider_connect_timeout_below_min_99() -> TestResult {
 fn provider_connect_timeout_at_max_10000() -> TestResult {
     let mut config = common::minimal_config().map_err(|err| err.to_string())?;
     config.providers = vec![ProviderConfig {
-        name: "test".to_string(),
+        name: "time".to_string(),
         provider_type: ProviderType::Builtin,
         command: Vec::new(),
         url: None,
@@ -614,7 +614,7 @@ fn provider_connect_timeout_at_max_10000() -> TestResult {
 fn provider_connect_timeout_above_max_10001() -> TestResult {
     let mut config = common::minimal_config().map_err(|err| err.to_string())?;
     config.providers = vec![ProviderConfig {
-        name: "test".to_string(),
+        name: "time".to_string(),
         provider_type: ProviderType::Builtin,
         command: Vec::new(),
         url: None,
@@ -640,7 +640,7 @@ fn provider_connect_timeout_above_max_10001() -> TestResult {
 fn provider_request_timeout_at_min_500() -> TestResult {
     let mut config = common::minimal_config().map_err(|err| err.to_string())?;
     config.providers = vec![ProviderConfig {
-        name: "test".to_string(),
+        name: "time".to_string(),
         provider_type: ProviderType::Builtin,
         command: Vec::new(),
         url: None,
@@ -663,7 +663,7 @@ fn provider_request_timeout_at_min_500() -> TestResult {
 fn provider_request_timeout_below_min_499() -> TestResult {
     let mut config = common::minimal_config().map_err(|err| err.to_string())?;
     config.providers = vec![ProviderConfig {
-        name: "test".to_string(),
+        name: "time".to_string(),
         provider_type: ProviderType::Builtin,
         command: Vec::new(),
         url: None,
@@ -689,7 +689,7 @@ fn provider_request_timeout_below_min_499() -> TestResult {
 fn provider_request_timeout_at_max_30000() -> TestResult {
     let mut config = common::minimal_config().map_err(|err| err.to_string())?;
     config.providers = vec![ProviderConfig {
-        name: "test".to_string(),
+        name: "time".to_string(),
         provider_type: ProviderType::Builtin,
         command: Vec::new(),
         url: None,
@@ -712,7 +712,7 @@ fn provider_request_timeout_at_max_30000() -> TestResult {
 fn provider_request_timeout_above_max_30001() -> TestResult {
     let mut config = common::minimal_config().map_err(|err| err.to_string())?;
     config.providers = vec![ProviderConfig {
-        name: "test".to_string(),
+        name: "time".to_string(),
         provider_type: ProviderType::Builtin,
         command: Vec::new(),
         url: None,

@@ -15,6 +15,7 @@
 // SECTION: Imports
 // ============================================================================
 
+use std::collections::BTreeSet;
 use std::env;
 use std::fs;
 use std::net::SocketAddr;
@@ -32,6 +33,7 @@ use decision_gate_core::TenantId;
 use decision_gate_core::ToolName;
 use decision_gate_core::TrustLane;
 use decision_gate_core::TrustRequirement;
+use decision_gate_core::is_builtin_provider_id;
 use decision_gate_store_sqlite::SqliteStoreMode;
 use decision_gate_store_sqlite::SqliteSyncMode;
 use serde::Deserialize;
@@ -228,6 +230,7 @@ impl DecisionGateConfig {
         for provider in &self.providers {
             provider.validate()?;
         }
+        validate_provider_registry(&self.providers)?;
         Ok(())
     }
 
@@ -1387,8 +1390,15 @@ impl AnchorPolicyConfig {
     ///
     /// Returns [`ConfigError`] when provider entries are invalid.
     fn validate(&self) -> Result<(), ConfigError> {
+        let mut seen = BTreeSet::new();
         for provider in &self.providers {
             provider.validate()?;
+            if !seen.insert(provider.provider_id.clone()) {
+                return Err(ConfigError::Invalid(format!(
+                    "duplicate anchors.providers.provider_id: {}",
+                    provider.provider_id
+                )));
+            }
         }
         Ok(())
     }
@@ -1431,9 +1441,15 @@ impl AnchorProviderConfig {
     ///
     /// Returns [`ConfigError`] when the anchor requirement is invalid.
     fn validate(&self) -> Result<(), ConfigError> {
-        if self.provider_id.trim().is_empty() {
+        let trimmed = self.provider_id.trim();
+        if trimmed.is_empty() {
             return Err(ConfigError::Invalid(
                 "anchors.providers.provider_id must be non-empty".to_string(),
+            ));
+        }
+        if trimmed != self.provider_id {
+            return Err(ConfigError::Invalid(
+                "anchors.providers.provider_id must be trimmed".to_string(),
             ));
         }
         if self.anchor_type.trim().is_empty() {
@@ -1904,8 +1920,12 @@ pub struct ProviderConfig {
 impl ProviderConfig {
     /// Validates provider configuration.
     fn validate(&self) -> Result<(), ConfigError> {
-        if self.name.trim().is_empty() {
+        let trimmed = self.name.trim();
+        if trimmed.is_empty() {
             return Err(ConfigError::Invalid("provider name is empty".to_string()));
+        }
+        if trimmed != self.name {
+            return Err(ConfigError::Invalid("provider name must be trimmed".to_string()));
         }
         self.timeouts.validate()?;
         if let Some(auth) = &self.auth {
@@ -1913,6 +1933,26 @@ impl ProviderConfig {
         }
         match self.provider_type {
             ProviderType::Builtin => {
+                if !self.command.is_empty() {
+                    return Err(ConfigError::Invalid(
+                        "builtin provider does not accept command".to_string(),
+                    ));
+                }
+                if self.url.is_some() {
+                    return Err(ConfigError::Invalid(
+                        "builtin provider does not accept url".to_string(),
+                    ));
+                }
+                if self.allow_insecure_http {
+                    return Err(ConfigError::Invalid(
+                        "builtin provider does not accept allow_insecure_http".to_string(),
+                    ));
+                }
+                if self.auth.is_some() {
+                    return Err(ConfigError::Invalid(
+                        "builtin provider does not accept auth".to_string(),
+                    ));
+                }
                 if self.capabilities_path.is_some() {
                     return Err(ConfigError::Invalid(
                         "builtin provider does not accept capabilities_path".to_string(),
@@ -1924,6 +1964,11 @@ impl ProviderConfig {
                 if self.command.is_empty() && self.url.as_deref().unwrap_or_default().is_empty() {
                     return Err(ConfigError::Invalid(
                         "mcp provider requires command or url".to_string(),
+                    ));
+                }
+                if self.config.is_some() {
+                    return Err(ConfigError::Invalid(
+                        "mcp provider does not accept config".to_string(),
                     ));
                 }
                 if self.capabilities_path.is_none() {
@@ -2040,6 +2085,33 @@ fn validate_path(path: &Path) -> Result<(), ConfigError> {
         let value = component.as_os_str().to_string_lossy();
         if value.len() > MAX_PATH_COMPONENT_LENGTH {
             return Err(ConfigError::Invalid("config path component too long".to_string()));
+        }
+    }
+    Ok(())
+}
+
+/// Validates provider registry identifiers for uniqueness and reserved names.
+fn validate_provider_registry(providers: &[ProviderConfig]) -> Result<(), ConfigError> {
+    let mut seen = BTreeSet::new();
+    for provider in providers {
+        let name = provider.name.as_str();
+        if !seen.insert(name.to_string()) {
+            return Err(ConfigError::Invalid(format!("duplicate provider name: {name}")));
+        }
+        let is_builtin = is_builtin_provider_id(name);
+        match provider.provider_type {
+            ProviderType::Builtin => {
+                if !is_builtin {
+                    return Err(ConfigError::Invalid(format!("unknown builtin provider: {name}")));
+                }
+            }
+            ProviderType::Mcp => {
+                if is_builtin {
+                    return Err(ConfigError::Invalid(format!(
+                        "provider name reserved for builtin: {name}"
+                    )));
+                }
+            }
         }
     }
     Ok(())

@@ -6,7 +6,7 @@ Description: Track security and test gaps for OSS launch readiness.
 Purpose: Record per-crate follow-ups that exceed a single pass.
 Dependencies:
   - Docs/security/threat_model.md
-  - Docs/security/audit.md
+  - Docs/security/audits/OSS_launch_0.md
 ============================================================================
 -->
 

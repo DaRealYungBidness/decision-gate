@@ -46,7 +46,7 @@ Provider capability contracts are the authoritative schema for check
 parameters, results, and allowed comparators. The capability registry validates
 scenario specs and evidence queries before evaluation. Evidence federation
 routes queries to providers and enforces trust policies.
-[F:decision-gate-config/src/config.rs L1456-L1542](decision-gate-config/src/config.rs#L1456-L1542)[F:decision-gate-mcp/src/capabilities.rs L216-L369](decision-gate-mcp/src/capabilities.rs#L216-L369)[F:decision-gate-mcp/src/evidence.rs L91-L209](decision-gate-mcp/src/evidence.rs#L91-L209)
+[F:decision-gate-config/src/config.rs L1860-L1990](decision-gate-config/src/config.rs#L1860-L1990)[F:decision-gate-mcp/src/capabilities.rs L216-L369](decision-gate-mcp/src/capabilities.rs#L216-L369)[F:decision-gate-mcp/src/evidence.rs L137-L209](decision-gate-mcp/src/evidence.rs#L137-L209)
 
 ---
 
@@ -69,8 +69,12 @@ Discovery controls are defined in `provider_discovery`:
 Validation enforces:
 - MCP providers must specify `command` or `url` and `capabilities_path`.
 - `allow_insecure_http` is required for `http://` URLs.
+- Provider names are unique and trimmed.
+- Built-in identifiers (`time`, `env`, `json`, `http`) are reserved; MCP providers cannot use them.
+- Built-ins must use a reserved identifier and reject MCP-only fields (`command`, `url`,
+  `allow_insecure_http`, `auth`, `capabilities_path`).
 
-[F:decision-gate-config/src/config.rs L1412-L1542](decision-gate-config/src/config.rs#L1412-L1542)
+[F:decision-gate-config/src/config.rs L1860-L1990](decision-gate-config/src/config.rs#L1860-L1990)
 
 ---
 
@@ -112,6 +116,7 @@ Evidence federation combines built-in providers and MCP providers:
 
 - Built-ins are registered via the provider registry.
 - MCP providers are instantiated with stdio or HTTP transport.
+- Provider registry rejects duplicate registrations to prevent silent overrides.
 - Stdio provider processes are terminated on drop to avoid orphaned provider
   runtimes during shutdown or test teardown.
 - Provider policies (trust + allow_raw) are applied per provider.

@@ -57,6 +57,8 @@ External MCP providers are configured with **either**:
 - `url = "https://provider/rpc"` (HTTP)
 
 `capabilities_path` is required for all MCP providers.
+Provider names must be unique; built-in identifiers (`time`, `env`, `json`, `http`)
+are reserved for `type = "builtin"` only.
 
 ---
 

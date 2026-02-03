@@ -140,6 +140,8 @@ command = ["python", "provider.py"]
 capabilities_path = "contracts/custom_provider.json"
 ```
 
+Provider names must be unique. Built-in identifiers (`time`, `env`, `json`, `http`) are reserved and cannot be used by MCP providers.
+
 Evidence disclosure policy (raw values via `evidence_query`):
 
 ```toml

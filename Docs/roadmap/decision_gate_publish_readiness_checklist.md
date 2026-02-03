@@ -5,8 +5,8 @@ Document: Decision Gate Publish Readiness Checklist
 Description: Manual sign-off checklist before any public SDK or adapter release.
 Purpose: Enforce world-class quality, security, and determinism before publish.
 Dependencies:
-  - Docs/roadmap/decision_gate_world_class_integration_readiness_plan.md
-  - Docs/roadmap/decision_gate_sdk_invariance_plan.md
+  - Docs/roadmap/README.md
+  - Docs/roadmap/foundational_correctness_roadmap.md
   - Docs/business/decision_gate_integration_landscape.md
 ============================================================================
 -->

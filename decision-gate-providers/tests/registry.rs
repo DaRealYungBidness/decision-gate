@@ -118,6 +118,15 @@ impl CountingProvider {
     }
 }
 
+fn register_ok<P>(registry: &mut ProviderRegistry, provider_id: &str, provider: P)
+where
+    P: EvidenceProvider + Send + Sync + 'static,
+{
+    registry
+        .register_provider(provider_id, provider)
+        .expect("provider registration should succeed");
+}
+
 impl EvidenceProvider for CountingProvider {
     fn query(
         &self,
@@ -202,8 +211,8 @@ fn build_spec_with_conditions(conditions: &[(&str, &str)]) -> ScenarioSpec {
 #[test]
 fn query_routes_to_correct_provider() {
     let mut registry = ProviderRegistry::new(ProviderAccessPolicy::default());
-    registry.register_provider("provider-a", ValueProvider::new("A"));
-    registry.register_provider("provider-b", ValueProvider::new("B"));
+    register_ok(&mut registry, "provider-a", ValueProvider::new("A"));
+    register_ok(&mut registry, "provider-b", ValueProvider::new("B"));
     let ctx = sample_context();
 
     // Query provider A
@@ -238,8 +247,8 @@ fn query_only_calls_targeted_provider() {
     let counter_b = Arc::new(AtomicU32::new(0));
 
     let mut registry = ProviderRegistry::new(ProviderAccessPolicy::default());
-    registry.register_provider("provider-a", CountingProvider::new(counter_a.clone()));
-    registry.register_provider("provider-b", CountingProvider::new(counter_b.clone()));
+    register_ok(&mut registry, "provider-a", CountingProvider::new(counter_a.clone()));
+    register_ok(&mut registry, "provider-b", CountingProvider::new(counter_b.clone()));
     let ctx = sample_context();
 
     // Query only provider A
@@ -271,14 +280,21 @@ fn query_unregistered_provider_fails() {
     assert!(msg.contains("not registered"), "Error should mention not registered: {msg}");
 }
 
-/// Verifies that registering a provider replaces any existing one.
+/// Verifies that registering a provider rejects duplicates.
 #[test]
-fn register_provider_replaces_existing() {
+fn register_provider_rejects_duplicates() {
     let mut registry = ProviderRegistry::new(ProviderAccessPolicy::default());
-    registry.register_provider("test", ValueProvider::new("first"));
-    registry.register_provider("test", ValueProvider::new("second"));
-    let ctx = sample_context();
+    register_ok(&mut registry, "test", ValueProvider::new("first"));
+    let err = registry
+        .register_provider("test", ValueProvider::new("second"))
+        .expect_err("expected duplicate registration failure");
+    let EvidenceError::Provider(message) = err;
+    assert!(
+        message.contains("already registered"),
+        "error should mention duplicate registration: {message}"
+    );
 
+    let ctx = sample_context();
     let query = EvidenceQuery {
         provider_id: ProviderId::new("test"),
         check_id: "check".to_string(),
@@ -288,7 +304,22 @@ fn register_provider_replaces_existing() {
     let EvidenceValue::Json(value) = result.value.unwrap() else {
         panic!("Expected JSON value");
     };
-    assert_eq!(value["provider"], "second", "Second registration should replace first");
+    assert_eq!(value["provider"], "first", "Original registration must remain");
+}
+
+/// Verifies that calling builtin registration twice fails closed.
+#[test]
+fn register_builtin_providers_rejects_duplicates() {
+    let mut registry = ProviderRegistry::new(ProviderAccessPolicy::default());
+    registry.register_builtin_providers().expect("builtin registration should succeed");
+    let err = registry
+        .register_builtin_providers()
+        .expect_err("expected duplicate builtin registration failure");
+    let EvidenceError::Provider(message) = err;
+    assert!(
+        message.contains("already registered"),
+        "error should mention duplicate registration: {message}"
+    );
 }
 
 // ============================================================================
@@ -306,7 +337,7 @@ fn policy_allowlist_permits_listed_providers() {
     };
 
     let mut registry = ProviderRegistry::new(policy);
-    registry.register_provider("allowed", ValueProvider::new("allowed"));
+    register_ok(&mut registry, "allowed", ValueProvider::new("allowed"));
     let ctx = sample_context();
 
     let query = EvidenceQuery {
@@ -329,7 +360,7 @@ fn policy_allowlist_blocks_unlisted_providers() {
     };
 
     let mut registry = ProviderRegistry::new(policy);
-    registry.register_provider("blocked", ValueProvider::new("blocked"));
+    register_ok(&mut registry, "blocked", ValueProvider::new("blocked"));
     let ctx = sample_context();
 
     let query = EvidenceQuery {
@@ -358,7 +389,7 @@ fn policy_denylist_blocks_listed_providers() {
     };
 
     let mut registry = ProviderRegistry::new(policy);
-    registry.register_provider("blocked", ValueProvider::new("blocked"));
+    register_ok(&mut registry, "blocked", ValueProvider::new("blocked"));
     let ctx = sample_context();
 
     let query = EvidenceQuery {
@@ -383,7 +414,7 @@ fn policy_denylist_permits_unlisted_providers() {
     };
 
     let mut registry = ProviderRegistry::new(policy);
-    registry.register_provider("allowed", ValueProvider::new("allowed"));
+    register_ok(&mut registry, "allowed", ValueProvider::new("allowed"));
     let ctx = sample_context();
 
     let query = EvidenceQuery {
@@ -408,7 +439,7 @@ fn policy_denylist_takes_precedence_over_allowlist() {
     };
 
     let mut registry = ProviderRegistry::new(policy);
-    registry.register_provider("both", ValueProvider::new("both"));
+    register_ok(&mut registry, "both", ValueProvider::new("both"));
     let ctx = sample_context();
 
     let query = EvidenceQuery {
@@ -426,7 +457,7 @@ fn policy_allow_all_permits_any_provider() {
     let policy = ProviderAccessPolicy::allow_all();
 
     let mut registry = ProviderRegistry::new(policy);
-    registry.register_provider("any", ValueProvider::new("any"));
+    register_ok(&mut registry, "any", ValueProvider::new("any"));
     let ctx = sample_context();
 
     let query = EvidenceQuery {
@@ -461,7 +492,7 @@ fn validate_reports_blocked_provider() {
         denylist: BTreeSet::new(),
     };
     let mut registry = ProviderRegistry::new(policy);
-    registry.register_provider("blocked", DummyProvider);
+    register_ok(&mut registry, "blocked", DummyProvider);
     let error = registry.validate_providers(&build_spec("blocked")).unwrap_err();
     assert!(error.blocked_by_policy);
     assert_eq!(error.missing_providers, vec!["blocked".to_string()]);
@@ -499,8 +530,8 @@ fn validate_reports_required_capabilities() {
 #[test]
 fn validate_passes_when_all_providers_present() {
     let mut registry = ProviderRegistry::new(ProviderAccessPolicy::default());
-    registry.register_provider("provider-a", DummyProvider);
-    registry.register_provider("provider-b", DummyProvider);
+    register_ok(&mut registry, "provider-a", DummyProvider);
+    register_ok(&mut registry, "provider-b", DummyProvider);
     let spec = build_spec_with_conditions(&[("provider-a", "pred-a"), ("provider-b", "pred-b")]);
     let result = registry.validate_providers(&spec);
     assert!(result.is_ok());
@@ -516,8 +547,8 @@ fn validate_reports_mixed_missing_and_blocked() {
         denylist: BTreeSet::new(),
     };
     let mut registry = ProviderRegistry::new(policy);
-    registry.register_provider("allowed", DummyProvider);
-    registry.register_provider("blocked", DummyProvider); // registered but not in allowlist
+    register_ok(&mut registry, "allowed", DummyProvider);
+    register_ok(&mut registry, "blocked", DummyProvider); // registered but not in allowlist
 
     let spec = build_spec_with_conditions(&[
         ("allowed", "pred-allowed"),
@@ -606,7 +637,7 @@ fn empty_allowlist_blocks_all_providers() {
         denylist: BTreeSet::new(),
     };
     let mut registry = ProviderRegistry::new(policy);
-    registry.register_provider("any", ValueProvider::new("any"));
+    register_ok(&mut registry, "any", ValueProvider::new("any"));
     let ctx = sample_context();
 
     let query = EvidenceQuery {
@@ -622,7 +653,7 @@ fn empty_allowlist_blocks_all_providers() {
 #[test]
 fn provider_ids_are_case_sensitive() {
     let mut registry = ProviderRegistry::new(ProviderAccessPolicy::default());
-    registry.register_provider("Provider", ValueProvider::new("uppercase"));
+    register_ok(&mut registry, "Provider", ValueProvider::new("uppercase"));
     let ctx = sample_context();
 
     // Query with exact case

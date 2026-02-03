@@ -16,7 +16,9 @@
       "Bash(cargo build:*)",
       "Bash(.\\\\target\\\\release\\\\decision-gate-cli.exe:*)",
       "Bash(./target/release/decision-gate-cli.exe:*)",
-      "Bash(./target/release/decision-gate.exe:*)"
+      "Bash(./target/release/decision-gate.exe:*)",
+      "Bash(cargo tree:*)",
+      "Bash(cargo deny check:*)"
     ]
   }
 }

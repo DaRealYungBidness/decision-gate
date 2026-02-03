@@ -8,12 +8,10 @@ Purpose: Capture the reasoning now, so we can revisit later without redoing
          the full analysis.
 Dependencies:
   - Docs/roadmap/scenario_builder_plan.md
-  - Docs/roadmap/open_items.md
-  - Docs/roadmap/trust_lanes_registry_plan.md
-  - Docs/roadmap/asc_dg_alignment_engineering_now.md
-  - Docs/roadmap/asc_dg_alignment_marketing_now.md
-  - Docs/roadmap/world_class_implementation_roadmap.md
+  - Docs/roadmap/README.md
   - Docs/architecture/comparator_validation_architecture.md
+  - Docs/architecture/decision_gate_namespace_registry_rbac_architecture.md
+  - Docs/architecture/decision_gate_provider_capability_architecture.md
 ============================================================================
 -->
 
@@ -94,15 +92,12 @@ when these foundations are either complete or explicitly scoped:
 
 - Scenario builder derivation rules:
   `Docs/roadmap/scenario_builder_plan.md`
-- Trust lanes and schema registry foundation:
-  `Docs/roadmap/trust_lanes_registry_plan.md`
+- Schema registry and RBAC foundation:
+  `Docs/architecture/decision_gate_namespace_registry_rbac_architecture.md`
+- Provider capability registry:
+  `Docs/architecture/decision_gate_provider_capability_architecture.md`
 - Release readiness and open items:
-  `Docs/roadmap/open_items.md`
-- World-class implementation bar:
-  `Docs/roadmap/world_class_implementation_roadmap.md`
-- ASC alignment boundaries (independence, namespace, strictness):
-  `Docs/roadmap/asc_dg_alignment_engineering_now.md`
-  `Docs/roadmap/asc_dg_alignment_marketing_now.md`
+  `Docs/roadmap/README.md`
 
 ## Future Approach (Phased Proposal)
 Phase 0: Policy decisions

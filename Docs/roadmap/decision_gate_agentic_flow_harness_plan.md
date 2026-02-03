@@ -7,12 +7,11 @@ Description: Clear status of what's implemented vs missing, plus the
 Purpose: Make launch cleanup obvious while preserving live-mode intent.
 Dependencies:
   - Docs/roadmap/foundational_correctness_roadmap.md
-  - Docs/roadmap/decision_gate_world_class_integration_readiness_plan.md
   - Docs/business/decision_gate_integration_landscape.md
   - Docs/security/threat_model.md
   - system-tests/TEST_MATRIX.md
 ============================================================================
-Last Updated: 2026-02-02 (UTC)
+Last Updated: 2026-02-03 (UTC)
 ============================================================================
 -->
 

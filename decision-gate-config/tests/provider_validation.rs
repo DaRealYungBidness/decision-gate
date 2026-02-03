@@ -55,6 +55,183 @@ fn provider_requires_name() -> TestResult {
 }
 
 #[test]
+fn provider_name_must_be_trimmed() -> TestResult {
+    let mut config = common::minimal_config().map_err(|err| err.to_string())?;
+    config.providers = vec![ProviderConfig {
+        name: " time".to_string(),
+        provider_type: ProviderType::Builtin,
+        command: Vec::new(),
+        url: None,
+        allow_insecure_http: false,
+        capabilities_path: None,
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
+        config: None,
+    }];
+    assert_invalid(config.validate(), "provider name must be trimmed")?;
+    Ok(())
+}
+
+#[test]
+fn provider_duplicate_names_rejected() -> TestResult {
+    let mut config = common::minimal_config().map_err(|err| err.to_string())?;
+    config.providers = vec![
+        ProviderConfig {
+            name: "time".to_string(),
+            provider_type: ProviderType::Builtin,
+            command: Vec::new(),
+            url: None,
+            allow_insecure_http: false,
+            capabilities_path: None,
+            auth: None,
+            trust: None,
+            allow_raw: false,
+            timeouts: ProviderTimeoutConfig::default(),
+            config: None,
+        },
+        ProviderConfig {
+            name: "time".to_string(),
+            provider_type: ProviderType::Builtin,
+            command: Vec::new(),
+            url: None,
+            allow_insecure_http: false,
+            capabilities_path: None,
+            auth: None,
+            trust: None,
+            allow_raw: false,
+            timeouts: ProviderTimeoutConfig::default(),
+            config: None,
+        },
+    ];
+    assert_invalid(config.validate(), "duplicate provider name: time")?;
+    Ok(())
+}
+
+#[test]
+fn provider_builtin_requires_known_name() -> TestResult {
+    let mut config = common::minimal_config().map_err(|err| err.to_string())?;
+    config.providers = vec![ProviderConfig {
+        name: "custom".to_string(),
+        provider_type: ProviderType::Builtin,
+        command: Vec::new(),
+        url: None,
+        allow_insecure_http: false,
+        capabilities_path: None,
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
+        config: None,
+    }];
+    assert_invalid(config.validate(), "unknown builtin provider: custom")?;
+    Ok(())
+}
+
+#[test]
+fn provider_mcp_rejects_builtin_name() -> TestResult {
+    let mut config = common::minimal_config().map_err(|err| err.to_string())?;
+    config.providers = vec![ProviderConfig {
+        name: "json".to_string(),
+        provider_type: ProviderType::Mcp,
+        command: vec!["./provider".to_string()],
+        url: None,
+        allow_insecure_http: false,
+        capabilities_path: Some(PathBuf::from("provider.json")),
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
+        config: None,
+    }];
+    assert_invalid(config.validate(), "provider name reserved for builtin: json")?;
+    Ok(())
+}
+
+#[test]
+fn provider_builtin_rejects_command() -> TestResult {
+    let mut config = common::minimal_config().map_err(|err| err.to_string())?;
+    config.providers = vec![ProviderConfig {
+        name: "time".to_string(),
+        provider_type: ProviderType::Builtin,
+        command: vec!["./provider".to_string()],
+        url: None,
+        allow_insecure_http: false,
+        capabilities_path: None,
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
+        config: None,
+    }];
+    assert_invalid(config.validate(), "builtin provider does not accept command")?;
+    Ok(())
+}
+
+#[test]
+fn provider_builtin_rejects_url() -> TestResult {
+    let mut config = common::minimal_config().map_err(|err| err.to_string())?;
+    config.providers = vec![ProviderConfig {
+        name: "time".to_string(),
+        provider_type: ProviderType::Builtin,
+        command: Vec::new(),
+        url: Some("https://example.com/mcp".to_string()),
+        allow_insecure_http: false,
+        capabilities_path: None,
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
+        config: None,
+    }];
+    assert_invalid(config.validate(), "builtin provider does not accept url")?;
+    Ok(())
+}
+
+#[test]
+fn provider_builtin_rejects_allow_insecure_http() -> TestResult {
+    let mut config = common::minimal_config().map_err(|err| err.to_string())?;
+    config.providers = vec![ProviderConfig {
+        name: "time".to_string(),
+        provider_type: ProviderType::Builtin,
+        command: Vec::new(),
+        url: None,
+        allow_insecure_http: true,
+        capabilities_path: None,
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
+        config: None,
+    }];
+    assert_invalid(config.validate(), "builtin provider does not accept allow_insecure_http")?;
+    Ok(())
+}
+
+#[test]
+fn provider_builtin_rejects_auth() -> TestResult {
+    let mut config = common::minimal_config().map_err(|err| err.to_string())?;
+    config.providers = vec![ProviderConfig {
+        name: "time".to_string(),
+        provider_type: ProviderType::Builtin,
+        command: Vec::new(),
+        url: None,
+        allow_insecure_http: false,
+        capabilities_path: None,
+        auth: Some(ProviderAuthConfig {
+            bearer_token: Some("token".to_string()),
+        }),
+        trust: None,
+        allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
+        config: None,
+    }];
+    assert_invalid(config.validate(), "builtin provider does not accept auth")?;
+    Ok(())
+}
+
+#[test]
 fn provider_mcp_requires_capabilities_and_transport() -> TestResult {
     let mut config = common::minimal_config().map_err(|err| err.to_string())?;
     config.providers = vec![ProviderConfig {
@@ -71,6 +248,26 @@ fn provider_mcp_requires_capabilities_and_transport() -> TestResult {
         config: None,
     }];
     assert_invalid(config.validate(), "mcp provider requires command or url")?;
+    Ok(())
+}
+
+#[test]
+fn provider_mcp_rejects_config_block() -> TestResult {
+    let mut config = common::minimal_config().map_err(|err| err.to_string())?;
+    config.providers = vec![ProviderConfig {
+        name: "external".to_string(),
+        provider_type: ProviderType::Mcp,
+        command: vec!["./provider".to_string()],
+        url: None,
+        allow_insecure_http: false,
+        capabilities_path: Some(PathBuf::from("provider.json")),
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
+        config: Some(toml::Value::String("unused".to_string())),
+    }];
+    assert_invalid(config.validate(), "mcp provider does not accept config")?;
     Ok(())
 }
 
@@ -171,7 +368,7 @@ fn provider_parse_config_rejects_invalid_payload() {
     }
 
     let provider = ProviderConfig {
-        name: "builtin".to_string(),
+        name: "json".to_string(),
         provider_type: ProviderType::Builtin,
         command: Vec::new(),
         url: None,

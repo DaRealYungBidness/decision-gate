@@ -9,7 +9,7 @@ Dependencies:
   - Docs/roadmap/decision_gate_world_class_onboarding_plan.md
   - Docs/security/threat_model.md
 ============================================================================
-Last Updated: 2026-02-02 (UTC)
+Last Updated: 2026-02-03 (UTC)
 ============================================================================
 -->
 
@@ -252,7 +252,7 @@ Out of scope:
 ### Auditability
 - Correlation and request metadata preserved in outputs. **Partial**
 - Optional JSON transcript output for all tool calls. **Partial**
-- Signed/hashed CLI output artifacts. **Missing**
+- Signed/hashed CLI output artifacts. **Partial** (store/broker outputs only)
 
 ---
 
@@ -275,15 +275,15 @@ Out of scope:
 - [x] Schema registry CLI complete.
 - [x] Provider list and contract views complete.
 - [x] Docs search CLI complete.
-- [ ] Runpack storage integration complete.
-- [ ] Store admin CLI complete.
-- [ ] Broker test CLI complete.
+- [x] Runpack storage integration complete.
+- [x] Store admin CLI complete.
+- [x] Broker test CLI complete.
 - [x] Contract/SDK generators integrated.
 - [~] Output formats deterministic + documented.
 - [~] Security posture validated in tests.
 - [x] i18n parity tests green (en + ca).
 - [x] Non-English disclaimer enabled and verified.
-- [ ] Signed/hashed CLI output artifacts.
+- [~] Signed/hashed CLI output artifacts (store/broker outputs only).
 
 ---
 

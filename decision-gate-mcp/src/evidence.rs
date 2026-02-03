@@ -165,7 +165,7 @@ impl FederatedEvidenceProvider {
                 }
                 ProviderType::Mcp => {
                     let client = McpProviderClient::from_config(provider)?;
-                    registry.register_provider(provider.name.clone(), client);
+                    registry.register_provider(provider.name.clone(), client)?;
                     policies.insert(
                         provider.name.clone(),
                         ProviderPolicy {
@@ -258,9 +258,8 @@ struct McpProcess {
 
 impl Drop for McpProcess {
     fn drop(&mut self) {
-        match self.child.try_wait() {
-            Ok(Some(_)) => return,
-            Ok(None) | Err(_) => {}
+        if let Ok(Some(_)) = self.child.try_wait() {
+            return;
         }
         let _ = self.child.kill();
         let _ = self.child.try_wait();
@@ -751,26 +750,28 @@ fn register_builtin_provider(
             let config = provider
                 .parse_config::<decision_gate_providers::TimeProviderConfig>()
                 .map_err(|err| EvidenceError::Provider(err.to_string()))?;
-            registry.register_provider("time", decision_gate_providers::TimeProvider::new(config));
+            registry
+                .register_provider("time", decision_gate_providers::TimeProvider::new(config))?;
         }
         "env" => {
             let config = provider
                 .parse_config::<decision_gate_providers::EnvProviderConfig>()
                 .map_err(|err| EvidenceError::Provider(err.to_string()))?;
-            registry.register_provider("env", decision_gate_providers::EnvProvider::new(config));
+            registry.register_provider("env", decision_gate_providers::EnvProvider::new(config))?;
         }
         "json" => {
             let config = provider
                 .parse_config::<decision_gate_providers::JsonProviderConfig>()
                 .map_err(|err| EvidenceError::Provider(err.to_string()))?;
-            registry.register_provider("json", decision_gate_providers::JsonProvider::new(config));
+            registry
+                .register_provider("json", decision_gate_providers::JsonProvider::new(config))?;
         }
         "http" => {
             let config = provider
                 .parse_config::<decision_gate_providers::HttpProviderConfig>()
                 .map_err(|err| EvidenceError::Provider(err.to_string()))?;
             let provider = decision_gate_providers::HttpProvider::new(config)?;
-            registry.register_provider("http", provider);
+            registry.register_provider("http", provider)?;
         }
         _ => {
             return Err(EvidenceError::Provider(format!(

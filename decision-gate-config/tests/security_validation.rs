@@ -220,11 +220,11 @@ fn provider_name_with_shell_metacharacters_semicolon() -> TestResult {
     let mut config = common::minimal_config().map_err(|err| err.to_string())?;
     config.providers = vec![ProviderConfig {
         name: "provider;rm -rf /".to_string(),
-        provider_type: ProviderType::Builtin,
-        command: Vec::new(),
+        provider_type: ProviderType::Mcp,
+        command: vec!["./provider".to_string()],
         url: None,
         allow_insecure_http: false,
-        capabilities_path: None,
+        capabilities_path: Some(PathBuf::from("provider.json")),
         auth: None,
         trust: None,
         allow_raw: false,
@@ -241,11 +241,11 @@ fn provider_name_with_pipe() -> TestResult {
     let mut config = common::minimal_config().map_err(|err| err.to_string())?;
     config.providers = vec![ProviderConfig {
         name: "provider | cat /etc/passwd".to_string(),
-        provider_type: ProviderType::Builtin,
-        command: Vec::new(),
+        provider_type: ProviderType::Mcp,
+        command: vec!["./provider".to_string()],
         url: None,
         allow_insecure_http: false,
-        capabilities_path: None,
+        capabilities_path: Some(PathBuf::from("provider.json")),
         auth: None,
         trust: None,
         allow_raw: false,
@@ -301,11 +301,11 @@ fn provider_name_with_forward_slash() -> TestResult {
     let mut config = common::minimal_config().map_err(|err| err.to_string())?;
     config.providers = vec![ProviderConfig {
         name: "provider/name".to_string(),
-        provider_type: ProviderType::Builtin,
-        command: Vec::new(),
+        provider_type: ProviderType::Mcp,
+        command: vec!["./provider".to_string()],
         url: None,
         allow_insecure_http: false,
-        capabilities_path: None,
+        capabilities_path: Some(PathBuf::from("provider.json")),
         auth: None,
         trust: None,
         allow_raw: false,
@@ -321,11 +321,11 @@ fn provider_name_with_backslash() -> TestResult {
     let mut config = common::minimal_config().map_err(|err| err.to_string())?;
     config.providers = vec![ProviderConfig {
         name: "provider\\name".to_string(),
-        provider_type: ProviderType::Builtin,
-        command: Vec::new(),
+        provider_type: ProviderType::Mcp,
+        command: vec!["./provider".to_string()],
         url: None,
         allow_insecure_http: false,
-        capabilities_path: None,
+        capabilities_path: Some(PathBuf::from("provider.json")),
         auth: None,
         trust: None,
         allow_raw: false,
@@ -341,11 +341,11 @@ fn provider_name_with_colon() -> TestResult {
     let mut config = common::minimal_config().map_err(|err| err.to_string())?;
     config.providers = vec![ProviderConfig {
         name: "provider:name".to_string(),
-        provider_type: ProviderType::Builtin,
-        command: Vec::new(),
+        provider_type: ProviderType::Mcp,
+        command: vec!["./provider".to_string()],
         url: None,
         allow_insecure_http: false,
-        capabilities_path: None,
+        capabilities_path: Some(PathBuf::from("provider.json")),
         auth: None,
         trust: None,
         allow_raw: false,
@@ -397,11 +397,11 @@ fn provider_name_with_emoji() -> TestResult {
     let mut config = common::minimal_config().map_err(|err| err.to_string())?;
     config.providers = vec![ProviderConfig {
         name: "provider🚀".to_string(),
-        provider_type: ProviderType::Builtin,
-        command: Vec::new(),
+        provider_type: ProviderType::Mcp,
+        command: vec!["./provider".to_string()],
         url: None,
         allow_insecure_http: false,
-        capabilities_path: None,
+        capabilities_path: Some(PathBuf::from("provider.json")),
         auth: None,
         trust: None,
         allow_raw: false,

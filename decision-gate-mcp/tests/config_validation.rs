@@ -1009,6 +1009,74 @@ fn provider_mcp_requires_command_or_url() {
     assert!(error.to_string().contains("command or url"));
 }
 
+/// Verifies builtin provider rejects url.
+#[test]
+fn provider_builtin_rejects_url() {
+    let config = ProviderConfig {
+        name: "time".to_string(),
+        provider_type: ProviderType::Builtin,
+        command: Vec::new(),
+        url: Some("https://example.com/mcp".to_string()),
+        allow_insecure_http: false,
+        capabilities_path: None,
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
+        config: None,
+    };
+    let result = validate_provider_config(config);
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("builtin provider does not accept url"));
+}
+
+/// Verifies builtin provider rejects `allow_insecure_http`.
+#[test]
+fn provider_builtin_rejects_allow_insecure_http() {
+    let config = ProviderConfig {
+        name: "time".to_string(),
+        provider_type: ProviderType::Builtin,
+        command: Vec::new(),
+        url: None,
+        allow_insecure_http: true,
+        capabilities_path: None,
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
+        config: None,
+    };
+    let result = validate_provider_config(config);
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("builtin provider does not accept allow_insecure_http"));
+}
+
+/// Verifies builtin provider rejects auth block.
+#[test]
+fn provider_builtin_rejects_auth() {
+    let config = ProviderConfig {
+        name: "time".to_string(),
+        provider_type: ProviderType::Builtin,
+        command: Vec::new(),
+        url: None,
+        allow_insecure_http: false,
+        capabilities_path: None,
+        auth: Some(ProviderAuthConfig {
+            bearer_token: Some("token".to_string()),
+        }),
+        trust: None,
+        allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
+        config: None,
+    };
+    let result = validate_provider_config(config);
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("builtin provider does not accept auth"));
+}
+
 /// Verifies MCP provider with command is valid.
 #[test]
 fn provider_mcp_with_command_valid() {

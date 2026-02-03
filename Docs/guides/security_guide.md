@@ -167,6 +167,7 @@ allow_raw = true
 Behavior:
 - If raw disclosure is blocked, Decision Gate **redacts** `value` and `content_type` but still returns hashes and anchors.
 - This is **not** a JSON-RPC error.
+- Provider names are unique; built-in identifiers (`time`, `env`, `json`, `http`) are reserved.
 
 ---
 
