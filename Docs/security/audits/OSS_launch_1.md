@@ -97,6 +97,9 @@ None.
 
 ## decision-gate-enterprise
 
+**Note**: The `decision-gate-enterprise` paths referenced below live in the
+private AssetCore monorepo and are not present in the OSS repository.
+
 ### Open Findings
 
 None. Enterprise system-tests cover audit, authz, usage, and storage paths in this pass.

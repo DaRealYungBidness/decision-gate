@@ -13,7 +13,7 @@ Dependencies:
   - system-tests/test_registry.toml
   - system-tests/test_gaps.toml
 ============================================================================
-Last Updated: 2026-02-02 (UTC)
+Last Updated: 2026-02-04 (UTC)
 ============================================================================
 -->
 
@@ -45,7 +45,7 @@ artifacts. Coverage is tracked in a registry file and a formal gap list. SDK
 client tests execute the Python and TypeScript SDKs against live MCP HTTP
 servers to validate transport correctness, auth behavior, and repository
 examples (which are treated as runnable system tests).
-[F:system-tests/README.md L10-L87](system-tests/README.md#L10-L87)
+[F:system-tests/README.md L14-L90](system-tests/README.md#L14-L90)
 
 The agentic flow harness extends this model with canonical scenario packs that
 run across raw MCP, SDKs, and framework adapters. Scenario packs live under
@@ -80,7 +80,7 @@ System-tests must mirror production behavior and remain deterministic:
   `DECISION_GATE_STRICT_AGENTIC_ADAPTERS=1` is set, keeping OSS runs deterministic
   without requiring optional dependencies.
 
-[F:system-tests/AGENTS.md L12-L57](system-tests/AGENTS.md#L12-L57)[F:system-tests/README.md L30-L61](system-tests/README.md#L30-L61)
+[F:system-tests/AGENTS.md L12-L62](system-tests/AGENTS.md#L12-L62) [F:system-tests/README.md L31-L90](system-tests/README.md#L31-L90)
 
 ---
 
@@ -106,7 +106,7 @@ preserving category-driven inventory in the registry. Each registry
 
 The system test matrix documents P0/P1/P2 coverage with goals and categories.
 This is the human-readable snapshot of what the registry enforces.
-[F:system-tests/TEST_MATRIX.md L10-L66](system-tests/TEST_MATRIX.md#L10-L66)
+[F:system-tests/TEST_MATRIX.md L10-L75](system-tests/TEST_MATRIX.md#L10-L75)
 
 ---
 
@@ -134,7 +134,7 @@ one-line stderr summary that includes the artifact root for rapid triage.
 Deterministic HTTP fixtures (for example the agentic harness HTTP stub) use
 stable, scenario-derived ports to prevent runpack hash drift; the port can be
 overridden via `DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT` when needed.
-[F:system-tests/README.md L74-L82](system-tests/README.md#L74-L82)[F:system-tests/AGENTS.md L63-L67](system-tests/AGENTS.md#L63-L67)
+[F:system-tests/README.md L82-L104](system-tests/README.md#L82-L104) [F:system-tests/AGENTS.md L71-L84](system-tests/AGENTS.md#L71-L84)
 
 ## Execution Workflow
 
@@ -151,7 +151,7 @@ passes. Use explicit features or the registry-driven runner.
 failure output at the end of the run for easier triage.
 
 Tests should be registered and coverage docs regenerated when changes occur.
-[F:system-tests/README.md L38-L59](system-tests/README.md#L38-L59)
+[F:system-tests/README.md L45-L118](system-tests/README.md#L45-L118)
 
 ---
 

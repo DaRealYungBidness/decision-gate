@@ -12,7 +12,7 @@ Dependencies:
   - decision-gate-mcp/src/evidence.rs
   - decision-gate-mcp/src/tools.rs
 ============================================================================
-Last Updated: 2026-02-03 (UTC)
+Last Updated: 2026-02-04 (UTC)
 ============================================================================
 -->
 
@@ -46,7 +46,7 @@ Provider capability contracts are the authoritative schema for check
 parameters, results, and allowed comparators. The capability registry validates
 scenario specs and evidence queries before evaluation. Evidence federation
 routes queries to providers and enforces trust policies.
-[F:decision-gate-config/src/config.rs L1860-L1990](decision-gate-config/src/config.rs#L1860-L1990)[F:decision-gate-mcp/src/capabilities.rs L216-L369](decision-gate-mcp/src/capabilities.rs#L216-L369)[F:decision-gate-mcp/src/evidence.rs L137-L209](decision-gate-mcp/src/evidence.rs#L137-L209)
+[F:decision-gate-config/src/config.rs L1883-L1990](decision-gate-config/src/config.rs#L1883-L1990) [F:decision-gate-mcp/src/capabilities.rs L229-L379](decision-gate-mcp/src/capabilities.rs#L229-L379) [F:decision-gate-mcp/src/evidence.rs L138-L210](decision-gate-mcp/src/evidence.rs#L138-L210)
 
 ---
 
@@ -74,7 +74,7 @@ Validation enforces:
 - Built-ins must use a reserved identifier and reject MCP-only fields (`command`, `url`,
   `allow_insecure_http`, `auth`, `capabilities_path`).
 
-[F:decision-gate-config/src/config.rs L1860-L1990](decision-gate-config/src/config.rs#L1860-L1990)
+[F:decision-gate-config/src/config.rs L1883-L1990](decision-gate-config/src/config.rs#L1883-L1990)
 
 ---
 
@@ -89,11 +89,11 @@ check params and results. It validates:
 - Expected-value schema conformance
 - Comparator allow-lists
 
-[F:decision-gate-mcp/src/capabilities.rs L216-L309](decision-gate-mcp/src/capabilities.rs#L216-L309)[F:decision-gate-mcp/src/capabilities.rs L508-L520](decision-gate-mcp/src/capabilities.rs#L508-L520)
+[F:decision-gate-mcp/src/capabilities.rs L313-L379](decision-gate-mcp/src/capabilities.rs#L313-L379) [F:decision-gate-mcp/src/capabilities.rs L598-L636](decision-gate-mcp/src/capabilities.rs#L598-L636)
 
 Capability registry queries are used by both scenario definition and evidence
 query tools.
-[F:decision-gate-mcp/src/tools.rs L717-L720](decision-gate-mcp/src/tools.rs#L717-L720)[F:decision-gate-mcp/src/tools.rs L869-L870](decision-gate-mcp/src/tools.rs#L869-L870)
+[F:decision-gate-mcp/src/tools.rs L2029-L2050](decision-gate-mcp/src/tools.rs#L2029-L2050) [F:decision-gate-mcp/src/tools.rs L979-L1017](decision-gate-mcp/src/tools.rs#L979-L1017)
 
 ---
 
@@ -106,7 +106,7 @@ External providers must supply a contract JSON file that:
 - Defines checks with allowed comparator lists
 
 Contracts are size-limited and path validated; invalid contracts fail closed.
-[F:decision-gate-mcp/src/capabilities.rs L392-L451](decision-gate-mcp/src/capabilities.rs#L392-L451)[F:decision-gate-mcp/src/capabilities.rs L457-L487](decision-gate-mcp/src/capabilities.rs#L457-L487)
+[F:decision-gate-mcp/src/capabilities.rs L533-L591](decision-gate-mcp/src/capabilities.rs#L533-L591)
 
 ---
 
@@ -125,10 +125,10 @@ Evidence federation combines built-in providers and MCP providers:
 - HTTP evidence providers enforce timeouts, disallow redirects, apply response
   size limits, and fail closed on truncated bodies (Content-Length mismatch).
 
-[F:decision-gate-mcp/src/evidence.rs L137-L209](decision-gate-mcp/src/evidence.rs#L137-L209)[F:decision-gate-mcp/src/evidence.rs L220-L244](decision-gate-mcp/src/evidence.rs#L220-L244)[F:decision-gate-providers/src/http.rs L90-L266](decision-gate-providers/src/http.rs#L90-L266)
+[F:decision-gate-mcp/src/evidence.rs L138-L210](decision-gate-mcp/src/evidence.rs#L138-L210) [F:decision-gate-mcp/src/evidence.rs L248-L266](decision-gate-mcp/src/evidence.rs#L248-L266) [F:decision-gate-providers/src/http.rs L82-L239](decision-gate-providers/src/http.rs#L82-L239)
 
 Trust policy enforcement (signature verification) runs per provider response.
-[F:decision-gate-mcp/src/evidence.rs L639-L689](decision-gate-mcp/src/evidence.rs#L639-L689)
+[F:decision-gate-mcp/src/evidence.rs L636-L677](decision-gate-mcp/src/evidence.rs#L636-L677)
 
 ---
 
@@ -145,7 +145,7 @@ Tool behavior enforces capability and disclosure policy:
 - Comparator allow-lists are enforced from provider contracts; `json.path`
   exposes the full comparator surface area for deterministic JSON evidence.
 
-[F:decision-gate-mcp/src/tools.rs L694-L885](decision-gate-mcp/src/tools.rs#L694-L885)
+[F:decision-gate-mcp/src/tools.rs L2029-L2050](decision-gate-mcp/src/tools.rs#L2029-L2050) [F:decision-gate-mcp/src/tools.rs L979-L1037](decision-gate-mcp/src/tools.rs#L979-L1037) [F:decision-gate-mcp/src/tools.rs L1110-L1150](decision-gate-mcp/src/tools.rs#L1110-L1150) [F:decision-gate-mcp/src/tools.rs L2294-L2334](decision-gate-mcp/src/tools.rs#L2294-L2334)
 
 ---
 

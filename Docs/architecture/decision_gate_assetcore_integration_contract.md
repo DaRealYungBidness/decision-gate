@@ -5,7 +5,6 @@ Document: Decision Gate + Asset Core Integration Contract
 Description: Canonical boundary contract for namespace, auth, and evidence anchors.
 Purpose: Define the exact DG/ASC integration rules without code coupling.
 Dependencies:
-  - Docs/roadmap/asc_dg_alignment_engineering_now.md
   - Docs/security/threat_model.md
   - Docs/guides/assetcore_interop_runbook.md
 ============================================================================
@@ -35,7 +34,8 @@ world-state substrate. Integration is optional and explicit.
 Dev-permissive is **disallowed** when `namespace.authority.mode = "assetcore_http"`.
 
 ### Validation Rules
-- DG must validate `namespace_id` for every tool call and evidence query.
+- DG must validate `namespace_id` for every namespace-scoped tool call,
+  including evidence queries.
 - Unknown namespace -> **fail closed**.
 - Catalog unreachable -> **fail closed**.
 
@@ -66,7 +66,8 @@ This mapping is **fail-closed**: missing or unknown roles grant no access.
 - **Run operations**: `scenario_start`, `scenario_trigger`, `scenario_next`,
   `scenario_submit`, `precheck`
 - **Read-only**: `scenario_status`, `scenarios_list`, `schemas_list`,
-  `schemas_get`, `providers_list`, `evidence_query`
+  `schemas_get`, `providers_list`, `provider_contract_get`,
+  `provider_check_schema_get`, `evidence_query`, `decision_gate_docs_search`
 - **Audit**: `runpack_export`, `runpack_verify`
 
 **Default mapping (recommended):**

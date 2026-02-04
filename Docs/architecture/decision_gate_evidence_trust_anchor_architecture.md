@@ -14,7 +14,7 @@ Dependencies:
   - decision-gate-mcp/src/tools.rs
   - decision-gate-config/src/config.rs
 ============================================================================
-Last Updated: 2026-02-03 (UTC)
+Last Updated: 2026-02-04 (UTC)
 ============================================================================
 -->
 
@@ -52,7 +52,7 @@ verifiable links to external systems. Enforcement occurs in two places:
 - **Runpack verifier**: replays anchor policy checks offline.
 
 Evidence disclosure is separately controlled at the tool layer.
-[F:decision-gate-core/src/core/evidence.rs L88-L255](decision-gate-core/src/core/evidence.rs#L88-L255)[F:decision-gate-core/src/runtime/engine.rs L505-L552](decision-gate-core/src/runtime/engine.rs#L505-L552)[F:decision-gate-core/src/runtime/runpack.rs L501-L549](decision-gate-core/src/runtime/runpack.rs#L501-L549)[F:decision-gate-mcp/src/tools.rs L858-L885](decision-gate-mcp/src/tools.rs#L858-L885)
+[F:decision-gate-core/src/core/evidence.rs L97-L257](decision-gate-core/src/core/evidence.rs#L97-L257) [F:decision-gate-core/src/runtime/engine.rs L511-L618](decision-gate-core/src/runtime/engine.rs#L511-L618) [F:decision-gate-core/src/runtime/engine.rs L983-L1018](decision-gate-core/src/runtime/engine.rs#L983-L1018) [F:decision-gate-core/src/runtime/runpack.rs L519-L567](decision-gate-core/src/runtime/runpack.rs#L519-L567) [F:decision-gate-mcp/src/tools.rs L2294-L2334](decision-gate-mcp/src/tools.rs#L2294-L2334)
 
 ---
 
@@ -65,7 +65,7 @@ Core evidence types define the canonical payloads and integrity metadata:
 - `EvidenceAnchor` contains an anchor type and JSON-encoded anchor value.
 - `EvidenceAnchorPolicy` maps providers to required anchor types and fields.
 
-[F:decision-gate-core/src/core/evidence.rs L142-L255](decision-gate-core/src/core/evidence.rs#L142-L255)
+[F:decision-gate-core/src/core/evidence.rs L175-L257](decision-gate-core/src/core/evidence.rs#L175-L257)
 
 ---
 
@@ -80,13 +80,13 @@ Trust lanes are a two-level lattice:
 condition and gate. If evidence does not meet the requirement, it is converted
 into an `Unknown` result with a `trust_lane` error.
 
-[F:decision-gate-core/src/core/evidence.rs L88-L136](decision-gate-core/src/core/evidence.rs#L88-L136)[F:decision-gate-core/src/runtime/engine.rs L505-L552](decision-gate-core/src/runtime/engine.rs#L505-L552)[F:decision-gate-core/src/runtime/engine.rs L1463-L1482](decision-gate-core/src/runtime/engine.rs#L1463-L1482)
+[F:decision-gate-core/src/core/evidence.rs L97-L141](decision-gate-core/src/core/evidence.rs#L97-L141) [F:decision-gate-core/src/runtime/engine.rs L730-L746](decision-gate-core/src/runtime/engine.rs#L730-L746) [F:decision-gate-core/src/runtime/engine.rs L1573-L1593](decision-gate-core/src/runtime/engine.rs#L1573-L1593)
 
 Control-plane configuration exposes:
 - global `trust_requirement`
 - per-provider overrides (via `provider_trust_overrides`)
 
-[F:decision-gate-core/src/runtime/engine.rs L107-L127](decision-gate-core/src/runtime/engine.rs#L107-L127)
+[F:decision-gate-core/src/runtime/engine.rs L111-L145](decision-gate-core/src/runtime/engine.rs#L111-L145)
 
 ---
 
@@ -103,7 +103,7 @@ Policy evaluation:
 - Missing signatures, unsupported schemes, or unauthorized keys are rejected.
 - If the evidence hash is missing, it is computed from the canonical payload.
 
-[F:decision-gate-mcp/src/evidence.rs L112-L209](decision-gate-mcp/src/evidence.rs#L112-L209)[F:decision-gate-mcp/src/evidence.rs L639-L727](decision-gate-mcp/src/evidence.rs#L639-L727)
+[F:decision-gate-mcp/src/evidence.rs L122-L210](decision-gate-mcp/src/evidence.rs#L122-L210) [F:decision-gate-mcp/src/evidence.rs L628-L701](decision-gate-mcp/src/evidence.rs#L628-L701)
 
 ---
 
@@ -117,7 +117,7 @@ Evidence disclosure is enforced at `evidence_query` time:
 
 If raw values are not allowed, the tool response redacts `value` and
 `content_type`, but retains hashes and anchors.
-[F:decision-gate-config/src/config.rs L959-L977](decision-gate-config/src/config.rs#L959-L977)[F:decision-gate-mcp/src/tools.rs L858-L885](decision-gate-mcp/src/tools.rs#L858-L885)[F:decision-gate-mcp/src/evidence.rs L188-L209](decision-gate-mcp/src/evidence.rs#L188-L209)
+[F:decision-gate-config/src/config.rs L1226-L1234](decision-gate-config/src/config.rs#L1226-L1234) [F:decision-gate-mcp/src/tools.rs L2294-L2334](decision-gate-mcp/src/tools.rs#L2294-L2334) [F:decision-gate-mcp/src/evidence.rs L138-L196](decision-gate-mcp/src/evidence.rs#L138-L196)
 
 ---
 
@@ -144,7 +144,7 @@ When an anchor requirement is configured for a provider:
 
 Invalid anchors result in an `anchor_invalid` provider error and the evidence
 result is converted to an empty verified result for evaluation.
-[F:decision-gate-core/src/runtime/engine.rs L921-L977](decision-gate-core/src/runtime/engine.rs#L921-L977)[F:decision-gate-core/src/runtime/engine.rs L979-L1012](decision-gate-core/src/runtime/engine.rs#L979-L1012)
+[F:decision-gate-core/src/runtime/engine.rs L730-L755](decision-gate-core/src/runtime/engine.rs#L730-L755) [F:decision-gate-core/src/runtime/engine.rs L983-L1018](decision-gate-core/src/runtime/engine.rs#L983-L1018)
 
 ---
 
@@ -157,7 +157,7 @@ Runpack verification replays anchor policy checks offline:
 - Evidence anchors in gate evaluation logs are validated against the policy.
 
 Errors are collected and reported in the verification report.
-[F:decision-gate-core/src/runtime/runpack.rs L501-L549](decision-gate-core/src/runtime/runpack.rs#L501-L549)[F:decision-gate-core/src/runtime/runpack.rs L552-L593](decision-gate-core/src/runtime/runpack.rs#L552-L593)
+[F:decision-gate-core/src/runtime/runpack.rs L519-L567](decision-gate-core/src/runtime/runpack.rs#L519-L567) [F:decision-gate-core/src/runtime/runpack.rs L579-L612](decision-gate-core/src/runtime/runpack.rs#L579-L612)
 
 ---
 
@@ -169,7 +169,7 @@ Precheck uses **asserted** evidence without contacting providers:
 - Control plane applies trust requirements per condition/gate, which can force
   asserted evidence to `Unknown` depending on configuration.
 
-[F:decision-gate-mcp/src/tools.rs L1625-L1667](decision-gate-mcp/src/tools.rs#L1625-L1667)[F:decision-gate-core/src/runtime/engine.rs L505-L552](decision-gate-core/src/runtime/engine.rs#L505-L552)
+[F:decision-gate-mcp/src/tools.rs L2663-L2707](decision-gate-mcp/src/tools.rs#L2663-L2707) [F:decision-gate-core/src/runtime/engine.rs L511-L618](decision-gate-core/src/runtime/engine.rs#L511-L618)
 
 ---
 

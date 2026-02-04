@@ -17,6 +17,13 @@ for deterministic evidence.
 
 **Compatibility**: Compatible with AssetCore.
 
+**AssetCore overview**: [assetcore.io/asset-core](https://assetcore.io/asset-core).
+
+**Work in progress**: This hub is the focal point for testing external provider
+integrations and remains an open work in progress. See
+[F:Docs/roadmap/README.md L73-L81](../../roadmap/README.md#L73-L81) for the
+current OSS launch plan and status.
+
 ## Table of Contents
 
 - [Positioning](#positioning)
@@ -30,7 +37,8 @@ for deterministic evidence.
 
 - **Decision Gate**: deterministic checkpoint and requirement-evaluation control
   plane.
-- **AssetCore**: proprietary world-state substrate (namespaces, proofs, replay).
+- **AssetCore**: deterministic structured memory substrate for explicit world
+  state (0d - 2d, 3d planned), replayable transactions, and namespace-backed proofs.
 - **Integration**: optional and explicit; no code coupling between repos.
 
 ## Integration Boundaries
@@ -43,44 +51,43 @@ for deterministic evidence.
 ## Data Flow
 
 ```mermaid
-%% alt: {{diagram.assetcore.readme.alt}}
+%% alt: Decision Gate + AssetCore data flow showing namespace checks, evidence queries, and runpack artifacts.
 flowchart TB
-  Client[{{diagram.assetcore.readme.client}}] --> DG[{{diagram.assetcore.readme.dg}}]
-  DG -->|{{diagram.assetcore.readme.namespace_check}}| ASC[{{diagram.assetcore.readme.namespace_authority}}]
-  DG -->|{{diagram.assetcore.readme.evidence_query}}| ASCRead[{{diagram.assetcore.readme.read_daemon}}]
-  DG --> Runpack[{{diagram.assetcore.readme.runpack_artifacts}}]
+  Client[Caller] --> DG[Decision Gate]
+  DG -->|namespace check| ASC[AssetCore namespace authority]
+  DG -->|evidence query| ASCRead[AssetCore read daemon]
+  DG --> Runpack[Runpack artifacts]
   ASCRead --> DG
 ```
-
-- `diagram.assetcore.readme.alt`: Decision Gate + AssetCore data flow showing namespace checks, evidence queries, and runpack artifacts.
-- `diagram.assetcore.readme.client`: Caller
-- `diagram.assetcore.readme.dg`: Decision Gate
-- `diagram.assetcore.readme.namespace_check`: namespace check
-- `diagram.assetcore.readme.namespace_authority`: AssetCore namespace authority
-- `diagram.assetcore.readme.evidence_query`: evidence query
-- `diagram.assetcore.readme.read_daemon`: AssetCore read daemon
-- `diagram.assetcore.readme.runpack_artifacts`: Runpack artifacts
 
 ## When to Use ASC
 
 Use DG with ASC when:
+
 - Evidence must be replayable against a deterministic world-state snapshot.
 - Namespace authority must be enforced by a system of record.
 - Auditable anchors must reference ASC commit or sequence metadata.
 
 Use DG without ASC when:
+
 - Evidence comes from local artifacts or non-ASC services.
 - A lightweight gating layer is sufficient.
 
 ## Starting Points
 
-- Contract: `Docs/architecture/decision_gate_assetcore_integration_contract.md`
-- Architecture diagrams: `Docs/integrations/assetcore/architecture.md`
-- Integration examples: `Docs/integrations/assetcore/examples.md`
+- Contract:
+  [F:Docs/architecture/decision_gate_assetcore_integration_contract.md L13-L155](../../architecture/decision_gate_assetcore_integration_contract.md#L13-L155)
+- Architecture diagrams:
+  [F:Docs/integrations/assetcore/architecture.md L12-L68](architecture.md#L12-L68)
+- Integration examples:
+  [F:Docs/integrations/assetcore/examples.md L10-L20](examples.md#L10-L20)
+- Interop runbook:
+  [F:Docs/guides/assetcore_interop_runbook.md L14-L189](../../guides/assetcore_interop_runbook.md#L14-L189)
 
 ## References
 
-- `Docs/architecture/decision_gate_assetcore_integration_contract.md`
-- `Docs/integrations/assetcore/architecture.md`
-- `Docs/integrations/assetcore/deployment.md`
-- `Docs/integrations/assetcore/examples.md`
+- [F:Docs/architecture/decision_gate_assetcore_integration_contract.md L13-L155](../../architecture/decision_gate_assetcore_integration_contract.md#L13-L155)
+- [F:Docs/integrations/assetcore/architecture.md L12-L68](architecture.md#L12-L68)
+- [F:Docs/integrations/assetcore/deployment.md L12-L31](deployment.md#L12-L31)
+- [F:Docs/integrations/assetcore/examples.md L10-L20](examples.md#L10-L20)
+- [F:Docs/guides/assetcore_interop_runbook.md L14-L189](../../guides/assetcore_interop_runbook.md#L14-L189)

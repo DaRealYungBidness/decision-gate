@@ -21,13 +21,14 @@ discussion is welcome.
 Primary audience: adopters, partners evaluating integrations, and maintainers.
 
 The authoritative correctness gate checklist lives in
-`Docs/roadmap/foundational_correctness_roadmap.md`.
+[F:Docs/roadmap/foundational_correctness_roadmap.md L21-L30](foundational_correctness_roadmap.md#L21-L30).
 
 ## Strategic Direction
 
 Current focus:
 
-1. Adapter usage, ergonomics, correctness (see `adapters/`).
+1. Adapter usage, ergonomics, correctness (see
+   [F:adapters/README.md L1-L12](../../adapters/README.md#L1-L12)).
 2. External provider integration hardening and integration
    maturity (provider contracts, MCP interoperability, and compatibility).
 
@@ -52,12 +53,12 @@ Status indicates active state, not priority.
 
 ## P0) Highest Priority
 
-| Item                                                                             | Why                                                                                         | Notes                                                                           | Status      |
-| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------- |
-| Foundational correctness gates                                                   | Security and determinism require adversarial depth and cross-surface confidence.            | Track detailed checklist in `Docs/roadmap/foundational_correctness_roadmap.md`. | In progress |
-| External provider integration hardening                                          | Provider integrations are experimental; hardening and compatibility reduce regression risk. | Ongoing focus with evolving scope; see Strategic Direction.                     | Ongoing     |
-| Metamorphic determinism coverage for provider order and evidence arrival reorder | Determinism must hold under reordered inputs and concurrency.                               | Focus on provider-order shuffle and evidence-arrival reorder cases.             | In progress |
-| Agentic flow harness parity for deterministic runs                               | Live-mode parity across OS ensures deterministic replay and auditability.                   | See `Docs/roadmap/decision_gate_agentic_flow_harness_plan.md`.                  | In progress |
+| Item                                                                             | Why                                                                                         | Notes                                                                                                                                               | Status      |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| Foundational correctness gates                                                   | Security and determinism require adversarial depth and cross-surface confidence.            | Track detailed checklist in [F:Docs/roadmap/foundational_correctness_roadmap.md L21-L30](foundational_correctness_roadmap.md#L21-L30). | In progress |
+| External provider integration hardening                                          | Provider integrations are experimental; hardening and compatibility reduce regression risk. | Ongoing focus with evolving scope; see Strategic Direction.                                                                                         | Ongoing     |
+| Metamorphic determinism coverage for provider order and evidence arrival reorder | Determinism must hold under reordered inputs and concurrency.                               | Focus on provider-order shuffle and evidence-arrival reorder cases.                                                                                 | In progress |
+| Agentic flow harness parity for deterministic runs                               | Live-mode parity across OS ensures deterministic replay and auditability.                   | See [F:Docs/roadmap/decision_gate_agentic_flow_harness_plan.md L17-L45](decision_gate_agentic_flow_harness_plan.md#L17-L45).           | In progress |
 
 ## P1) High Priority
 

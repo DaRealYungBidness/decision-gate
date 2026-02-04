@@ -7,11 +7,14 @@ Purpose: Reserve space for the flagship narrative example.
 ============================================================================
 -->
 
-# DG + AssetCore Example (Placeholder)
+# DG + AssetCore Example (Planned)
 
-TODO: Select and document a flagship example that demonstrates:
+This document will host the flagship DG + AssetCore example once a public,
+OSS-safe scenario is selected.
+
+Selection criteria:
 - DG requirement evaluation strength in a real system.
 - Why ASC is required as the world-state substrate.
 - How the same pattern generalizes to other domains.
 
-This section is intentionally empty until the lead example is chosen.
+Status tracking: [F:Docs/roadmap/README.md L73-L81](../../roadmap/README.md#L73-L81).

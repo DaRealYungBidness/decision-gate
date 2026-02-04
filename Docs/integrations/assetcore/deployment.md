@@ -21,7 +21,11 @@ Dependencies:
 - **Fail-closed integration**: Namespace and auth checks must fail closed.
 - **Determinism first**: Ensure ASC read responses include anchors for replay.
 
-## TODO (V1 Placeholder)
+## Planned Additions
+
+Validated deployment recipes and hardening guidance are not yet published for
+OSS. Track status in [F:Docs/roadmap/README.md L73-L81](../../roadmap/README.md#L73-L81).
+
 - Provide validated deployment recipes once reference deployments exist.
 - Include security hardening guides (mTLS, audit log shipping, rate limits).
 - Publish production-ready HA/control-plane diagrams.

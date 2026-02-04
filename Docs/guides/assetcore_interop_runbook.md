@@ -13,6 +13,12 @@ Dependencies:
 
 # AssetCore Interop Runbook
 
+## Access Notice (Private Dependency)
+
+This runbook requires **private AssetCore repo access** and the AssetCore
+starter-pack Docker image bundle. These assets are not included in the OSS
+Decision Gate repository.
+
 ## At a Glance
 
 **What:** Validate Decision Gate <-> AssetCore interoperability

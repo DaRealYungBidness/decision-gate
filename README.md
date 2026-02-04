@@ -12,16 +12,28 @@ Dependencies:
 
 # Decision Gate
 
-Decision Gate is a deterministic checkpoint and requirement-evaluation system
-for gated steps and controlled disclosure. It evaluates evidence-backed gates
-(or asserted data in precheck) to decide whether a plan can advance, emits
-auditable decisions, and supports offline verification via runpacks. In that
-operational sense, it is LLM/task evaluation (not benchmark tooling). It is
-backend-agnostic and integrates via explicit interfaces rather than embedding
-into agent frameworks.
+Languages: [English](README.md) | [Català](README.ca.md)
 
-RET stands for **Requirement Evaluation Tree** and refers to the universal
-requirement algebra used by the engine.
+Note: Work is ongoing to translate documentation into other languages. Please see
+[assetcore.io/decision-gate](https://assetcore.io/decision-gate) for currently supported languages.
+
+Decision Gate is a deterministic checkpoint and requirement-evaluation system
+for gated steps and controlled disclosure. It evaluates evidence-backed gates,
+decides whether conditions are met, and emits auditable decisions. In an
+operational sense, it is geared for LLM/task evaluation.
+
+The original motivation came from an experiment with AssetCore: I needed to
+progressively disclose information to LLMs as external conditions changed.
+After grappling with that problem for a few days, I realized the
+[ret-logic crate](ret-logic/README.md) I had already built could model the
+general problem. This repo is the result. If you want the integration details,
+start with [Docs/integrations/assetcore/README.md](Docs/integrations/assetcore/README.md).
+
+My hope is that it will be useful for improving the reliability, security, and
+performance of software (not just LLMs) across many industries. Given the
+mathematical nature of the problem, the core model is stable; near-term work
+focuses on ergonomics and a broader provider ecosystem. For more, see
+[Docs/roadmap/README.md](Docs/roadmap/README.md).
 
 ## Table of Contents
 
@@ -99,7 +111,7 @@ explicit requirements are satisfied.
 - JSON evidence playbook: `Docs/guides/json_evidence_playbook.md`
 - LLM-native playbook: `Docs/guides/llm_native_playbook.md`
 - CI release gate dogfood: `Docs/guides/ci_release_gate_dogfood.md`
-- AssetCore integration hub: `Docs/integrations/assetcore/`
+- AssetCore integration hub: [Docs/integrations/assetcore/](Docs/integrations/assetcore/)
 - Hosted docs mirror + expanded explanations: [assetcore.io/docs/decision-gate](https://assetcore.io/docs/decision-gate)
 - Architecture:
   - `Docs/architecture/comparator_validation_architecture.md`
@@ -123,6 +135,8 @@ for deterministic evidence.
 
 **Compatibility**: Compatible with AssetCore.
 
+**AssetCore overview**: [assetcore.io/asset-core](https://assetcore.io/asset-core).
+
 Decision Gate runs independently. When a workflow requires deterministic
 evidence, replay, and audit-grade world-state proofs, DG integrates with
 AssetCore through explicit interfaces (no code coupling). The canonical
@@ -142,6 +156,7 @@ Implemented in OSS:
 
 Operational limits:
 
+- External providers are under active development and are not yet stable/hardened.
 - External MCP provider retries are not built in.
 - Raw evidence values are redacted by default unless explicitly enabled.
 
@@ -581,7 +596,7 @@ enables offline verification of integrity and tamper detection.
 
 ## How to Support This Project
 
-- Enterprise needs: see `Docs/enterprise/decision_gate_enterprise.md` and [assetcore.io/decision-gate](https://assetcore.io/decision-gate).
+- Enterprise needs: see [Docs/enterprise/decision_gate_enterprise.md](Docs/enterprise/decision_gate_enterprise.md) and [assetcore.io/decision-gate](https://assetcore.io/decision-gate).
 - Individuals: fiction books at [yungbidness.dev/#books](https://yungbidness.dev/#books).
 - AssetCore early evaluation partners: we are looking to work closely with a small number of serious teams to harden deployment edges and usability before broader rollout. See [assetcore.io](https://assetcore.io/).
 
@@ -618,14 +633,9 @@ Decision Gate is built by Michael "Yung Bidness" Campbell.
 
 ## References
 
-Kingdom of Giants, Jt Cavey. (2017). _Tunnel Vision_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=eR_P5c69NtY
-
-The Amity Affliction. (2014). _Pittsburgh_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=vu3xGr-lNVI
-
-Secrets. (2019). _My Mind, Myself & I_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=51xzsGkQIcQ
-
-Kublai Khan TX. (2017). _The Hammer_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=8GGMdMo61_o
-
-Paleface Swiss. (2023). _The Gallow_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=ThvEJXMeYOA
-
-Upon A Burning Body. (2016). _You Don't Own Me_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=5GEzTkYWCFQ
+- Kingdom of Giants, Jt Cavey. (2017). _Tunnel Vision_ [Audio recording]. YouTube. [https://www.youtube.com/watch?v=eR_P5c69NtY](https://www.youtube.com/watch?v=eR_P5c69NtY)
+- The Amity Affliction. (2014). _Pittsburgh_ [Audio recording]. YouTube. [https://www.youtube.com/watch?v=vu3xGr-lNVI](https://www.youtube.com/watch?v=vu3xGr-lNVI)
+- Secrets. (2019). _My Mind, Myself & I_ [Audio recording]. YouTube. [https://www.youtube.com/watch?v=51xzsGkQIcQ](https://www.youtube.com/watch?v=51xzsGkQIcQ)
+- Kublai Khan TX. (2017). _The Hammer_ [Audio recording]. YouTube. [https://www.youtube.com/watch?v=8GGMdMo61_o](https://www.youtube.com/watch?v=8GGMdMo61_o)
+- Paleface Swiss. (2023). _The Gallow_ [Audio recording]. YouTube. [https://www.youtube.com/watch?v=ThvEJXMeYOA](https://www.youtube.com/watch?v=ThvEJXMeYOA)
+- Upon A Burning Body. (2016). _You Don't Own Me_ [Audio recording]. YouTube. [https://www.youtube.com/watch?v=5GEzTkYWCFQ](https://www.youtube.com/watch?v=5GEzTkYWCFQ)

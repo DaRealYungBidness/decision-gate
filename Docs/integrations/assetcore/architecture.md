@@ -13,46 +13,46 @@ Dependencies:
 
 ## High-Level Topology
 ```mermaid
-%% alt: {{diagram.assetcore.arch.topology.alt}}
+%% alt: High-level topology linking Decision Gate, AssetCore read services, and runpack artifacts.
 flowchart TB
-  Client[{{diagram.assetcore.arch.topology.client}}] -->|{{diagram.assetcore.arch.topology.mcp_tools}}| DG[{{diagram.assetcore.arch.topology.dg_mcp}}]
-  DG -->|{{diagram.assetcore.arch.topology.scenario_tools}}| Core[{{diagram.assetcore.arch.topology.dg_core}}]
-  DG -->|{{diagram.assetcore.arch.topology.evidence_query}}| ASCRead[{{diagram.assetcore.arch.topology.asc_read}}]
-  Core --> Runpack[{{diagram.assetcore.arch.topology.runpack_builder}}]
-  Runpack --> Artifacts[{{diagram.assetcore.arch.topology.runpack_artifacts}}]
+  Client[Client] -->|MCP tools| DG[Decision Gate MCP]
+  DG -->|scenario_*| Core[Decision Gate Core]
+  DG -->|evidence_query| ASCRead[AssetCore Read Daemon]
+  Core --> Runpack[Runpack Builder]
+  Runpack --> Artifacts[Deterministic Runpack + Manifest]
 
-  ASCRead -->|{{diagram.assetcore.arch.topology.anchors}}| Core
-  ASCRead -->|{{diagram.assetcore.arch.topology.world_state}}| Core
+  ASCRead -->|anchors| Core
+  ASCRead -->|world-state proofs| Core
 ```
 
 ## Namespace Authority Flow
 ```mermaid
-%% alt: {{diagram.assetcore.arch.namespace.alt}}
+%% alt: Namespace authority validation between clients, Decision Gate, and AssetCore.
 sequenceDiagram
-  participant Client as {{diagram.assetcore.arch.namespace.client}}
-  participant DG as {{diagram.assetcore.arch.namespace.dg}}
-  participant ASC as {{diagram.assetcore.arch.namespace.asc}}
+  participant Client as Client
+  participant DG as Decision Gate MCP
+  participant ASC as AssetCore Namespace Authority
 
-  Client->>DG: {{diagram.assetcore.arch.namespace.scenario_call}}
-  DG->>ASC: {{diagram.assetcore.arch.namespace.validate}}
-  ASC-->>DG: {{diagram.assetcore.arch.namespace.allow_deny}}
-  DG-->>Client: {{diagram.assetcore.arch.namespace.fail_closed}}
+  Client->>DG: scenario_define / scenario_start (namespace_id)
+  DG->>ASC: validate namespace_id
+  ASC-->>DG: allow/deny
+  DG-->>Client: fail-closed if denied
 ```
 
 ## Evidence Anchoring Flow
 ```mermaid
-%% alt: {{diagram.assetcore.arch.evidence.alt}}
+%% alt: Evidence anchoring flow from AssetCore read to Decision Gate runpack recording.
 sequenceDiagram
-  participant DG as {{diagram.assetcore.arch.evidence.dg}}
-  participant Core as {{diagram.assetcore.arch.evidence.core}}
-  participant ASC as {{diagram.assetcore.arch.evidence.asc}}
-  participant Runpack as {{diagram.assetcore.arch.evidence.runpack}}
+  participant DG as Decision Gate MCP
+  participant Core as Decision Gate Core
+  participant ASC as AssetCore Read Daemon
+  participant Runpack as Runpack Builder
 
-  DG->>Core: {{diagram.assetcore.arch.evidence.evidence_query}}
-  Core->>ASC: {{diagram.assetcore.arch.evidence.check_query}}
-  ASC-->>Core: {{diagram.assetcore.arch.evidence.evidence_result}}
-  Core->>Runpack: {{diagram.assetcore.arch.evidence.record_evidence}}
-  Runpack-->>DG: {{diagram.assetcore.arch.evidence.manifest}}
+  DG->>Core: evidence_query (provider_id=assetcore_read)
+  Core->>ASC: check query + params
+  ASC-->>Core: EvidenceResult + anchors
+  Core->>Runpack: record evidence + anchors
+  Runpack-->>DG: manifest + integrity root hash
 ```
 
 ## Auth Mapping (Integration Layer)
@@ -65,37 +65,5 @@ Schema registry access is enforced inside DG after tool allowlists. Integration
 layer RBAC determines which tools are callable; DG's registry ACL determines
 per-tenant/namespace read/write permission for `schemas_*`.
 
-Reference: `Docs/architecture/decision_gate_assetcore_integration_contract.md`
-
-- `diagram.assetcore.arch.topology.alt`: High-level topology linking Decision Gate, AssetCore read services, and runpack artifacts.
-- `diagram.assetcore.arch.topology.client`: Agent / Client
-- `diagram.assetcore.arch.topology.mcp_tools`: MCP tools
-- `diagram.assetcore.arch.topology.dg_mcp`: Decision Gate MCP
-- `diagram.assetcore.arch.topology.scenario_tools`: `scenario_*`
-- `diagram.assetcore.arch.topology.dg_core`: Decision Gate Core
-- `diagram.assetcore.arch.topology.evidence_query`: `evidence_query`
-- `diagram.assetcore.arch.topology.asc_read`: AssetCore Read Daemon
-- `diagram.assetcore.arch.topology.runpack_builder`: Runpack Builder
-- `diagram.assetcore.arch.topology.runpack_artifacts`: Deterministic Runpack + Manifest
-- `diagram.assetcore.arch.topology.anchors`: anchors
-- `diagram.assetcore.arch.topology.world_state`: world-state proofs
-
-- `diagram.assetcore.arch.namespace.alt`: Namespace authority validation between clients, Decision Gate, and AssetCore.
-- `diagram.assetcore.arch.namespace.client`: Client
-- `diagram.assetcore.arch.namespace.dg`: Decision Gate MCP
-- `diagram.assetcore.arch.namespace.asc`: AssetCore Namespace Authority
-- `diagram.assetcore.arch.namespace.scenario_call`: `scenario_define / scenario_start (namespace_id)`
-- `diagram.assetcore.arch.namespace.validate`: validate namespace_id
-- `diagram.assetcore.arch.namespace.allow_deny`: allow/deny
-- `diagram.assetcore.arch.namespace.fail_closed`: fail-closed if denied
-
-- `diagram.assetcore.arch.evidence.alt`: Evidence anchoring flow from AssetCore read to Decision Gate runpack recording.
-- `diagram.assetcore.arch.evidence.dg`: Decision Gate MCP
-- `diagram.assetcore.arch.evidence.core`: Decision Gate Core
-- `diagram.assetcore.arch.evidence.asc`: AssetCore Read Daemon
-- `diagram.assetcore.arch.evidence.runpack`: Runpack Builder
-- `diagram.assetcore.arch.evidence.evidence_query`: `evidence_query (provider_id=assetcore_read)`
-- `diagram.assetcore.arch.evidence.check_query`: check query + params
-- `diagram.assetcore.arch.evidence.evidence_result`: EvidenceResult + anchors
-- `diagram.assetcore.arch.evidence.record_evidence`: record evidence + anchors
-- `diagram.assetcore.arch.evidence.manifest`: manifest + integrity root hash
+Reference:
+[F:Docs/architecture/decision_gate_assetcore_integration_contract.md L13-L155](../../architecture/decision_gate_assetcore_integration_contract.md#L13-L155)
