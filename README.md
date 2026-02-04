@@ -159,6 +159,7 @@ Operational limits:
 - External providers are under active development and are not yet stable/hardened.
 - External MCP provider retries are not built in.
 - Raw evidence values are redacted by default unless explicitly enabled.
+- Ergonomics and developer pain points are actively being refined; expect rough edges.
 
 ## Architecture at a Glance
 

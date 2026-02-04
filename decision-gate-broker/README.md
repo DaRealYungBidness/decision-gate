@@ -176,6 +176,8 @@ cargo test -p decision-gate-broker
 
 ## References
 
+Secrets. (2020). _Iron Hearted_ [Audio recording]. Youtube. https://www.youtube.com/watch?v=b4qcYCZ1iy8
+
 Paleface Swiss, & Stick To Your Guns. (2025). _Instrument of War_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=5FTa4GJP5mc
 
 Stick To Your Guns. (2017). _Married to the Noise_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=OQqZVRn1mWM

@@ -161,6 +161,7 @@ Límits operatius:
 - Els proveïdors externs estan en desenvolupament actiu i encara no són estables/endurits.
 - No hi ha reintents integrats per a proveïdors MCP externs.
 - Els valors d'evidència bruts es redaccionen per defecte si no s'activen explícitament.
+- L'ergonomia i els punts de fricció s'estan polint activament; espereu arestes.
 
 ## Arquitectura d'un cop d'ull
 

@@ -67,6 +67,9 @@ lives inside the Decision Gate repository for convenience while the OSS stack
 stabilizes. Treat it as its own crate: it has its own `Cargo.lock`, does not
 require Decision Gate dependencies, and can be used independently.
 
+Status: **pre-1.0**. The API may change while Decision Gate dogfoods this crate,
+and no backward-compatibility guarantees are made until a standalone release.
+
 ## Architecture
 
 ```mermaid

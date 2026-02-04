@@ -60,6 +60,7 @@ Test entry points live in `system-tests/tests/`. Implementations live in
 `system-tests/tests/suites/`.
 
 Entry points:
+
 - `smoke`
 - `functional`
 - `providers`

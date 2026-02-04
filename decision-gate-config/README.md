@@ -95,6 +95,10 @@ cargo run -p decision-gate-contract -- check
 
 ## References
 
-Motionless in White. (2026). _Afraid of the Dark_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=jolaO2Z6xCM
-
 Motionless in White. (2017). _570_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=7Na3sECLYI8
+
+Upon A Burning Body. (2014) _Red Razor Wrists_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=EoIY89CaXWk
+
+Upon A Burning Body. (2014) _Scars_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=LVfL3FLgL10
+
+Motionless in White. (2026). _Afraid of the Dark_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=jolaO2Z6xCM
