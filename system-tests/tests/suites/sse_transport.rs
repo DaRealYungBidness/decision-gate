@@ -28,6 +28,7 @@ use helpers::harness::base_sse_config_with_bearer;
 use helpers::harness::spawn_mcp_server;
 use helpers::readiness::wait_for_ready;
 use helpers::scenarios::ScenarioFixture;
+use helpers::timeouts;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
@@ -480,7 +481,7 @@ async fn send_sse_request(
     correlation_id: Option<String>,
 ) -> Result<(JsonRpcResponse, reqwest::header::HeaderMap), String> {
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(5))
+        .timeout(timeouts::resolve_timeout(Duration::from_secs(5)))
         .build()
         .map_err(|err| format!("failed to build http client: {err}"))?;
     let mut builder = client.post(base_url).json(request);

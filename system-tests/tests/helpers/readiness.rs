@@ -14,6 +14,7 @@ use tokio::time::sleep;
 
 use super::mcp_client::McpHttpClient;
 use super::stdio_client::StdioMcpClient;
+use super::timeouts;
 
 /// Polls a readiness probe until it succeeds or timeout expires.
 pub async fn wait_for_ready<F, Fut>(
@@ -48,6 +49,7 @@ pub async fn wait_for_server_ready(
     client: &McpHttpClient,
     timeout: Duration,
 ) -> Result<(), String> {
+    let timeout = timeouts::resolve_timeout(timeout);
     wait_for_ready(|| async { client.list_tools().await.map(|_| ()) }, timeout, "server").await
 }
 
@@ -56,6 +58,7 @@ pub async fn wait_for_stdio_ready(
     client: &StdioMcpClient,
     timeout: Duration,
 ) -> Result<(), String> {
+    let timeout = timeouts::resolve_timeout(timeout);
     wait_for_ready(|| async { client.list_tools().await.map(|_| ()) }, timeout, "stdio server")
         .await
 }

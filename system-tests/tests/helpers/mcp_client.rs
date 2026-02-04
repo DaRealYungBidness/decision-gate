@@ -20,6 +20,7 @@ use serde_json::Value;
 
 use super::docs::ResourceContent;
 use super::docs::ResourceMetadata;
+use super::timeouts;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct TranscriptEntry {
@@ -91,6 +92,7 @@ pub struct McpHttpClient {
 impl McpHttpClient {
     /// Creates a new MCP HTTP client with a timeout.
     pub fn new(base_url: String, timeout: Duration) -> Result<Self, String> {
+        let timeout = timeouts::resolve_timeout(timeout);
         let client = Client::builder()
             .timeout(timeout)
             .build()
@@ -106,6 +108,7 @@ impl McpHttpClient {
         identity_pem: Option<&[u8]>,
     ) -> Result<Self, String> {
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+        let timeout = timeouts::resolve_timeout(timeout);
         let mut builder = Client::builder().timeout(timeout);
         let cert =
             Certificate::from_pem(ca_pem).map_err(|err| format!("invalid ca cert: {err}"))?;

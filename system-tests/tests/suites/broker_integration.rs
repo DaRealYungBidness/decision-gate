@@ -43,6 +43,7 @@ use tempfile::TempDir;
 use url::Url;
 
 use crate::helpers::artifacts::TestReporter;
+use crate::helpers::timeouts;
 
 fn sample_envelope(
     packet_id: &str,
@@ -190,10 +191,11 @@ async fn broker_composite_sources_and_sinks() -> Result<(), Box<dyn std::error::
 
     let mut received = Vec::new();
     for _ in 0 .. 3 {
-        let message = tokio::time::timeout(Duration::from_secs(5), rx.recv())
-            .await
-            .map_err(|_| "timed out waiting for broker dispatch")?
-            .ok_or("broker dispatch channel closed")?;
+        let message =
+            tokio::time::timeout(timeouts::resolve_timeout(Duration::from_secs(5)), rx.recv())
+                .await
+                .map_err(|_| "timed out waiting for broker dispatch")?
+                .ok_or("broker dispatch channel closed")?;
         received.push(message);
     }
 

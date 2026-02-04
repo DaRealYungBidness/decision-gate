@@ -157,6 +157,11 @@ failure output at the end of the run for easier triage.
 Tests should be registered and coverage docs regenerated when changes occur.
 [F:system-tests/README.md L45-L118](system-tests/README.md#L45-L118)
 
+System-test timeouts are centralized in the helpers layer. When
+`DECISION_GATE_SYSTEM_TEST_TIMEOUT_SEC` is set, MCP HTTP client and readiness
+timeouts honor the override as a minimum to reduce platform-specific flakiness
+while preserving longer, test-specific limits.
+
 ---
 
 ## File-by-File Cross Reference

@@ -77,7 +77,7 @@ System-tests write artifacts beneath the run root:
 - `DECISION_GATE_SYSTEM_TEST_RUN_ROOT`: Run root for artifacts (set by runner).
 - `DECISION_GATE_SYSTEM_TEST_HTTP_BIND`: Optional bind override for MCP server.
 - `DECISION_GATE_SYSTEM_TEST_PROVIDER_URL`: Optional external provider URL.
-- `DECISION_GATE_SYSTEM_TEST_TIMEOUT_SEC`: Optional timeout override.
+- `DECISION_GATE_SYSTEM_TEST_TIMEOUT_SEC`: Minimum timeout override (seconds) for HTTP client and readiness probes.
 - `DECISION_GATE_SYSTEM_TEST_ALLOW_OVERWRITE`: Allow reuse of existing run roots.
 - `DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT`: Optional fixed port for HTTP stub tests.
 - `DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_BASE`: Base port for deterministic HTTP stub allocation.

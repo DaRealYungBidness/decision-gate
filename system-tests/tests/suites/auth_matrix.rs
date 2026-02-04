@@ -53,6 +53,7 @@ use helpers::harness::base_http_config;
 use helpers::harness::spawn_mcp_server;
 use helpers::readiness::wait_for_ready;
 use helpers::scenarios::ScenarioFixture;
+use helpers::timeouts;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
@@ -751,7 +752,9 @@ impl ProxyClient {
     ) -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
             base_url: base_url.to_string(),
-            client: reqwest::Client::builder().timeout(Duration::from_secs(5)).build()?,
+            client: reqwest::Client::builder()
+                .timeout(timeouts::resolve_timeout(Duration::from_secs(5)))
+                .build()?,
             roles_header: roles_to_header(roles),
             policy_header: policy_class_to_header(policy_class),
             transcript: Vec::new(),

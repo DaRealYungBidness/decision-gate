@@ -33,6 +33,7 @@ use helpers::mcp_client::TranscriptEntry;
 use helpers::readiness::wait_for_ready;
 use helpers::readiness::wait_for_server_ready;
 use helpers::scenarios::ScenarioFixture;
+use helpers::timeouts;
 use serde::Deserialize;
 use serde_json::Value;
 use serde_json::json;
@@ -350,7 +351,7 @@ async fn send_sse_request(
     token: Option<String>,
 ) -> Result<JsonRpcResponse, String> {
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(5))
+        .timeout(timeouts::resolve_timeout(Duration::from_secs(5)))
         .build()
         .map_err(|err| format!("failed to build http client: {err}"))?;
     let mut builder = client.post(base_url).json(request);

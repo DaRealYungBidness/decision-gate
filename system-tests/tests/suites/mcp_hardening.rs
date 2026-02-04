@@ -24,6 +24,7 @@ use helpers::mcp_client::McpHttpClient;
 use helpers::mcp_client::TranscriptEntry;
 use helpers::readiness::wait_for_ready;
 use helpers::readiness::wait_for_server_ready;
+use helpers::timeouts;
 use serde_json::Value;
 
 use crate::helpers;
@@ -357,7 +358,7 @@ async fn send_raw_json_request(
     accept_sse: bool,
 ) -> Result<(reqwest::StatusCode, String), String> {
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(5))
+        .timeout(timeouts::resolve_timeout(Duration::from_secs(5)))
         .build()
         .map_err(|err| format!("failed to build http client: {err}"))?;
     let mut builder = client

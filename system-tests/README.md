@@ -98,7 +98,7 @@ without explicit opt-in fails closed to avoid silently overwriting diagnostics.
 - `DECISION_GATE_SYSTEM_TEST_RUN_ROOT`: per-test artifact root.
 - `DECISION_GATE_SYSTEM_TEST_HTTP_BIND`: MCP HTTP bind override.
 - `DECISION_GATE_SYSTEM_TEST_PROVIDER_URL`: external MCP provider URL.
-- `DECISION_GATE_SYSTEM_TEST_TIMEOUT_SEC`: timeout override.
+- `DECISION_GATE_SYSTEM_TEST_TIMEOUT_SEC`: minimum timeout (seconds) for HTTP client and readiness probes.
 - `DECISION_GATE_SYSTEM_TEST_ALLOW_OVERWRITE`: allow reuse of an existing run root.
 - `DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT`: force HTTP stub port for deterministic fixtures.
 - `DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_BASE`: base port for deterministic HTTP stub allocation.
