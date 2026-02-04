@@ -6,9 +6,15 @@
 // Dependencies: system-tests helpers
 // ============================================================================
 
-//! Stress tests for Decision Gate system-tests.
-// TODO: Add fuzz/property tests for schema validation and cursor parsing.
-// TODO: Add long-running soak/perf regression tests once infra is ready.
+//! ## Overview
+//! Concurrency and burst-load checks for MCP tooling.
+//! Purpose: Validate resilience under concurrent registry/list/precheck load.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+
+// Planned soak/perf coverage is tracked in system-tests/test_gaps.toml (id: stress-soak-perf).
 
 use std::collections::HashSet;
 

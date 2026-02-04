@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers
 // ============================================================================
 
-//! Security posture tests for Decision Gate system-tests.
+//! ## Overview
+//! Evidence redaction and disclosure metadata validation.
+//! Purpose: Confirm security posture defaults and visibility propagation.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::num::NonZeroU64;
 

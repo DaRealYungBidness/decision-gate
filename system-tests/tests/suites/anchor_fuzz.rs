@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers, decision-gate-core, decision-gate-mcp
 // ============================================================================
 
-//! Anchor fuzz tests for Decision Gate system-tests.
+//! ## Overview
+//! Malformed anchor and injection coverage for AssetCore anchors.
+//! Purpose: Ensure malformed anchors fail closed with explicit error codes.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::fs;
 use std::num::NonZeroU64;

@@ -6,6 +6,14 @@
 // Dependencies: system-tests helpers, decision-gate-core, tokio
 // ============================================================================
 
+//! ## Overview
+//! Executes repository examples against a live MCP server.
+//! Purpose: Ensure examples are runnable, deterministic, and auditable.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+
 #![allow(
     clippy::missing_docs_in_private_items,
     reason = "Test suite helpers keep documentation concise."

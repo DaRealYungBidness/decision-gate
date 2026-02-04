@@ -6,7 +6,13 @@
 // Dependencies: std::process, std::path
 // ============================================================================
 
-//! Helpers for invoking the decision-gate CLI in system-tests.
+//! ## Overview
+//! Shared helpers for locating and invoking the decision-gate CLI.
+//! Purpose: Provide consistent CLI binary resolution across system-test suites.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::path::Path;
 use std::path::PathBuf;

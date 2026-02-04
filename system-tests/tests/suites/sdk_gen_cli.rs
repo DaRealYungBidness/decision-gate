@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers
 // ============================================================================
 
-//! SDK generator CLI coverage for system-tests.
+//! ## Overview
+//! End-to-end decision-gate-sdk-gen CLI coverage.
+//! Purpose: Ensure generate/check workflows succeed and fail closed on drift/invalid input.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::fs;
 use std::path::Path;

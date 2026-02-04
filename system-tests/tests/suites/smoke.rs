@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers, decision-gate-mcp
 // ============================================================================
 
-//! Smoke tests for the Decision Gate MCP HTTP surface.
+//! ## Overview
+//! Fast end-to-end sanity checks for MCP tooling.
+//! Purpose: Validate basic scenario lifecycle over HTTP.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use decision_gate_core::DataShapeId;
 use decision_gate_core::DataShapeRecord;

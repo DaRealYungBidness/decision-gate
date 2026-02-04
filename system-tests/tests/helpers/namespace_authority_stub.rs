@@ -6,6 +6,14 @@
 // Dependencies: axum
 // ============================================================================
 
+//! ## Overview
+//! Stub Asset Core namespace authority for system-tests.
+//! Purpose: Validate namespace authority behavior with deterministic responses.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+
 use std::collections::BTreeSet;
 use std::net::TcpListener as StdTcpListener;
 use std::sync::Arc;

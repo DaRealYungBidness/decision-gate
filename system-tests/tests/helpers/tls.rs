@@ -6,6 +6,14 @@
 // Dependencies: rcgen, tempfile
 // ============================================================================
 
+//! ## Overview
+//! Generate ephemeral TLS assets for system-tests.
+//! Purpose: Avoid committing private keys while enabling TLS/mTLS coverage.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+
 use std::fs;
 use std::path::PathBuf;
 

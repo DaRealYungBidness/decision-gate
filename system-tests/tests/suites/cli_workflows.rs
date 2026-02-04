@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers, decision-gate-core
 // ============================================================================
 
-//! CLI workflow coverage for Decision Gate system-tests.
+//! ## Overview
+//! End-to-end Decision Gate CLI command coverage.
+//! Purpose: Validate serve, runpack, authoring, config, provider, and interop flows.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::fs;
 use std::path::Path;

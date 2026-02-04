@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers
 // ============================================================================
 
-//! Registry ACL system tests.
+//! ## Overview
+//! End-to-end registry ACL and signing enforcement coverage.
+//! Purpose: Validate builtin ACL matrix, principal mapping, and signing rules.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::num::NonZeroU64;
 use std::time::Duration;

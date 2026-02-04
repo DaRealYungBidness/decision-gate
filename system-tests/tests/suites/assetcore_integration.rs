@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers, decision-gate-core, decision-gate-mcp
 // ============================================================================
 
-//! `AssetCore` alignment tests for Decision Gate system-tests.
+//! ## Overview
+//! System-tests for DG + ASC alignment boundaries.
+//! Purpose: Validate anchor enforcement, namespace authority, and correlation IDs.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::num::NonZeroU64;
 use std::sync::LazyLock;

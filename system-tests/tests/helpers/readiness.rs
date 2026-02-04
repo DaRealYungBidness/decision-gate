@@ -6,6 +6,14 @@
 // Dependencies: tokio
 // ============================================================================
 
+//! ## Overview
+//! Readiness probes for MCP servers.
+//! Purpose: Ensure servers are ready without arbitrary sleeps.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+
 use std::future::Future;
 use std::time::Duration;
 use std::time::Instant;

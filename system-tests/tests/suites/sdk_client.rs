@@ -6,6 +6,14 @@
 // Dependencies: system-tests helpers, decision-gate-core, tokio
 // ============================================================================
 
+//! ## Overview
+//! End-to-end SDK validation for Python and TypeScript clients.
+//! Purpose: Ensure SDK transports can execute core scenario lifecycle calls.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+
 #![allow(
     clippy::missing_docs_in_private_items,
     reason = "Test suite helpers keep documentation concise."

@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers, decision-gate-mcp
 // ============================================================================
 
-//! SSE transport end-to-end coverage for Decision Gate system-tests.
+//! ## Overview
+//! End-to-end SSE transport validation for MCP tools.
+//! Purpose: Ensure tools/list and tools/call succeed over SSE with correlation headers.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::time::Duration;
 

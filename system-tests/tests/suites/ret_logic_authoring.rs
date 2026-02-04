@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers, decision-gate-cli
 // ============================================================================
 
-//! RET logic authoring coverage for Decision Gate system-tests.
+//! ## Overview
+//! End-to-end authoring normalization and execution coverage.
+//! Purpose: Ensure RON authoring inputs execute through Decision Gate flows.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::collections::HashMap;
 use std::fs;

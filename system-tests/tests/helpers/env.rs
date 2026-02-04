@@ -3,7 +3,16 @@
 // Module: Test Environment Helpers
 // Description: Safe wrappers for test-only environment mutation.
 // Purpose: Centralize env var changes with explicit safety notes.
+// Dependencies: std
 // ============================================================================
+
+//! ## Overview
+//! Safe wrappers for test-only environment mutation.
+//! Purpose: Centralize env var changes with explicit safety notes.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 #![allow(unsafe_code, reason = "Test harness mutates process env for configuration.")]
 

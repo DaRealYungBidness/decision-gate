@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers, decision-gate-mcp
 // ============================================================================
 
-//! Docs search system tests.
+//! ## Overview
+//! End-to-end validation for the docs search tool.
+//! Purpose: Ensure deterministic docs search behavior over HTTP MCP.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::time::Duration;
 

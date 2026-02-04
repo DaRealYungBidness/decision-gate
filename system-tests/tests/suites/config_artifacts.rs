@@ -6,6 +6,14 @@
 // Dependencies: decision-gate-config, serde_jcs
 // =============================================================================
 
+//! ## Overview
+//! Validate generated config docs/schema/examples match outputs.
+//! Purpose: Prevent drift between canonical config and committed artifacts.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;

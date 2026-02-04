@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers
 // ============================================================================
 
-//! Registry + security audit system tests.
+//! ## Overview
+//! Validate registry and security audit events end-to-end.
+//! Purpose: Ensure audit logs capture registry ACL decisions and security posture.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::fs;
 use std::num::NonZeroU64;

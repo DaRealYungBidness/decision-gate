@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers
 // ============================================================================
 
-//! Configuration validation system tests.
+//! ## Overview
+//! Validate invalid config combinations fail closed.
+//! Purpose: Ensure unsafe configurations are rejected before startup.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use decision_gate_mcp::config::AssetCoreNamespaceAuthorityConfig;
 use decision_gate_mcp::config::NamespaceAuthorityMode;

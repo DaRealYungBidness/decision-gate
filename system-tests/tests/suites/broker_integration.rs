@@ -6,7 +6,13 @@
 // Dependencies: decision-gate-broker, system-tests helpers
 // ============================================================================
 
-//! Composite broker integration coverage for system-tests.
+//! ## Overview
+//! End-to-end CompositeBroker wiring coverage.
+//! Purpose: Validate file/http/inline sources and sink dispatch behavior.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::collections::BTreeMap;
 use std::time::Duration;

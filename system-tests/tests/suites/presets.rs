@@ -6,6 +6,14 @@
 // Dependencies: system-tests helpers, decision-gate-mcp
 // ============================================================================
 
+//! ## Overview
+//! Validate bundled preset configs behave as documented.
+//! Purpose: Ensure onboarding presets are runnable and enforce expected posture.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+
 use std::num::NonZeroU64;
 use std::path::Path;
 use std::path::PathBuf;

@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers, decision-gate-core, decision-gate-mcp
 // ============================================================================
 
-//! Metamorphic determinism tests for Decision Gate system-tests.
+//! ## Overview
+//! Concurrency and ordering-insensitive determinism coverage.
+//! Purpose: Ensure deterministic outcomes/runpacks under concurrent runs.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::path::Path;
 use std::time::Duration;

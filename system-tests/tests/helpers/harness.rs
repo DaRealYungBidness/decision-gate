@@ -6,6 +6,14 @@
 // Dependencies: decision-gate-mcp, tokio
 // ============================================================================
 
+//! ## Overview
+//! Helpers for spawning MCP servers in system-tests.
+//! Purpose: Provide deterministic server startup and teardown for tests.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::net::TcpListener;

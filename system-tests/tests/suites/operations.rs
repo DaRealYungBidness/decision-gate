@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers
 // ============================================================================
 
-//! Operational posture tests for Decision Gate system-tests.
+//! ## Overview
+//! Operational posture and warning behavior validation.
+//! Purpose: Ensure insecure or dev-only modes emit explicit warnings.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::num::NonZeroU64;
 use std::path::PathBuf;

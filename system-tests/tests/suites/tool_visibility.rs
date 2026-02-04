@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers, decision-gate-mcp
 // ============================================================================
 
-//! Tool visibility system tests.
+//! ## Overview
+//! System tests for tool visibility allowlist/denylist behavior.
+//! Purpose: Ensure tools/list and tools/call obey visibility rules and auth separation.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::time::Duration;
 

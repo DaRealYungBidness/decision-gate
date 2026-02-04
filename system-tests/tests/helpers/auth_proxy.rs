@@ -6,6 +6,14 @@
 // Dependencies: axum, decision-gate-contract, reqwest, serde
 // ============================================================================
 
+//! ## Overview
+//! Stub integration-layer auth mapper for ASC role testing.
+//! Purpose: Enforce role-to-tool mapping before forwarding to DG MCP server.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+
 use std::collections::BTreeSet;
 use std::net::TcpListener as StdTcpListener;
 use std::sync::Arc;

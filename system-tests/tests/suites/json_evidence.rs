@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers
 // ============================================================================
 
-//! JSON evidence playbook system tests.
+//! ## Overview
+//! Validate JSON evidence playbook and LLM-native precheck flows.
+//! Purpose: Ensure playbook examples are executable end-to-end.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::fs;
 use std::num::NonZeroU64;

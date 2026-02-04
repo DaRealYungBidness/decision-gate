@@ -6,7 +6,13 @@
 // Dependencies: decision-gate-contract, jsonschema
 // ============================================================================
 
-//! Contract schema conformance tests for Decision Gate.
+//! ## Overview
+//! Schema conformance validation for MCP tools.
+//! Purpose: Ensure runtime tool payloads match the canonical contract schemas.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::collections::BTreeMap;
 use std::error::Error;

@@ -6,6 +6,14 @@
 // Dependencies: decision-gate-core, ret-logic
 // ============================================================================
 
+//! ## Overview
+//! ScenarioSpec fixtures for system-tests.
+//! Purpose: Provide deterministic, reusable scenario definitions.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+
 use std::num::NonZeroU64;
 
 use decision_gate_core::AdvanceTo;

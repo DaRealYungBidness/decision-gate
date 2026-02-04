@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers
 // ============================================================================
 
-//! MCP auth system tests.
+//! ## Overview
+//! System tests for MCP tool call authentication and authorization.
+//! Purpose: Validate bearer auth and tool allowlist enforcement end-to-end.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::time::Duration;
 

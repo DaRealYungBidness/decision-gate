@@ -6,6 +6,14 @@
 // Dependencies: serde
 // ============================================================================
 
+//! ## Overview
+//! Local structs for parsing docs search and resource payloads.
+//! Purpose: Decode MCP docs responses without relying on internal types.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]

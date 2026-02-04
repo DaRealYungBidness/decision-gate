@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers, decision-gate-mcp
 // ============================================================================
 
-//! `SQLite` registry + runpack persistence tests for Decision Gate system-tests.
+//! ## Overview
+//! End-to-end persistence checks for sqlite registry and run state.
+//! Purpose: Ensure registry entries and run state survive restarts and runpack export works.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use decision_gate_core::DataShapeId;
 use decision_gate_core::DataShapeRecord;

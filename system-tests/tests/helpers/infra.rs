@@ -6,6 +6,14 @@
 // Dependencies: testcontainers, aws-sdk-s3
 // ============================================================================
 
+//! ## Overview
+//! S3 fixtures for object-store system-tests.
+//! Purpose: Provide isolated object storage for runpack export verification.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+
 use std::env;
 
 use aws_config::BehaviorVersion;

@@ -30,9 +30,9 @@ pub enum SystemTestEnv {
     HttpBind,
     /// Optional override for external MCP provider URL.
     ProviderUrl,
-    /// Optional timeout override (seconds).
+    /// Optional timeout override in seconds (positive integer).
     TimeoutSeconds,
-    /// Allow reusing an existing run root.
+    /// Allow reusing an existing run root (`true`/`false` or `1`/`0`).
     AllowOverwrite,
 }
 
@@ -63,9 +63,9 @@ pub struct SystemTestConfig {
     pub http_bind: Option<String>,
     /// Optional external provider URL override.
     pub provider_url: Option<String>,
-    /// Optional timeout override.
+    /// Optional timeout override in seconds (positive integer).
     pub timeout: Option<Duration>,
-    /// Allow reusing an existing run root.
+    /// Allow reusing an existing run root (`true`/`false` or `1`/`0`).
     pub allow_overwrite: bool,
 }
 
@@ -74,16 +74,19 @@ impl SystemTestConfig {
     ///
     /// # Errors
     ///
-    /// Returns an error when an environment value is not valid UTF-8.
+    /// Returns an error when an environment value is not valid UTF-8, is empty,
+    /// or fails validation (for example, an invalid timeout or boolean value).
     pub fn load() -> Result<Self, String> {
-        let run_root = read_env_strict(SystemTestEnv::RunRoot.as_str())?.map(PathBuf::from);
-        let http_bind = read_env_strict(SystemTestEnv::HttpBind.as_str())?;
-        let provider_url = read_env_strict(SystemTestEnv::ProviderUrl.as_str())?;
-        let timeout = read_env_strict(SystemTestEnv::TimeoutSeconds.as_str())?
-            .and_then(|value| value.parse::<u64>().ok())
-            .map(Duration::from_secs);
-        let allow_overwrite = read_env_strict(SystemTestEnv::AllowOverwrite.as_str())?
-            .is_some_and(|value| value == "1" || value.eq_ignore_ascii_case("true"));
+        let run_root = read_env_nonempty(SystemTestEnv::RunRoot.as_str())?.map(PathBuf::from);
+        let http_bind = read_env_nonempty(SystemTestEnv::HttpBind.as_str())?;
+        let provider_url = read_env_nonempty(SystemTestEnv::ProviderUrl.as_str())?;
+        let timeout = read_env_nonempty(SystemTestEnv::TimeoutSeconds.as_str())?
+            .map(|value| parse_timeout_seconds(SystemTestEnv::TimeoutSeconds.as_str(), &value))
+            .transpose()?;
+        let allow_overwrite = parse_bool_env(
+            SystemTestEnv::AllowOverwrite.as_str(),
+            read_env_nonempty(SystemTestEnv::AllowOverwrite.as_str())?,
+        )?;
         Ok(Self {
             run_root,
             http_bind,
@@ -107,4 +110,41 @@ pub fn read_env_strict(name: &str) -> Result<Option<String>, String> {
     std::env::var_os(name).map_or(Ok(None), |raw| {
         raw.into_string().map(Some).map_err(|_| format!("{name} must be valid UTF-8"))
     })
+}
+
+fn read_env_nonempty(name: &str) -> Result<Option<String>, String> {
+    match read_env_strict(name)? {
+        Some(value) if value.trim().is_empty() => Err(format!("{name} must not be empty")),
+        Some(value) => Ok(Some(value)),
+        None => Ok(None),
+    }
+}
+
+fn parse_timeout_seconds(name: &str, raw: &str) -> Result<Duration, String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(format!("{name} must be a positive integer number of seconds"));
+    }
+    let secs: u64 = trimmed
+        .parse()
+        .map_err(|_| format!("{name} must be a positive integer number of seconds"))?;
+    if secs == 0 {
+        return Err(format!("{name} must be greater than zero"));
+    }
+    Ok(Duration::from_secs(secs))
+}
+
+fn parse_bool_env(name: &str, raw: Option<String>) -> Result<bool, String> {
+    let value = match raw {
+        Some(value) => value,
+        None => return Ok(false),
+    };
+    let trimmed = value.trim();
+    if trimmed.eq_ignore_ascii_case("true") || trimmed == "1" {
+        return Ok(true);
+    }
+    if trimmed.eq_ignore_ascii_case("false") || trimmed == "0" {
+        return Ok(false);
+    }
+    Err(format!("{name} must be 1, 0, true, or false"))
 }

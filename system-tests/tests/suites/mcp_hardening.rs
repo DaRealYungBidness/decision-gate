@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers
 // ============================================================================
 
-//! MCP hardening system tests.
+//! ## Overview
+//! System tests for transport hardening and audit logging.
+//! Purpose: Validate rate limiting, TLS, and audit sinks end-to-end.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::fs;
 use std::time::Duration;

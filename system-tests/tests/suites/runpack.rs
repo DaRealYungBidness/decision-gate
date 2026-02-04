@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers
 // ============================================================================
 
-//! Runpack validation tests for Decision Gate system-tests.
+//! ## Overview
+//! Runpack export and verification coverage.
+//! Purpose: Ensure runpack integrity checks are enforced.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::fs;
 use std::path::PathBuf;

@@ -133,3 +133,16 @@ Consider a small integration test that compiles/runs each template and calls
    - Severity: Low (protocol consistency).
    - Resolution: Templates now return `EvidenceResult` error metadata and keep
      JSON-RPC errors reserved for malformed requests.
+
+## system-tests
+
+### Open Findings
+
+None.
+
+System-test gaps: Long-running soak/perf regression coverage remains unimplemented.
+Tracked in `system-tests/test_gaps.toml` (id: `stress-soak-perf`).
+
+### Closed Findings
+
+None.

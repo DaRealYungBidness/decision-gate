@@ -6,6 +6,14 @@
 // Dependencies: system-tests, serde, serde_jcs
 // ============================================================================
 
+//! ## Overview
+//! Artifact helpers for system-tests.
+//! Purpose: Create per-test run roots and write deterministic summaries.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+
 use std::env;
 use std::fmt::Write;
 use std::fs;
@@ -75,15 +83,14 @@ impl TestArtifacts {
         let config = SystemTestConfig::load().map_err(io::Error::other)?;
         let root = config.run_root.unwrap_or_else(|| default_run_root(test_name));
         if root.exists() && !config.allow_overwrite {
-            let marker = root.join(".system-test-run");
-            let summary_json = root.join("summary.json");
-            let summary_md = root.join("summary.md");
-            let transcript = root.join("tool_transcript.json");
-            if marker.exists()
-                || summary_json.exists()
-                || summary_md.exists()
-                || transcript.exists()
-            {
+            if !root.is_dir() {
+                return Err(io::Error::other(format!(
+                    "system-test run root exists and is not a directory: {}",
+                    root.display()
+                )));
+            }
+            let mut entries = fs::read_dir(&root)?;
+            if entries.next().is_some() {
                 return Err(io::Error::other(format!(
                     "system-test run root already exists: {} (set \
                      DECISION_GATE_SYSTEM_TEST_ALLOW_OVERWRITE=1 to reuse)",
@@ -278,6 +285,39 @@ mod tests {
         env::remove_var(SystemTestEnv::AllowOverwrite.as_str());
 
         match TestArtifacts::new("fail_closed") {
+            Err(err) => {
+                let message = err.to_string();
+                if !message.contains("system-test run root already exists") {
+                    return Err(io::Error::other(format!(
+                        "expected fail-closed error, got {message}"
+                    ))
+                    .into());
+                }
+            }
+            Ok(_) => {
+                return Err(io::Error::other("expected fail-closed error").into());
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn run_root_fails_closed_when_directory_not_empty() -> Result<(), Box<dyn std::error::Error>> {
+        let _lock = super::lock_env()?;
+        let _guard = EnvGuard::new(&[
+            SystemTestEnv::RunRoot.as_str(),
+            SystemTestEnv::AllowOverwrite.as_str(),
+        ]);
+
+        let temp_dir = TempDir::new()?;
+        let root = temp_dir.path().join("run_root");
+        fs::create_dir_all(&root)?;
+        fs::write(root.join("orphan.txt"), "leftover\n")?;
+
+        env::set_var(SystemTestEnv::RunRoot.as_str(), root.to_string_lossy().as_ref());
+        env::remove_var(SystemTestEnv::AllowOverwrite.as_str());
+
+        match TestArtifacts::new("fail_closed_non_empty") {
             Err(err) => {
                 let message = err.to_string();
                 if !message.contains("system-test run root already exists") {

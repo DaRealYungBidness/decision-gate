@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers, decision-gate-mcp, decision-gate-cli
 // ============================================================================
 
-//! CLI MCP tool wrapper conformance tests.
+//! ## Overview
+//! End-to-end CLI coverage for MCP tool wrappers.
+//! Purpose: Validate CLI tool wrappers execute against a live MCP server.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::fs;
 use std::path::Path;

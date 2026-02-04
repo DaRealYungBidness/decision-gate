@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers
 // ============================================================================
 
-//! Default namespace allowlist system tests.
+//! ## Overview
+//! Validate default namespace allowlist enforcement.
+//! Purpose: Ensure default namespace is restricted to allowlisted tenants.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::num::NonZeroU64;
 use std::time::Duration;

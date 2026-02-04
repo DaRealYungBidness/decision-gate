@@ -6,6 +6,14 @@
 // Dependencies: reqwest, serde
 // ============================================================================
 
+//! ## Overview
+//! JSON-RPC client for Decision Gate MCP server.
+//! Purpose: Issue tools/list and tools/call over HTTP with transcripts.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;

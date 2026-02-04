@@ -6,7 +6,13 @@
 // Dependencies: suites/*, helpers
 // ============================================================================
 
-//! Runpack suite entry point for system-tests.
+//! ## Overview
+//! Aggregates runpack export/verify system tests.
+//! Purpose: Reduce binaries while keeping runpack coverage centralized.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 mod helpers;
 

@@ -6,7 +6,13 @@
 // Dependencies: decision-gate-mcp, tokio
 // ============================================================================
 
-//! Stdio MCP server binary for system-tests.
+//! ## Overview
+//! MCP stdio server runner for system-tests.
+//! Purpose: Provide a dedicated stdio server binary for end-to-end tests.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::io::Write;
 

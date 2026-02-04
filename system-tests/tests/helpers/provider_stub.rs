@@ -6,6 +6,14 @@
 // Dependencies: axum, decision-gate-core
 // ============================================================================
 
+//! ## Overview
+//! Minimal MCP provider stub for system-tests.
+//! Purpose: Exercise federated provider flows over HTTP.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+
 use std::net::TcpListener as StdTcpListener;
 use std::sync::Arc;
 use std::sync::Mutex;

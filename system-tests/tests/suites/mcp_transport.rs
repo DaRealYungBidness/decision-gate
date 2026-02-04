@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers
 // ============================================================================
 
-//! MCP transport tests for Decision Gate.
+//! ## Overview
+//! Transport validation for HTTP JSON-RPC.
+//! Purpose: Ensure MCP server is reachable and responds to tools/list and tools/call.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::path::PathBuf;
 use std::time::Duration;

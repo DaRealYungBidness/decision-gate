@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers
 // ============================================================================
 
-//! Provider contract discovery system tests.
+//! ## Overview
+//! End-to-end discovery of provider contracts and schemas.
+//! Purpose: Validate MCP discovery tools over HTTP and stdio transports.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::path::PathBuf;
 use std::time::Duration;

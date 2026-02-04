@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers, decision-gate-mcp
 // ============================================================================
 
-//! Precheck correctness tests for Decision Gate system-tests.
+//! ## Overview
+//! Validate read-only and trust-lane precheck behavior.
+//! Purpose: Ensure precheck never mutates run state.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use decision_gate_core::DataShapeId;
 use decision_gate_core::DataShapeRecord;

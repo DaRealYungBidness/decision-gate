@@ -6,6 +6,14 @@
 // Dependencies: system-tests, decision-gate-core, decision-gate-mcp
 // ============================================================================
 
+//! ## Overview
+//! Shared helpers for Decision Gate system-tests.
+//! Purpose: Provide MCP harnesses, fixtures, and artifact utilities.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+
 #![allow(dead_code, reason = "Shared helpers are reused across multiple test suites.")]
 
 pub mod artifacts;

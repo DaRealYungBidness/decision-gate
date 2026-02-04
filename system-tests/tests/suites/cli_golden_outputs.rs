@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers, decision-gate-cli
 // ============================================================================
 
-//! CLI golden output tests.
+//! ## Overview
+//! Snapshot tests for canonical CLI JSON output.
+//! Purpose: Ensure CLI JSON responses remain deterministic.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::fs;
 use std::path::PathBuf;

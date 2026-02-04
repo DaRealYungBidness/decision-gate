@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers, decision-gate-mcp
 // ============================================================================
 
-//! Agentic flow harness for deterministic scenario execution.
+//! ## Overview
+//! Deterministic agentic scenario execution across projections.
+//! Purpose: Validate cross-driver invariance and audit artifacts.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::collections::BTreeMap;
 use std::collections::HashMap;

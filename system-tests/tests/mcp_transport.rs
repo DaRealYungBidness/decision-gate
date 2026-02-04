@@ -6,7 +6,13 @@
 // Dependencies: suites/*, helpers
 // ============================================================================
 
-//! MCP transport suite entry point for system-tests.
+//! ## Overview
+//! Aggregates MCP transport and parity system tests.
+//! Purpose: Reduce binaries while keeping transport coverage centralized.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 mod helpers;
 

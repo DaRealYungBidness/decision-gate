@@ -6,6 +6,14 @@
 // Dependencies: tokio, stdlib
 // ============================================================================
 
+//! ## Overview
+//! Helpers for executing SDK scripts from system-tests.
+//! Purpose: Run Python/TypeScript SDK scripts with deterministic environment.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+
 #![allow(
     clippy::missing_docs_in_private_items,
     reason = "Test helper module keeps docs focused on external behavior."

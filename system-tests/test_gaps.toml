@@ -200,6 +200,15 @@ acceptance_criteria = "With docs.enabled=false, decision_gate_docs_search is hid
 notes = "Implemented in system-tests/tests/suites/docs_config.rs (docs_config_toggles)."
 
 [[gaps]]
+id = "stress-soak-perf"
+title = "Long-running soak/perf regression coverage"
+priority = "P2"
+category = "reliability"
+status = "open"
+acceptance_criteria = "Add long-running soak/perf regression system-tests for MCP tooling, gated by CI infra, with deterministic assertions and artifact capture."
+notes = "Requires dedicated CI capacity for multi-minute soak runs."
+
+[[gaps]]
 id = "server-tools-visibility-system"
 title = "Server tool visibility allowlist/denylist enforcement"
 priority = "P1"

@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers, decision-gate-mcp
 // ============================================================================
 
-//! System tests for strict comparator validation behavior.
+//! ## Overview
+//! End-to-end validation for strict comparator enforcement.
+//! Purpose: Ensure invalid comparator/type combos fail closed at tool boundaries.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::num::NonZeroU64;
 use std::path::PathBuf;

@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers, decision-gate-mcp
 // ============================================================================
 
-//! Docs config system tests.
+//! ## Overview
+//! System tests for docs config toggles and ingestion limits.
+//! Purpose: Validate fail-closed docs config behavior end-to-end.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::fs;
 use std::time::Duration;

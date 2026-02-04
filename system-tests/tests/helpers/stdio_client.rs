@@ -6,6 +6,14 @@
 // Dependencies: decision-gate-contract, serde
 // ============================================================================
 
+//! ## Overview
+//! JSON-RPC stdio client for Decision Gate MCP servers.
+//! Purpose: Exercise the MCP stdio transport with real framing.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+
 use std::io::BufRead;
 use std::io::BufReader;
 use std::io::Read;

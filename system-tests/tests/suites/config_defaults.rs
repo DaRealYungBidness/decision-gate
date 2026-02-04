@@ -6,6 +6,14 @@
 // Dependencies: system-tests helpers
 // =============================================================================
 
+//! ## Overview
+//! Ensure minimal config defaults are valid and server-startable.
+//! Purpose: Confirm runtime defaults align with documented baseline behavior.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+
 use std::time::Duration;
 
 use decision_gate_mcp::config::DecisionGateConfig;

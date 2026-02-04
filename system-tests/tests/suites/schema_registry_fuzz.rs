@@ -6,7 +6,13 @@
 // Dependencies: system-tests helpers, decision-gate-mcp
 // ============================================================================
 
-//! Schema registry malformed input coverage for system-tests.
+//! ## Overview
+//! Deterministic malformed input coverage for registry tooling.
+//! Purpose: Ensure cursor parsing and schema validation fail closed.
+//! Invariants:
+//! - System-test execution is deterministic and fail-closed.
+//! - Inputs are treated as untrusted unless explicitly mocked.
+//! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use decision_gate_core::DataShapeId;
 use decision_gate_core::DataShapeRecord;
