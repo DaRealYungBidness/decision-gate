@@ -31,6 +31,21 @@ use crate::tristate::TriLogic;
 use crate::tristate::TriState;
 
 // ============================================================================
+// SECTION: Limits
+// ============================================================================
+
+/// Maximum allowed requirement tree depth during evaluation.
+///
+/// This guard prevents stack exhaustion when evaluating hostile or malformed
+/// trees. Depth is measured from the root (depth 0) and fails closed when
+/// the limit is exceeded.
+pub const MAX_EVAL_DEPTH: usize = 32;
+
+/// Internal error marker used to fail closed when evaluation exceeds depth limits.
+#[derive(Debug, Clone, Copy)]
+struct EvalDepthExceeded;
+
+// ============================================================================
 // SECTION: Requirement Id
 // ============================================================================
 
@@ -140,7 +155,7 @@ pub enum Requirement<P> {
     /// optimized evaluation that exits early when success/failure is
     /// mathematically determined.
     RequireGroup {
-        /// Minimum number of sub-requirements that must be satisfied
+        /// Minimum number of sub-requirements that must be satisfied (capped at `u8::MAX` by type)
         min: u8,
         /// The sub-requirements to choose from
         reqs: SmallVec<[Box<Self>; 8]>,
@@ -162,39 +177,85 @@ impl<P> Requirement<P> {
     ///
     /// This method implements the universal Boolean logic with optimal
     /// control flow. The actual condition evaluation is delegated to
-    /// the domain through the `ConditionEval` trait.
+    /// the domain through the [`crate::traits::ConditionEval`] trait.
     ///
     /// Note: This method is for the old evaluation approach. New code should use
-    /// the row-based evaluation via `PlanExecutor` instead.
+    /// the row-based evaluation via [`crate::executor::PlanExecutor`] instead.
+    /// Fails closed when the requirement tree exceeds [`MAX_EVAL_DEPTH`].
     pub fn eval(&self, reader: &P::Reader<'_>, row: super::traits::Row) -> bool
     where
         P: super::traits::ConditionEval,
     {
+        self.eval_with_depth(reader, row, 0, MAX_EVAL_DEPTH).unwrap_or(false)
+    }
+
+    /// Evaluates this requirement for up to 64 consecutive rows, returning a bitmask.
+    ///
+    /// This provides a "mask-space" execution path for the universal requirement tree:
+    /// - Leaves call into the domain via [`super::traits::BatchConditionEval::eval_block`].
+    /// - Internal nodes combine masks with bitwise operations.
+    ///
+    /// Domains reach the performance ceiling by overriding leaf
+    /// [`crate::traits::BatchConditionEval::eval_block`] with efficient batch kernels over their
+    /// `SoA` readers.
+    ///
+    /// Fails closed when the requirement tree exceeds [`MAX_EVAL_DEPTH`].
+    #[inline]
+    pub fn eval_block(
+        &self,
+        reader: &P::Reader<'_>,
+        start: super::traits::Row,
+        count: usize,
+    ) -> super::traits::Mask64
+    where
+        P: super::traits::BatchConditionEval,
+    {
+        self.eval_block_with_depth(reader, start, count, 0, MAX_EVAL_DEPTH).unwrap_or(0)
+    }
+
+    /// Evaluates a requirement tree with an explicit depth limit.
+    fn eval_with_depth(
+        &self,
+        reader: &P::Reader<'_>,
+        row: super::traits::Row,
+        depth: usize,
+        max_depth: usize,
+    ) -> Result<bool, EvalDepthExceeded>
+    where
+        P: super::traits::ConditionEval,
+    {
+        if depth > max_depth {
+            return Err(EvalDepthExceeded);
+        }
+
+        let next_depth = depth.saturating_add(1);
         match self {
             // Delegate to domain-specific condition evaluation
-            Self::Condition(condition) => condition.eval_row(reader, row),
+            Self::Condition(condition) => Ok(condition.eval_row(reader, row)),
 
             // Simple negation
-            Self::Not(requirement) => !requirement.eval(reader, row),
+            Self::Not(requirement) => {
+                Ok(!requirement.eval_with_depth(reader, row, next_depth, max_depth)?)
+            }
 
             // Short-circuit AND: exit on first failure
             Self::And(requirements) => {
                 for req in requirements {
-                    if !req.eval(reader, row) {
-                        return false;
+                    if !req.eval_with_depth(reader, row, next_depth, max_depth)? {
+                        return Ok(false);
                     }
                 }
-                true
+                Ok(true)
             }
 
             // Short-circuit OR: exit on first success
             Self::Or(requirements) => {
                 for req in requirements {
-                    if req.eval(reader, row) {
-                        return true;
+                    if req.eval_with_depth(reader, row, next_depth, max_depth)? {
+                        return Ok(true);
                     }
                 }
-                false
+                Ok(false)
             }
 
             // Optimized group evaluation with mathematical early exit
@@ -206,76 +267,77 @@ impl<P> Requirement<P> {
                 let mut remaining = reqs.len();
 
                 for req in reqs {
-                    if req.eval(reader, row) {
+                    if req.eval_with_depth(reader, row, next_depth, max_depth)? {
                         satisfied += 1;
                         // Success early exit: we have enough satisfied requirements
                         if satisfied >= usize::from(*min) {
-                            return true;
+                            return Ok(true);
                         }
                     }
 
                     remaining = remaining.saturating_sub(1);
                     // Failure early exit: impossible to satisfy even if all remaining pass
                     if satisfied + remaining < usize::from(*min) {
-                        return false;
+                        return Ok(false);
                     }
                 }
 
-                satisfied >= usize::from(*min)
+                Ok(satisfied >= usize::from(*min))
             }
         }
     }
 
-    /// Evaluates this requirement for up to 64 consecutive rows, returning a bitmask.
-    ///
-    /// This provides a "mask-space" execution path for the universal requirement tree:
-    /// - Leaves call into the domain via [`super::traits::BatchConditionEval::eval_block`].
-    /// - Internal nodes combine masks with bitwise operations.
-    ///
-    /// Domains reach the performance ceiling by overriding leaf `eval_block` with
-    /// efficient batch kernels over their `SoA` readers.
-    #[inline]
-    pub fn eval_block(
+    /// Evaluates a requirement tree in batch mode with an explicit depth limit.
+    fn eval_block_with_depth(
         &self,
         reader: &P::Reader<'_>,
         start: super::traits::Row,
         count: usize,
-    ) -> super::traits::Mask64
+        depth: usize,
+        max_depth: usize,
+    ) -> Result<super::traits::Mask64, EvalDepthExceeded>
     where
         P: super::traits::BatchConditionEval,
     {
+        if depth > max_depth {
+            return Err(EvalDepthExceeded);
+        }
+
         let n = count.min(64);
         if n == 0 {
-            return 0;
+            return Ok(0);
         }
 
         let valid_mask: super::traits::Mask64 =
             if n == 64 { super::traits::Mask64::MAX } else { (1u64 << n) - 1 };
 
+        let next_depth = depth.saturating_add(1);
         match self {
-            Self::Condition(condition) => condition.eval_block(reader, start, n) & valid_mask,
-            Self::Not(requirement) => (!requirement.eval_block(reader, start, n)) & valid_mask,
+            Self::Condition(condition) => Ok(condition.eval_block(reader, start, n) & valid_mask),
+            Self::Not(requirement) => Ok((!requirement
+                .eval_block_with_depth(reader, start, n, next_depth, max_depth)?)
+                & valid_mask),
             Self::And(requirements) => {
                 // Empty AND is trivially satisfied.
                 let mut mask = valid_mask;
                 for req in requirements {
-                    mask &= req.eval_block(reader, start, n);
+                    mask &= req.eval_block_with_depth(reader, start, n, next_depth, max_depth)?;
                     if mask == 0 {
-                        return 0;
+                        return Ok(0);
                     }
                 }
-                mask
+                Ok(mask)
             }
             Self::Or(requirements) => {
                 // Empty OR is trivially unsatisfiable.
                 let mut mask: super::traits::Mask64 = 0;
                 for req in requirements {
-                    mask |= req.eval_block(reader, start, n);
+                    mask |= req.eval_block_with_depth(reader, start, n, next_depth, max_depth)?;
                     if mask == valid_mask {
-                        return valid_mask;
+                        return Ok(valid_mask);
                     }
                 }
-                mask & valid_mask
+                Ok(mask & valid_mask)
             }
             Self::RequireGroup {
                 min,
@@ -283,36 +345,40 @@ impl<P> Requirement<P> {
             } => {
                 let min_required = usize::from(*min);
                 if min_required == 0 {
-                    return valid_mask;
+                    return Ok(valid_mask);
                 }
                 if min_required > reqs.len() {
-                    return 0;
+                    return Ok(0);
                 }
 
                 if min_required == 1 {
                     let mut mask: super::traits::Mask64 = 0;
                     for req in reqs {
-                        mask |= req.eval_block(reader, start, n);
+                        mask |=
+                            req.eval_block_with_depth(reader, start, n, next_depth, max_depth)?;
                         if mask == valid_mask {
-                            return valid_mask;
+                            return Ok(valid_mask);
                         }
                     }
-                    return mask & valid_mask;
+                    return Ok(mask & valid_mask);
                 }
                 if min_required == reqs.len() {
                     let mut mask = valid_mask;
                     for req in reqs {
-                        mask &= req.eval_block(reader, start, n);
+                        mask &=
+                            req.eval_block_with_depth(reader, start, n, next_depth, max_depth)?;
                         if mask == 0 {
-                            return 0;
+                            return Ok(0);
                         }
                     }
-                    return mask & valid_mask;
+                    return Ok(mask & valid_mask);
                 }
 
                 let mut counts: [u8; 64] = [0; 64];
                 for req in reqs {
-                    let mask = req.eval_block(reader, start, n) & valid_mask;
+                    let mask = req
+                        .eval_block_with_depth(reader, start, n, next_depth, max_depth)?
+                        & valid_mask;
                     for (idx, count) in counts.iter_mut().enumerate().take(n) {
                         if ((mask >> idx) & 1) == 1 {
                             *count = count.saturating_add(1);
@@ -326,19 +392,20 @@ impl<P> Requirement<P> {
                         out |= 1u64 << idx;
                     }
                 }
-                out & valid_mask
+                Ok(out & valid_mask)
             }
         }
     }
 
-    // ========================================================================
+    // ============================================================================
     // SECTION: Tri-State Evaluation
-    // ========================================================================
+    // ============================================================================
 
     /// Evaluates this requirement with tri-state semantics
     ///
     /// This method preserves "unknown" when evidence is insufficient and
     /// composes results using the supplied tri-state logic table.
+    /// Fails closed when the requirement tree exceeds [`MAX_EVAL_DEPTH`].
     pub fn eval_tristate<L>(
         &self,
         reader: &P::Reader<'_>,
@@ -354,6 +421,8 @@ impl<P> Requirement<P> {
     }
 
     /// Evaluates this requirement with tri-state semantics and a trace hook
+    ///
+    /// Fails closed when the requirement tree exceeds [`MAX_EVAL_DEPTH`].
     pub fn eval_tristate_with_trace<L, T>(
         &self,
         reader: &P::Reader<'_>,
@@ -366,28 +435,63 @@ impl<P> Requirement<P> {
         L: TriLogic,
         T: RequirementTrace<P>,
     {
+        self.eval_tristate_with_depth(reader, row, logic, trace, 0, MAX_EVAL_DEPTH)
+            .unwrap_or(TriState::Unknown)
+    }
+
+    /// Evaluates a requirement tree with tri-state semantics and an explicit depth limit.
+    fn eval_tristate_with_depth<L, T>(
+        &self,
+        reader: &P::Reader<'_>,
+        row: super::traits::Row,
+        logic: &L,
+        trace: &mut T,
+        depth: usize,
+        max_depth: usize,
+    ) -> Result<TriState, EvalDepthExceeded>
+    where
+        P: TriStateConditionEval,
+        L: TriLogic,
+        T: RequirementTrace<P>,
+    {
+        if depth > max_depth {
+            return Err(EvalDepthExceeded);
+        }
+
+        let next_depth = depth.saturating_add(1);
         match self {
             Self::Condition(condition) => {
                 let result = condition.eval_row_tristate(reader, row);
                 trace.on_condition_evaluated(condition, result);
-                result
+                Ok(result)
             }
-            Self::Not(requirement) => {
-                logic.not(requirement.eval_tristate_with_trace(reader, row, logic, trace))
-            }
+            Self::Not(requirement) => Ok(logic.not(
+                requirement
+                    .eval_tristate_with_depth(reader, row, logic, trace, next_depth, max_depth)?,
+            )),
             Self::And(requirements) => {
                 let mut acc = TriState::True;
                 for req in requirements {
-                    acc = logic.and(acc, req.eval_tristate_with_trace(reader, row, logic, trace));
+                    acc = logic.and(
+                        acc,
+                        req.eval_tristate_with_depth(
+                            reader, row, logic, trace, next_depth, max_depth,
+                        )?,
+                    );
                 }
-                acc
+                Ok(acc)
             }
             Self::Or(requirements) => {
                 let mut acc = TriState::False;
                 for req in requirements {
-                    acc = logic.or(acc, req.eval_tristate_with_trace(reader, row, logic, trace));
+                    acc = logic.or(
+                        acc,
+                        req.eval_tristate_with_depth(
+                            reader, row, logic, trace, next_depth, max_depth,
+                        )?,
+                    );
                 }
-                acc
+                Ok(acc)
             }
             Self::RequireGroup {
                 min,
@@ -397,21 +501,23 @@ impl<P> Requirement<P> {
                 let mut unknown = 0usize;
 
                 for req in reqs {
-                    match req.eval_tristate_with_trace(reader, row, logic, trace) {
+                    match req.eval_tristate_with_depth(
+                        reader, row, logic, trace, next_depth, max_depth,
+                    )? {
                         TriState::True => satisfied += 1,
                         TriState::Unknown => unknown += 1,
                         TriState::False => {}
                     }
                 }
 
-                logic.require_group(
+                Ok(logic.require_group(
                     *min,
                     GroupCounts {
                         satisfied,
                         unknown,
                         total: reqs.len(),
                     },
-                )
+                ))
             }
         }
     }

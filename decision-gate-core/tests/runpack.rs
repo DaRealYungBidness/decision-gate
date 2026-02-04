@@ -452,7 +452,10 @@ fn runpack_verifier_detects_tampered_artifact() {
 
     assert_eq!(report.status, decision_gate_core::runtime::VerificationStatus::Fail);
     assert!(
-        report.errors.iter().any(|err| err.contains("hash mismatch for artifacts/scenario_spec.json")),
+        report
+            .errors
+            .iter()
+            .any(|err| err.contains("hash mismatch for artifacts/scenario_spec.json")),
         "expected hash mismatch error, got: {:?}",
         report.errors
     );
@@ -488,10 +491,8 @@ fn runpack_verifier_detects_root_hash_mismatch() {
         builder.build(&mut store, &spec, &state, Timestamp::Logical(1)).expect("runpack build");
 
     // Tamper with root hash (provide invalid bytes)
-    manifest.integrity.root_hash = decision_gate_core::hashing::HashDigest::new(
-        DEFAULT_HASH_ALGORITHM,
-        &[0u8; 32],
-    );
+    manifest.integrity.root_hash =
+        decision_gate_core::hashing::HashDigest::new(DEFAULT_HASH_ALGORITHM, &[0u8; 32]);
 
     let verifier = RunpackVerifier::new(DEFAULT_HASH_ALGORITHM);
     let report = verifier.verify_manifest(&store, &manifest).expect("runpack verify");
@@ -548,7 +549,10 @@ fn runpack_verifier_fails_on_missing_artifact() {
 
     assert_eq!(report.status, decision_gate_core::runtime::VerificationStatus::Fail);
     assert!(
-        report.errors.iter().any(|err| err.contains("artifact read failed for artifacts/scenario_spec.json")),
+        report
+            .errors
+            .iter()
+            .any(|err| err.contains("artifact read failed for artifacts/scenario_spec.json")),
         "expected artifact read failed error, got: {:?}",
         report.errors
     );
@@ -645,7 +649,10 @@ fn runpack_verifier_rejects_anchor_wrong_field_type() {
 
     assert_eq!(report.status, decision_gate_core::runtime::VerificationStatus::Fail);
     assert!(
-        report.errors.iter().any(|err| err.contains("anchor invalid") || err.contains("must be string or number")),
+        report
+            .errors
+            .iter()
+            .any(|err| err.contains("anchor invalid") || err.contains("must be string or number")),
         "expected anchor invalid error, got: {:?}",
         report.errors
     );

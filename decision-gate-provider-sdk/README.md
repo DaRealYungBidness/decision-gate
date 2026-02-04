@@ -31,6 +31,7 @@ External evidence providers are optional: Decision Gate ships built-in providers
 from a custom backend (databases, SaaS APIs, internal services).
 
 Each template:
+
 - Implements JSON-RPC 2.0 framing over stdio.
 - Exposes `tools/list` and `tools/call` for `evidence_query`.
 - Returns `EvidenceResult` objects compatible with Decision Gate contracts.
@@ -48,9 +49,12 @@ The authoritative protocol definition is in:
 `decision-gate-provider-sdk/spec/evidence_provider_protocol.md`.
 
 Providers must:
+
 - Advertise the `evidence_query` tool via `tools/list`.
 - Accept `EvidenceQuery` + `EvidenceContext` payloads via `tools/call`.
 - Return an `EvidenceResult` with `lane`, `value`, and optional metadata.
+- Return structured `EvidenceResult.error` metadata for missing/invalid evidence;
+  reserve JSON-RPC errors for malformed requests or unsupported checks.
 
 ## Integrating with Decision Gate
 

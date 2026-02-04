@@ -65,3 +65,24 @@ func TestReadFrameRejectsMissingContentLength(t *testing.T) {
 		t.Fatalf("expected fatal error, got %v", frameErr.fatal)
 	}
 }
+
+// ============================================================================
+// SECTION: Evidence Tests
+// ============================================================================
+
+func TestHandleEvidenceQueryMissingValueReturnsError(t *testing.T) {
+	result := handleEvidenceQuery(evidenceQuery{Params: map[string]any{}}, evidenceContext{})
+
+	if result.Error == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if result.Error.Code != "invalid_params" {
+		t.Fatalf("expected invalid_params, got %q", result.Error.Code)
+	}
+	if result.Value != nil {
+		t.Fatalf("expected nil value, got %v", result.Value)
+	}
+	if result.ContentType != nil {
+		t.Fatalf("expected nil content_type, got %v", *result.ContentType)
+	}
+}

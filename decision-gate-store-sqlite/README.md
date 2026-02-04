@@ -36,7 +36,8 @@ It stores:
 - Schema registry entries for asserted data shapes.
 
 The store enforces size limits and validates canonical hashes on load to preserve
-determinism and auditability.
+determinism and auditability. Storage is treated as untrusted input, and
+corruption fails closed.
 
 ## Architecture
 
@@ -72,7 +73,8 @@ max_schema_bytes = 1048576
 max_entries = 1000
 ```
 
-See `Docs/configuration/decision-gate.toml.md` for full config options.
+See [F:Docs/configuration/decision-gate.toml.md L398-L436](Docs/configuration/decision-gate.toml.md#L398-L436)
+for full config options.
 
 ## Usage
 
@@ -87,6 +89,8 @@ let store = SqliteRunStateStore::new(SqliteStoreConfig {
     journal_mode: Default::default(),
     sync_mode: Default::default(),
     max_versions: Some(1000),
+    schema_registry_max_schema_bytes: None,
+    schema_registry_max_entries: None,
 })?;
 ```
 
@@ -96,7 +100,9 @@ The same `SqliteRunStateStore` instance implements both `RunStateStore` and
 ## Operational Notes
 
 - **Size limits**: run state snapshots are capped at 16 MiB; schemas are capped
-  at 1 MiB.
+  at 1 MiB by default (`schema_registry_max_schema_bytes` can lower this).
+- **Registry limits**: optionally cap schemas per tenant/namespace with
+  `schema_registry_max_entries`.
 - **Journal mode**: WAL is the default and recommended setting.
 - **Concurrency**: uses SQLite busy timeouts to avoid immediate lock failures.
 

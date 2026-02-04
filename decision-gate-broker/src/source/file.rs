@@ -9,6 +9,11 @@
 //! ## Overview
 //! [`FileSource`] resolves `file://` URIs into payload bytes. A root directory can
 //! be configured to fail closed on path traversal.
+//! Invariants:
+//! - Rooted reads must not escape the configured root path.
+//! - Symlink components are rejected for rooted reads.
+//! - Payload bytes are capped at [`crate::source::MAX_SOURCE_BYTES`].
+//!
 //! Security posture: treats file paths as untrusted input; see
 //! `Docs/security/threat_model.md`.
 
@@ -40,6 +45,11 @@ use crate::source::max_source_bytes_u64;
 // ============================================================================
 
 /// File-backed payload source.
+///
+/// # Invariants
+/// - When configured with a root, reads are confined to that root path.
+/// - Rooted reads reject symlink components.
+/// - Payloads are limited to [`crate::source::MAX_SOURCE_BYTES`].
 #[derive(Debug, Clone)]
 pub struct FileSource {
     /// Optional root directory for path traversal protection.
@@ -64,7 +74,6 @@ impl FileSource {
     }
 
     /// Resolves a file URI into a local path.
-    /// Resolves a file URI into a local path.
     fn resolve_path(uri: &str) -> Result<PathBuf, SourceError> {
         let url = Url::parse(uri).map_err(|err| SourceError::InvalidUri(err.to_string()))?;
         if url.scheme() != "file" {
@@ -77,7 +86,6 @@ impl FileSource {
     }
 
     /// Reads bytes from disk while enforcing the maximum source size.
-    /// Reads bytes while enforcing the maximum source size.
     fn read_with_limit<R: Read>(file: R) -> Result<Vec<u8>, SourceError> {
         let max_bytes = max_source_bytes_u64()?;
         let limit = max_bytes.checked_add(1).ok_or(SourceError::LimitOverflow {

@@ -106,3 +106,41 @@ test("tools/call returns evidence result with lane and error fields", async () =
   assert.equal(json?.error, null);
   assert.deepEqual(json?.value, { kind: "json", value: "ok" });
 });
+
+test("tools/call returns evidence error metadata for missing params", async () => {
+  const request = buildFrame({
+    jsonrpc: "2.0",
+    id: 3,
+    method: "tools/call",
+    params: {
+      name: "evidence_query",
+      arguments: {
+        query: { provider_id: "custom", check_id: "echo", params: {} },
+        context: {
+          tenant_id: 1,
+          namespace_id: 1,
+          run_id: "run-1",
+          scenario_id: "scenario-1",
+          stage_id: "stage-1",
+          trigger_id: "trigger-1",
+          trigger_time: { kind: "unix_millis", value: 0 },
+          correlation_id: null,
+        },
+      },
+    },
+  });
+
+  const { stdout } = await execFileAsync(process.execPath, [providerPath], {
+    input: request,
+    timeout: 2000,
+    maxBuffer: 1024 * 1024,
+  });
+
+  const response = parseFrame(stdout);
+  const json = response.result?.content?.[0]?.json;
+  assert.equal(response.jsonrpc, "2.0");
+  assert.equal(response.id, 3);
+  assert.equal(json?.value, null);
+  assert.equal(json?.content_type, null);
+  assert.equal(json?.error?.code, "invalid_params");
+});

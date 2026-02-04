@@ -9,6 +9,10 @@
 //! ## Overview
 //! Sources fetch external content referenced by Decision Gate packet payloads.
 //! Implementations must fail closed on invalid URIs or fetch errors.
+//! Invariants:
+//! - Resolved payloads are capped at [`MAX_SOURCE_BYTES`].
+//! - Policy violations and I/O failures surface as errors.
+//!
 //! Security posture: all source inputs are untrusted; see
 //! `Docs/security/threat_model.md`.
 
@@ -25,6 +29,10 @@ use thiserror::Error;
 // ============================================================================
 
 /// Payload bytes resolved from an external source.
+///
+/// # Invariants
+/// - `bytes.len()` must be less than or equal to [`MAX_SOURCE_BYTES`].
+/// - `content_type` is a hint and may be `None` when unknown.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourcePayload {
     /// Raw payload bytes.
@@ -32,6 +40,10 @@ pub struct SourcePayload {
     /// Optional content type hint.
     pub content_type: Option<String>,
 }
+
+// ============================================================================
+// SECTION: Constants
+// ============================================================================
 
 /// Maximum payload size accepted by broker sources.
 pub const MAX_SOURCE_BYTES: usize = MAX_PAYLOAD_BYTES;
@@ -41,6 +53,9 @@ pub const MAX_SOURCE_BYTES: usize = MAX_PAYLOAD_BYTES;
 // ============================================================================
 
 /// Errors emitted by broker sources.
+///
+/// # Invariants
+/// - Variants are stable for programmatic handling.
 #[derive(Debug, Error)]
 pub enum SourceError {
     /// Unsupported or missing URI scheme.

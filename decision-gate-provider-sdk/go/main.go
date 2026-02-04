@@ -27,8 +27,11 @@ import (
 // SECTION: Limits and Constants
 // ============================================================================
 
-const maxHeaderBytes = 8 * 1024
-const maxBodyBytes = 1024 * 1024
+// Hard limits for framing. Keep aligned with README framing limits and threat model guidance.
+const (
+	maxHeaderBytes = 8 * 1024
+	maxBodyBytes   = 1024 * 1024
+)
 
 // ============================================================================
 // SECTION: JSON-RPC Types
@@ -47,9 +50,9 @@ type jsonRpcError struct {
 }
 
 type jsonRpcResponse struct {
-	JSONRPC string       `json:"jsonrpc"`
-	ID      any          `json:"id"`
-	Result  any          `json:"result,omitempty"`
+	JSONRPC string        `json:"jsonrpc"`
+	ID      any           `json:"id"`
+	Result  any           `json:"result,omitempty"`
 	Error   *jsonRpcError `json:"error,omitempty"`
 }
 
@@ -93,15 +96,21 @@ type evidenceValue struct {
 	Value any    `json:"value"`
 }
 
+type evidenceProviderError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Details any    `json:"details"`
+}
+
 type evidenceResult struct {
-	Value          *evidenceValue `json:"value"`
-	Lane           string         `json:"lane"`
-	Error          any            `json:"error"`
-	EvidenceHash   any            `json:"evidence_hash"`
-	EvidenceRef    any            `json:"evidence_ref"`
-	EvidenceAnchor any            `json:"evidence_anchor"`
-	Signature      any            `json:"signature"`
-	ContentType    string         `json:"content_type"`
+	Value          *evidenceValue         `json:"value"`
+	Lane           string                 `json:"lane"`
+	Error          *evidenceProviderError `json:"error"`
+	EvidenceHash   any                    `json:"evidence_hash"`
+	EvidenceRef    any                    `json:"evidence_ref"`
+	EvidenceAnchor any                    `json:"evidence_anchor"`
+	Signature      any                    `json:"signature"`
+	ContentType    *string                `json:"content_type"`
 }
 
 type frameError struct {
@@ -189,10 +198,7 @@ func handleToolCall(request jsonRpcRequest) jsonRpcResponse {
 		return buildErrorResponse(request.ID, -32602, "invalid tool params")
 	}
 
-	result, err := handleEvidenceQuery(params.Arguments.Query, params.Arguments.Context)
-	if err != nil {
-		return buildErrorResponse(request.ID, -32000, err.Error())
-	}
+	result := handleEvidenceQuery(params.Arguments.Query, params.Arguments.Context)
 
 	return jsonRpcResponse{
 		JSONRPC: "2.0",
@@ -212,18 +218,19 @@ func handleToolCall(request jsonRpcRequest) jsonRpcResponse {
 // SECTION: Evidence Logic
 // ============================================================================
 
-func handleEvidenceQuery(query evidenceQuery, _ evidenceContext) (evidenceResult, error) {
+func handleEvidenceQuery(query evidenceQuery, _ evidenceContext) evidenceResult {
 	if query.Params == nil {
-		return evidenceResult{}, fmt.Errorf("params.value is required")
+		return buildEvidenceErrorResult("invalid_params", "params.value is required")
 	}
 	value, ok := query.Params["value"]
 	if !ok {
-		return evidenceResult{}, fmt.Errorf("params.value is required")
+		return buildEvidenceErrorResult("invalid_params", "params.value is required")
 	}
 	if valueStr, ok := value.(string); ok && valueStr == "error" {
-		return evidenceResult{}, fmt.Errorf("forced error")
+		return buildEvidenceErrorResult("provider_error", "forced error")
 	}
 
+	contentType := "application/json"
 	return evidenceResult{
 		Value:          &evidenceValue{Kind: "json", Value: value},
 		Lane:           "verified",
@@ -232,8 +239,21 @@ func handleEvidenceQuery(query evidenceQuery, _ evidenceContext) (evidenceResult
 		EvidenceRef:    nil,
 		EvidenceAnchor: nil,
 		Signature:      nil,
-		ContentType:    "application/json",
-	}, nil
+		ContentType:    &contentType,
+	}
+}
+
+func buildEvidenceErrorResult(code string, message string) evidenceResult {
+	return evidenceResult{
+		Value:          nil,
+		Lane:           "verified",
+		Error:          &evidenceProviderError{Code: code, Message: message, Details: nil},
+		EvidenceHash:   nil,
+		EvidenceRef:    nil,
+		EvidenceAnchor: nil,
+		Signature:      nil,
+		ContentType:    nil,
+	}
 }
 
 func buildErrorResponse(id any, code int, message string) jsonRpcResponse {

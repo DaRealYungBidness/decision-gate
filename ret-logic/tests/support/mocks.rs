@@ -2,6 +2,8 @@
 // ============================================================================
 // Module: Mock Conditions
 // Description: Shared mock conditions and readers for requirement tests.
+// Purpose: Provide stable mock types for exercising evaluation logic.
+// Dependencies: ret_logic::traits, serde.
 // ============================================================================
 //! ## Overview
 //! Mock condition and reader types used by integration tests.
@@ -26,9 +28,9 @@ use ret_logic::Row;
 use serde::Deserialize;
 use serde::Serialize;
 
-// ========================================================================
-// Mock Condition Types
-// ========================================================================
+// ============================================================================
+// SECTION: Mock Condition Types
+// ============================================================================
 
 /// Simple mock condition for testing the requirement system.
 ///
@@ -67,9 +69,9 @@ pub enum MockCondition {
     RowIndexLt(usize),
 }
 
-// ========================================================================
-// Mock Reader Type
-// ========================================================================
+// ============================================================================
+// SECTION: Mock Reader Type
+// ============================================================================
 
 /// Mock reader that provides test data for condition evaluation.
 ///
@@ -100,9 +102,9 @@ impl ReaderLen for MockReader<'_> {
     }
 }
 
-// ========================================================================
-// ConditionEval Implementation
-// ========================================================================
+// ============================================================================
+// SECTION: ConditionEval Implementation
+// ============================================================================
 
 impl ConditionEval for MockCondition {
     type Reader<'a> = MockReader<'a>;
@@ -132,9 +134,9 @@ impl BatchConditionEval for MockCondition {
     // Use default implementation that calls eval_row in a loop.
 }
 
-// ========================================================================
-// Variant Coverage Helpers
-// ========================================================================
+// ============================================================================
+// SECTION: Variant Coverage Helpers
+// ============================================================================
 
 /// Returns a list of all mock condition variants for coverage checks.
 #[must_use]

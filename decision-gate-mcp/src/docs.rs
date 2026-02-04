@@ -95,6 +95,9 @@ const OVERVIEW_ORDER: &[DocRole] =
 // ============================================================================
 
 /// High-level role for a canonical document.
+///
+/// # Invariants
+/// - Variants are stable for ordering and serialization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum DocRole {
@@ -122,6 +125,10 @@ impl DocRole {
 }
 
 /// Registry entry describing a document.
+///
+/// # Invariants
+/// - `id` values are unique within a [`DocsCatalog`].
+/// - `resource_uri` values use the [`RESOURCE_URI_PREFIX`].
 #[derive(Debug, Clone)]
 pub struct DocEntry {
     /// Stable identifier for the document.
@@ -139,6 +146,9 @@ pub struct DocEntry {
 }
 
 /// Searchable slice of a document corresponding to a Markdown section.
+///
+/// # Invariants
+/// - Values are derived from a [`DocEntry`] and are treated as read-only.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DocSection {
     /// Document identifier.
@@ -154,6 +164,9 @@ pub struct DocSection {
 }
 
 /// Search result section with rank applied.
+///
+/// # Invariants
+/// - `rank` is zero-based within the returned set.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SearchSection {
     /// Rank (0-based) within the returned set.
@@ -171,6 +184,9 @@ pub struct SearchSection {
 }
 
 /// Unique document coverage details in a result set.
+///
+/// # Invariants
+/// - Each entry refers to a unique document identifier in the response.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DocCoverage {
     /// Document identifier.
@@ -182,6 +198,9 @@ pub struct DocCoverage {
 }
 
 /// Structured search response surfaced by docs search.
+///
+/// # Invariants
+/// - `sections` are ordered by deterministic ranking rules.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SearchResult {
     /// Ranked sections matching the query.
@@ -193,6 +212,9 @@ pub struct SearchResult {
 }
 
 /// Request payload for documentation search.
+///
+/// # Invariants
+/// - `max_sections` is clamped to server limits before use.
 #[derive(Debug, Clone, Deserialize)]
 pub struct DocsSearchRequest {
     /// Natural-language query for section retrieval.
@@ -203,6 +225,9 @@ pub struct DocsSearchRequest {
 }
 
 /// Errors raised when loading the docs catalog.
+///
+/// # Invariants
+/// - Variants are stable for catalog error classification.
 #[derive(Debug, thiserror::Error)]
 pub enum DocsCatalogError {
     /// IO error while reading docs from disk.
@@ -214,6 +239,10 @@ pub enum DocsCatalogError {
 }
 
 /// Runtime documentation catalog.
+///
+/// # Invariants
+/// - `docs` entries have unique identifiers.
+/// - `max_sections` is clamped to [`ABSOLUTE_MAX_SECTIONS`].
 #[derive(Debug, Clone)]
 pub struct DocsCatalog {
     /// Embedded and ingested documentation entries.
@@ -901,6 +930,10 @@ fn suggested_followups(coverage: &[DocCoverage]) -> Vec<String> {
 // ============================================================================
 
 /// Resource metadata returned from `resources/list`.
+///
+/// # Invariants
+/// - `uri` values use the [`RESOURCE_URI_PREFIX`].
+/// - `mime_type` is the embedded docs MIME type.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ResourceMetadata {
     /// Stable MCP URI for the resource.
@@ -915,6 +948,10 @@ pub struct ResourceMetadata {
 }
 
 /// Resource content returned from `resources/read`.
+///
+/// # Invariants
+/// - `uri` values use the [`RESOURCE_URI_PREFIX`].
+/// - `mime_type` is the embedded docs MIME type.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ResourceContent {
     /// URI matching the requested resource.

@@ -24,6 +24,7 @@ from typing import Any, Dict, Optional
 # SECTION: Limits and Constants
 # ============================================================================
 
+# Hard limits for framing. Keep aligned with README framing limits and threat model guidance.
 HEADER_SEPARATOR = b"\r\n\r\n"
 MAX_HEADER_BYTES = 8 * 1024
 MAX_BODY_BYTES = 1024 * 1024
@@ -181,10 +182,6 @@ def handle_tool_call(request: Dict[str, Any]) -> Dict[str, Any]:
         return build_error_response(request.get("id"), -32602, "missing query or context")
 
     result = handle_evidence_query(query, context)
-    error = result.get("error")
-    if error:
-        return build_error_response(request.get("id"), -32000, str(error))
-
     return {
         "jsonrpc": "2.0",
         "id": request.get("id"),
@@ -196,10 +193,10 @@ def handle_evidence_query(query: Dict[str, Any], _context: Dict[str, Any]) -> Di
     """Resolves the evidence query (template logic)."""
     params = query.get("params") or {}
     if "value" not in params:
-        return {"error": "params.value is required"}
+        return build_evidence_error_result("invalid_params", "params.value is required")
 
     if params.get("value") == "error":
-        return {"error": "forced error"}
+        return build_evidence_error_result("provider_error", "forced error")
 
     return {
         "value": {"kind": "json", "value": params["value"]},
@@ -210,6 +207,21 @@ def handle_evidence_query(query: Dict[str, Any], _context: Dict[str, Any]) -> Di
         "evidence_anchor": None,
         "signature": None,
         "content_type": "application/json",
+    }
+
+
+# ============================================================================
+def build_evidence_error_result(code: str, message: str) -> Dict[str, Any]:
+    """Builds an EvidenceResult with structured error metadata."""
+    return {
+        "value": None,
+        "lane": "verified",
+        "error": {"code": code, "message": message, "details": None},
+        "evidence_hash": None,
+        "evidence_ref": None,
+        "evidence_anchor": None,
+        "signature": None,
+        "content_type": None,
     }
 
 

@@ -10,6 +10,8 @@
 //! This module defines the authn/authz interfaces for MCP tool calls and
 //! provides default policies for local-only, bearer token, and mTLS-subject
 //! enforcement. All decisions are fail-closed and emit audit events.
+//! Security posture: auth decisions are a trust boundary and must fail closed
+//! on any invalid input; see `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports
@@ -44,6 +46,9 @@ const DEFAULT_AUTH_REALM: &str = "decision-gate";
 // ============================================================================
 
 /// HTTP auth challenge header value (WWW-Authenticate).
+///
+/// # Invariants
+/// - `header_value` is a complete serialized header value.
 #[derive(Debug, Clone)]
 pub struct AuthChallenge {
     /// Serialized WWW-Authenticate header value.
@@ -80,6 +85,9 @@ pub fn auth_challenge_for_mode(mode: ServerAuthMode) -> Option<AuthChallenge> {
 // ============================================================================
 
 /// Per-request context used for auth decisions.
+///
+/// # Invariants
+/// - Fields reflect untrusted request metadata as received by the server.
 #[derive(Debug, Clone)]
 pub struct RequestContext {
     /// Transport used by the caller.
@@ -179,6 +187,9 @@ impl RequestContext {
 // ============================================================================
 
 /// Authenticated caller context.
+///
+/// # Invariants
+/// - `method` is the authoritative authn method for the request.
 #[derive(Debug, Clone)]
 pub struct AuthContext {
     /// Authentication method.
@@ -217,6 +228,9 @@ impl AuthContext {
 }
 
 /// Authentication method used for the request.
+///
+/// # Invariants
+/// - Variants are stable for audit labeling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthMethod {
     /// Local-only loopback or stdio access.
@@ -228,6 +242,9 @@ pub enum AuthMethod {
 }
 
 /// Authz action for MCP requests.
+///
+/// # Invariants
+/// - Variants are stable for audit labeling.
 #[derive(Debug, Clone, Copy)]
 pub enum AuthAction<'a> {
     /// List tools action.
@@ -251,6 +268,9 @@ impl AuthAction<'_> {
 // ============================================================================
 
 /// Authentication or authorization errors.
+///
+/// # Invariants
+/// - Variants are stable for error classification.
 #[derive(Debug, Error)]
 pub enum AuthError {
     /// Missing or invalid authentication.
@@ -291,6 +311,9 @@ pub trait AuthAuditSink: Send + Sync {
 // ============================================================================
 
 /// Default authz implementation derived from server config.
+///
+/// # Invariants
+/// - Behavior is fully determined by the stored configuration.
 pub struct DefaultToolAuthz {
     /// Configured auth mode.
     mode: ServerAuthMode,
@@ -377,6 +400,9 @@ impl ToolAuthz for DefaultToolAuthz {
 // ============================================================================
 
 /// Auth audit event payload.
+///
+/// # Invariants
+/// - Payload fields are derived from request metadata and are redacted.
 #[derive(Debug, Serialize)]
 pub struct AuthAuditEvent {
     /// Event identifier.
@@ -446,6 +472,9 @@ impl AuthAuditEvent {
 }
 
 /// Audit sink that logs JSON lines to stderr.
+///
+/// # Invariants
+/// - Audit events are written to stderr in JSON form.
 pub struct StderrAuditSink;
 
 impl AuthAuditSink for StderrAuditSink {
@@ -457,6 +486,9 @@ impl AuthAuditSink for StderrAuditSink {
 }
 
 /// No-op audit sink for tests.
+///
+/// # Invariants
+/// - Audit events are intentionally discarded.
 pub struct NoopAuditSink;
 
 impl AuthAuditSink for NoopAuditSink {

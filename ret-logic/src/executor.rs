@@ -9,8 +9,8 @@
 //! ## Overview
 //! Executes compiled requirement plans with a reusable stack machine while
 //! exposing helpers for dispatch table construction and optimized operation
-//! implementations. Domains implement `ConditionEval` for `PlanExecutor` via their
-//! reader types.
+//! implementations. Domains implement [`crate::traits::ConditionEval`] for
+//! [`PlanExecutor`] via their reader types.
 //! Malformed plans or missing opcode handlers fail closed by returning `false`.
 
 // ============================================================================
@@ -246,10 +246,11 @@ impl<R: 'static> BatchConditionEval for PlanExecutor<R> {
     // Domains can create specialized batch executors if they need SIMD optimization
 }
 
-/// Helper trait to create no-op dispatch tables
 // ============================================================================
 // SECTION: Dispatch Table Builder
 // ============================================================================
+
+/// Helper trait to create no-op dispatch tables
 pub trait DispatchTableBuilder<R> {
     /// Creates a dispatch table initialized with no-op functions
     #[must_use]
@@ -258,10 +259,11 @@ pub trait DispatchTableBuilder<R> {
     }
 }
 
-/// Macro to help domains build dispatch tables
 // ============================================================================
 // SECTION: Dispatch Macro
 // ============================================================================
+
+/// Macro to help domains build dispatch tables
 #[macro_export]
 macro_rules! build_dispatch_table {
     ($reader_type:ty, $($opcode:path => $handler:path),* $(,)?) => {{

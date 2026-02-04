@@ -33,16 +33,20 @@ use flags::FLAG_B;
 use flags::FLAG_C;
 use mocks::MockCondition;
 use mocks::MockReader;
+use ret_logic::BoolAsTri;
+use ret_logic::KleeneLogic;
 use ret_logic::Requirement;
 use ret_logic::RequirementGroup;
 use ret_logic::RequirementGroupError;
 use ret_logic::RequirementId;
+use ret_logic::TriState;
+use ret_logic::requirement::MAX_EVAL_DEPTH;
 use support::TestResult;
 use support::ensure;
 
-// ========================================================================
+// ============================================================================
 // SECTION: Mock Coverage
-// ========================================================================
+// ============================================================================
 
 /// Tests mock condition variants used.
 #[test]
@@ -99,6 +103,15 @@ macro_rules! check_ne {
         let right_val = &$right;
         ensure(left_val != right_val, format!($($arg)+))?;
     }};
+}
+
+/// Builds a deep NOT chain to exercise depth limits.
+fn build_deep_not_requirement<P>(base: Requirement<P>, depth: usize) -> Requirement<P> {
+    let mut req = base;
+    for _ in 0 .. depth {
+        req = Requirement::negate(req);
+    }
+    req
 }
 
 // ============================================================================
@@ -928,6 +941,54 @@ fn test_group_with_nested_requirements() -> TestResult {
     // (true AND true)=true, false, (false OR true)=true
     // 2 out of 3 pass
     check!(req.eval(&reader, 0));
+    Ok(())
+}
+
+// ============================================================================
+// SECTION: Depth Guard Tests
+// ============================================================================
+
+/// Tests depth guard fail-closed behavior for boolean evaluation.
+#[test]
+fn test_eval_depth_guard_fails_closed() -> TestResult {
+    let req = build_deep_not_requirement(
+        Requirement::condition(MockCondition::AlwaysTrue),
+        MAX_EVAL_DEPTH + 1,
+    );
+    let (values, flags) = (vec![0], vec![0]);
+    let reader = MockReader::new(&values, &flags);
+
+    check!(!req.eval(&reader, 0));
+    Ok(())
+}
+
+/// Tests depth guard fail-closed behavior for batch evaluation.
+#[test]
+fn test_eval_block_depth_guard_fails_closed() -> TestResult {
+    let req = build_deep_not_requirement(
+        Requirement::condition(MockCondition::AlwaysTrue),
+        MAX_EVAL_DEPTH + 1,
+    );
+    let (values, flags) = (vec![0], vec![0]);
+    let reader = MockReader::new(&values, &flags);
+
+    let mask = req.eval_block(&reader, 0, 1);
+    check_eq!(mask, 0);
+    Ok(())
+}
+
+/// Tests depth guard fail-closed behavior for tri-state evaluation.
+#[test]
+fn test_eval_tristate_depth_guard_fails_closed() -> TestResult {
+    let req: Requirement<BoolAsTri<MockCondition>> = build_deep_not_requirement(
+        Requirement::condition(BoolAsTri::new(MockCondition::AlwaysTrue)),
+        MAX_EVAL_DEPTH + 1,
+    );
+    let (values, flags) = (vec![0], vec![0]);
+    let reader = MockReader::new(&values, &flags);
+
+    let result = req.eval_tristate(&reader, 0, &KleeneLogic);
+    check_eq!(result, TriState::Unknown);
     Ok(())
 }
 

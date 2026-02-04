@@ -9,6 +9,9 @@
 //! ## Overview
 //! [`InlineSource`] resolves `inline:` URIs that embed payload bytes directly.
 //! Supported prefixes: `inline+json:`, `inline+bytes:`, and `inline:`.
+//! Invariants:
+//! - Base64 payloads are size-checked before and after decoding.
+//!
 //! Security posture: treats inline payloads as untrusted input; see
 //! `Docs/security/threat_model.md`.
 
@@ -30,6 +33,9 @@ use crate::source::enforce_max_bytes;
 // ============================================================================
 
 /// Inline payload source using base64-encoded payloads.
+///
+/// # Invariants
+/// - Decoded payloads are capped at [`crate::source::MAX_SOURCE_BYTES`].
 #[derive(Debug, Default, Clone, Copy)]
 pub struct InlineSource;
 

@@ -87,6 +87,10 @@ impl fmt::Display for AuthoringFormat {
 // SECTION: Normalized Outputs
 // ============================================================================
 
+// ============================================================================
+// CONSTANTS: Authoring normalization limits
+// ============================================================================
+
 /// Maximum size of authoring input accepted for normalization.
 pub const MAX_AUTHORING_INPUT_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;
 /// Maximum nesting depth accepted for authoring inputs.

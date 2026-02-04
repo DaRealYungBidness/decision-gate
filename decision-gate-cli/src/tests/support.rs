@@ -6,6 +6,14 @@
 // Dependencies: hyper, tokio, http-body-util, serde_json
 // ============================================================================
 
+//! ## Overview
+//! Provides shared HTTP test server helpers and JSON-RPC fixtures for CLI unit
+//! tests.
+
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -26,7 +34,14 @@ use tokio::sync::Mutex;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 
+// ============================================================================
+// SECTION: Types
+// ============================================================================
+
 /// Captured HTTP request data for assertions.
+///
+/// # Invariants
+/// - Headers and body are captured without normalization.
 #[derive(Clone, Debug)]
 pub struct CapturedRequest {
     /// Request headers.
@@ -36,6 +51,10 @@ pub struct CapturedRequest {
 }
 
 /// Test response wrapper.
+///
+/// # Invariants
+/// - `body` is returned verbatim to the client.
+/// - `omit_content_length` controls whether `Content-Length` is suppressed.
 #[derive(Clone, Debug)]
 pub struct TestResponse {
     /// HTTP status code.
@@ -124,7 +143,16 @@ impl From<TestResponse> for Response<Full<Bytes>> {
 
 type Responder = Arc<Mutex<Box<dyn FnMut(CapturedRequest) -> TestResponse + Send>>>;
 
+// ============================================================================
+// SECTION: HTTP Test Server
+// ============================================================================
+
 /// Lightweight HTTP test server with request capture.
+///
+/// # Invariants
+/// - Binds to loopback only.
+/// - Request capture ordering follows handling order and is not guaranteed to match arrival order
+///   under concurrency.
 pub struct TestHttpServer {
     addr: SocketAddr,
     requests: Arc<Mutex<Vec<CapturedRequest>>>,
@@ -207,6 +235,10 @@ impl TestHttpServer {
         let _ = self.handle.await;
     }
 }
+
+// ============================================================================
+// SECTION: JSON-RPC Fixtures
+// ============================================================================
 
 /// Builds a JSON-RPC response object.
 pub fn jsonrpc_result(result: &Value) -> Value {

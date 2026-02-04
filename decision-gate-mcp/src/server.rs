@@ -130,6 +130,9 @@ use crate::usage::UsageMeter;
 // ============================================================================
 
 /// MCP server instance.
+///
+/// # Invariants
+/// - Configuration and routing state are immutable after construction.
 pub struct McpServer {
     /// Server configuration.
     config: DecisionGateConfig,
@@ -146,6 +149,9 @@ pub struct McpServer {
 }
 
 /// Optional overrides for enterprise deployments.
+///
+/// # Invariants
+/// - `None` fields fall back to the default implementation.
 #[derive(Default)]
 pub struct ServerOverrides {
     /// Tool authz override (authn/authz policy).
@@ -414,6 +420,8 @@ fn build_run_state_store(
                 journal_mode: config.run_state_store.journal_mode,
                 sync_mode: config.run_state_store.sync_mode,
                 max_versions: config.run_state_store.max_versions,
+                schema_registry_max_schema_bytes: None,
+                schema_registry_max_entries: None,
             };
             let store = SqliteRunStateStore::new(sqlite_config)
                 .map_err(|err| McpServerError::Init(err.to_string()))?;
@@ -427,19 +435,19 @@ fn build_run_state_store(
 fn build_schema_registry(
     config: &DecisionGateConfig,
 ) -> Result<SharedDataShapeRegistry, McpServerError> {
+    let max_entries = config
+        .schema_registry
+        .max_entries
+        .map(|value| {
+            usize::try_from(value).map_err(|_| {
+                McpServerError::Config(
+                    "schema_registry max_entries exceeds platform limits".to_string(),
+                )
+            })
+        })
+        .transpose()?;
     let registry = match config.schema_registry.registry_type {
         SchemaRegistryType::Memory => {
-            let max_entries = config
-                .schema_registry
-                .max_entries
-                .map(|value| {
-                    usize::try_from(value).map_err(|_| {
-                        McpServerError::Config(
-                            "schema_registry max_entries exceeds platform limits".to_string(),
-                        )
-                    })
-                })
-                .transpose()?;
             SharedDataShapeRegistry::from_registry(InMemoryDataShapeRegistry::with_limits(
                 config.schema_registry.max_schema_bytes,
                 max_entries,
@@ -455,6 +463,8 @@ fn build_schema_registry(
                 journal_mode: config.schema_registry.journal_mode,
                 sync_mode: config.schema_registry.sync_mode,
                 max_versions: None,
+                schema_registry_max_schema_bytes: Some(config.schema_registry.max_schema_bytes),
+                schema_registry_max_entries: max_entries,
             };
             let store = SqliteRunStateStore::new(sqlite_config)
                 .map_err(|err| McpServerError::Init(err.to_string()))?;
@@ -2112,6 +2122,9 @@ fn write_framed(writer: &mut impl Write, payload: &[u8]) -> Result<(), McpServer
 // ============================================================================
 
 /// MCP server errors.
+///
+/// # Invariants
+/// - Variants are stable for error classification.
 #[derive(Debug, thiserror::Error)]
 pub enum McpServerError {
     /// Configuration errors.

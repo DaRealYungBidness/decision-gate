@@ -19,6 +19,7 @@
 //! ## Security Posture
 //! Assumes adversarial network: servers may send malformed headers, lie about content length,
 //! hang connections, or attempt resource exhaustion. Provider must fail closed.
+//! See `Docs/security/threat_model.md`.
 
 #![allow(
     clippy::panic,
@@ -711,17 +712,33 @@ fn http_timeout_cleanup() {
 /// Provider must detect truncation to prevent cache poisoning or incomplete data acceptance.
 #[test]
 fn http_body_truncated_before_content_length() {
-    // This requires a custom server that can send partial content and close connection
-    // tiny_http automatically handles Content-Length, so we need a different approach
+    let advertised_len = 1000;
+    let body_len = 500;
+    let body = "x".repeat(body_len);
+    let response = format!(
+        "HTTP/1.1 200 OK\r\nContent-Length: {advertised_len}\r\nConnection: close\r\n\r\n{body}"
+    )
+    .into_bytes();
 
-    // For now, this test documents the requirement
-    // Implementation would need:
-    // 1. Raw TCP socket server
-    // 2. Send HTTP headers with Content-Length: 1000
-    // 3. Send only 500 bytes of body
-    // 4. Close connection
+    let (addr, handle) = raw_http_response_server(response);
+    let url = format!("http://{addr}");
 
-    // TODO: Implement with custom TCP server or mark as integration test
+    let provider = local_provider();
+    let query = EvidenceQuery {
+        provider_id: ProviderId::new("http"),
+        check_id: "body_hash".to_string(),
+        params: Some(json!({"url": url})),
+    };
+
+    let result = provider.query(&query, &sample_context());
+    handle.join().unwrap();
+
+    assert!(result.is_err(), "Truncated response must fail closed");
+    let err = format!("{:?}", result.unwrap_err());
+    assert!(
+        err.contains("truncated") || err.contains("failed to read response"),
+        "unexpected error: {err}"
+    );
 }
 
 /// TM-HTTP-003: Tests zero-byte response handling.

@@ -37,9 +37,9 @@ fn entry(term: &str, description: &str) -> TooltipEntry {
 
 /// Canonical tooltip term/description pairs.
 const TOOLTIP_PAIRS: &[(&str, &str)] = &[
-    // =====================================================================
-    // MCP TOOLS - Scenario Lifecycle
-    // =====================================================================
+    // ============================================================================
+    // SECTION: MCP TOOLS - Scenario Lifecycle
+    // ============================================================================
     (
         "scenario_define",
         "Registers a ScenarioSpec with the runtime and returns its canonical spec_hash. The \
@@ -155,9 +155,9 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          sections with headings, role metadata, and suggested follow-ups. Use this to answer \
          product or policy questions without leaving the MCP session.",
     ),
-    // =====================================================================
-    // CORE TYPES - Scenario & Stage Specifications
-    // =====================================================================
+    // ============================================================================
+    // SECTION: CORE TYPES - Scenario & Stage Specifications
+    // ============================================================================
     (
         "ScenarioSpec",
         "The complete specification for a deterministic decision workflow. Contains an ordered \
@@ -195,9 +195,9 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
         "Stable identifier for a condition within a ScenarioSpec. Condition IDs are referenced by \
          Requirement leaves and should be descriptive and stable (e.g., 'env_is_prod').",
     ),
-    // =====================================================================
-    // RET SYSTEM - Requirement Evaluation Trees
-    // =====================================================================
+    // ============================================================================
+    // SECTION: RET SYSTEM - Requirement Evaluation Trees
+    // ============================================================================
     (
         "Requirement",
         "A Requirement Evaluation Tree (RET) is a boolean algebra over tri-state outcomes. It \
@@ -255,9 +255,9 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          provider failed. Branching can route on any outcome; only true advances linear/fixed \
          stages.",
     ),
-    // =====================================================================
-    // EVIDENCE CHAIN - Queries, Results, and Anchors
-    // =====================================================================
+    // ============================================================================
+    // SECTION: EVIDENCE CHAIN - Queries, Results, and Anchors
+    // ============================================================================
     (
         "comparator",
         "The comparison operator applied to evidence. Supported comparators: equals, not_equals, \
@@ -363,9 +363,9 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          needs {key}, time.after needs {timestamp}, http.status needs {url}. Invalid or missing \
          required params cause the provider to fail, yielding an unknown outcome.",
     ),
-    // =====================================================================
-    // FLOW CONTROL - Stages and Advancement
-    // =====================================================================
+    // ============================================================================
+    // SECTION: FLOW CONTROL - Stages and Advancement
+    // ============================================================================
     (
         "stages",
         "An ordered list of decision phases in a ScenarioSpec. Each stage contains gates to \
@@ -394,9 +394,9 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          audit events, or trigger downstream systems. Packets include payload, schema_id, and \
          visibility_labels for access control.",
     ),
-    // =====================================================================
-    // AUDIT & DETERMINISM
-    // =====================================================================
+    // ============================================================================
+    // SECTION: AUDIT & DETERMINISM
+    // ============================================================================
     (
         "spec_hash",
         "A canonical SHA-256 hash of the ScenarioSpec in deterministic JSON form. Two specs with \
@@ -455,9 +455,9 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          to prove evidence authenticity. Verifiers can check signatures offline using the \
          anchored key reference.",
     ),
-    // =====================================================================
-    // IDENTIFIERS
-    // =====================================================================
+    // ============================================================================
+    // SECTION: IDENTIFIERS
+    // ============================================================================
     (
         "scenario_id",
         "Stable identifier for a scenario across its lifecycle: registration, runs, and audits. \
@@ -532,9 +532,9 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          emission. Register schemas in the ScenarioSpec's schemas array. Packets reference \
          schemas by schema_id for type safety and documentation.",
     ),
-    // =====================================================================
-    // RUN STATE & TIMING
-    // =====================================================================
+    // ============================================================================
+    // SECTION: RUN STATE & TIMING
+    // ============================================================================
     (
         "run_config",
         "Configuration provided when starting a run via scenario_start. Includes tenant_id, \
@@ -589,9 +589,9 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          run_id, kind, time, source_id, optional payload, and correlation_id. Triggers are \
          recorded for audit replay.",
     ),
-    // =====================================================================
-    // DISCLOSURE & DISPATCH
-    // =====================================================================
+    // ============================================================================
+    // SECTION: DISCLOSURE & DISPATCH
+    // ============================================================================
     (
         "policy_tags",
         "Labels applied to runs, conditions, or disclosures for policy routing. Tags enable \
@@ -629,9 +629,9 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          name, parameters, and request metadata. Internal structure; most users interact via \
          higher-level scenario_* tools.",
     ),
-    // =====================================================================
-    // CAPABILITY CONTRACTS
-    // =====================================================================
+    // ============================================================================
+    // SECTION: CAPABILITY CONTRACTS
+    // ============================================================================
     ("name", "Human-readable provider name shown in docs and UIs."),
     ("description", "Short summary describing provider behavior and intent."),
     ("config_schema", "JSON Schema validating provider configuration entries."),
@@ -650,9 +650,9 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     ),
     ("examples", "Example check invocations with params and results."),
     ("result", "Example output value for a check invocation."),
-    // =====================================================================
-    // PROVIDER CONFIGURATION
-    // =====================================================================
+    // ============================================================================
+    // SECTION: PROVIDER CONFIGURATION
+    // ============================================================================
     (
         "transport",
         "MCP transport protocol for provider communication: 'stdio' for subprocess pipes, 'http' \
@@ -738,9 +738,9 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          are permitted. Prevents SSRF: queries to unapproved hosts fail with a security error. \
          Required for http providers in production.",
     ),
-    // =====================================================================
-    // SECURITY & TRUST
-    // =====================================================================
+    // ============================================================================
+    // SECTION: SECURITY & TRUST
+    // ============================================================================
     (
         "default_policy",
         "Default trust policy for evidence providers. Options: 'audit' or 'require_signature' \
@@ -789,9 +789,9 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          additional syntax. Enable when config files use YAML format. Disable to restrict to pure \
          JSON for stricter validation.",
     ),
-    // =====================================================================
-    // DISPATCH POLICY
-    // =====================================================================
+    // ============================================================================
+    // SECTION: DISPATCH POLICY
+    // ============================================================================
     (
         "engine",
         "Dispatch policy engine selection. Options: 'permit_all', 'deny_all', or 'static'. Use \
@@ -833,9 +833,9 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
     ("packet_ids", "Packet identifiers allowed by the rule."),
     ("stage_ids", "Stage identifiers allowed by the rule."),
     ("scenario_ids", "Scenario identifiers allowed by the rule."),
-    // =====================================================================
-    // PROVIDER-SPECIFIC: ENV
-    // =====================================================================
+    // ============================================================================
+    // SECTION: PROVIDER-SPECIFIC: ENV
+    // ============================================================================
     (
         "allowlist",
         "List of environment variable keys the env provider may read. Queries for keys not in the \
@@ -866,9 +866,9 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          replace real environment lookups, ensuring reproducible evidence. Use for CI/CD where \
          environment varies across runners.",
     ),
-    // =====================================================================
-    // PROVIDER-SPECIFIC: JSON
-    // =====================================================================
+    // ============================================================================
+    // SECTION: PROVIDER-SPECIFIC: JSON
+    // ============================================================================
     (
         "root",
         "Base directory for JSON provider file resolution. File paths in queries are resolved \
@@ -887,9 +887,9 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          follows RFC 9535. Examples: '$.version', '$.config.features[*].name'. The extracted \
          value becomes the evidence for comparator evaluation.",
     ),
-    // =====================================================================
-    // PROVIDER-SPECIFIC: HTTP
-    // =====================================================================
+    // ============================================================================
+    // SECTION: PROVIDER-SPECIFIC: HTTP
+    // ============================================================================
     (
         "max_body_bytes",
         "Maximum request body size in bytes for JSON-RPC requests. Prevents oversized payloads \
@@ -907,18 +907,18 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
         "Timeout in milliseconds. Used for stage timeouts (TimeoutSpec) and for HTTP provider \
          requests. Operations exceeding this duration fail per policy.",
     ),
-    // =====================================================================
-    // PROVIDER-SPECIFIC: TIME
-    // =====================================================================
+    // ============================================================================
+    // SECTION: PROVIDER-SPECIFIC: TIME
+    // ============================================================================
     (
         "unix_millis",
         "Unix timestamp expressed in milliseconds since epoch (1970-01-01 UTC). Standard format \
          for trigger_time and time checks. Millisecond precision enables sub-second scheduling. \
          Convert from ISO 8601: parse to Date, call getTime().",
     ),
-    // =====================================================================
-    // RUNPACK EXPORT
-    // =====================================================================
+    // ============================================================================
+    // SECTION: RUNPACK EXPORT
+    // ============================================================================
     (
         "output_dir",
         "Directory where runpack_export writes the audit bundle for filesystem storage. Optional \

@@ -80,5 +80,19 @@ class JsonRpcTests(unittest.TestCase):
         self.assertEqual(response["error"]["code"], -32602)
 
 
+# ============================================================================
+# SECTION: Evidence Tests
+# ============================================================================
+
+
+class EvidenceTests(unittest.TestCase):
+    def test_handle_evidence_query_missing_value_sets_error(self) -> None:
+        result = provider.handle_evidence_query({"params": {}}, {})
+
+        self.assertIsNone(result["value"])
+        self.assertIsNone(result["content_type"])
+        self.assertEqual(result["error"]["code"], "invalid_params")
+
+
 if __name__ == "__main__":
     unittest.main()

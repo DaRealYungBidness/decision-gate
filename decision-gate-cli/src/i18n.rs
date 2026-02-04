@@ -28,6 +28,10 @@ use std::sync::OnceLock;
 // ============================================================================
 
 /// Supported CLI locales.
+///
+/// # Invariants
+/// - Variants are stable for CLI parsing and catalog lookup.
+/// - [`Locale::En`] is the default fallback locale.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Locale {
     /// English (default).
@@ -64,9 +68,16 @@ impl Locale {
 }
 
 /// Ordered list of supported CLI locales.
+///
+/// # Invariants
+/// - Ordering is stable for deterministic presentation.
 pub const SUPPORTED_LOCALES: &[Locale] = &[Locale::En, Locale::Ca];
 
 /// A formatted message argument captured by the [`macro@crate::t`] macro.
+///
+/// # Invariants
+/// - `key` matches a placeholder name without braces (for example, `path`).
+/// - `value` is preformatted and should be safe for display.
 #[derive(Clone)]
 pub struct MessageArg {
     /// The placeholder name used in message templates (e.g., `"path"`).
@@ -375,6 +386,7 @@ const CATALOG_EN: &[(&str, &str)] = &[
     ("broker.resolve.hash", "Content hash: {value}"),
     ("broker.resolve.bytes", "Payload bytes: {bytes}"),
     ("broker.dispatch.failed", "Failed to dispatch broker payload: {error}"),
+    ("broker.dispatch.target_failed", "Failed to serialize broker target: {error}"),
     ("broker.dispatch.header", "Broker dispatch result:"),
     ("broker.dispatch.receipt", "Receipt: {dispatch_id} (dispatcher {dispatcher})"),
     ("broker.dispatch.target", "Target: {target}"),
@@ -738,6 +750,7 @@ const CATALOG_CA: &[(&str, &str)] = &[
     ("broker.resolve.hash", "Hash de contingut: {value}"),
     ("broker.resolve.bytes", "Bytes del payload: {bytes}"),
     ("broker.dispatch.failed", "No s'ha pogut enviar el payload del broker: {error}"),
+    ("broker.dispatch.target_failed", "No s'ha pogut serialitzar el destí del broker: {error}"),
     ("broker.dispatch.header", "Resultat de dispatch del broker:"),
     ("broker.dispatch.receipt", "Rebut: {dispatch_id} (dispatcher {dispatcher})"),
     ("broker.dispatch.target", "Destí: {target}"),

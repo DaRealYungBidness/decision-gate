@@ -1,10 +1,19 @@
-//! `SQLite` crash writer for store durability tests.
 // decision-gate-store-sqlite/src/bin/sqlite_crash_writer.rs
 // ============================================================================
 // Binary: SQLite Crash Writer
 // Description: Simulates a crash during an uncommitted run-state write.
 // Purpose: Support durability tests for rollback/crash recovery behavior.
 // Dependencies: decision-gate-core, decision-gate-store-sqlite, rusqlite
+// ============================================================================
+
+//! ## Overview
+//! Generates a minimal run state, writes it inside an uncommitted transaction,
+//! and aborts the process to simulate a crash. Used by durability tests to
+//! validate WAL recovery behavior.
+//! Security posture: writes deterministic test data only; no untrusted inputs.
+
+// ============================================================================
+// SECTION: Imports
 // ============================================================================
 
 use std::env;
@@ -32,6 +41,10 @@ use decision_gate_store_sqlite::SqliteStoreMode;
 use decision_gate_store_sqlite::SqliteSyncMode;
 use rusqlite::params;
 
+// ============================================================================
+// SECTION: Entrypoint
+// ============================================================================
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = env::args().skip(1);
     let path = args.next().ok_or_else(|| {
@@ -46,6 +59,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         journal_mode: SqliteStoreMode::Wal,
         sync_mode: SqliteSyncMode::Full,
         max_versions: None,
+        schema_registry_max_schema_bytes: None,
+        schema_registry_max_entries: None,
     };
     let _store = SqliteRunStateStore::new(config)?;
     let state = sample_state(&run_id)?;
@@ -69,6 +84,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     std::process::abort();
 }
+
+// ============================================================================
+// SECTION: Helpers
+// ============================================================================
 
 /// Builds a minimal run state used by the crash writer.
 ///

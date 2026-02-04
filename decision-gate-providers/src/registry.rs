@@ -42,6 +42,10 @@ use crate::TimeProviderConfig;
 // ============================================================================
 
 /// Access policy controlling which providers may be queried.
+///
+/// # Invariants
+/// - `denylist` overrides `allowlist` when both are present.
+/// - If `allowlist` is `None`, all providers are allowed unless denied.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderAccessPolicy {
     /// Optional allowlist of provider identifiers.
@@ -84,6 +88,11 @@ impl Default for ProviderAccessPolicy {
 // ============================================================================
 
 /// Evidence provider registry with policy enforcement.
+///
+/// # Invariants
+/// - Provider identifiers are unique within the registry.
+/// - Access policy is enforced on every query.
+/// - Registered providers are `Send + Sync` and stored behind trait objects.
 pub struct ProviderRegistry {
     /// Provider implementations keyed by provider identifier.
     providers: BTreeMap<String, Box<dyn EvidenceProvider + Send + Sync>>,

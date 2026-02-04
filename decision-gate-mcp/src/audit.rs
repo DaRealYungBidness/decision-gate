@@ -10,6 +10,8 @@
 //! This module defines audit event payloads and sinks for MCP request logging.
 //! It is intentionally lightweight so deployments can route events to their
 //! preferred logging pipeline without redesign.
+//! Security posture: audit payloads include untrusted request metadata and must
+//! remain redacted; see `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports
@@ -38,6 +40,9 @@ use crate::telemetry::McpOutcome;
 // ============================================================================
 
 /// MCP audit event payload.
+///
+/// # Invariants
+/// - Payload fields are derived from request metadata and remain redacted.
 #[derive(Debug, Clone, Serialize)]
 pub struct McpAuditEvent {
     /// Event identifier.
@@ -75,6 +80,9 @@ pub struct McpAuditEvent {
 }
 
 /// Precheck audit event payload (hash-only by default).
+///
+/// # Invariants
+/// - Payload fields are derived from precheck metadata and remain redacted.
 #[derive(Debug, Clone, Serialize)]
 pub struct PrecheckAuditEvent {
     /// Event identifier.
@@ -110,6 +118,9 @@ pub struct PrecheckAuditEvent {
 }
 
 /// Schema registry audit event payload.
+///
+/// # Invariants
+/// - Payload fields are derived from registry access decisions.
 #[derive(Debug, Clone, Serialize)]
 pub struct RegistryAuditEvent {
     /// Event identifier.
@@ -145,6 +156,9 @@ pub struct RegistryAuditEvent {
 }
 
 /// Tenant authorization audit event payload.
+///
+/// # Invariants
+/// - Payload fields are derived from tenant authz decisions.
 #[derive(Debug, Clone, Serialize)]
 pub struct TenantAuthzEvent {
     /// Event identifier.
@@ -172,6 +186,9 @@ pub struct TenantAuthzEvent {
 }
 
 /// Usage audit event payload.
+///
+/// # Invariants
+/// - Payload fields are derived from usage metering decisions.
 #[derive(Debug, Clone, Serialize)]
 pub struct UsageAuditEvent {
     /// Event identifier.
@@ -202,6 +219,9 @@ pub struct UsageAuditEvent {
     pub reason: String,
 }
 /// Security posture audit event payload.
+///
+/// # Invariants
+/// - Payload fields summarize security-relevant configuration state.
 #[derive(Debug, Clone, Serialize)]
 pub struct SecurityAuditEvent {
     /// Event identifier.
@@ -223,6 +243,9 @@ pub struct SecurityAuditEvent {
 }
 
 /// Inputs required to construct an audit event.
+///
+/// # Invariants
+/// - This is a pure input container for event construction.
 pub struct McpAuditEventParams {
     /// Request identifier when provided.
     pub request_id: Option<String>,
@@ -255,6 +278,9 @@ pub struct McpAuditEventParams {
 }
 
 /// Inputs required to construct a precheck audit event.
+///
+/// # Invariants
+/// - This is a pure input container for event construction.
 pub struct PrecheckAuditEventParams {
     /// Tenant identifier.
     pub tenant_id: String,
@@ -285,6 +311,9 @@ pub struct PrecheckAuditEventParams {
 }
 
 /// Inputs required to construct a registry audit event.
+///
+/// # Invariants
+/// - This is a pure input container for event construction.
 pub struct RegistryAuditEventParams {
     /// Request identifier when provided.
     pub request_id: Option<String>,
@@ -315,6 +344,9 @@ pub struct RegistryAuditEventParams {
 }
 
 /// Inputs required to construct a tenant authorization audit event.
+///
+/// # Invariants
+/// - This is a pure input container for event construction.
 pub struct TenantAuthzEventParams {
     /// Request identifier when provided.
     pub request_id: Option<String>,
@@ -337,6 +369,9 @@ pub struct TenantAuthzEventParams {
 }
 
 /// Inputs required to construct a usage audit event.
+///
+/// # Invariants
+/// - This is a pure input container for event construction.
 pub struct UsageAuditEventParams {
     /// Request identifier when provided.
     pub request_id: Option<String>,
@@ -362,6 +397,9 @@ pub struct UsageAuditEventParams {
     pub reason: String,
 }
 /// Inputs required to construct a security audit event.
+///
+/// # Invariants
+/// - This is a pure input container for event construction.
 pub struct SecurityAuditEventParams {
     /// Security event kind.
     pub kind: String,
@@ -546,6 +584,9 @@ pub trait McpAuditSink: Send + Sync {
 }
 
 /// Audit sink that logs JSON lines to stderr.
+///
+/// # Invariants
+/// - Audit events are written to stderr in JSON form.
 pub struct McpStderrAuditSink;
 
 impl McpAuditSink for McpStderrAuditSink {
@@ -587,6 +628,9 @@ impl McpAuditSink for McpStderrAuditSink {
 }
 
 /// Audit sink that logs JSON lines to a file.
+///
+/// # Invariants
+/// - Audit events are appended as JSON lines.
 pub struct McpFileAuditSink {
     /// File handle used for append-only logging.
     file: Mutex<std::fs::File>,
@@ -663,6 +707,9 @@ impl McpAuditSink for McpFileAuditSink {
 }
 
 /// No-op audit sink.
+///
+/// # Invariants
+/// - Audit events are intentionally discarded.
 pub struct McpNoopAuditSink;
 
 impl McpAuditSink for McpNoopAuditSink {

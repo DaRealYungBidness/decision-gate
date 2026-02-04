@@ -68,6 +68,9 @@ const MAX_INTEROP_ERROR_BODY_BYTES: usize = 2048;
 // ============================================================================
 
 /// Supported interop transports.
+///
+/// # Invariants
+/// - Variants are stable for CLI parsing and transport selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InteropTransport {
     /// HTTP JSON-RPC transport.
@@ -90,6 +93,12 @@ impl InteropTransport {
 }
 
 /// Inputs required to run an interop evaluation.
+///
+/// # Invariants
+/// - Transport-specific fields must be present (HTTP/SSE require `endpoint`, stdio requires
+///   `stdio_command`).
+/// - `spec`, `run_config`, and `trigger` identifiers should match; call [`validate_inputs`] before
+///   execution.
 #[derive(Debug, Clone)]
 pub struct InteropConfig {
     /// MCP transport selection.
@@ -123,6 +132,10 @@ pub struct InteropConfig {
 }
 
 /// Transcript entry for each MCP JSON-RPC request/response pair.
+///
+/// # Invariants
+/// - `sequence` values are monotonically increasing within a report.
+/// - `request` and `response` capture raw JSON-RPC payloads without mutation.
 #[derive(Debug, Clone, Serialize)]
 pub struct TranscriptEntry {
     /// Monotonic sequence number for this entry.
@@ -138,6 +151,10 @@ pub struct TranscriptEntry {
 }
 
 /// Report emitted by the interop runner.
+///
+/// # Invariants
+/// - `transcript` entries preserve call order as recorded by the client.
+/// - `spec`, `run_config`, and `trigger` reflect the inputs used for the run.
 #[derive(Debug, Serialize)]
 pub struct InteropReport {
     /// Scenario specification payload.

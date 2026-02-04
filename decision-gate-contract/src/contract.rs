@@ -305,7 +305,9 @@ fn ensure_output_dir(output_dir: &Path) -> Result<(), ContractError> {
         ensure_no_symlink_path(output_dir)?;
         return Ok(());
     }
-    fs::create_dir_all(output_dir).map_err(|err| ContractError::Io(err.to_string()))
+    fs::create_dir_all(output_dir).map_err(|err| ContractError::Io(err.to_string()))?;
+    ensure_no_symlink_path(output_dir)?;
+    Ok(())
 }
 
 /// Ensures the output directory exists and is a directory.
@@ -457,7 +459,7 @@ fn collect_files_recursive(
 
 // ============================================================================
 // SECTION: Tests
-// ========================================================================
+// ============================================================================
 
 #[cfg(test)]
 mod tests;

@@ -9,6 +9,10 @@
 //! ## Overview
 //! [`LogSink`] writes a log record for each dispatch and returns the receipt. It
 //! does not deliver payloads to external systems.
+//! Invariants:
+//! - Each successful delivery writes one JSON record followed by a newline.
+//! - Payload bodies are never logged, only metadata.
+//!
 //! Security posture: logs can contain sensitive metadata; protect outputs per
 //! `Docs/security/threat_model.md`.
 
@@ -33,6 +37,9 @@ use crate::sink::SinkError;
 // ============================================================================
 
 /// Log-only payload sink.
+///
+/// # Invariants
+/// - Successful deliveries append exactly one JSON log record.
 pub struct LogSink<W: Write + Send> {
     /// Output writer for log records.
     writer: Mutex<W>,

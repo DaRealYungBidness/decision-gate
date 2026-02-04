@@ -11,6 +11,11 @@
 //! registry implementation that routes evidence queries by provider identifier.
 //! Providers are deterministic with respect to the supplied trigger context and
 //! enforce strict validation and size limits for untrusted inputs.
+//! Invariants:
+//! - Evidence queries are routed via [`ProviderRegistry`] by provider identifier.
+//! - Built-in providers enforce size limits and fail closed on invalid inputs.
+//!
+//! Security posture: evidence inputs are untrusted; see `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Modules

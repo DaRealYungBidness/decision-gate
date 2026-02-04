@@ -14,6 +14,10 @@
 //! Security posture: schemas gate untrusted inputs; see
 //! `Docs/security/threat_model.md`.
 
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
+
 use decision_gate_core::ToolName;
 use serde_json::Value;
 use serde_json::json;
@@ -69,6 +73,10 @@ use crate::config::default_schema_max_bytes;
 use crate::config::default_store_busy_timeout_ms;
 use crate::config::default_tls_require_client_cert;
 use crate::config::default_validation_strict;
+
+// ============================================================================
+// SECTION: Root Schema
+// ============================================================================
 
 /// Returns the JSON schema for `decision-gate.toml`.
 #[must_use]

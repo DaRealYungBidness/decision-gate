@@ -72,6 +72,7 @@ Sources resolve `ContentRef` URIs into raw payload bytes.
 - Rejects redirects and non-2xx responses.
 - Enforces a 30s request timeout and max payload size.
 - Denies private/link-local IP ranges by default; allowlists/denylists are supported.
+- Pins DNS resolution per request and re-validates the peer IP before accepting responses.
 
 ## Sinks
 
@@ -166,7 +167,8 @@ let broker = CompositeBroker::builder()
 - **No redirects**: HTTP sources reject redirects.
 - **Fail closed**: invalid URIs or fetch errors abort dispatch.
 
-See `../../Docs/security/threat_model.md` for system-level assumptions.
+See [F:Docs/security/threat_model.md L12-L220](Docs/security/threat_model.md#L12-L220) for
+system-level assumptions.
 
 ## Testing
 

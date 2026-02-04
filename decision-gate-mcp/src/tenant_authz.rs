@@ -18,6 +18,9 @@
 //! - Authorization decisions must be deterministic for identical inputs.
 //! - Missing tenant/namespace context must deny when required.
 //! - Implementations must avoid side effects beyond audit logging.
+//!
+//! Security posture: tenant authorization is a trust boundary and must fail
+//! closed on missing or invalid context; see `Docs/security/threat_model.md`.
 
 use async_trait::async_trait;
 use decision_gate_contract::ToolName;
@@ -27,6 +30,9 @@ use decision_gate_core::TenantId;
 use crate::auth::AuthContext;
 
 /// Tenant authorization action for audit labeling.
+///
+/// # Invariants
+/// - Variants identify the audited action only and do not imply access.
 #[derive(Debug, Clone, Copy)]
 pub enum TenantAuthzAction<'a> {
     /// Tool call action.
@@ -34,6 +40,9 @@ pub enum TenantAuthzAction<'a> {
 }
 
 /// Tenant authorization request context.
+///
+/// # Invariants
+/// - This is a pure request container; values are validated at the authz boundary.
 #[derive(Debug, Clone, Copy)]
 pub struct TenantAccessRequest<'a> {
     /// Action being authorized.
@@ -45,6 +54,9 @@ pub struct TenantAccessRequest<'a> {
 }
 
 /// Tenant authorization decision outcome.
+///
+/// # Invariants
+/// - `allowed` is the authoritative decision for the request.
 #[derive(Debug, Clone)]
 pub struct TenantAuthzDecision {
     /// Whether access is allowed.
@@ -65,6 +77,9 @@ pub trait TenantAuthorizer: Send + Sync {
 }
 
 /// No-op tenant authorizer that always allows.
+///
+/// # Invariants
+/// - Always returns an allow decision.
 pub struct NoopTenantAuthorizer;
 
 #[async_trait]

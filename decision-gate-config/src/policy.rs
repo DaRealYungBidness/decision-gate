@@ -26,6 +26,10 @@ use decision_gate_core::PolicyError;
 use serde::Deserialize;
 use serde::Serialize;
 
+// ============================================================================
+// SECTION: Policy Model
+// ============================================================================
+
 /// Policy engine selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -371,6 +375,15 @@ impl PolicyTargetSelector {
     }
 }
 
+/// Returns the default static policy effect.
+const fn default_static_effect() -> PolicyEffect {
+    PolicyEffect::Deny
+}
+
+// ============================================================================
+// SECTION: Dispatch Adapter
+// ============================================================================
+
 /// Runtime policy decider for dispatch authorization.
 #[derive(Debug, Clone)]
 pub enum DispatchPolicy {
@@ -395,9 +408,4 @@ impl PolicyDecider for DispatchPolicy {
             Self::Static(policy) => policy.evaluate(target, envelope),
         }
     }
-}
-
-/// Returns the default static policy effect.
-const fn default_static_effect() -> PolicyEffect {
-    PolicyEffect::Deny
 }

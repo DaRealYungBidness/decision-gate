@@ -10,6 +10,8 @@
 //! Strict validation enforces comparator/type compatibility and domain-specific
 //! comparator allowlists. It is default-on and fails closed when schema
 //! metadata is ambiguous or invalid.
+//! Security posture: schema validation is a trust boundary and must fail closed
+//! on ambiguous inputs; see `Docs/security/threat_model.md`.
 
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
@@ -26,6 +28,9 @@ use crate::capabilities::CapabilityRegistry;
 use crate::config::ValidationConfig;
 
 /// Strict validation error.
+///
+/// # Invariants
+/// - Variants are stable for validation error classification.
 #[derive(Debug, Error)]
 pub enum ValidationError {
     /// Invalid condition definition or schema constraints.
@@ -34,6 +39,9 @@ pub enum ValidationError {
 }
 
 /// Strict comparator validation controller.
+///
+/// # Invariants
+/// - Behavior is fully determined by the stored configuration.
 #[derive(Clone)]
 pub struct StrictValidator {
     /// Active validation settings.

@@ -51,6 +51,8 @@ python3 -m unittest test_provider.py
 1. Define checks and parameters in `handle_evidence_query`.
 2. Populate `tools/list` with the `evidence_query` tool metadata.
 3. Generate a provider contract JSON and register it in `decision-gate.toml`.
+4. Return structured `EvidenceResult.error` metadata for missing/invalid
+   evidence, and reserve JSON-RPC errors for malformed requests.
 
 ## Framing Limits
 
@@ -61,3 +63,6 @@ The template enforces:
 Requests exceeding these limits are rejected with JSON-RPC errors.
 
 ## References
+- `../spec/evidence_provider_protocol.md`
+- `../../Docs/guides/security_guide.md`
+- `../../Docs/security/threat_model.md`

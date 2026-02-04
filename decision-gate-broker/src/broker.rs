@@ -10,6 +10,11 @@
 //! [`CompositeBroker`] implements the [`decision_gate_core::Dispatcher`] interface
 //! by resolving external payloads with [`Source`] implementations and delivering
 //! them with [`Sink`] implementations.
+//! Invariants:
+//! - Payload hashes must match the envelope or content reference hash.
+//! - Declared content types must match the resolved payload kind.
+//! - Source resolution fails closed on missing or unsupported schemes.
+//!
 //! Security posture: treats content references as untrusted input; see
 //! `Docs/security/threat_model.md`.
 
@@ -46,6 +51,9 @@ use crate::source::SourceError;
 // ============================================================================
 
 /// Errors returned by the composite broker.
+///
+/// # Invariants
+/// - Variants are stable for programmatic handling.
 #[derive(Debug, Error)]
 pub enum BrokerError {
     /// Broker is missing a required sink.
@@ -106,6 +114,10 @@ impl From<BrokerError> for DispatchError {
 // ============================================================================
 
 /// Builder for a composite broker.
+///
+/// # Invariants
+/// - `build` succeeds only when a sink is configured.
+/// - Source registrations are keyed by scheme; later registrations overwrite earlier ones.
 #[derive(Default)]
 pub struct CompositeBrokerBuilder {
     /// Source registry keyed by URI scheme.
@@ -143,6 +155,10 @@ impl CompositeBrokerBuilder {
 }
 
 /// Composite dispatcher wiring sources and a sink.
+///
+/// # Invariants
+/// - A sink is always configured for dispatch.
+/// - Source schemes are unique within the registry.
 pub struct CompositeBroker {
     /// Source registry keyed by URI scheme.
     sources: BTreeMap<String, Arc<dyn Source>>,

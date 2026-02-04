@@ -10,6 +10,10 @@
 //! Sinks deliver resolved payloads to [`decision_gate_core::DispatchTarget`] values and return
 //! [`decision_gate_core::DispatchReceipt`] values for auditing. Implementations must fail closed
 //! on delivery errors.
+//! Invariants:
+//! - Receipts are returned only after successful delivery.
+//! - Delivery failures must not emit partial side effects.
+//!
 //! Security posture: dispatch targets are external systems; treat payloads as
 //! sensitive and see `Docs/security/threat_model.md`.
 
@@ -32,6 +36,9 @@ use crate::payload::Payload;
 // ============================================================================
 
 /// Errors emitted by broker sinks.
+///
+/// # Invariants
+/// - Variants are stable for programmatic handling.
 #[derive(Debug, Error)]
 pub enum SinkError {
     /// Sink delivery failed.
@@ -65,6 +72,9 @@ pub trait Sink: Send + Sync {
 // ============================================================================
 
 /// Dispatch message emitted by channel-based sinks.
+///
+/// # Invariants
+/// - `receipt` must correspond to the provided `target` and `payload`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DispatchMessage {
     /// Dispatch target.

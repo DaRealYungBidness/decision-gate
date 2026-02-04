@@ -29,6 +29,9 @@ use decision_gate_core::TenantId;
 use thiserror::Error;
 
 /// Runpack storage key (tenant + namespace + run).
+///
+/// # Invariants
+/// - Identifiers scope a single runpack export operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RunpackStorageKey {
     /// Tenant identifier.
@@ -40,6 +43,9 @@ pub struct RunpackStorageKey {
 }
 
 /// Runpack storage errors.
+///
+/// # Invariants
+/// - Variants are stable for error classification.
 #[derive(Debug, Error)]
 pub enum RunpackStorageError {
     /// Storage I/O error.

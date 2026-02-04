@@ -56,6 +56,8 @@ npm test
 2. Populate `tools/list` with the `evidence_query` tool metadata.
 3. Generate a provider contract JSON (capabilities) and register it in
    `decision-gate.toml` via `capabilities_path`.
+4. Return structured `EvidenceResult.error` metadata for missing/invalid
+   evidence, and reserve JSON-RPC errors for malformed requests.
 
 ## Framing Limits
 
@@ -66,3 +68,6 @@ The template enforces:
 Requests exceeding these limits are rejected with JSON-RPC errors.
 
 ## References
+- `../spec/evidence_provider_protocol.md`
+- `../../Docs/guides/security_guide.md`
+- `../../Docs/security/threat_model.md`

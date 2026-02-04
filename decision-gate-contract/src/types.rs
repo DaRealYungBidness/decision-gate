@@ -18,6 +18,9 @@
 // ============================================================================
 
 use decision_gate_core::Comparator;
+// ============================================================================
+// SECTION: Re-Exports
+// ============================================================================
 /// Canonical MCP tool names for Decision Gate.
 pub use decision_gate_core::ToolName;
 use decision_gate_core::hashing::HashAlgorithm;

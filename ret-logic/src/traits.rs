@@ -57,7 +57,7 @@ pub trait ConditionEval {
     /// * `reader` - Bundle of component slices from an ECS chunk
     /// * `row` - Index within the chunk (`0..chunk_len`)
     ///
-    /// # Returns  
+    /// # Returns
     /// `true` if the condition is satisfied for this row
     fn eval_row(&self, reader: &Self::Reader<'_>, row: Row) -> bool;
 }
@@ -74,7 +74,7 @@ pub trait BatchConditionEval: ConditionEval {
     /// Evaluate condition for up to 64 consecutive rows
     ///
     /// Returns a bitmask where bit N indicates whether row start+N passed.
-    /// Default implementation calls `eval_row` in a loop. Domains can override
+    /// Default implementation calls [`ConditionEval::eval_row`] in a loop. Domains can override
     /// with SIMD intrinsics for vectorized evaluation.
     ///
     /// # Arguments

@@ -10,7 +10,8 @@
 //! Namespace authority checks validate that namespaces are known and permitted.
 //! Asset Core integration uses the write-daemon namespace endpoints to verify
 //! namespace existence and authorization without coupling to ASC internals.
-//! Security posture: namespace checks are a trust boundary; fail closed.
+//! Security posture: namespace checks are a trust boundary; fail closed. See
+//! `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports
@@ -50,6 +51,9 @@ pub trait NamespaceAuthority: Send + Sync {
 }
 
 /// No-op authority for standalone deployments.
+///
+/// # Invariants
+/// - Always allows namespace access.
 pub struct NoopNamespaceAuthority;
 
 #[async_trait]
@@ -65,6 +69,9 @@ impl NamespaceAuthority for NoopNamespaceAuthority {
 }
 
 /// Asset Core-backed namespace authority.
+///
+/// # Invariants
+/// - Base URL is normalized without a trailing slash.
 pub struct AssetCoreNamespaceAuthority {
     /// Asset Core base URL (no trailing slash).
     base_url: String,
@@ -164,6 +171,9 @@ impl NamespaceAuthority for AssetCoreNamespaceAuthority {
 // ============================================================================
 
 /// Namespace authority failures.
+///
+/// # Invariants
+/// - Variants are stable for error classification.
 #[derive(Debug, Error)]
 pub enum NamespaceAuthorityError {
     /// Namespace identifier is invalid for the configured authority.

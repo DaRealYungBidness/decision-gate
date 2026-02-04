@@ -170,7 +170,8 @@ fn file_artifact_sink_rejects_unc_paths() {
     let artifact = sample_artifact(verbatim_unc, b"nope");
     let err = sink.write(&artifact).unwrap_err();
     assert!(
-        err.to_string().contains("absolute artifact path") || err.to_string().contains("artifact path"),
+        err.to_string().contains("absolute artifact path")
+            || err.to_string().contains("artifact path"),
         "unexpected error for verbatim UNC path: {err}"
     );
 
@@ -179,7 +180,8 @@ fn file_artifact_sink_rejects_unc_paths() {
     let artifact2 = sample_artifact(server_unc, b"nope");
     let err2 = sink.write(&artifact2).unwrap_err();
     assert!(
-        err2.to_string().contains("absolute artifact path") || err2.to_string().contains("artifact path"),
+        err2.to_string().contains("absolute artifact path")
+            || err2.to_string().contains("artifact path"),
         "unexpected error for server UNC path: {err2}"
     );
 
@@ -218,11 +220,7 @@ fn file_artifact_sink_normalizes_safe_paths() {
     let dot_slash = "artifacts/./log.json";
     let artifact = sample_artifact(dot_slash, b"test-dot");
     let result = sink.write(&artifact);
-    assert!(
-        result.is_ok(),
-        "safe path normalization should allow ./, got error: {:?}",
-        result
-    );
+    assert!(result.is_ok(), "safe path normalization should allow ./, got error: {result:?}");
 
     cleanup(&root);
 }

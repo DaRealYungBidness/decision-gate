@@ -52,6 +52,9 @@ const ROLE_NAMESPACE_READER: &str = "NamespaceReader";
 const ROLE_SCHEMA_MANAGER: &str = "SchemaManager";
 
 /// Registry principal resolved from auth context.
+///
+/// # Invariants
+/// - `principal_id` is a stable identifier for ACL decisions.
 #[derive(Debug, Clone)]
 pub struct RegistryPrincipal {
     /// Principal identifier string.
@@ -65,6 +68,9 @@ pub struct RegistryPrincipal {
 }
 
 /// Role binding with optional tenant/namespace scope.
+///
+/// # Invariants
+/// - A role without scope applies tenant-wide.
 #[derive(Debug, Clone)]
 pub struct PrincipalRole {
     /// Role name.
@@ -85,6 +91,9 @@ struct PrincipalProfile {
 }
 
 /// Resolves principals from auth context using configured mappings.
+///
+/// # Invariants
+/// - Resolver mappings are immutable after construction.
 #[derive(Debug, Clone, Default)]
 pub struct PrincipalResolver {
     /// Principal profiles keyed by subject identifier.
@@ -144,6 +153,9 @@ impl PrincipalRole {
 }
 
 /// Registry ACL decision outcome.
+///
+/// # Invariants
+/// - `allowed` is the authoritative decision for the request.
 #[derive(Debug, Clone)]
 pub struct RegistryAclDecision {
     /// Whether access is allowed.
@@ -153,6 +165,9 @@ pub struct RegistryAclDecision {
 }
 
 /// Registry ACL evaluator.
+///
+/// # Invariants
+/// - Behavior is fully determined by the stored configuration.
 #[derive(Debug, Clone)]
 pub struct RegistryAcl {
     /// Selected ACL evaluation mode.

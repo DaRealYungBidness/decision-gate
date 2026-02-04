@@ -34,9 +34,9 @@ use serde::Serialize;
 use support::TestResult;
 use support::ensure;
 
-// ========================================================================
-// Mock Condition Type
-// ========================================================================
+// ============================================================================
+// SECTION: Mock Condition Type
+// ============================================================================
 
 /// Lightweight condition type for serialization tests.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

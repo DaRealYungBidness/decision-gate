@@ -10,6 +10,8 @@
 //! This module exposes a thin metrics interface for MCP request counters and
 //! latency histograms. It is intentionally dependency-light so downstream
 //! deployments can plug in Prometheus or OpenTelemetry without redesign.
+//! Security posture: telemetry must avoid leaking raw evidence or secrets and
+//! treat labels as untrusted; see `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Imports
@@ -34,6 +36,9 @@ pub const MCP_LATENCY_BUCKETS_MS: &[u64] =
 // ============================================================================
 
 /// MCP request method classification.
+///
+/// # Invariants
+/// - Variants are stable for telemetry labeling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum McpMethod {
     /// JSON-RPC tools/list.
@@ -66,6 +71,9 @@ impl McpMethod {
 }
 
 /// MCP request outcome classification.
+///
+/// # Invariants
+/// - Variants are stable for telemetry labeling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum McpOutcome {
     /// Successful request.
@@ -86,6 +94,9 @@ impl McpOutcome {
 }
 
 /// MCP request metric event payload.
+///
+/// # Invariants
+/// - Optional fields are `None` when the metadata is unavailable.
 #[derive(Debug, Clone)]
 pub struct McpMetricEvent {
     /// Transport used for the request.
@@ -123,6 +134,9 @@ pub trait McpMetrics: Send + Sync {
 }
 
 /// No-op metrics sink.
+///
+/// # Invariants
+/// - Metrics are intentionally discarded.
 pub struct NoopMetrics;
 
 impl McpMetrics for NoopMetrics {

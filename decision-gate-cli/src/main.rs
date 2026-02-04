@@ -1866,6 +1866,8 @@ fn resolve_sqlite_store_config(location: &StoreLocationArgs) -> CliResult<Sqlite
                 journal_mode: config.run_state_store.journal_mode,
                 sync_mode: config.run_state_store.sync_mode,
                 max_versions: config.run_state_store.max_versions,
+                schema_registry_max_schema_bytes: None,
+                schema_registry_max_entries: None,
             };
             return Ok(sqlite_config);
         }
@@ -1875,6 +1877,8 @@ fn resolve_sqlite_store_config(location: &StoreLocationArgs) -> CliResult<Sqlite
             journal_mode: SqliteStoreMode::default(),
             sync_mode: SqliteSyncMode::default(),
             max_versions: None,
+            schema_registry_max_schema_bytes: None,
+            schema_registry_max_entries: None,
         });
     }
     let config = DecisionGateConfig::load(location.config.as_deref())
@@ -1893,6 +1897,8 @@ fn resolve_sqlite_store_config(location: &StoreLocationArgs) -> CliResult<Sqlite
         journal_mode: config.run_state_store.journal_mode,
         sync_mode: config.run_state_store.sync_mode,
         max_versions: config.run_state_store.max_versions,
+        schema_registry_max_schema_bytes: None,
+        schema_registry_max_entries: None,
     })
 }
 
@@ -2206,7 +2212,7 @@ fn command_broker_dispatch(command: &BrokerDispatchCommand) -> CliResult<ExitCod
         content_hash: captured.payload.envelope.content_hash.clone(),
         payload_bytes: captured.payload.len(),
     };
-    let text = render_broker_dispatch_text(&output);
+    let text = render_broker_dispatch_text(&output)?;
     emit_structured_output(&output, command.format, &command.output, text)?;
     Ok(ExitCode::SUCCESS)
 }
@@ -2479,20 +2485,19 @@ fn render_broker_resolve_text(output: &BrokerResolveOutput) -> String {
 }
 
 /// Renders broker dispatch output in text form.
-fn render_broker_dispatch_text(output: &BrokerDispatchOutput) -> String {
+fn render_broker_dispatch_text(output: &BrokerDispatchOutput) -> CliResult<String> {
     let mut buffer = String::new();
     buffer.push_str(&t!("broker.dispatch.header"));
     buffer.push('\n');
+    let target = serde_json::to_string(&output.receipt.target)
+        .map_err(|err| CliError::new(t!("broker.dispatch.target_failed", error = err)))?;
     buffer.push_str(&t!(
         "broker.dispatch.receipt",
         dispatch_id = output.receipt.dispatch_id,
         dispatcher = output.receipt.dispatcher
     ));
     buffer.push('\n');
-    buffer.push_str(&t!(
-        "broker.dispatch.target",
-        target = serde_json::to_string(&output.receipt.target).unwrap_or_default()
-    ));
+    buffer.push_str(&t!("broker.dispatch.target", target = target));
     buffer.push('\n');
     buffer.push_str(&t!("broker.dispatch.content_type", content_type = output.content_type));
     buffer.push('\n');
@@ -2500,7 +2505,7 @@ fn render_broker_dispatch_text(output: &BrokerDispatchOutput) -> String {
     buffer.push('\n');
     buffer.push_str(&t!("broker.dispatch.bytes", bytes = output.payload_bytes));
     buffer.push('\n');
-    buffer
+    Ok(buffer)
 }
 
 /// Reads a JSON payload for broker commands.
@@ -3518,9 +3523,16 @@ fn validate_mcp_tool_input(tool: decision_gate_core::ToolName, input: &Value) ->
 fn parse_stdio_env(values: &[String]) -> CliResult<Vec<(String, String)>> {
     let mut env = Vec::new();
     for entry in values {
+        if entry.contains('\0') {
+            let display = entry.replace('\0', "\\0");
+            return Err(CliError::new(t!("mcp.client.invalid_stdio_env", value = display)));
+        }
         let (key, value) = entry
             .split_once('=')
             .ok_or_else(|| CliError::new(t!("mcp.client.invalid_stdio_env", value = entry)))?;
+        if key.is_empty() {
+            return Err(CliError::new(t!("mcp.client.invalid_stdio_env", value = entry)));
+        }
         env.push((key.to_string(), value.to_string()));
     }
     Ok(env)

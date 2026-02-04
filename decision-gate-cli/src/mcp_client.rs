@@ -57,6 +57,9 @@ pub const MAX_MCP_RESPONSE_BYTES: usize = decision_gate_core::runtime::MAX_RUNPA
 // ============================================================================
 
 /// Supported MCP transports for the CLI client.
+///
+/// # Invariants
+/// - Variants are stable for CLI parsing and transport selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum McpTransport {
     /// HTTP JSON-RPC transport.
@@ -68,6 +71,12 @@ pub enum McpTransport {
 }
 
 /// CLI MCP client configuration.
+///
+/// # Invariants
+/// - For [`McpTransport::Http`] and [`McpTransport::Sse`], `endpoint` must be `Some`.
+/// - For [`McpTransport::Stdio`], `stdio_command` must be `Some`.
+/// - `stdio_env` entries are treated as raw key/value pairs and must be valid environment variables
+///   for the target platform.
 #[derive(Clone)]
 pub struct McpClientConfig {
     /// Selected transport.
@@ -104,6 +113,10 @@ impl std::fmt::Debug for McpClientConfig {
 }
 
 /// MCP client errors.
+///
+/// # Invariants
+/// - Variants are stable for CLI error mapping and tests.
+/// - String payloads are user-facing and may include untrusted server text.
 #[derive(Debug, Error)]
 pub enum McpClientError {
     /// Configuration error.
@@ -129,6 +142,9 @@ pub enum McpClientError {
 }
 
 /// MCP resource metadata returned by `resources/list`.
+///
+/// # Invariants
+/// - Values are untrusted and unvalidated; callers must treat them as hostile input.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ResourceMetadata {
     /// Resource URI.
@@ -143,6 +159,9 @@ pub struct ResourceMetadata {
 }
 
 /// MCP resource content returned by `resources/read`.
+///
+/// # Invariants
+/// - Values are untrusted and unvalidated; callers must treat them as hostile input.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ResourceContent {
     /// Resource URI.
@@ -155,6 +174,10 @@ pub struct ResourceContent {
 }
 
 /// MCP client implementation.
+///
+/// # Invariants
+/// - `next_id` is strictly increasing for each request sent by this client.
+/// - `transport` is fully initialized and ready to send requests.
 pub struct McpClient {
     /// Selected transport client.
     transport: McpTransportClient,
@@ -264,6 +287,12 @@ impl McpClient {
             transport,
             next_id: 1,
         })
+    }
+
+    #[cfg(test)]
+    #[allow(dead_code, reason = "Test-only helper for request id overflow coverage.")]
+    pub(crate) const fn set_next_id_for_test(&mut self, next_id: u64) {
+        self.next_id = next_id;
     }
 
     /// Calls `tools/list` and returns the tool definitions.
@@ -377,7 +406,10 @@ impl McpClient {
         params: Option<Value>,
     ) -> Result<JsonRpcResponse, McpClientError> {
         let id = self.next_id;
-        self.next_id = self.next_id.saturating_add(1);
+        self.next_id = self
+            .next_id
+            .checked_add(1)
+            .ok_or_else(|| McpClientError::Protocol("json-rpc request id overflow".to_string()))?;
         let request = JsonRpcRequest {
             jsonrpc: "2.0",
             id,

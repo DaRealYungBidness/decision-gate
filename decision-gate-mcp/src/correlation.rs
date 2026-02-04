@@ -13,6 +13,8 @@
 //! sanitized before use. Invalid inputs are rejected to maintain strict,
 //! auditable boundaries. Server correlation IDs are generated per request
 //! using a boot-scoped random seed plus a monotonic counter.
+//! Security posture: correlation headers are untrusted input and must be
+//! sanitized; see `Docs/security/threat_model.md`.
 
 use std::fmt;
 use std::sync::atomic::AtomicU64;
@@ -29,6 +31,9 @@ pub const SERVER_CORRELATION_HEADER: &str = "x-server-correlation-id";
 pub const MAX_CLIENT_CORRELATION_ID_LENGTH: usize = 128;
 
 /// Typed rejection reason for invalid client correlation IDs.
+///
+/// # Invariants
+/// - Variants are stable for audit labeling.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CorrelationIdRejection {
     /// Input was empty after trimming.
@@ -67,6 +72,9 @@ impl fmt::Display for CorrelationIdRejection {
 }
 
 /// Correlation context containing unsafe client and server identifiers.
+///
+/// # Invariants
+/// - `server_id` is always populated for issued contexts.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CorrelationContext {
     /// Sanitized client correlation ID (unsafe input).
@@ -94,6 +102,9 @@ impl CorrelationContext {
 }
 
 /// Boot-scoped correlation ID generator.
+///
+/// # Invariants
+/// - Issued identifiers are unique within the process lifetime.
 #[derive(Debug)]
 pub struct CorrelationIdGenerator {
     /// Prefix included in every generated correlation ID.

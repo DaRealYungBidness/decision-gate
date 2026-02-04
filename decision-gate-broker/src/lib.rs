@@ -9,6 +9,11 @@
 //! ## Overview
 //! Decision Gate Broker provides ready-made [`Source`] and [`Sink`] implementations
 //! plus the [`CompositeBroker`] dispatcher that wires them together.
+//! Invariants:
+//! - Payload hashes are validated against envelope or content reference hashes.
+//! - Source payloads are capped at [`MAX_SOURCE_BYTES`].
+//! - Sinks return receipts only on successful delivery.
+//!
 //! Security posture: resolves untrusted content references and dispatch targets;
 //! see `Docs/security/threat_model.md`.
 

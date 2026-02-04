@@ -26,6 +26,9 @@ use serde::Serialize;
 use crate::auth::AuthContext;
 
 /// Usage metric identifiers.
+///
+/// # Invariants
+/// - Variants are stable for usage audit labeling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UsageMetric {
     /// Generic tool call count.
@@ -45,6 +48,9 @@ pub enum UsageMetric {
 }
 
 /// Usage check request.
+///
+/// # Invariants
+/// - This is a pure request container; values are validated by the meter.
 #[derive(Debug, Clone, Copy)]
 pub struct UsageCheckRequest<'a> {
     /// Tool name when available.
@@ -66,6 +72,9 @@ pub struct UsageCheckRequest<'a> {
 }
 
 /// Usage record emitted after successful actions.
+///
+/// # Invariants
+/// - Records are emitted only after successful tool actions.
 #[derive(Debug, Clone, Copy)]
 pub struct UsageRecord<'a> {
     /// Tool name when available.
@@ -87,6 +96,9 @@ pub struct UsageRecord<'a> {
 }
 
 /// Usage decision outcome.
+///
+/// # Invariants
+/// - `allowed` is the authoritative decision for the request.
 #[derive(Debug, Clone)]
 pub struct UsageDecision {
     /// Whether the request is allowed.
@@ -105,6 +117,9 @@ pub trait UsageMeter: Send + Sync {
 }
 
 /// No-op usage meter that always allows and discards usage records.
+///
+/// # Invariants
+/// - Always returns an allow decision and emits no records.
 pub struct NoopUsageMeter;
 
 impl UsageMeter for NoopUsageMeter {

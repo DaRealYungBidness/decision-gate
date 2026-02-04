@@ -233,6 +233,9 @@ pub trait ToolVisibilityResolver: Send + Sync {
 // ============================================================================
 
 /// Tool router for MCP requests.
+///
+/// # Invariants
+/// - Shared state is synchronized and not accessed without the internal lock.
 #[derive(Clone)]
 pub struct ToolRouter {
     /// Shared router state for scenario runtimes.
@@ -304,6 +307,9 @@ pub struct ToolRouter {
 }
 
 /// Configuration inputs for building a tool router.
+///
+/// # Invariants
+/// - Values are treated as untrusted until validated during construction.
 pub struct ToolRouterConfig {
     /// Evidence provider used for evidence queries.
     pub evidence: FederatedEvidenceProvider,
@@ -1506,6 +1512,9 @@ mod tests;
 // ============================================================================
 
 /// Scenario definition request.
+///
+/// # Invariants
+/// - This is a pure request container; values are validated by the tool handler.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenarioDefineRequest {
     /// Scenario specification payload.
@@ -1513,6 +1522,9 @@ pub struct ScenarioDefineRequest {
 }
 
 /// Scenario definition response.
+///
+/// # Invariants
+/// - Fields are derived from core registration output.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenarioDefineResponse {
     /// Scenario identifier.
@@ -1522,6 +1534,9 @@ pub struct ScenarioDefineResponse {
 }
 
 /// Scenario start request.
+///
+/// # Invariants
+/// - This is a pure request container; values are validated by the tool handler.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenarioStartRequest {
     /// Scenario identifier.
@@ -1535,6 +1550,9 @@ pub struct ScenarioStartRequest {
 }
 
 /// Scenario status request wrapper.
+///
+/// # Invariants
+/// - This is a pure request container; values are validated by the tool handler.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenarioStatusRequest {
     /// Scenario identifier.
@@ -1544,6 +1562,9 @@ pub struct ScenarioStatusRequest {
 }
 
 /// Scenario next request wrapper.
+///
+/// # Invariants
+/// - This is a pure request container; values are validated by the tool handler.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenarioNextRequest {
     /// Scenario identifier.
@@ -1556,6 +1577,9 @@ pub struct ScenarioNextRequest {
 }
 
 /// Scenario next response wrapper with optional feedback.
+///
+/// # Invariants
+/// - Fields are derived from core evaluation output.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenarioNextResponse {
     /// Core next result payload.
@@ -1567,6 +1591,9 @@ pub struct ScenarioNextResponse {
 }
 
 /// Feedback payload for `scenario_next` responses.
+///
+/// # Invariants
+/// - Fields are present only when the feedback level permits disclosure.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenarioNextFeedback {
     /// Feedback level emitted.
@@ -1583,6 +1610,9 @@ pub struct ScenarioNextFeedback {
 }
 
 /// Scenario submit request wrapper.
+///
+/// # Invariants
+/// - This is a pure request container; values are validated by the tool handler.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenarioSubmitRequest {
     /// Scenario identifier.
@@ -1592,6 +1622,9 @@ pub struct ScenarioSubmitRequest {
 }
 
 /// Scenario trigger request wrapper.
+///
+/// # Invariants
+/// - This is a pure request container; values are validated by the tool handler.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenarioTriggerRequest {
     /// Scenario identifier.
@@ -1601,6 +1634,9 @@ pub struct ScenarioTriggerRequest {
 }
 
 /// Evidence query request wrapper.
+///
+/// # Invariants
+/// - This is a pure request container; values are validated by the tool handler.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvidenceQueryRequest {
     /// Evidence query payload.
@@ -1610,6 +1646,9 @@ pub struct EvidenceQueryRequest {
 }
 
 /// Evidence query response payload.
+///
+/// # Invariants
+/// - Result fields reflect disclosure policy and may be redacted.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvidenceQueryResponse {
     /// Evidence result payload (possibly redacted).
@@ -1617,6 +1656,9 @@ pub struct EvidenceQueryResponse {
 }
 
 /// Runpack export request.
+///
+/// # Invariants
+/// - This is a pure request container; values are validated by the tool handler.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunpackExportRequest {
     /// Scenario identifier.
@@ -1639,6 +1681,9 @@ pub struct RunpackExportRequest {
 }
 
 /// Runpack export response payload.
+///
+/// # Invariants
+/// - Fields are derived from runpack export output.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunpackExportResponse {
     /// Runpack manifest.
@@ -1651,6 +1696,9 @@ pub struct RunpackExportResponse {
 }
 
 /// Runpack verification request.
+///
+/// # Invariants
+/// - This is a pure request container; values are validated by the tool handler.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunpackVerifyRequest {
     /// Runpack root directory.
@@ -1660,6 +1708,9 @@ pub struct RunpackVerifyRequest {
 }
 
 /// Runpack verification response.
+///
+/// # Invariants
+/// - Fields are derived from runpack verification output.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunpackVerifyResponse {
     /// Verification report.
@@ -1669,6 +1720,9 @@ pub struct RunpackVerifyResponse {
 }
 
 /// Limits for schema registry operations.
+///
+/// # Invariants
+/// - Values are enforced as upper bounds during registry operations.
 #[derive(Debug, Clone, Copy)]
 pub struct SchemaRegistryLimits {
     /// Maximum schema payload size in bytes.
@@ -1678,6 +1732,9 @@ pub struct SchemaRegistryLimits {
 }
 
 /// Provider transport type for discovery output.
+///
+/// # Invariants
+/// - Variants are stable for serialization and discovery output.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderTransport {
@@ -1688,6 +1745,9 @@ pub enum ProviderTransport {
 }
 
 /// Provider summary returned by discovery tools.
+///
+/// # Invariants
+/// - Fields are derived from the provider registry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderSummary {
     /// Provider identifier.
@@ -1699,10 +1759,16 @@ pub struct ProviderSummary {
 }
 
 /// `providers_list` request payload.
+///
+/// # Invariants
+/// - This request carries no parameters.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProvidersListRequest {}
 
 /// `providers_list` response payload.
+///
+/// # Invariants
+/// - Fields are derived from the provider registry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProvidersListResponse {
     /// Provider summaries.
@@ -1710,6 +1776,9 @@ pub struct ProvidersListResponse {
 }
 
 /// `provider_contract_get` request payload.
+///
+/// # Invariants
+/// - This is a pure request container; values are validated by the tool handler.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderContractGetRequest {
     /// Provider identifier.
@@ -1717,6 +1786,9 @@ pub struct ProviderContractGetRequest {
 }
 
 /// `provider_contract_get` response payload.
+///
+/// # Invariants
+/// - `contract_hash` matches the canonical hash of `contract`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderContractGetResponse {
     /// Provider identifier.
@@ -1732,6 +1804,9 @@ pub struct ProviderContractGetResponse {
 }
 
 /// `provider_check_schema_get` request payload.
+///
+/// # Invariants
+/// - This is a pure request container; values are validated by the tool handler.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderCheckSchemaGetRequest {
     /// Provider identifier.
@@ -1741,6 +1816,9 @@ pub struct ProviderCheckSchemaGetRequest {
 }
 
 /// `provider_check_schema_get` response payload.
+///
+/// # Invariants
+/// - Fields are derived from the provider contract registry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderCheckSchemaGetResponse {
     /// Provider identifier.
@@ -1768,6 +1846,9 @@ pub struct ProviderCheckSchemaGetResponse {
 }
 
 /// `schemas_register` request payload.
+///
+/// # Invariants
+/// - This is a pure request container; values are validated by the tool handler.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SchemasRegisterRequest {
     /// Data shape record to register.
@@ -1775,6 +1856,9 @@ pub struct SchemasRegisterRequest {
 }
 
 /// `schemas_register` response payload.
+///
+/// # Invariants
+/// - Fields are derived from registry write output.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SchemasRegisterResponse {
     /// Registered data shape record.
@@ -1782,6 +1866,9 @@ pub struct SchemasRegisterResponse {
 }
 
 /// `schemas_list` request payload.
+///
+/// # Invariants
+/// - This is a pure request container; values are validated by the tool handler.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SchemasListRequest {
     /// Tenant identifier.
@@ -1795,6 +1882,9 @@ pub struct SchemasListRequest {
 }
 
 /// `schemas_list` response payload.
+///
+/// # Invariants
+/// - `next_token` is present only when additional pages are available.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SchemasListResponse {
     /// Data shape records.
@@ -1804,6 +1894,9 @@ pub struct SchemasListResponse {
 }
 
 /// `schemas_get` request payload.
+///
+/// # Invariants
+/// - This is a pure request container; values are validated by the tool handler.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SchemasGetRequest {
     /// Tenant identifier.
@@ -1817,6 +1910,9 @@ pub struct SchemasGetRequest {
 }
 
 /// `schemas_get` response payload.
+///
+/// # Invariants
+/// - Fields are derived from registry read output.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SchemasGetResponse {
     /// Data shape record.
@@ -1824,6 +1920,9 @@ pub struct SchemasGetResponse {
 }
 
 /// `scenarios_list` request payload.
+///
+/// # Invariants
+/// - This is a pure request container; values are validated by the tool handler.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenariosListRequest {
     /// Tenant identifier.
@@ -1837,6 +1936,9 @@ pub struct ScenariosListRequest {
 }
 
 /// Scenario summary returned by discovery tools.
+///
+/// # Invariants
+/// - Fields are derived from scenario registry metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenarioSummary {
     /// Scenario identifier.
@@ -1848,6 +1950,9 @@ pub struct ScenarioSummary {
 }
 
 /// `scenarios_list` response payload.
+///
+/// # Invariants
+/// - `next_token` is present only when additional pages are available.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenariosListResponse {
     /// Scenario summaries.
@@ -1857,6 +1962,9 @@ pub struct ScenariosListResponse {
 }
 
 /// precheck request payload.
+///
+/// # Invariants
+/// - This is a pure request container; values are validated by precheck.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrecheckToolRequest {
     /// Tenant identifier.
@@ -1876,6 +1984,9 @@ pub struct PrecheckToolRequest {
 }
 
 /// precheck response payload.
+///
+/// # Invariants
+/// - Fields are derived from precheck evaluation output.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrecheckToolResponse {
     /// Predicted decision outcome.
@@ -3240,6 +3351,9 @@ const fn usage_metric_label(metric: UsageMetric) -> &'static str {
 // ============================================================================
 
 /// Tool routing errors.
+///
+/// # Invariants
+/// - Variants are stable for JSON-RPC error mapping.
 #[derive(Debug, Error)]
 pub enum ToolError {
     /// Tool name not recognized.

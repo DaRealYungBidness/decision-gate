@@ -18,6 +18,7 @@
 use std::collections::BTreeSet;
 use std::env;
 use std::fs;
+use std::io::Read;
 use std::net::SocketAddr;
 use std::path::Component;
 use std::path::Path;
@@ -191,14 +192,12 @@ impl DecisionGateConfig {
     ///
     /// # Errors
     ///
-    /// Returns [`ConfigError`] when loading or validation fails.
+    /// Returns [`ConfigError`] when loading or validation fails. Config files
+    /// larger than [`MAX_CONFIG_FILE_SIZE`] are rejected before parsing.
     pub fn load(path: Option<&Path>) -> Result<Self, ConfigError> {
         let resolved = resolve_path(path)?;
         validate_path(&resolved)?;
-        let bytes = fs::read(&resolved).map_err(|err| ConfigError::Io(err.to_string()))?;
-        if bytes.len() > MAX_CONFIG_FILE_SIZE {
-            return Err(ConfigError::Invalid("config file exceeds size limit".to_string()));
-        }
+        let bytes = read_config_bytes(&resolved)?;
         let content = std::str::from_utf8(&bytes)
             .map_err(|_| ConfigError::Invalid("config file must be utf-8".to_string()))?;
         let mut config: Self =
@@ -2073,6 +2072,18 @@ fn resolve_path(path: Option<&Path>) -> Result<PathBuf, ConfigError> {
         return Ok(PathBuf::from(env_path));
     }
     Ok(PathBuf::from(DEFAULT_CONFIG_NAME))
+}
+
+/// Reads the configuration file with a hard size limit.
+fn read_config_bytes(path: &Path) -> Result<Vec<u8>, ConfigError> {
+    let file = fs::File::open(path).map_err(|err| ConfigError::Io(err.to_string()))?;
+    let mut limited = file.take((MAX_CONFIG_FILE_SIZE + 1) as u64);
+    let mut bytes = Vec::new();
+    limited.read_to_end(&mut bytes).map_err(|err| ConfigError::Io(err.to_string()))?;
+    if bytes.len() > MAX_CONFIG_FILE_SIZE {
+        return Err(ConfigError::Invalid("config file exceeds size limit".to_string()));
+    }
+    Ok(bytes)
 }
 
 /// Validates the resolved path against security limits.

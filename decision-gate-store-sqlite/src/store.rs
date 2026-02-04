@@ -67,6 +67,7 @@ const MAX_TOTAL_PATH_LENGTH: usize = 4096;
 /// Maximum run state snapshot size accepted by the store.
 pub const MAX_STATE_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;
 /// Maximum schema payload size accepted by the registry.
+/// Acts as a hard upper bound for configurable registry limits.
 pub const MAX_SCHEMA_BYTES: usize = 1024 * 1024;
 
 /// Cursor payload for schema pagination.
@@ -138,6 +139,9 @@ impl SqliteSyncMode {
 /// - `path` must resolve to a file path (not a directory).
 /// - `busy_timeout_ms` is interpreted as milliseconds.
 /// - `max_versions`, when set, must be greater than zero.
+/// - `schema_registry_max_schema_bytes`, when set, must be greater than zero and no more than
+///   [`MAX_SCHEMA_BYTES`].
+/// - `schema_registry_max_entries`, when set, must be greater than zero.
 #[derive(Debug, Clone, Deserialize)]
 pub struct SqliteStoreConfig {
     /// Path to the `SQLite` database file.
@@ -154,11 +158,36 @@ pub struct SqliteStoreConfig {
     /// Optional maximum versions per run (older versions pruned).
     #[serde(default)]
     pub max_versions: Option<u64>,
+    /// Optional maximum schema payload size in bytes.
+    #[serde(default)]
+    pub schema_registry_max_schema_bytes: Option<usize>,
+    /// Optional maximum number of schemas per tenant + namespace.
+    #[serde(default)]
+    pub schema_registry_max_entries: Option<usize>,
 }
 
 /// Returns the default busy timeout for `SQLite` connections.
 const fn default_busy_timeout_ms() -> u64 {
     DEFAULT_BUSY_TIMEOUT_MS
+}
+
+/// Validates schema registry limits in the store configuration.
+fn validate_schema_registry_limits(config: &SqliteStoreConfig) -> Result<(), SqliteStoreError> {
+    if let Some(max_bytes) = config.schema_registry_max_schema_bytes
+        && (max_bytes == 0 || max_bytes > MAX_SCHEMA_BYTES)
+    {
+        return Err(SqliteStoreError::Invalid(format!(
+            "schema_registry_max_schema_bytes out of range: {max_bytes} (max {MAX_SCHEMA_BYTES})"
+        )));
+    }
+    if let Some(max_entries) = config.schema_registry_max_entries
+        && max_entries == 0
+    {
+        return Err(SqliteStoreError::Invalid(
+            "schema_registry_max_entries must be greater than zero".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 // ============================================================================
@@ -271,6 +300,7 @@ impl SqliteRunStateStore {
     pub fn new(config: SqliteStoreConfig) -> Result<Self, SqliteStoreError> {
         validate_store_path(&config.path)?;
         ensure_parent_dir(&config.path)?;
+        validate_schema_registry_limits(&config)?;
         let mut connection = open_connection(&config)?;
         initialize_schema(&mut connection)?;
         Ok(Self {
@@ -293,6 +323,21 @@ impl SqliteRunStateStore {
             guard.execute("SELECT 1", []).map_err(|err| SqliteStoreError::Db(err.to_string()))?;
         }
         Ok(())
+    }
+
+    /// Returns the configured schema payload size limit for registry operations.
+    #[must_use]
+    const fn registry_max_schema_bytes(&self) -> usize {
+        match self.config.schema_registry_max_schema_bytes {
+            Some(limit) => limit,
+            None => MAX_SCHEMA_BYTES,
+        }
+    }
+
+    /// Returns the configured schema entry limit for registry operations.
+    #[must_use]
+    const fn registry_max_entries(&self) -> Option<usize> {
+        self.config.schema_registry_max_entries
     }
 }
 
@@ -319,7 +364,7 @@ impl DataShapeRegistry for SqliteRunStateStore {
     fn register(&self, record: DataShapeRecord) -> Result<(), DataShapeRegistryError> {
         let schema_bytes = canonical_json_bytes(&record.schema)
             .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
-        ensure_schema_bytes_within_limit(schema_bytes.len())?;
+        ensure_schema_bytes_within_limit(schema_bytes.len(), self.registry_max_schema_bytes())?;
         let schema_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, &schema_bytes);
         let created_at_json = serde_json::to_string(&record.created_at)
             .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
@@ -337,6 +382,14 @@ impl DataShapeRegistry for SqliteRunStateStore {
         let result = {
             let tx =
                 guard.transaction().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+            if let Some(max_entries) = self.registry_max_entries() {
+                ensure_registry_entry_limit(
+                    &tx,
+                    record.tenant_id,
+                    record.namespace_id,
+                    max_entries,
+                )?;
+            }
             let result = tx.execute(
                 "INSERT INTO data_shapes (
                     tenant_id, namespace_id, schema_id, version,
@@ -386,98 +439,23 @@ impl DataShapeRegistry for SqliteRunStateStore {
         let row = {
             let tx =
                 guard.transaction().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
-            let length: Option<i64> = tx
-                .query_row(
-                    "SELECT length(schema_json) FROM data_shapes WHERE tenant_id = ?1 AND \
-                     namespace_id = ?2 AND schema_id = ?3 AND version = ?4",
-                    params![
-                        tenant_id.to_string(),
-                        namespace_id.to_string(),
-                        schema_id.as_str(),
-                        version.as_str()
-                    ],
-                    |row| row.get(0),
-                )
-                .optional()
-                .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
-            let row = if let Some(length) = length {
-                let length_usize = schema_length_to_usize(length)?;
-                ensure_schema_bytes_within_limit(length_usize)?;
-                tx.query_row(
-                    "SELECT schema_json, schema_hash, hash_algorithm, description, \
-                     signing_key_id, signing_signature, signing_algorithm, created_at_json FROM \
-                     data_shapes WHERE tenant_id = ?1 AND namespace_id = ?2 AND schema_id = ?3 \
-                     AND version = ?4",
-                    params![
-                        tenant_id.to_string(),
-                        namespace_id.to_string(),
-                        schema_id.as_str(),
-                        version.as_str()
-                    ],
-                    |row| {
-                        let schema_json: Vec<u8> = row.get(0)?;
-                        let schema_hash: String = row.get(1)?;
-                        let hash_algorithm: String = row.get(2)?;
-                        let description: Option<String> = row.get(3)?;
-                        let signing_key_id: Option<String> = row.get(4)?;
-                        let signing_signature: Option<String> = row.get(5)?;
-                        let signing_algorithm: Option<String> = row.get(6)?;
-                        let created_at_json: String = row.get(7)?;
-                        Ok((
-                            schema_json,
-                            schema_hash,
-                            hash_algorithm,
-                            description,
-                            signing_key_id,
-                            signing_signature,
-                            signing_algorithm,
-                            created_at_json,
-                        ))
-                    },
-                )
-                .optional()
-                .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?
-            } else {
-                None
-            };
+            let row = query_schema_row_by_id(
+                &tx,
+                *tenant_id,
+                *namespace_id,
+                schema_id,
+                version,
+                self.registry_max_schema_bytes(),
+            )?;
             tx.commit().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
             row
         };
         drop(guard);
-        let Some((
-            schema_json,
-            schema_hash,
-            hash_algorithm,
-            description,
-            signing_key_id,
-            signing_signature,
-            signing_algorithm,
-            created_at_json,
-        )) = row
-        else {
+        let Some(row) = row else {
             return Ok(None);
         };
-        let algorithm = parse_hash_algorithm(&hash_algorithm)
-            .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
-        let expected = hash_bytes(algorithm, &schema_json);
-        if expected.value != schema_hash {
-            return Err(DataShapeRegistryError::Invalid("schema hash mismatch".to_string()));
-        }
-        let schema: serde_json::Value = serde_json::from_slice(&schema_json)
-            .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
-        let created_at: Timestamp = serde_json::from_str(&created_at_json)
-            .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
-        let signing = build_signing(signing_key_id, signing_signature, signing_algorithm);
-        Ok(Some(DataShapeRecord {
-            tenant_id: *tenant_id,
-            namespace_id: *namespace_id,
-            schema_id: schema_id.clone(),
-            version: version.clone(),
-            schema,
-            description,
-            created_at,
-            signing,
-        }))
+        let record = build_schema_record(*tenant_id, *namespace_id, row)?;
+        Ok(Some(record))
     }
 
     fn list(
@@ -501,7 +479,12 @@ impl DataShapeRegistry for SqliteRunStateStore {
         let records = {
             let tx =
                 guard.transaction().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
-            ensure_registry_schema_sizes(&tx, *tenant_id, *namespace_id)?;
+            ensure_registry_schema_sizes(
+                &tx,
+                *tenant_id,
+                *namespace_id,
+                self.registry_max_schema_bytes(),
+            )?;
             let rows = query_schema_rows(&tx, *tenant_id, *namespace_id, cursor.as_ref(), limit)?;
             let records = rows
                 .into_iter()
@@ -776,6 +759,12 @@ impl SqliteRunStateStore {
                     run_id.as_str()
                 ))
             })?;
+            if length > MAX_STATE_BYTES {
+                return Err(SqliteStoreError::TooLarge {
+                    max_bytes: MAX_STATE_BYTES,
+                    actual_bytes: length,
+                });
+            }
             results.push(RunVersionSummary {
                 version,
                 saved_at,
@@ -923,6 +912,9 @@ fn ensure_parent_dir(path: &Path) -> Result<(), SqliteStoreError> {
 
 /// Validates store paths for safety limits.
 fn validate_store_path(path: &Path) -> Result<(), SqliteStoreError> {
+    if path.as_os_str().is_empty() {
+        return Err(SqliteStoreError::Invalid("store path must not be empty".to_string()));
+    }
     let path_string = path.display().to_string();
     if path_string.len() > MAX_TOTAL_PATH_LENGTH {
         return Err(SqliteStoreError::Invalid("store path exceeds length limit".to_string()));
@@ -1225,35 +1217,49 @@ fn fetch_run_state_payload_version(
         let mut guard =
             connection.lock().map_err(|_| SqliteStoreError::Db("mutex poisoned".to_string()))?;
         let tx = guard.transaction().map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-        let row = tx
+        let metadata = tx
             .query_row(
-                "SELECT state_json, state_hash, hash_algorithm FROM run_state_versions WHERE \
-                 tenant_id = ?1 AND namespace_id = ?2 AND run_id = ?3 AND version = ?4",
+                "SELECT length(state_json), state_hash, hash_algorithm FROM run_state_versions \
+                 WHERE tenant_id = ?1 AND namespace_id = ?2 AND run_id = ?3 AND version = ?4",
                 params![tenant_id.to_string(), namespace_id.to_string(), run_id.as_str(), version],
                 |row| {
-                    let bytes: Vec<u8> = row.get(0)?;
+                    let length: i64 = row.get(0)?;
                     let hash: String = row.get(1)?;
                     let algorithm: String = row.get(2)?;
-                    Ok((bytes, hash, algorithm))
+                    Ok((length, hash, algorithm))
                 },
             )
             .optional()
             .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-        let Some((bytes, hash, algorithm)) = row else {
+        let Some((length, hash, algorithm)) = metadata else {
             return Ok(None);
         };
-        if bytes.len() > MAX_STATE_BYTES {
-            return Err(SqliteStoreError::Invalid(format!(
-                "run state payload exceeds size limit for run {}",
+        let length_usize = usize::try_from(length).map_err(|_| {
+            SqliteStoreError::Invalid(format!(
+                "negative run state length for run {}",
                 run_id.as_str()
-            )));
+            ))
+        })?;
+        if length_usize > MAX_STATE_BYTES {
+            return Err(SqliteStoreError::TooLarge {
+                max_bytes: MAX_STATE_BYTES,
+                actual_bytes: length_usize,
+            });
         }
+        let bytes: Vec<u8> = tx
+            .query_row(
+                "SELECT state_json FROM run_state_versions WHERE tenant_id = ?1 AND namespace_id \
+                 = ?2 AND run_id = ?3 AND version = ?4",
+                params![tenant_id.to_string(), namespace_id.to_string(), run_id.as_str(), version],
+                |row| row.get(0),
+            )
+            .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
         let payload = RunStatePayload {
             bytes,
             hash_value: hash,
             hash_algorithm: algorithm,
         };
-        drop(tx);
+        tx.commit().map_err(|err| SqliteStoreError::Db(err.to_string()))?;
         drop(guard);
         Ok(Some(payload))
     }?;
@@ -1293,10 +1299,13 @@ fn parse_registry_cursor(cursor: &str) -> Result<RegistryCursor, DataShapeRegist
 }
 
 /// Ensures schema payload sizes remain within configured limits.
-fn ensure_schema_bytes_within_limit(actual_bytes: usize) -> Result<(), DataShapeRegistryError> {
-    if actual_bytes > MAX_SCHEMA_BYTES {
+fn ensure_schema_bytes_within_limit(
+    actual_bytes: usize,
+    max_schema_bytes: usize,
+) -> Result<(), DataShapeRegistryError> {
+    if actual_bytes > max_schema_bytes {
         return Err(DataShapeRegistryError::Invalid(format!(
-            "schema exceeds size limit: {actual_bytes} bytes (max {MAX_SCHEMA_BYTES})"
+            "schema exceeds size limit: {actual_bytes} bytes (max {max_schema_bytes})"
         )));
     }
     Ok(())
@@ -1313,22 +1322,48 @@ fn ensure_registry_schema_sizes(
     tx: &rusqlite::Transaction<'_>,
     tenant_id: TenantId,
     namespace_id: NamespaceId,
+    max_schema_bytes: usize,
 ) -> Result<(), DataShapeRegistryError> {
-    let max_schema_bytes = i64::try_from(MAX_SCHEMA_BYTES).map_err(|_| {
+    let max_schema_bytes_i64 = i64::try_from(max_schema_bytes).map_err(|_| {
         DataShapeRegistryError::Invalid("schema size limit exceeds platform limits".to_string())
     })?;
     let oversized: Option<i64> = tx
         .query_row(
             "SELECT length(schema_json) FROM data_shapes WHERE tenant_id = ?1 AND namespace_id = \
              ?2 AND length(schema_json) > ?3 LIMIT 1",
-            params![tenant_id.to_string(), namespace_id.to_string(), max_schema_bytes],
+            params![tenant_id.to_string(), namespace_id.to_string(), max_schema_bytes_i64],
             |row| row.get(0),
         )
         .optional()
         .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
     if let Some(length) = oversized {
         let length_usize = schema_length_to_usize(length)?;
-        ensure_schema_bytes_within_limit(length_usize)?;
+        ensure_schema_bytes_within_limit(length_usize, max_schema_bytes)?;
+    }
+    Ok(())
+}
+
+/// Ensures registry entry counts remain within configured limits.
+fn ensure_registry_entry_limit(
+    tx: &rusqlite::Transaction<'_>,
+    tenant_id: TenantId,
+    namespace_id: NamespaceId,
+    max_entries: usize,
+) -> Result<(), DataShapeRegistryError> {
+    let max_entries_i64 = i64::try_from(max_entries).map_err(|_| {
+        DataShapeRegistryError::Invalid("schema entry limit exceeds platform limits".to_string())
+    })?;
+    let count: i64 = tx
+        .query_row(
+            "SELECT COUNT(1) FROM data_shapes WHERE tenant_id = ?1 AND namespace_id = ?2",
+            params![tenant_id.to_string(), namespace_id.to_string()],
+            |row| row.get(0),
+        )
+        .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+    if count >= max_entries_i64 {
+        return Err(DataShapeRegistryError::Invalid(format!(
+            "schema registry entry limit exceeded: {count} entries (max {max_entries})"
+        )));
     }
     Ok(())
 }
@@ -1397,6 +1432,50 @@ fn build_signing(
         }
         _ => None,
     }
+}
+
+/// Queries a schema row for the provided tenant, namespace, and identifier.
+fn query_schema_row_by_id(
+    tx: &rusqlite::Transaction<'_>,
+    tenant_id: TenantId,
+    namespace_id: NamespaceId,
+    schema_id: &DataShapeId,
+    version: &DataShapeVersion,
+    max_schema_bytes: usize,
+) -> Result<Option<SchemaRow>, DataShapeRegistryError> {
+    let length: Option<i64> = tx
+        .query_row(
+            "SELECT length(schema_json) FROM data_shapes WHERE tenant_id = ?1 AND namespace_id = \
+             ?2 AND schema_id = ?3 AND version = ?4",
+            params![
+                tenant_id.to_string(),
+                namespace_id.to_string(),
+                schema_id.as_str(),
+                version.as_str()
+            ],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| map_registry_error(&err))?;
+    let Some(length) = length else {
+        return Ok(None);
+    };
+    let length_usize = schema_length_to_usize(length)?;
+    ensure_schema_bytes_within_limit(length_usize, max_schema_bytes)?;
+    tx.query_row(
+        "SELECT schema_id, version, schema_json, schema_hash, hash_algorithm, description, \
+         signing_key_id, signing_signature, signing_algorithm, created_at_json FROM data_shapes \
+         WHERE tenant_id = ?1 AND namespace_id = ?2 AND schema_id = ?3 AND version = ?4",
+        params![
+            tenant_id.to_string(),
+            namespace_id.to_string(),
+            schema_id.as_str(),
+            version.as_str()
+        ],
+        map_schema_row,
+    )
+    .optional()
+    .map_err(|err| map_registry_error(&err))
 }
 
 /// Queries schema rows for the provided tenant and namespace.

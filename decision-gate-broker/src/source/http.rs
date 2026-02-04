@@ -9,6 +9,12 @@
 //! ## Overview
 //! [`HttpSource`] resolves `http://` and `https://` URIs into payload bytes.
 //! Non-success status codes fail closed.
+//! Invariants:
+//! - Host policy checks are enforced before any request is sent.
+//! - Redirects are rejected.
+//! - Payload bytes are capped at [`crate::source::MAX_SOURCE_BYTES`].
+//! - DNS resolution is pinned per request and re-validated before accepting responses.
+//!
 //! Security posture: treats remote content as untrusted; see
 //! `Docs/security/threat_model.md`.
 
@@ -18,6 +24,7 @@
 
 use std::io::Read;
 use std::net::IpAddr;
+use std::net::SocketAddr;
 use std::net::ToSocketAddrs;
 use std::time::Duration;
 
@@ -39,6 +46,10 @@ use crate::source::max_source_bytes_u64;
 // ============================================================================
 
 /// Host allowlist + denylist policy for HTTP sources.
+///
+/// # Invariants
+/// - Denylist rules are evaluated before allowlist rules.
+/// - Private/link-local IPs are denied unless explicitly allowed.
 #[derive(Debug, Clone, Default)]
 pub struct HttpSourcePolicy {
     /// Optional allowlist of hosts. When set, only matching hosts are allowed.
@@ -86,8 +97,8 @@ impl HttpSourcePolicy {
         self
     }
 
-    /// Validates the provided URL against the policy.
-    fn enforce(&self, url: &Url) -> Result<(), SourceError> {
+    /// Validates the provided URL against the policy and resolves host IPs.
+    fn resolve_request(&self, url: &Url) -> Result<ResolvedHost, SourceError> {
         let host = url.host().ok_or_else(|| SourceError::InvalidUri("missing host".to_string()))?;
         let host_label = normalize_host_label(&host);
         if self.is_denied(&host_label) {
@@ -98,13 +109,36 @@ impl HttpSourcePolicy {
         {
             return Err(SourceError::Policy(format!("host not in allowlist: {host_label}")));
         }
+        let port = url.port_or_known_default().ok_or_else(|| {
+            SourceError::InvalidUri("missing port for host resolution".to_string())
+        })?;
+        let mut ips = resolve_host_ips(&host, port)?;
+        if ips.is_empty() {
+            return Err(SourceError::Policy(format!("host has no resolved IPs: {host_label}")));
+        }
         if !self.allow_private_networks {
-            let ips = resolve_host_ips(&host, url)?;
-            if ips.iter().any(is_private_or_link_local) {
-                return Err(SourceError::Policy(format!(
-                    "host resolves to private or link-local address: {host_label}"
-                )));
+            for ip in &ips {
+                self.enforce_ip_policy(&host_label, *ip)?;
             }
+        }
+        dedupe_ips(&mut ips);
+        Ok(ResolvedHost {
+            host_label,
+            host: owned_host(&host),
+            port,
+            ips,
+        })
+    }
+
+    /// Validates a peer IP against the policy.
+    fn enforce_ip_policy(&self, host_label: &str, ip: IpAddr) -> Result<(), SourceError> {
+        if self.allow_private_networks {
+            return Ok(());
+        }
+        if is_private_or_link_local(&ip) {
+            return Err(SourceError::Policy(format!(
+                "host resolves to private or link-local address: {host_label}"
+            )));
         }
         Ok(())
     }
@@ -183,20 +217,35 @@ fn normalize_host_string(host: &str) -> String {
 }
 
 /// Resolves hostnames to IP addresses for private-range validation.
-fn resolve_host_ips(host: &Host<&str>, url: &Url) -> Result<Vec<IpAddr>, SourceError> {
+fn resolve_host_ips(host: &Host<&str>, port: u16) -> Result<Vec<IpAddr>, SourceError> {
     match host {
         Host::Ipv4(ip) => Ok(vec![IpAddr::V4(*ip)]),
         Host::Ipv6(ip) => Ok(vec![IpAddr::V6(*ip)]),
-        Host::Domain(domain) => {
-            let port = url.port_or_known_default().ok_or_else(|| {
-                SourceError::InvalidUri("missing port for host resolution".to_string())
-            })?;
-            (*domain, port)
-                .to_socket_addrs()
-                .map(|iter| iter.map(|addr| addr.ip()).collect::<Vec<IpAddr>>())
-                .map_err(|err| SourceError::Policy(format!("dns lookup failed: {err}")))
+        Host::Domain(domain) => (*domain, port)
+            .to_socket_addrs()
+            .map(|iter| iter.map(|addr| addr.ip()).collect::<Vec<IpAddr>>())
+            .map_err(|err| SourceError::Policy(format!("dns lookup failed: {err}"))),
+    }
+}
+
+/// Converts a host reference into an owned host.
+fn owned_host(host: &Host<&str>) -> Host<String> {
+    match host {
+        Host::Domain(domain) => Host::Domain(domain.to_string()),
+        Host::Ipv4(ip) => Host::Ipv4(*ip),
+        Host::Ipv6(ip) => Host::Ipv6(*ip),
+    }
+}
+
+/// Removes duplicate IPs while preserving order.
+fn dedupe_ips(ips: &mut Vec<IpAddr>) {
+    let mut unique = Vec::with_capacity(ips.len());
+    for ip in ips.drain(..) {
+        if !unique.contains(&ip) {
+            unique.push(ip);
         }
     }
+    *ips = unique;
 }
 
 /// Returns true if the IP is private, link-local, loopback, or unspecified.
@@ -221,6 +270,11 @@ const fn is_private_or_link_local(ip: &IpAddr) -> bool {
 }
 
 /// HTTP-backed payload source.
+///
+/// # Invariants
+/// - Redirects are rejected.
+/// - Responses exceeding [`crate::source::MAX_SOURCE_BYTES`] are rejected.
+/// - Host policy is enforced on each request with pinned DNS resolution.
 #[derive(Debug, Clone)]
 pub struct HttpSource {
     /// HTTP client used for fetch requests.
@@ -287,48 +341,103 @@ impl Source for HttpSource {
             "http" | "https" => {}
             scheme => return Err(SourceError::UnsupportedScheme(scheme.to_string())),
         }
-        self.policy.enforce(&url)?;
+        let resolved = self.policy.resolve_request(&url)?;
 
-        let response = self
-            .client
-            .get(url.as_str())
-            .send()
-            .map_err(|err| SourceError::Http(err.to_string()))?;
-        if response.url() != &url {
-            return Err(SourceError::Http(format!(
-                "redirected from {} to {}",
-                url,
-                response.url()
-            )));
-        }
-        if !response.status().is_success() {
-            return Err(SourceError::Http(format!("http status {}", response.status())));
-        }
-        let max_bytes = max_source_bytes_u64()?;
-        if let Some(length) = response.content_length()
-            && length > max_bytes
-        {
-            let actual_bytes = usize::try_from(length).unwrap_or(usize::MAX);
-            return Err(SourceError::TooLarge {
-                max_bytes: crate::source::MAX_SOURCE_BYTES,
-                actual_bytes,
+        let mut last_error = None;
+        for ip in resolved.ips.iter().copied() {
+            let client = match self.client_for_ip(&resolved, ip) {
+                Ok(client) => client,
+                Err(err) => {
+                    last_error = Some(err);
+                    continue;
+                }
+            };
+            let response = match client.get(url.as_str()).send() {
+                Ok(response) => response,
+                Err(err) => {
+                    last_error = Some(SourceError::Http(err.to_string()));
+                    continue;
+                }
+            };
+            if response.url() != &url {
+                return Err(SourceError::Http(format!(
+                    "redirected from {} to {}",
+                    url,
+                    response.url()
+                )));
+            }
+            if !response.status().is_success() {
+                return Err(SourceError::Http(format!("http status {}", response.status())));
+            }
+            // Re-validate the pinned peer IP before accepting the response.
+            self.policy.enforce_ip_policy(&resolved.host_label, ip)?;
+
+            let max_bytes = max_source_bytes_u64()?;
+            if let Some(length) = response.content_length()
+                && length > max_bytes
+            {
+                let actual_bytes = usize::try_from(length).unwrap_or(usize::MAX);
+                return Err(SourceError::TooLarge {
+                    max_bytes: crate::source::MAX_SOURCE_BYTES,
+                    actual_bytes,
+                });
+            }
+            let content_type = response
+                .headers()
+                .get(CONTENT_TYPE)
+                .and_then(|value| value.to_str().ok())
+                .map(str::to_string);
+            let limit = max_bytes.checked_add(1).ok_or(SourceError::LimitOverflow {
+                limit: crate::source::MAX_SOURCE_BYTES,
+            })?;
+            let mut limited = response.take(limit);
+            let mut bytes = Vec::new();
+            limited.read_to_end(&mut bytes).map_err(|err| SourceError::Http(err.to_string()))?;
+            enforce_max_bytes(bytes.len())?;
+            return Ok(SourcePayload {
+                bytes,
+                content_type,
             });
         }
-        let content_type = response
-            .headers()
-            .get(CONTENT_TYPE)
-            .and_then(|value| value.to_str().ok())
-            .map(str::to_string);
-        let limit = max_bytes.checked_add(1).ok_or(SourceError::LimitOverflow {
-            limit: crate::source::MAX_SOURCE_BYTES,
-        })?;
-        let mut limited = response.take(limit);
-        let mut bytes = Vec::new();
-        limited.read_to_end(&mut bytes).map_err(|err| SourceError::Http(err.to_string()))?;
-        enforce_max_bytes(bytes.len())?;
-        Ok(SourcePayload {
-            bytes,
-            content_type,
-        })
+
+        Err(last_error.unwrap_or_else(|| {
+            SourceError::Http("request failed for all resolved IPs".to_string())
+        }))
     }
+}
+
+impl HttpSource {
+    /// Builds a client pinned to the provided IP when required.
+    fn client_for_ip(&self, resolved: &ResolvedHost, ip: IpAddr) -> Result<Client, SourceError> {
+        let socket_addr = SocketAddr::new(ip, resolved.port);
+        match &resolved.host {
+            Host::Domain(domain) => Client::builder()
+                .redirect(Policy::none())
+                .timeout(Duration::from_secs(30))
+                .resolve(domain.as_str(), socket_addr)
+                .build()
+                .map_err(|err| SourceError::Http(err.to_string())),
+            Host::Ipv4(_) | Host::Ipv6(_) => Ok(self.client.clone()),
+        }
+    }
+}
+
+// ============================================================================
+// SECTION: Resolved Host
+// ============================================================================
+
+/// Resolved host metadata for pinned HTTP requests.
+///
+/// # Invariants
+/// - `ips` is non-empty and contains unique entries.
+/// - `port` is the effective request port.
+struct ResolvedHost {
+    /// Normalized host label used for policy reporting.
+    host_label: String,
+    /// Resolved host for request construction.
+    host: Host<String>,
+    /// Effective port for the request.
+    port: u16,
+    /// Resolved IPs for the host.
+    ips: Vec<IpAddr>,
 }

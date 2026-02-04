@@ -41,6 +41,10 @@ pub const ALLOW_NON_LOOPBACK_ENV: &str = "DECISION_GATE_ALLOW_NON_LOOPBACK";
 // ============================================================================
 
 /// Bind outcome metadata for transport warnings.
+///
+/// # Invariants
+/// - `network_exposed` is `true` only when a non-loopback bind is selected.
+/// - `bind_addr` is `None` for stdio transports.
 #[derive(Debug, Clone)]
 pub struct BindOutcome {
     /// Selected transport.
@@ -66,6 +70,9 @@ pub struct BindOutcome {
 // ============================================================================
 
 /// Serve policy failures for bind safety.
+///
+/// # Invariants
+/// - Variants are stable for CLI error mapping and tests.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ServePolicyError {
     /// Environment variable was set to an invalid value.

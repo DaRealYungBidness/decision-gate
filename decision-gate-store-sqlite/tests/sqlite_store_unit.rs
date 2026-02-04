@@ -115,6 +115,8 @@ const fn config_for_path(path: PathBuf, max_versions: Option<u64>) -> SqliteStor
         journal_mode: SqliteStoreMode::Wal,
         sync_mode: SqliteSyncMode::Full,
         max_versions,
+        schema_registry_max_schema_bytes: None,
+        schema_registry_max_entries: None,
     }
 }
 
@@ -187,6 +189,15 @@ fn sqlite_store_rejects_directory_path() {
     let config = config_for_path(temp.path().to_path_buf(), None);
     let Err(err) = SqliteRunStateStore::new(config) else {
         panic!("expected invalid directory path to fail");
+    };
+    assert!(matches!(err, SqliteStoreError::Invalid(_)));
+}
+
+#[test]
+fn sqlite_store_rejects_empty_path() {
+    let config = config_for_path(PathBuf::new(), None);
+    let Err(err) = SqliteRunStateStore::new(config) else {
+        panic!("expected empty path to fail");
     };
     assert!(matches!(err, SqliteStoreError::Invalid(_)));
 }
@@ -449,6 +460,27 @@ fn sqlite_store_rejects_oversized_payload_on_load() {
 }
 
 #[test]
+fn sqlite_store_rejects_oversized_payload_on_load_version() {
+    let temp = TempDir::new().unwrap();
+    let path = temp.path().join("store.sqlite");
+    let store = store_for(&path, None);
+    let state = sample_state("run-1");
+    store.save(&state).unwrap();
+
+    let oversize = vec![b'x'; MAX_STATE_BYTES + 1];
+    let conn = Connection::open(&path).unwrap();
+    conn.execute(
+        "UPDATE run_state_versions SET state_json = ?1 WHERE run_id = ?2 AND version = 1",
+        params![oversize, state.run_id.as_str()],
+    )
+    .unwrap();
+
+    let result = store.load_version(state.tenant_id, state.namespace_id, &state.run_id, 1);
+    let err = result.unwrap_err();
+    assert!(matches!(err, SqliteStoreError::TooLarge { .. }));
+}
+
+#[test]
 fn sqlite_store_list_run_versions_descending() {
     let temp = TempDir::new().unwrap();
     let path = temp.path().join("store.sqlite");
@@ -467,6 +499,27 @@ fn sqlite_store_list_run_versions_descending() {
     assert_eq!(versions[0].version, 3);
     assert_eq!(versions[1].version, 2);
     assert_eq!(versions[2].version, 1);
+}
+
+#[test]
+fn sqlite_store_list_run_versions_rejects_oversized_payloads() {
+    let temp = TempDir::new().unwrap();
+    let path = temp.path().join("store.sqlite");
+    let store = store_for(&path, None);
+    let state = sample_state("run-1");
+    store.save(&state).unwrap();
+
+    let oversize = vec![b'x'; MAX_STATE_BYTES + 1];
+    let conn = Connection::open(&path).unwrap();
+    conn.execute(
+        "UPDATE run_state_versions SET state_json = ?1 WHERE run_id = ?2 AND version = 1",
+        params![oversize, state.run_id.as_str()],
+    )
+    .unwrap();
+
+    let result = store.list_run_versions(state.tenant_id, state.namespace_id, &state.run_id);
+    let err = result.unwrap_err();
+    assert!(matches!(err, SqliteStoreError::TooLarge { .. }));
 }
 
 // ============================================================================
@@ -614,6 +667,8 @@ fn sqlite_store_sets_delete_mode() {
         journal_mode: SqliteStoreMode::Delete,
         sync_mode: SqliteSyncMode::Full,
         max_versions: None,
+        schema_registry_max_schema_bytes: None,
+        schema_registry_max_entries: None,
     };
     let _store = SqliteRunStateStore::new(config).unwrap();
 

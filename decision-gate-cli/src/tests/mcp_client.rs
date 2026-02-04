@@ -398,10 +398,20 @@ fn stdio_extra_headers_ignored() {
 // SECTION: Request ID Handling Tests
 // ============================================================================
 
-#[test]
-fn request_id_saturates_at_max_u64() {
-    let max_id = u64::MAX;
-    assert_eq!(max_id.saturating_add(1), u64::MAX);
+#[tokio::test]
+async fn request_id_overflow_errors_before_send() {
+    let server = TestHttpServer::start(|_| {
+        TestResponse::json(&jsonrpc_result(&serde_json::json!({ "tools": [] })))
+    })
+    .await;
+    let config = http_client_config(server.url(), Duration::from_millis(2_000));
+    let mut client = McpClient::new(config).expect("client");
+    client.set_next_id_for_test(u64::MAX);
+    let err = client.list_tools().await.expect_err("expected overflow error");
+    assert!(matches!(err, McpClientError::Protocol(_)));
+    let requests = server.requests().await;
+    assert!(requests.is_empty(), "request should not be sent on overflow");
+    server.shutdown().await;
 }
 
 // ============================================================================

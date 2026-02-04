@@ -25,6 +25,10 @@ use serde_json::json;
 use crate::examples;
 use crate::schemas;
 use crate::types::ToolContract;
+// ============================================================================
+// SECTION: Re-Exports
+// ============================================================================
+/// Tool definition shape used by MCP tool listings.
 pub use crate::types::ToolDefinition;
 use crate::types::ToolExample;
 use crate::types::ToolName;

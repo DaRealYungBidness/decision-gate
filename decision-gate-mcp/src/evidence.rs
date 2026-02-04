@@ -75,6 +75,9 @@ static JSON_RPC_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 // ============================================================================
 
 /// External MCP provider client configuration.
+///
+/// # Invariants
+/// - `provider_id` uniquely identifies the provider in the registry.
 #[derive(Debug, Clone)]
 pub struct ProviderClientConfig {
     /// Provider identifier.
@@ -90,6 +93,9 @@ pub struct ProviderClientConfig {
 }
 
 /// Evidence provider that federates built-ins and MCP providers.
+///
+/// # Invariants
+/// - Provider registry state is shared and synchronized via the inner Arc.
 #[derive(Clone)]
 pub struct FederatedEvidenceProvider {
     /// Shared registry and policy state.

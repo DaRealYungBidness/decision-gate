@@ -79,6 +79,31 @@ fn sqlite_fixture() -> SqliteFixture {
         journal_mode: SqliteStoreMode::Wal,
         sync_mode: SqliteSyncMode::Full,
         max_versions: None,
+        schema_registry_max_schema_bytes: None,
+        schema_registry_max_entries: None,
+    };
+    let store = SqliteRunStateStore::new(config).expect("store");
+    SqliteFixture {
+        _dir: dir,
+        path,
+        store,
+    }
+}
+
+fn sqlite_fixture_with_limits(
+    max_schema_bytes: Option<usize>,
+    max_entries: Option<usize>,
+) -> SqliteFixture {
+    let dir = TempDir::new().expect("tempdir");
+    let path = dir.path().join("store.db");
+    let config = SqliteStoreConfig {
+        path: path.clone(),
+        busy_timeout_ms: 5_000,
+        journal_mode: SqliteStoreMode::Wal,
+        sync_mode: SqliteSyncMode::Full,
+        max_versions: None,
+        schema_registry_max_schema_bytes: max_schema_bytes,
+        schema_registry_max_entries: max_entries,
     };
     let store = SqliteRunStateStore::new(config).expect("store");
     SqliteFixture {
@@ -508,6 +533,8 @@ fn sqlite_registry_concurrent_writes_different_schemas_no_deadlock() {
                 journal_mode: SqliteStoreMode::Wal,
                 sync_mode: SqliteSyncMode::Full,
                 max_versions: None,
+                schema_registry_max_schema_bytes: None,
+                schema_registry_max_entries: None,
             };
             let store = SqliteRunStateStore::new(config).expect("store");
             for j in 0 .. 3u64 {
@@ -579,6 +606,8 @@ fn sqlite_registry_concurrent_read_write_consistent() {
                 journal_mode: SqliteStoreMode::Wal,
                 sync_mode: SqliteSyncMode::Full,
                 max_versions: None,
+                schema_registry_max_schema_bytes: None,
+                schema_registry_max_entries: None,
             };
             let store = SqliteRunStateStore::new(config).expect("store");
             for j in 0 .. 5u64 {
@@ -608,6 +637,8 @@ fn sqlite_registry_concurrent_read_write_consistent() {
                 journal_mode: SqliteStoreMode::Wal,
                 sync_mode: SqliteSyncMode::Full,
                 max_versions: None,
+                schema_registry_max_schema_bytes: None,
+                schema_registry_max_entries: None,
             };
             let store = SqliteRunStateStore::new(config).expect("store");
             for _ in 0 .. 10 {
@@ -774,4 +805,37 @@ fn sqlite_registry_rejects_oversized_schema_on_list() {
     let record = insert_oversized_record(&fixture, "schema-oversized-list");
     let err = fixture.store.list(&record.tenant_id, &record.namespace_id, None, 10).unwrap_err();
     assert!(err.to_string().contains("schema exceeds size limit"));
+}
+
+#[test]
+fn sqlite_registry_enforces_max_schema_bytes() {
+    let fixture = sqlite_fixture_with_limits(Some(128), None);
+    let payload = "x".repeat(256);
+    let schema = json!({ "payload": payload });
+    let schema_bytes = canonical_json_bytes(&schema).expect("schema bytes");
+    assert!(schema_bytes.len() > 128, "schema payload must exceed configured limit");
+    let record = DataShapeRecord {
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        schema_id: DataShapeId::new("schema-max-bytes"),
+        version: DataShapeVersion::new("v1"),
+        schema,
+        description: None,
+        created_at: Timestamp::Logical(1),
+        signing: None,
+    };
+    let err = fixture.store.register(record).unwrap_err();
+    assert!(err.to_string().contains("schema exceeds size limit"));
+}
+
+#[test]
+fn sqlite_registry_enforces_max_entries() {
+    let fixture = sqlite_fixture_with_limits(None, Some(1));
+    let store = &fixture.store;
+    let record = sample_record("schema-1", "v1");
+    store.register(record).expect("register schema-1");
+
+    let record = sample_record("schema-2", "v1");
+    let err = store.register(record).unwrap_err();
+    assert!(err.to_string().contains("entry limit exceeded"));
 }

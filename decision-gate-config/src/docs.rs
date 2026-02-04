@@ -13,6 +13,10 @@
 //! Security posture: docs must reflect fail-closed defaults; see
 //! `Docs/security/threat_model.md`.
 
+// ============================================================================
+// SECTION: Imports
+// ============================================================================
+
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::fmt::Write;
@@ -24,8 +28,16 @@ use thiserror::Error;
 
 use crate::schema::config_schema;
 
+// ============================================================================
+// SECTION: Constants
+// ============================================================================
+
 /// Default output path for generated configuration docs.
 const DOCS_PATH: &str = "Docs/configuration/decision-gate.toml.md";
+
+// ============================================================================
+// SECTION: Errors
+// ============================================================================
 
 /// Errors raised when generating or verifying config docs.
 #[derive(Debug, Error)]
@@ -40,6 +52,10 @@ pub enum DocsError {
     #[error("docs drift: {0}")]
     Drift(String),
 }
+
+// ============================================================================
+// SECTION: Public API
+// ============================================================================
 
 /// Generates the configuration markdown documentation.
 ///
@@ -132,6 +148,10 @@ pub fn verify_config_docs(path: Option<&Path>) -> Result<(), DocsError> {
     Ok(())
 }
 
+// ============================================================================
+// SECTION: Section Specs
+// ============================================================================
+
 /// Specification for one rendered documentation section.
 #[derive(Clone)]
 struct SectionSpec {
@@ -168,6 +188,10 @@ enum SchemaPath {
     /// Descend into an array items schema.
     Items,
 }
+
+// ============================================================================
+// SECTION: Section Registry
+// ============================================================================
 
 /// Builds the ordered list of configuration sections to render.
 #[allow(
@@ -689,6 +713,10 @@ or `tls_termination = \"upstream\"` + non-local auth.",
         },
     ]
 }
+
+// ============================================================================
+// SECTION: Rendering Helpers
+// ============================================================================
 
 /// Renders the markdown table for a configuration section.
 fn render_table(schema: &Value, section: &SectionSpec) -> Result<String, String> {

@@ -10,6 +10,8 @@
 //! Decision Gate MCP exposes the control plane through MCP tools and federates
 //! evidence queries across built-in and external MCP providers. All MCP tools
 //! are thin wrappers over [`decision_gate_core::ControlPlane`].
+//! Security posture: MCP is a trust boundary; all inputs are untrusted and must
+//! be validated; see `Docs/security/threat_model.md`.
 
 // ============================================================================
 // SECTION: Modules

@@ -3,7 +3,7 @@
 // Module: SDK Generator Library
 // Description: Deterministic generator for Decision Gate client SDK artifacts.
 // Purpose: Render Python/TypeScript SDKs and OpenAPI view from tooling.json.
-// Dependencies: decision-gate-contract, serde_json
+// Dependencies: decision-gate-contract, serde_json, thiserror
 // ============================================================================
 
 //! ## Overview
@@ -58,6 +58,17 @@ pub const DEFAULT_TOOLING_PATH: &str = "Docs/generated/decision-gate/tooling.jso
 pub const MAX_TOOLING_BYTES: u64 = 4 * 1024 * 1024;
 
 /// Errors raised by the SDK generator.
+///
+/// # Invariants
+/// - Variant meanings are stable for automation and tests.
+///
+/// # Examples
+/// ```
+/// use decision_gate_sdk_gen::SdkGenError;
+///
+/// let err = SdkGenError::Tooling("missing tooling".to_string());
+/// assert!(matches!(err, SdkGenError::Tooling(message) if message == "missing tooling"));
+/// ```
 #[derive(Debug, Error)]
 pub enum SdkGenError {
     /// IO error while reading or writing files.
@@ -76,6 +87,26 @@ pub enum SdkGenError {
 /// # Invariants
 /// - Tool order matches the tooling contract input.
 /// - Rendering is deterministic for a fixed tooling contract.
+///
+/// # Examples
+/// ```
+/// use std::path::PathBuf;
+///
+/// use decision_gate_sdk_gen::DEFAULT_TOOLING_PATH;
+/// use decision_gate_sdk_gen::SdkGenerator;
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+/// let workspace_root = manifest_dir
+///     .parent()
+///     .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "missing workspace root"))?;
+/// let tooling_path = workspace_root.join(DEFAULT_TOOLING_PATH);
+/// let generator = SdkGenerator::load(tooling_path)?;
+/// let python = generator.generate_python()?;
+/// assert!(python.contains("decision-gate-sdk-gen"));
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug, Clone)]
 pub struct SdkGenerator {
     /// Path to the tooling.json contract backing this generator.
@@ -88,8 +119,8 @@ impl SdkGenerator {
     /// Loads tooling contracts from the given path.
     ///
     /// # Errors
-    /// Returns `SdkGenError` when the tooling file cannot be read or parsed, or
-    /// when the file exceeds [`MAX_TOOLING_BYTES`].
+    /// Returns [`SdkGenError`] when the tooling file cannot be read or parsed,
+    /// or when the file exceeds [`MAX_TOOLING_BYTES`].
     ///
     /// # Notes
     /// This method performs JSON parsing only; semantic validation is expected
@@ -114,7 +145,7 @@ impl SdkGenerator {
     /// Generates the Python SDK `_generated.py` content.
     ///
     /// # Errors
-    /// Returns `SdkGenError` if JSON rendering fails.
+    /// Returns [`SdkGenError`] if JSON rendering fails.
     pub fn generate_python(&self) -> Result<String, SdkGenError> {
         render_python(&self.tools)
     }
@@ -122,7 +153,7 @@ impl SdkGenerator {
     /// Generates the TypeScript SDK `_generated.ts` content.
     ///
     /// # Errors
-    /// Returns `SdkGenError` if JSON rendering fails.
+    /// Returns [`SdkGenError`] if JSON rendering fails.
     pub fn generate_typescript(&self) -> Result<String, SdkGenError> {
         render_typescript(&self.tools)
     }
@@ -130,7 +161,7 @@ impl SdkGenerator {
     /// Generates the `OpenAPI` JSON document.
     ///
     /// # Errors
-    /// Returns `SdkGenError` if JSON serialization fails.
+    /// Returns [`SdkGenError`] if JSON serialization fails.
     pub fn generate_openapi(&self) -> Result<String, SdkGenError> {
         render_openapi(&self.tools)
     }

@@ -42,6 +42,11 @@ use serde_json::Value;
 // ============================================================================
 
 /// Configuration for the JSON provider.
+///
+/// # Invariants
+/// - `max_bytes` is enforced as a hard upper bound on file size.
+/// - If `root` is set, resolved file paths must remain within that root.
+/// - `allow_yaml` gates YAML parsing for `.yaml`/`.yml` files.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct JsonProviderConfig {
     /// Optional root directory for resolving file paths.
@@ -67,6 +72,11 @@ impl Default for JsonProviderConfig {
 // ============================================================================
 
 /// Evidence provider for JSON and YAML file queries.
+///
+/// # Invariants
+/// - Supports only the `path` check id.
+/// - File reads are bounded and validated before parsing.
+/// - `JSONPath` evaluation is deterministic for the same inputs.
 pub struct JsonProvider {
     /// Provider configuration, including limits and root policy.
     config: JsonProviderConfig,

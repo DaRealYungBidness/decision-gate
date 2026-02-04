@@ -41,6 +41,9 @@ const MAX_TOTAL_PATH_LENGTH: usize = 4096;
 // ============================================================================
 
 /// File-backed artifact sink for runpack export.
+///
+/// # Invariants
+/// - All artifact paths are resolved under the validated root.
 pub struct FileArtifactSink {
     /// Root directory for artifact storage.
     root: PathBuf,
@@ -109,6 +112,9 @@ impl ArtifactSink for FileArtifactSink {
 // ============================================================================
 
 /// File-backed artifact reader for runpack verification.
+///
+/// # Invariants
+/// - All artifact paths are resolved under the validated root.
 pub struct FileArtifactReader {
     /// Root directory for artifact reads.
     root: PathBuf,

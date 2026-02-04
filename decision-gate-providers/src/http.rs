@@ -46,6 +46,12 @@ use serde_json::Value;
 // ============================================================================
 
 /// Configuration for the HTTP provider.
+///
+/// # Invariants
+/// - `allow_http = false` blocks cleartext `http://` URLs.
+/// - `max_response_bytes` is enforced as a hard upper bound on response bodies.
+/// - If `allowed_hosts` is set, only listed hosts are permitted.
+/// - `timeout_ms` applies to the full request lifecycle.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct HttpProviderConfig {
     /// Allow cleartext HTTP (disabled by default).
@@ -80,6 +86,11 @@ impl Default for HttpProviderConfig {
 // ============================================================================
 
 /// Evidence provider for HTTP endpoint checks.
+///
+/// # Invariants
+/// - Only `status` and `body_hash` checks are supported.
+/// - Redirects are not followed.
+/// - Responses exceeding configured limits fail closed.
 pub struct HttpProvider {
     /// Provider configuration, including limits and policy.
     config: HttpProviderConfig,

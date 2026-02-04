@@ -126,6 +126,18 @@ fn parse_stdio_env_rejects_invalid_entry() {
 }
 
 #[test]
+fn parse_stdio_env_rejects_empty_key() {
+    let err = parse_stdio_env(&[String::from("=VALUE")]).expect_err("expected error");
+    assert!(err.to_string().contains("Invalid stdio env var"));
+}
+
+#[test]
+fn parse_stdio_env_rejects_nul() {
+    let err = parse_stdio_env(&[String::from("KEY\0BAD=VALUE")]).expect_err("expected error");
+    assert!(err.to_string().contains("Invalid stdio env var"));
+}
+
+#[test]
 fn load_auth_profiles_parses_config() {
     let path = temp_file("auth-profiles");
     let payload = r#"[client.auth_profiles.demo]

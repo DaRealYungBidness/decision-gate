@@ -528,7 +528,7 @@ impl PlanBuilder {
         self.add_op(OpCode::OrStart, 0, 0, 0)
     }
 
-    /// Ends an OR group  
+    /// Ends an OR group
     #[must_use]
     pub fn or_end(self) -> Self {
         self.add_op(OpCode::OrEnd, 0, 0, 0)

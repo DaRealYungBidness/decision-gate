@@ -37,6 +37,11 @@ use serde_json::Value;
 // ============================================================================
 
 /// Configuration for the environment provider.
+///
+/// # Invariants
+/// - `denylist` overrides `allowlist` when both are present.
+/// - `max_value_bytes` and `max_key_bytes` are enforced as hard upper bounds.
+/// - `overrides` take precedence over process environment reads.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct EnvProviderConfig {
     /// Optional allowlist of environment variable keys.
@@ -68,6 +73,11 @@ impl Default for EnvProviderConfig {
 // ============================================================================
 
 /// Evidence provider for environment variables.
+///
+/// # Invariants
+/// - Supports only the `get` check id.
+/// - Applies allowlist/denylist policy before any lookup.
+/// - Enforces key/value size limits and fails closed on violations.
 pub struct EnvProvider {
     /// Provider configuration, including policy and size limits.
     config: EnvProviderConfig,

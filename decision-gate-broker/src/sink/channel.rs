@@ -9,6 +9,9 @@
 //! ## Overview
 //! [`ChannelSink`] delivers payloads by sending dispatch messages into a
 //! `tokio::sync::mpsc` channel.
+//! Invariants:
+//! - Successful deliveries enqueue exactly one [`crate::sink::DispatchMessage`].
+//!
 //! Security posture: channel receivers are external sinks; treat payloads as
 //! sensitive per `Docs/security/threat_model.md`.
 
@@ -31,6 +34,9 @@ use crate::sink::SinkError;
 // ============================================================================
 
 /// Channel-based payload sink.
+///
+/// # Invariants
+/// - Each successful delivery emits a message with a matching receipt.
 #[derive(Debug)]
 pub struct ChannelSink {
     /// Sender used to dispatch messages.

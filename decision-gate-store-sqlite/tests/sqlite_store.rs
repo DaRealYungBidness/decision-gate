@@ -107,6 +107,8 @@ fn store_for(path: &std::path::Path) -> SqliteRunStateStore {
         journal_mode: decision_gate_store_sqlite::SqliteStoreMode::Wal,
         sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
         max_versions: None,
+        schema_registry_max_schema_bytes: None,
+        schema_registry_max_entries: None,
     };
     SqliteRunStateStore::new(config).expect("store init")
 }
@@ -291,6 +293,8 @@ fn sqlite_store_truncated_database_fails_closed() {
         journal_mode: decision_gate_store_sqlite::SqliteStoreMode::Delete,
         sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
         max_versions: None,
+        schema_registry_max_schema_bytes: None,
+        schema_registry_max_entries: None,
     };
     if let Ok(store) = SqliteRunStateStore::new(config) {
         let result = store.load(
@@ -312,6 +316,8 @@ fn sqlite_store_enforces_max_versions() {
         journal_mode: decision_gate_store_sqlite::SqliteStoreMode::Wal,
         sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
         max_versions: Some(2),
+        schema_registry_max_schema_bytes: None,
+        schema_registry_max_entries: None,
     };
     let store = SqliteRunStateStore::new(config).expect("store init");
     let mut state = sample_state("run-1");
@@ -347,6 +353,8 @@ fn sqlite_store_rejects_version_mismatch() {
         journal_mode: decision_gate_store_sqlite::SqliteStoreMode::Wal,
         sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
         max_versions: None,
+        schema_registry_max_schema_bytes: None,
+        schema_registry_max_entries: None,
     };
     let result = SqliteRunStateStore::new(config);
     assert!(matches!(result, Err(SqliteStoreError::VersionMismatch(_))));
@@ -464,6 +472,8 @@ fn sqlite_store_rejects_directory_path() {
         journal_mode: decision_gate_store_sqlite::SqliteStoreMode::Wal,
         sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
         max_versions: None,
+        schema_registry_max_schema_bytes: None,
+        schema_registry_max_entries: None,
     };
     let result = SqliteRunStateStore::new(config);
     assert!(matches!(result, Err(SqliteStoreError::Invalid(_))));
@@ -479,6 +489,8 @@ fn sqlite_store_rejects_overlong_path_component() {
         journal_mode: decision_gate_store_sqlite::SqliteStoreMode::Wal,
         sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
         max_versions: None,
+        schema_registry_max_schema_bytes: None,
+        schema_registry_max_entries: None,
     };
     let result = SqliteRunStateStore::new(config);
     assert!(matches!(result, Err(SqliteStoreError::Invalid(_))));
@@ -494,6 +506,8 @@ fn sqlite_store_rejects_overlong_total_path() {
         journal_mode: decision_gate_store_sqlite::SqliteStoreMode::Wal,
         sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
         max_versions: None,
+        schema_registry_max_schema_bytes: None,
+        schema_registry_max_entries: None,
     };
     let result = SqliteRunStateStore::new(config);
     assert!(matches!(result, Err(SqliteStoreError::Invalid(_))));

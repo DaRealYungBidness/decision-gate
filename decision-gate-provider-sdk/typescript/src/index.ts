@@ -103,6 +103,7 @@ const TOOL_LIST_RESULT = {
 // SECTION: Framing Limits
 // ============================================================================
 
+// Hard limits for framing. Keep aligned with README framing limits and threat model guidance.
 const HEADER_SEPARATOR = "\r\n\r\n";
 const MAX_HEADER_BYTES = 8 * 1024;
 const MAX_BODY_BYTES = 1024 * 1024;
@@ -264,9 +265,6 @@ function handleToolCall(request: JsonRpcRequest): JsonRpcResponse {
   }
 
   const result = handleEvidenceQuery(query, context);
-  if ("error" in result && result.error) {
-    return buildErrorResponse(request.id, -32000, result.error);
-  }
 
   return {
     jsonrpc: "2.0",
@@ -289,13 +287,13 @@ function handleToolCall(request: JsonRpcRequest): JsonRpcResponse {
 function handleEvidenceQuery(
   query: EvidenceQuery,
   _context: EvidenceContext,
-): EvidenceResult | { error: string } {
+): EvidenceResult {
   const value = query.params?.value;
   if (typeof value === "undefined") {
-    return { error: "params.value is required" };
+    return buildEvidenceErrorResult("invalid_params", "params.value is required");
   }
   if (value === "error") {
-    return { error: "forced error" };
+    return buildEvidenceErrorResult("provider_error", "forced error");
   }
 
   return {
@@ -311,8 +309,25 @@ function handleEvidenceQuery(
 }
 
 // ============================================================================
-// SECTION: Framing Output
+// SECTION: Output Helpers
 // ============================================================================
+
+function buildEvidenceErrorResult(code: string, message: string): EvidenceResult {
+  return {
+    value: null,
+    lane: "verified",
+    error: {
+      code,
+      message,
+      details: null,
+    },
+    evidence_hash: null,
+    evidence_ref: null,
+    evidence_anchor: null,
+    signature: null,
+    content_type: null,
+  };
+}
 
 function buildErrorResponse(id: JsonRpcId, code: number, message: string): JsonRpcResponse {
   return {

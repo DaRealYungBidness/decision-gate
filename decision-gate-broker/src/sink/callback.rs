@@ -9,6 +9,9 @@
 //! ## Overview
 //! [`CallbackSink`] delivers payloads by invoking a user-supplied function and
 //! returning the provided dispatch receipt.
+//! Invariants:
+//! - Handler failures propagate without partial delivery.
+//!
 //! Security posture: callback handlers are external sinks; treat payloads as
 //! sensitive per `Docs/security/threat_model.md`.
 
@@ -30,6 +33,9 @@ use crate::sink::SinkError;
 // ============================================================================
 
 /// Callback-based payload sink.
+///
+/// # Invariants
+/// - Delivery is fully defined by the callback handler result.
 #[derive(Clone)]
 pub struct CallbackSink {
     /// Handler invoked with the target and payload.

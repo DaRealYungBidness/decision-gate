@@ -13,6 +13,10 @@
 //! Security posture: examples are static templates; see
 //! `Docs/security/threat_model.md`.
 
+// ============================================================================
+// SECTION: Examples
+// ============================================================================
+
 /// Returns a canonical example `decision-gate.toml` configuration.
 #[must_use]
 pub fn config_toml_example() -> String {

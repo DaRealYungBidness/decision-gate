@@ -2,6 +2,8 @@
 // ============================================================================
 // Module: Flag Constants
 // Description: Shared flag constants for requirement tests.
+// Purpose: Provide stable flag bitmasks for test fixtures.
+// Dependencies: none.
 // ============================================================================
 //! ## Overview
 //! Flag constants shared by requirement integration tests.
@@ -18,6 +20,10 @@
     clippy::unwrap_in_result,
     reason = "Test-only output and panic-based assertions are permitted."
 )]
+
+// ============================================================================
+// SECTION: Flag Constants
+// ============================================================================
 
 /// Flag representing capability A for tests.
 pub const FLAG_A: u64 = 0b0001;

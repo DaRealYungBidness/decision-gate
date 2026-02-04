@@ -92,6 +92,9 @@ use crate::config::ObjectStoreProvider;
 // ============================================================================
 
 /// Runpack object-store key derivation inputs.
+///
+/// # Invariants
+/// - Fields uniquely identify the runpack location prefix.
 #[derive(Debug, Clone)]
 pub struct RunpackObjectKey {
     /// Tenant identifier.
@@ -111,6 +114,9 @@ pub struct RunpackObjectKey {
 // ============================================================================
 
 /// Object-store errors for runpack storage.
+///
+/// # Invariants
+/// - Variants are stable for error classification.
 #[derive(Debug, thiserror::Error)]
 pub enum ObjectStoreError {
     /// Invalid configuration or key input.
@@ -294,6 +300,9 @@ impl ObjectStoreClient for S3ObjectStoreClient {
 // ============================================================================
 
 /// Object-store backend for runpack export and verification.
+///
+/// # Invariants
+/// - Backend configuration is immutable for the lifetime of the instance.
 pub struct ObjectStoreRunpackBackend {
     /// Object-store client implementation.
     client: Arc<dyn ObjectStoreClient>,
@@ -390,6 +399,9 @@ impl ObjectStoreRunpackBackend {
 // ============================================================================
 
 /// Object-store-backed artifact sink.
+///
+/// # Invariants
+/// - Writes are scoped to a single runpack prefix.
 pub struct ObjectStoreArtifactSink {
     /// Object-store client.
     client: Arc<dyn ObjectStoreClient>,
@@ -474,6 +486,9 @@ impl ArtifactSink for ObjectStoreArtifactSink {
 }
 
 /// Object-store-backed artifact reader.
+///
+/// # Invariants
+/// - Reads are scoped to a single runpack prefix.
 pub struct ObjectStoreArtifactReader {
     /// Object-store client.
     client: Arc<dyn ObjectStoreClient>,

@@ -37,6 +37,9 @@ use time::OffsetDateTime;
 // ============================================================================
 
 /// Configuration for the time provider.
+///
+/// # Invariants
+/// - When `allow_logical` is false, logical timestamps are rejected.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 pub struct TimeProviderConfig {
     /// Allow logical trigger timestamps for comparisons.
@@ -56,6 +59,11 @@ impl Default for TimeProviderConfig {
 // ============================================================================
 
 /// Evidence provider for trigger-time checks.
+///
+/// # Invariants
+/// - Uses only [`EvidenceContext::trigger_time`] as the time source.
+/// - Supports only `now`, `after`, and `before` checks.
+/// - Never reads wall-clock time, preserving deterministic replay.
 pub struct TimeProvider {
     /// Provider configuration, including logical timestamp policy.
     config: TimeProviderConfig,

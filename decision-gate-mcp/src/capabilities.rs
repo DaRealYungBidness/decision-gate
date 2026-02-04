@@ -57,6 +57,9 @@ const MAX_TOTAL_PATH_LENGTH: usize = 4096;
 // ============================================================================
 
 /// Capability registry errors.
+///
+/// # Invariants
+/// - Variants are stable for capability error classification.
 #[derive(Debug, Error)]
 pub enum CapabilityError {
     /// Provider not registered in the capability registry.
@@ -231,6 +234,9 @@ impl CapabilityError {
 // ============================================================================
 
 /// Registry of provider capabilities derived from contracts.
+///
+/// # Invariants
+/// - Provider identifiers are unique keys in the registry.
 pub struct CapabilityRegistry {
     /// Capability map keyed by provider identifier.
     providers: BTreeMap<String, ProviderCapabilities>,
@@ -259,6 +265,9 @@ struct CheckCapabilities {
 }
 
 /// Provider contract source origin.
+///
+/// # Invariants
+/// - Variants are stable for serialization and audit labeling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderContractSource {
@@ -269,6 +278,9 @@ pub enum ProviderContractSource {
 }
 
 /// Provider contract view for discovery tools.
+///
+/// # Invariants
+/// - Fields are derived from a validated provider contract.
 #[derive(Debug, Clone, Serialize)]
 pub struct ProviderContractView {
     /// Provider identifier.
@@ -284,6 +296,9 @@ pub struct ProviderContractView {
 }
 
 /// Check schema view for discovery tools.
+///
+/// # Invariants
+/// - Fields are derived from a validated provider contract.
 #[derive(Debug, Clone, Serialize)]
 pub struct CheckSchemaView {
     /// Provider identifier.
