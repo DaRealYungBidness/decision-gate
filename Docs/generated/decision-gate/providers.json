@@ -292,7 +292,7 @@
           "not_exists"
         ],
         "anchor_types": [
-          "file_path"
+          "file_path_rooted"
         ],
         "check_id": "path",
         "content_types": [
@@ -303,9 +303,9 @@
         "determinism": "external",
         "examples": [
           {
-            "description": "Read version from config.json.",
+            "description": "Read version from config.json (root-relative path).",
             "params": {
-              "file": "/etc/config.json",
+              "file": "config.json",
               "jsonpath": "$.version"
             },
             "result": "1.2.3"
@@ -313,7 +313,7 @@
           {
             "description": "Return full document when jsonpath is omitted.",
             "params": {
-              "file": "/etc/config.json"
+              "file": "config.json"
             },
             "result": {
               "version": "1.2.3"
@@ -361,16 +361,26 @@
           "type": "integer"
         },
         "root": {
-          "description": "Optional root directory for file resolution.",
+          "description": "Root directory for file resolution (required).",
+          "type": "string"
+        },
+        "root_id": {
+          "description": "Stable identifier for the configured root (required).",
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
           "type": "string"
         }
       },
+      "required": [
+        "root",
+        "root_id"
+      ],
       "type": "object"
     },
     "description": "Reads JSON or YAML files and evaluates JSONPath queries against them.",
     "name": "JSON Provider",
     "notes": [
-      "File access is constrained by root policy and size limits.",
+      "File access is constrained by the configured root and size limits.",
+      "File paths must be root-relative; absolute paths are rejected.",
       "JSONPath is optional; omitted means the full document.",
       "Missing JSONPath yields a null value with error metadata (jsonpath_not_found)."
     ],

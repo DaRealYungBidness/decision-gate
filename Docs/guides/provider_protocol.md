@@ -75,7 +75,7 @@ are reserved and cannot be used by MCP providers.
       "query": {
         "provider_id": "file-provider",
         "check_id": "file_size",
-        "params": { "path": "/tmp/report.json" }
+        "params": { "path": "report.json" }
       },
       "context": {
         "tenant_id": 1,
@@ -107,10 +107,10 @@ are reserved and cannot be used by MCP providers.
           "lane": "verified",
           "error": null,
           "evidence_hash": null,
-          "evidence_ref": { "uri": "/tmp/report.json" },
+          "evidence_ref": { "uri": "dg+file://evidence-root/report.json" },
           "evidence_anchor": {
-            "anchor_type": "file_path",
-            "anchor_value": "{\"path\":\"/tmp/report.json\",\"size\":1024}"
+            "anchor_type": "file_path_rooted",
+            "anchor_value": "{\"path\":\"report.json\",\"root_id\":\"evidence-root\",\"size\":1024}"
           },
           "signature": null,
           "content_type": "application/json"
@@ -121,7 +121,7 @@ are reserved and cannot be used by MCP providers.
 }
 ```
 
-**Important:** `evidence_anchor.anchor_value` is a **string**. If you need structured anchor data, encode it as canonical JSON and store the JSON string.
+**Important:** `evidence_anchor.anchor_value` is a **string**. If you need structured anchor data, encode it as canonical JSON and store the JSON string. For `file_path_rooted`, include scalar `root_id` and `path` fields.
 
 ---
 

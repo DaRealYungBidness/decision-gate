@@ -7,6 +7,7 @@
 // ============================================================================
 
 use std::num::NonZeroU64;
+use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -33,6 +34,8 @@ use helpers::readiness::wait_for_server_ready;
 use helpers::scenarios::ScenarioFixture;
 use serde_json::json;
 use tempfile::TempDir;
+use toml::Value as TomlValue;
+use toml::value::Table;
 
 use crate::helpers;
 
@@ -42,7 +45,7 @@ async fn preset_quickstart_dev_http() -> Result<(), Box<dyn std::error::Error>> 
     let bind = allocate_bind_addr()?.to_string();
     let temp_dir = TempDir::new()?;
     let mut config = load_preset("quickstart-dev.toml")?;
-    configure_paths(&mut config, &bind, &temp_dir);
+    configure_paths(&mut config, &bind, &temp_dir)?;
 
     let server = spawn_mcp_server(config).await?;
     let client = server.client(Duration::from_secs(5))?;
@@ -74,7 +77,7 @@ async fn preset_default_recommended_http() -> Result<(), Box<dyn std::error::Err
     let bind = allocate_bind_addr()?.to_string();
     let temp_dir = TempDir::new()?;
     let mut config = load_preset("default-recommended.toml")?;
-    configure_paths(&mut config, &bind, &temp_dir);
+    configure_paths(&mut config, &bind, &temp_dir)?;
 
     let server = spawn_mcp_server(config).await?;
     let client = server.client(Duration::from_secs(5))?;
@@ -113,7 +116,7 @@ async fn preset_container_prod_http() -> Result<(), Box<dyn std::error::Error>> 
     let bind = allocate_bind_addr()?.to_string();
     let temp_dir = TempDir::new()?;
     let mut config = load_preset("container-prod.toml")?;
-    configure_paths(&mut config, &bind, &temp_dir);
+    configure_paths(&mut config, &bind, &temp_dir)?;
     let token = config
         .server
         .auth
@@ -164,7 +167,7 @@ async fn preset_hardened_http() -> Result<(), Box<dyn std::error::Error>> {
     let bind = allocate_bind_addr()?.to_string();
     let temp_dir = TempDir::new()?;
     let mut config = load_preset("hardened.toml")?;
-    configure_paths(&mut config, &bind, &temp_dir);
+    configure_paths(&mut config, &bind, &temp_dir)?;
     let token = config
         .server
         .auth
@@ -226,7 +229,11 @@ fn repo_root() -> Result<PathBuf, Box<dyn std::error::Error>> {
     Ok(root.parent().ok_or("failed to resolve repo root")?.to_path_buf())
 }
 
-fn configure_paths(config: &mut DecisionGateConfig, bind: &str, temp_dir: &TempDir) {
+fn configure_paths(
+    config: &mut DecisionGateConfig,
+    bind: &str,
+    temp_dir: &TempDir,
+) -> Result<(), Box<dyn std::error::Error>> {
     config.server.bind = Some(bind.to_string());
     if matches!(config.run_state_store.store_type, RunStateStoreType::Sqlite) {
         config.run_state_store.path = Some(temp_dir.path().join("decision-gate.db"));
@@ -234,6 +241,33 @@ fn configure_paths(config: &mut DecisionGateConfig, bind: &str, temp_dir: &TempD
     if matches!(config.schema_registry.registry_type, SchemaRegistryType::Sqlite) {
         config.schema_registry.path = Some(temp_dir.path().join("schema-registry.db"));
     }
+    let json_root = temp_dir.path().join("evidence");
+    std::fs::create_dir_all(&json_root)?;
+    set_json_provider_root(config, &json_root, "preset-evidence-root")?;
+    Ok(())
+}
+
+fn set_json_provider_root(
+    config: &mut DecisionGateConfig,
+    root: &Path,
+    root_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let provider = config
+        .providers
+        .iter_mut()
+        .find(|provider| provider.name == "json")
+        .ok_or_else(|| "missing json provider".to_string())?;
+    provider.config = Some(json_provider_config(root, root_id));
+    Ok(())
+}
+
+fn json_provider_config(root: &Path, root_id: &str) -> TomlValue {
+    let mut table = Table::new();
+    table.insert("root".to_string(), TomlValue::String(root.to_string_lossy().to_string()));
+    table.insert("root_id".to_string(), TomlValue::String(root_id.to_string()));
+    table.insert("max_bytes".to_string(), TomlValue::Integer(1_048_576));
+    table.insert("allow_yaml".to_string(), TomlValue::Boolean(true));
+    TomlValue::Table(table)
 }
 
 fn build_schema_record(

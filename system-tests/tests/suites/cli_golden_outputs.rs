@@ -95,13 +95,12 @@ type = "builtin"
             "json",
         ],
     )?;
-    let mut transcript = Vec::new();
-    transcript.push(CliGoldenEntry {
+    let transcript = vec![CliGoldenEntry {
         scenario: "provider_list".to_string(),
         status: output.status.code().unwrap_or(-1),
         stdout: String::from_utf8_lossy(&output.stdout).to_string(),
         stderr: String::from_utf8_lossy(&output.stderr).to_string(),
-    });
+    }];
     if !output.status.success() {
         return Err("cli provider list failed".into());
     }

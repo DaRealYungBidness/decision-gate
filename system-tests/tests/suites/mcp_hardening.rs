@@ -232,7 +232,7 @@ async fn http_payload_too_large_rejected() -> Result<(), Box<dyn std::error::Err
     let client = server.client(Duration::from_secs(5))?;
     wait_for_server_ready(&client, Duration::from_secs(5)).await?;
 
-    let (request, payload) = oversized_tools_list_request(512);
+    let (request, payload) = oversized_tools_list_request(512)?;
     let (status, body) = send_raw_json_request(server.base_url(), &payload, false).await?;
     if status != reqwest::StatusCode::PAYLOAD_TOO_LARGE {
         return Err(format!("expected 413 payload too large, got {status}").into());
@@ -294,7 +294,7 @@ async fn sse_payload_too_large_rejected() -> Result<(), Box<dyn std::error::Erro
     )
     .await?;
 
-    let (request, payload) = oversized_tools_list_request(512);
+    let (request, payload) = oversized_tools_list_request(512)?;
     let (status, body) = send_raw_json_request(&base_url, &payload, true).await?;
     if status != reqwest::StatusCode::PAYLOAD_TOO_LARGE {
         return Err(format!("expected 413 payload too large, got {status}").into());
@@ -333,7 +333,7 @@ async fn sse_payload_too_large_rejected() -> Result<(), Box<dyn std::error::Erro
 // SECTION: Helpers
 // ============================================================================
 
-fn oversized_tools_list_request(max_body_bytes: usize) -> (Value, String) {
+fn oversized_tools_list_request(max_body_bytes: usize) -> Result<(Value, String), String> {
     let padding = "x".repeat(max_body_bytes.saturating_add(256));
     let request = serde_json::json!({
         "jsonrpc": "2.0",
@@ -343,9 +343,12 @@ fn oversized_tools_list_request(max_body_bytes: usize) -> (Value, String) {
             "padding": padding,
         }
     });
-    let payload = serde_json::to_string(&request).expect("serialize oversized request");
-    assert!(payload.as_bytes().len() > max_body_bytes, "payload must exceed max_body_bytes");
-    (request, payload)
+    let payload = serde_json::to_string(&request)
+        .map_err(|err| format!("serialize oversized request: {err}"))?;
+    if payload.len() <= max_body_bytes {
+        return Err("payload must exceed max_body_bytes".to_string());
+    }
+    Ok((request, payload))
 }
 
 async fn send_raw_json_request(

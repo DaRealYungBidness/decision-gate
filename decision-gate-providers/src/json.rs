@@ -33,6 +33,7 @@ use decision_gate_core::EvidenceValue;
 use decision_gate_core::ProviderMissingError;
 use decision_gate_core::ScenarioSpec;
 use decision_gate_core::TrustLane;
+use decision_gate_core::hashing::canonical_json_bytes;
 use jsonpath_lib::select;
 use serde::Deserialize;
 use serde_json::Value;
@@ -44,13 +45,16 @@ use serde_json::Value;
 /// Configuration for the JSON provider.
 ///
 /// # Invariants
+/// - `root` is required and bounds all file access.
+/// - `root_id` is a stable identifier used in evidence anchors.
 /// - `max_bytes` is enforced as a hard upper bound on file size.
-/// - If `root` is set, resolved file paths must remain within that root.
 /// - `allow_yaml` gates YAML parsing for `.yaml`/`.yml` files.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct JsonProviderConfig {
-    /// Optional root directory for resolving file paths.
-    pub root: Option<PathBuf>,
+    /// Root directory for resolving file paths.
+    pub root: PathBuf,
+    /// Stable identifier for the configured root.
+    pub root_id: String,
     /// Maximum file size allowed, in bytes.
     pub max_bytes: usize,
     /// Allow YAML parsing when file extension is .yaml or .yml.
@@ -60,7 +64,8 @@ pub struct JsonProviderConfig {
 impl Default for JsonProviderConfig {
     fn default() -> Self {
         Self {
-            root: None,
+            root: PathBuf::new(),
+            root_id: String::new(),
             max_bytes: 1024 * 1024,
             allow_yaml: true,
         }
@@ -84,11 +89,16 @@ pub struct JsonProvider {
 
 impl JsonProvider {
     /// Creates a new JSON provider with the given configuration.
-    #[must_use]
-    pub const fn new(config: JsonProviderConfig) -> Self {
-        Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EvidenceError`] when the configuration is invalid.
+    pub fn new(mut config: JsonProviderConfig) -> Result<Self, EvidenceError> {
+        let canonical_root = validate_config(&config)?;
+        config.root = canonical_root;
+        Ok(Self {
             config,
-        }
+        })
     }
 }
 
@@ -111,25 +121,36 @@ impl EvidenceProvider for JsonProvider {
             Err(error) => return Ok(error_result(error, None, None)),
         };
         let evidence_ref = EvidenceRef {
-            uri: resolved.display().to_string(),
+            uri: format!("dg+file://{}/{}", self.config.root_id, resolved.relative),
         };
         let evidence_anchor = EvidenceAnchor {
-            anchor_type: "file_path".to_string(),
-            anchor_value: resolved.display().to_string(),
+            anchor_type: "file_path_rooted".to_string(),
+            anchor_value: match canonical_anchor_value(&self.config.root_id, &resolved.relative) {
+                Ok(value) => value,
+                Err(error) => return Ok(error_result(error, Some(evidence_ref), None)),
+            },
         };
-        let content = match read_file_limited(&resolved, self.config.max_bytes) {
+        let content = match read_file_limited(
+            &resolved.absolute,
+            &resolved.relative,
+            self.config.max_bytes,
+        ) {
             Ok(content) => content,
             Err(error) => {
                 return Ok(error_result(error, Some(evidence_ref), Some(evidence_anchor)));
             }
         };
-        let (document, content_type) =
-            match parse_document(&resolved, &content, self.config.allow_yaml) {
-                Ok(parsed) => parsed,
-                Err(error) => {
-                    return Ok(error_result(error, Some(evidence_ref), Some(evidence_anchor)));
-                }
-            };
+        let (document, content_type) = match parse_document(
+            &resolved.absolute,
+            &resolved.relative,
+            &content,
+            self.config.allow_yaml,
+        ) {
+            Ok(parsed) => parsed,
+            Err(error) => {
+                return Ok(error_result(error, Some(evidence_ref), Some(evidence_anchor)));
+            }
+        };
         let value = match jsonpath {
             Some(path) => match select_jsonpath(&document, &path) {
                 Ok(Some(value)) => Some(value),
@@ -192,41 +213,67 @@ fn extract_params(params: Option<&Value>) -> Result<(&str, Option<String>), Evid
     Ok((file.as_str(), jsonpath))
 }
 
+/// Canonical file resolution result.
+#[derive(Debug, Clone)]
+struct ResolvedPath {
+    /// Canonical absolute path on disk.
+    absolute: PathBuf,
+    /// POSIX-style path relative to the configured root.
+    relative: String,
+}
+
 /// Resolves a file path against the configured root policy.
-fn resolve_path(config: &JsonProviderConfig, file: &str) -> Result<PathBuf, EvidenceProviderError> {
-    let candidate = PathBuf::from(file);
-    if let Some(root) = &config.root {
-        let root = root
-            .canonicalize()
-            .map_err(|_| provider_error("invalid_root", "invalid json root", None))?;
-        let joined = if candidate.is_absolute() { candidate } else { root.join(candidate) };
-        let resolved = joined.canonicalize().map_err(|_| {
-            provider_error(
-                "file_not_found",
-                "unable to resolve json file",
-                Some(serde_json::json!({ "file": file })),
-            )
-        })?;
-        if !resolved.starts_with(&root) {
-            return Err(provider_error(
-                "path_outside_root",
-                "json file path escapes root",
-                Some(serde_json::json!({ "file": file })),
-            ));
-        }
-        return Ok(resolved);
+fn resolve_path(
+    config: &JsonProviderConfig,
+    file: &str,
+) -> Result<ResolvedPath, EvidenceProviderError> {
+    if file.is_empty() {
+        return Err(provider_error("path_missing", "json file path is empty", None));
     }
-    candidate.canonicalize().map_err(|_| {
+    let candidate = PathBuf::from(file);
+    if candidate.is_absolute() {
+        return Err(provider_error(
+            "absolute_path_forbidden",
+            "json file path must be relative to the configured root",
+            Some(serde_json::json!({ "file": file })),
+        ));
+    }
+    let root = &config.root;
+    let joined = root.join(&candidate);
+    let resolved = joined.canonicalize().map_err(|_| {
         provider_error(
             "file_not_found",
             "unable to resolve json file",
             Some(serde_json::json!({ "file": file })),
         )
+    })?;
+    if !resolved.starts_with(root) {
+        return Err(provider_error(
+            "path_outside_root",
+            "json file path escapes root",
+            Some(serde_json::json!({ "file": file })),
+        ));
+    }
+    let relative = resolved.strip_prefix(root).map_err(|_| {
+        provider_error(
+            "path_invalid",
+            "unable to normalize json file path",
+            Some(serde_json::json!({ "file": file })),
+        )
+    })?;
+    let relative = to_posix_relative(relative)?;
+    Ok(ResolvedPath {
+        absolute: resolved,
+        relative,
     })
 }
 
 /// Reads a file while enforcing a maximum byte limit.
-fn read_file_limited(path: &Path, max_bytes: usize) -> Result<Vec<u8>, EvidenceProviderError> {
+fn read_file_limited(
+    path: &Path,
+    relative: &str,
+    max_bytes: usize,
+) -> Result<Vec<u8>, EvidenceProviderError> {
     let file = File::open(path).map_err(|err| {
         let code = if err.kind() == std::io::ErrorKind::NotFound {
             "file_not_found"
@@ -236,7 +283,7 @@ fn read_file_limited(path: &Path, max_bytes: usize) -> Result<Vec<u8>, EvidenceP
         provider_error(
             code,
             "unable to open json file",
-            Some(serde_json::json!({ "file": path.display().to_string() })),
+            Some(serde_json::json!({ "file": relative })),
         )
     })?;
     let mut buf = Vec::new();
@@ -248,7 +295,7 @@ fn read_file_limited(path: &Path, max_bytes: usize) -> Result<Vec<u8>, EvidenceP
         provider_error(
             "file_read_failed",
             "unable to read json file",
-            Some(serde_json::json!({ "file": path.display().to_string() })),
+            Some(serde_json::json!({ "file": relative })),
         )
     })?;
     if buf.len() > max_bytes {
@@ -256,7 +303,7 @@ fn read_file_limited(path: &Path, max_bytes: usize) -> Result<Vec<u8>, EvidenceP
             "size_limit_exceeded",
             "json file exceeds size limit",
             Some(serde_json::json!({
-                "file": path.display().to_string(),
+                "file": relative,
                 "max_bytes": max_bytes,
                 "actual_bytes": buf.len()
             })),
@@ -268,6 +315,7 @@ fn read_file_limited(path: &Path, max_bytes: usize) -> Result<Vec<u8>, EvidenceP
 /// Parses a JSON or YAML document and returns the content type.
 fn parse_document(
     path: &Path,
+    relative: &str,
     content: &[u8],
     allow_yaml: bool,
 ) -> Result<(Value, String), EvidenceProviderError> {
@@ -278,14 +326,14 @@ fn parse_document(
             return Err(provider_error(
                 "yaml_disabled",
                 "yaml parsing is disabled",
-                Some(serde_json::json!({ "file": path.display().to_string() })),
+                Some(serde_json::json!({ "file": relative })),
             ));
         }
         let value: Value = serde_yaml::from_slice(content).map_err(|_| {
             provider_error(
                 "invalid_yaml",
                 "invalid yaml",
-                Some(serde_json::json!({ "file": path.display().to_string() })),
+                Some(serde_json::json!({ "file": relative })),
             )
         })?;
         return Ok((value, "application/yaml".to_string()));
@@ -294,10 +342,78 @@ fn parse_document(
         provider_error(
             "invalid_json",
             "invalid json",
-            Some(serde_json::json!({ "file": path.display().to_string() })),
+            Some(serde_json::json!({ "file": relative })),
         )
     })?;
     Ok((value, "application/json".to_string()))
+}
+
+/// Validates JSON provider configuration and returns a canonical root path.
+fn validate_config(config: &JsonProviderConfig) -> Result<PathBuf, EvidenceError> {
+    if config.root.as_os_str().is_empty() {
+        return Err(EvidenceError::Provider("json provider requires config.root".to_string()));
+    }
+    if config.root_id.is_empty() {
+        return Err(EvidenceError::Provider("json provider requires config.root_id".to_string()));
+    }
+    if config.root_id.len() > 64 {
+        return Err(EvidenceError::Provider(
+            "json provider root_id exceeds 64 characters".to_string(),
+        ));
+    }
+    if !config
+        .root_id
+        .chars()
+        .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '-' || ch == '_')
+    {
+        return Err(EvidenceError::Provider(
+            "json provider root_id must be lowercase ascii, digits, '-' or '_'".to_string(),
+        ));
+    }
+    let root = config
+        .root
+        .canonicalize()
+        .map_err(|_| EvidenceError::Provider("json provider root does not exist".to_string()))?;
+    if !root.is_dir() {
+        return Err(EvidenceError::Provider("json provider root is not a directory".to_string()));
+    }
+    Ok(root)
+}
+
+/// Builds a canonical JSON anchor value for a rooted file path.
+fn canonical_anchor_value(root_id: &str, path: &str) -> Result<String, EvidenceProviderError> {
+    let value = serde_json::json!({
+        "root_id": root_id,
+        "path": path,
+    });
+    let bytes = canonical_json_bytes(&value)
+        .map_err(|_| provider_error("anchor_invalid", "anchor value serialization failed", None))?;
+    String::from_utf8(bytes)
+        .map_err(|_| provider_error("anchor_invalid", "anchor value is not valid utf-8", None))
+}
+
+/// Converts a relative path to POSIX separators, rejecting invalid components.
+fn to_posix_relative(path: &Path) -> Result<String, EvidenceProviderError> {
+    let mut parts = Vec::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::Normal(value) => {
+                parts.push(value.to_string_lossy().to_string());
+            }
+            std::path::Component::CurDir => {}
+            _ => {
+                return Err(provider_error(
+                    "path_invalid",
+                    "json file path contains invalid components",
+                    None,
+                ));
+            }
+        }
+    }
+    if parts.is_empty() {
+        return Err(provider_error("path_invalid", "json file path resolves to empty path", None));
+    }
+    Ok(parts.join("/"))
 }
 
 /// Selects values using a `JSONPath` expression.

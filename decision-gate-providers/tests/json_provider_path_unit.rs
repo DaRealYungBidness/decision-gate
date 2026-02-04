@@ -37,6 +37,7 @@
 mod common;
 
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 
 use decision_gate_core::EvidenceProvider;
@@ -72,25 +73,27 @@ fn setup_test_files() -> (TempDir, PathBuf) {
 }
 
 /// Creates a JSON provider with root directory.
-const fn provider_with_root(root: PathBuf) -> JsonProvider {
+fn provider_with_root(root: &Path) -> JsonProvider {
     JsonProvider::new(JsonProviderConfig {
-        root: Some(root),
+        root: root.to_path_buf(),
+        root_id: "path-unit".to_string(),
         max_bytes: 1024 * 1024,
         allow_yaml: true,
     })
+    .expect("json provider config should be valid")
 }
 
 // ============================================================================
 // SECTION: Path Normalization Unit Tests (TM-FILE-001)
 // ============================================================================
 
-/// TM-FILE-001: Tests that absolute paths are resolved correctly within root.
+/// TM-FILE-001: Tests that absolute paths are rejected.
 ///
-/// Context: Absolute paths should be allowed if they resolve within root.
+/// Context: Absolute paths are forbidden to preserve deterministic runpack anchors.
 #[test]
 fn json_path_absolute_within_root() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root.clone());
+    let provider = provider_with_root(&root);
 
     let abs_path = root.join("test.json");
     let query = EvidenceQuery {
@@ -100,7 +103,8 @@ fn json_path_absolute_within_root() {
     };
 
     let result = provider.query(&query, &sample_context());
-    assert!(result.is_ok(), "Absolute path within root should succeed");
+    let error = result.unwrap().error.expect("missing error");
+    assert_eq!(error.code, "absolute_path_forbidden");
 }
 
 /// TM-FILE-001: Tests that relative paths are resolved correctly.
@@ -109,7 +113,7 @@ fn json_path_absolute_within_root() {
 #[test]
 fn json_path_relative_resolution() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root);
+    let provider = provider_with_root(&root);
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
@@ -127,7 +131,7 @@ fn json_path_relative_resolution() {
 #[test]
 fn json_path_double_slash_normalization() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root);
+    let provider = provider_with_root(&root);
 
     // Path with double slash
     let query = EvidenceQuery {
@@ -147,7 +151,7 @@ fn json_path_double_slash_normalization() {
 #[test]
 fn json_path_current_directory_handling() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root);
+    let provider = provider_with_root(&root);
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
@@ -165,7 +169,7 @@ fn json_path_current_directory_handling() {
 #[test]
 fn json_path_parent_directory_escape_blocked() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root);
+    let provider = provider_with_root(&root);
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
@@ -189,7 +193,7 @@ fn json_path_parent_directory_escape_blocked() {
 #[test]
 fn json_path_component_length_limit() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root);
+    let provider = provider_with_root(&root);
 
     // Create path with 300-character component (exceeds typical 255 limit)
     let long_component = "a".repeat(300);
@@ -214,7 +218,7 @@ fn json_path_component_length_limit() {
 #[test]
 fn json_path_total_length_limit() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root);
+    let provider = provider_with_root(&root);
 
     // Create path with 5000 characters total
     let long_path = "a/".repeat(2500); // 5000 chars
@@ -239,7 +243,7 @@ fn json_path_total_length_limit() {
 #[test]
 fn json_path_null_byte_injection() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root);
+    let provider = provider_with_root(&root);
 
     // Path with null byte (file\0.json)
     let query = EvidenceQuery {
@@ -263,7 +267,7 @@ fn json_path_null_byte_injection() {
 #[test]
 fn json_path_unicode_normalization() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root);
+    let provider = provider_with_root(&root);
 
     // Test with Unicode filename (if supported by filesystem)
     let query = EvidenceQuery {
@@ -283,7 +287,7 @@ fn json_path_unicode_normalization() {
 #[test]
 fn json_path_trailing_slash() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root);
+    let provider = provider_with_root(&root);
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
@@ -309,7 +313,7 @@ fn json_path_trailing_slash() {
 #[test]
 fn json_path_whitespace_handling() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root);
+    let provider = provider_with_root(&root);
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
@@ -337,7 +341,7 @@ fn json_path_whitespace_handling() {
 #[cfg(unix)]
 fn json_symlink_escape_detection() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root.clone());
+    let provider = provider_with_root(&root);
 
     // Create symlink pointing to /etc/passwd
     let symlink_path = root.join("escape_link");
@@ -366,7 +370,7 @@ fn json_symlink_escape_detection() {
 #[cfg(unix)]
 fn json_broken_symlink_handling() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root.clone());
+    let provider = provider_with_root(&root);
 
     // Create broken symlink
     let symlink_path = root.join("broken_link");
@@ -395,7 +399,7 @@ fn json_broken_symlink_handling() {
 #[cfg(unix)]
 fn json_symlink_cycle_detection() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root.clone());
+    let provider = provider_with_root(&root);
 
     // Create circular symlinks: a -> b, b -> a
     let link_a = root.join("link_a");
@@ -429,7 +433,7 @@ fn json_symlink_cycle_detection() {
 #[cfg(unix)]
 fn json_relative_symlink_resolution() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root.clone());
+    let provider = provider_with_root(&root);
 
     // Create relative symlink to test.json
     let symlink_path = root.join("link_to_test");
@@ -457,7 +461,7 @@ fn json_relative_symlink_resolution() {
 #[test]
 fn json_jsonpath_recursive_descent() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root);
+    let provider = provider_with_root(&root);
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
@@ -479,7 +483,7 @@ fn json_jsonpath_recursive_descent() {
 #[test]
 fn json_jsonpath_filter_expression() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root);
+    let provider = provider_with_root(&root);
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
@@ -501,7 +505,7 @@ fn json_jsonpath_filter_expression() {
 #[test]
 fn json_jsonpath_array_index_bounds() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root);
+    let provider = provider_with_root(&root);
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
@@ -530,7 +534,7 @@ fn json_jsonpath_array_index_bounds() {
 #[test]
 fn json_jsonpath_special_characters() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root);
+    let provider = provider_with_root(&root);
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
@@ -552,7 +556,7 @@ fn json_jsonpath_special_characters() {
 #[test]
 fn json_jsonpath_length_limit() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root);
+    let provider = provider_with_root(&root);
 
     // Create very long JSONPath (10000 characters)
     let long_path = format!("$.{}", "a".repeat(10000));
@@ -584,7 +588,7 @@ fn json_jsonpath_length_limit() {
 #[test]
 fn json_jsonpath_union_operator() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root);
+    let provider = provider_with_root(&root);
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
@@ -606,7 +610,7 @@ fn json_jsonpath_union_operator() {
 #[test]
 fn json_jsonpath_invalid_syntax() {
     let (_temp, root) = setup_test_files();
-    let provider = provider_with_root(root);
+    let provider = provider_with_root(&root);
 
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),

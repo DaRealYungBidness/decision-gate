@@ -10,6 +10,7 @@
 
 use std::fs;
 use std::num::NonZeroU64;
+use std::path::Path;
 use std::time::Duration;
 
 use decision_gate_core::AdvanceTo;
@@ -40,6 +41,7 @@ use decision_gate_core::TriggerId;
 use decision_gate_core::TriggerKind;
 use decision_gate_core::TrustLane;
 use decision_gate_core::runtime::TriggerResult;
+use decision_gate_mcp::config::DecisionGateConfig;
 use decision_gate_mcp::tools::PrecheckToolRequest;
 use decision_gate_mcp::tools::PrecheckToolResponse;
 use decision_gate_mcp::tools::ScenarioDefineRequest;
@@ -56,6 +58,8 @@ use ret_logic::Requirement;
 use serde_json::Value;
 use serde_json::json;
 use tempfile::tempdir;
+use toml::Value as TomlValue;
+use toml::value::Table;
 
 use crate::helpers;
 
@@ -75,17 +79,23 @@ const fn namespace_id_one() -> NamespaceId {
 async fn json_evidence_playbook_templates_pass() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("json_evidence_playbook_templates_pass")?;
     let bind = allocate_bind_addr()?.to_string();
-    let config = base_http_config(&bind);
+    let dir = tempdir()?;
+    let mut config = base_http_config(&bind);
+    set_json_provider_root(&mut config, dir.path(), "json-evidence-root")?;
     let server = spawn_mcp_server(config).await?;
     let client = server.client(Duration::from_secs(5))?;
     wait_for_server_ready(&client, Duration::from_secs(5)).await?;
 
-    let dir = tempdir()?;
-    let report_path = dir.path().join("report.json");
-    let coverage_path = dir.path().join("coverage.json");
-    let scan_path = dir.path().join("scan.json");
-    let reviews_path = dir.path().join("reviews.json");
-    let quality_path = dir.path().join("quality.json");
+    let report_rel = "report.json";
+    let coverage_rel = "coverage.json";
+    let scan_rel = "scan.json";
+    let reviews_rel = "reviews.json";
+    let quality_rel = "quality.json";
+    let report_path = dir.path().join(report_rel);
+    let coverage_path = dir.path().join(coverage_rel);
+    let scan_path = dir.path().join(scan_rel);
+    let reviews_path = dir.path().join(reviews_rel);
+    let quality_path = dir.path().join(quality_rel);
 
     write_json(
         &report_path,
@@ -120,7 +130,7 @@ async fn json_evidence_playbook_templates_pass() -> Result<(), Box<dyn std::erro
     let conditions = vec![
         ConditionSpec {
             condition_id: tests_ok.clone(),
-            query: json_path_query(&report_path, "$.summary.failed"),
+            query: json_path_query(report_rel, "$.summary.failed"),
             comparator: Comparator::Equals,
             expected: Some(json!(0)),
             policy_tags: Vec::new(),
@@ -128,7 +138,7 @@ async fn json_evidence_playbook_templates_pass() -> Result<(), Box<dyn std::erro
         },
         ConditionSpec {
             condition_id: coverage_ok.clone(),
-            query: json_path_query(&coverage_path, "$.coverage.percent"),
+            query: json_path_query(coverage_rel, "$.coverage.percent"),
             comparator: Comparator::GreaterThanOrEqual,
             expected: Some(json!(85)),
             policy_tags: Vec::new(),
@@ -136,7 +146,7 @@ async fn json_evidence_playbook_templates_pass() -> Result<(), Box<dyn std::erro
         },
         ConditionSpec {
             condition_id: scan_ok.clone(),
-            query: json_path_query(&scan_path, "$.summary.critical"),
+            query: json_path_query(scan_rel, "$.summary.critical"),
             comparator: Comparator::Equals,
             expected: Some(json!(0)),
             policy_tags: Vec::new(),
@@ -144,7 +154,7 @@ async fn json_evidence_playbook_templates_pass() -> Result<(), Box<dyn std::erro
         },
         ConditionSpec {
             condition_id: approvals_ok.clone(),
-            query: json_path_query(&reviews_path, "$.reviews.approvals"),
+            query: json_path_query(reviews_rel, "$.reviews.approvals"),
             comparator: Comparator::GreaterThanOrEqual,
             expected: Some(json!(2)),
             policy_tags: Vec::new(),
@@ -152,7 +162,7 @@ async fn json_evidence_playbook_templates_pass() -> Result<(), Box<dyn std::erro
         },
         ConditionSpec {
             condition_id: lint_ok.clone(),
-            query: json_path_query(&quality_path, "$.checks.lint_ok"),
+            query: json_path_query(quality_rel, "$.checks.lint_ok"),
             comparator: Comparator::Equals,
             expected: Some(json!(true)),
             policy_tags: Vec::new(),
@@ -369,12 +379,12 @@ fn gate(gate_id: &str, condition_id: ConditionId) -> GateSpec {
     }
 }
 
-fn json_path_query(path: &std::path::Path, jsonpath: &str) -> decision_gate_core::EvidenceQuery {
+fn json_path_query(file: &str, jsonpath: &str) -> decision_gate_core::EvidenceQuery {
     decision_gate_core::EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
         params: Some(json!({
-            "file": path.display().to_string(),
+            "file": file,
             "jsonpath": jsonpath
         })),
     }
@@ -395,4 +405,27 @@ fn write_json(path: &std::path::Path, value: &Value) -> Result<(), Box<dyn std::
     let bytes = serde_json::to_vec(value)?;
     fs::write(path, bytes)?;
     Ok(())
+}
+
+fn set_json_provider_root(
+    config: &mut DecisionGateConfig,
+    root: &Path,
+    root_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let provider = config
+        .providers
+        .iter_mut()
+        .find(|provider| provider.name == "json")
+        .ok_or_else(|| "missing json provider".to_string())?;
+    provider.config = Some(json_provider_config(root, root_id));
+    Ok(())
+}
+
+fn json_provider_config(root: &Path, root_id: &str) -> TomlValue {
+    let mut table = Table::new();
+    table.insert("root".to_string(), TomlValue::String(root.to_string_lossy().to_string()));
+    table.insert("root_id".to_string(), TomlValue::String(root_id.to_string()));
+    table.insert("max_bytes".to_string(), TomlValue::Integer(1_048_576));
+    table.insert("allow_yaml".to_string(), TomlValue::Boolean(true));
+    TomlValue::Table(table)
 }

@@ -35,6 +35,7 @@
 
 use std::io::BufReader;
 use std::io::Cursor;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -417,6 +418,21 @@ fn builtin_providers() -> Vec<ProviderConfig> {
 }
 
 fn builtin_provider(name: &str) -> ProviderConfig {
+    let config = match name {
+        "json" => {
+            let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+            let mut table = toml::value::Table::new();
+            table.insert(
+                "root".to_string(),
+                toml::Value::String(root.to_string_lossy().to_string()),
+            );
+            table.insert("root_id".to_string(), toml::Value::String("mcp-tests-root".to_string()));
+            table.insert("allow_yaml".to_string(), toml::Value::Boolean(true));
+            table.insert("max_bytes".to_string(), toml::Value::Integer(1024 * 1024));
+            Some(toml::Value::Table(table))
+        }
+        _ => None,
+    };
     ProviderConfig {
         name: name.to_string(),
         provider_type: ProviderType::Builtin,
@@ -428,7 +444,7 @@ fn builtin_provider(name: &str) -> ProviderConfig {
         trust: None,
         allow_raw: false,
         timeouts: ProviderTimeoutConfig::default(),
-        config: None,
+        config,
     }
 }
 

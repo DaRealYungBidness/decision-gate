@@ -405,7 +405,7 @@ Additional rules:
 Contracts declare what **evidence metadata** a provider can emit.
 
 - **anchor_types**: Strings describing anchor kinds (for audit or external
-  references). Examples: `file_path`, `url`, `receipt_id`, `log_offset`.
+  references). Examples: `file_path_rooted`, `url`, `receipt_id`, `log_offset`.
   Use `[]` if no anchors are emitted.
 
 - **content_types**: MIME types of the evidence value. Examples:
@@ -420,6 +420,8 @@ An empty list means "unspecified" (policies treat it as a wildcard).
 `EvidenceResult.evidence_anchor.anchor_value` is a **string**. If you configure
 an anchor policy that requires fields, this string must be canonical JSON for a
 single object with scalar fields.
+For file-based anchors, `file_path_rooted` uses scalar `root_id` and `path`
+fields (relative paths only).
 
 ---
 

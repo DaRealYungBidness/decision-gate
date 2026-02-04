@@ -97,10 +97,11 @@ fn run_cli_tool(
         sequence: *sequence,
         command: format!("mcp tool {tool}"),
         status: output.status.code().unwrap_or(-1),
-        stdout: stdout.clone(),
-        stderr: stderr.clone(),
+        stdout,
+        stderr,
     });
     if !output.status.success() {
+        let stderr = transcript.last().map(|entry| entry.stderr.as_str()).unwrap_or_default();
         return Err(format!("cli mcp tool {tool} failed: {stderr}"));
     }
     serde_json::from_slice(&output.stdout)
@@ -210,7 +211,7 @@ async fn cli_mcp_tool_wrappers_conformance() -> Result<(), Box<dyn std::error::E
     let list_items =
         list_output.get("items").and_then(Value::as_array).ok_or("scenarios_list missing items")?;
     if !list_items.iter().any(|item| {
-        item.get("scenario_id").and_then(Value::as_str).map_or(false, |id| id == scenario_id)
+        item.get("scenario_id").and_then(Value::as_str).is_some_and(|id| id == scenario_id)
     }) {
         return Err("scenarios_list missing defined scenario".into());
     }
@@ -466,7 +467,7 @@ async fn cli_mcp_tool_wrappers_conformance() -> Result<(), Box<dyn std::error::E
         .and_then(Value::as_array)
         .ok_or("schemas_list missing items")?;
     if !schema_items.iter().any(|item| {
-        item.get("schema_id").and_then(Value::as_str).map_or(false, |id| id == "cli-shape")
+        item.get("schema_id").and_then(Value::as_str).is_some_and(|id| id == "cli-shape")
     }) {
         return Err("schemas_list missing cli-shape".into());
     }

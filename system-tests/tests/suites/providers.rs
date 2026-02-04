@@ -113,9 +113,14 @@ fn i64_from_u64(value: u64, label: &str) -> Result<i64, std::io::Error> {
     i64::try_from(value).map_err(|_| std::io::Error::other(format!("{label} out of range")))
 }
 
-fn json_provider_config(root: &Path, max_bytes: usize) -> Result<TomlValue, std::io::Error> {
+fn json_provider_config(
+    root: &Path,
+    root_id: &str,
+    max_bytes: usize,
+) -> Result<TomlValue, std::io::Error> {
     let mut table = Table::new();
     table.insert("root".to_string(), TomlValue::String(root.to_string_lossy().to_string()));
+    table.insert("root_id".to_string(), TomlValue::String(root_id.to_string()));
     table.insert(
         "max_bytes".to_string(),
         TomlValue::Integer(i64_from_usize(max_bytes, "max_bytes")?),
@@ -546,14 +551,18 @@ async fn json_provider_missing_jsonpath_returns_error_metadata()
 -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("json_provider_missing_jsonpath_returns_error_metadata")?;
     let bind = allocate_bind_addr()?.to_string();
-    let config = base_http_config(&bind);
-    let server = spawn_mcp_server(config).await?;
-    let client = server.client(std::time::Duration::from_secs(5))?;
-    wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
+    let mut config = base_http_config(&bind);
 
     let dir = tempdir()?;
     let report_path = dir.path().join("report.json");
     fs::write(&report_path, r#"{"summary":{"passed":1}}"#)?;
+
+    let json_config = json_provider_config(dir.path(), "providers-root", 1024)?;
+    set_provider_config(&mut config, "json", json_config)?;
+
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(std::time::Duration::from_secs(5))?;
+    wait_for_server_ready(&client, std::time::Duration::from_secs(5)).await?;
 
     let fixture = ScenarioFixture::time_after("json-evidence", "run-1", 0);
     let request = decision_gate_mcp::tools::EvidenceQueryRequest {
@@ -561,7 +570,7 @@ async fn json_provider_missing_jsonpath_returns_error_metadata()
             provider_id: ProviderId::new("json"),
             check_id: "path".to_string(),
             params: Some(json!({
-                "file": report_path.to_string_lossy(),
+                "file": "report.json",
                 "jsonpath": "$.summary.failed"
             })),
         },
@@ -606,11 +615,11 @@ async fn json_provider_rejects_path_outside_root() -> Result<(), Box<dyn std::er
     let mut config = base_http_config(&bind);
 
     let root_dir = tempdir()?;
-    let outside_dir = tempdir()?;
-    let outside_path = outside_dir.path().join("outside.json");
+    let parent_dir = root_dir.path().parent().ok_or("missing temp root parent")?.to_path_buf();
+    let outside_path = parent_dir.join("outside.json");
     fs::write(&outside_path, r#"{"ok":true}"#)?;
 
-    let json_config = json_provider_config(root_dir.path(), 1024)?;
+    let json_config = json_provider_config(root_dir.path(), "providers-root", 1024)?;
     let provider = config
         .providers
         .iter_mut()
@@ -628,7 +637,7 @@ async fn json_provider_rejects_path_outside_root() -> Result<(), Box<dyn std::er
             provider_id: ProviderId::new("json"),
             check_id: "path".to_string(),
             params: Some(json!({
-                "file": outside_path.to_string_lossy(),
+                "file": "../outside.json",
             })),
         },
         context: fixture.evidence_context("json-trigger", Timestamp::Logical(1)),
@@ -666,7 +675,7 @@ async fn json_provider_enforces_size_limit() -> Result<(), Box<dyn std::error::E
     let report_path = root_dir.path().join("report.json");
     fs::write(&report_path, r#"{"payload":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}"#)?;
 
-    let json_config = json_provider_config(root_dir.path(), 8)?;
+    let json_config = json_provider_config(root_dir.path(), "providers-root", 8)?;
     let provider = config
         .providers
         .iter_mut()
@@ -684,7 +693,7 @@ async fn json_provider_enforces_size_limit() -> Result<(), Box<dyn std::error::E
             provider_id: ProviderId::new("json"),
             check_id: "path".to_string(),
             params: Some(json!({
-                "file": report_path.to_string_lossy(),
+                "file": "report.json",
             })),
         },
         context: fixture.evidence_context("json-trigger", Timestamp::Logical(1)),
@@ -736,7 +745,7 @@ async fn json_provider_rejects_symlink_escape() -> Result<(), Box<dyn std::error
         return Err(err.into());
     }
 
-    let json_config = json_provider_config(root_dir.path(), 1024)?;
+    let json_config = json_provider_config(root_dir.path(), "providers-root", 1024)?;
     set_provider_config(&mut config, "json", json_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -749,7 +758,7 @@ async fn json_provider_rejects_symlink_escape() -> Result<(), Box<dyn std::error
             provider_id: ProviderId::new("json"),
             check_id: "path".to_string(),
             params: Some(json!({
-                "file": link_path.to_string_lossy(),
+                "file": "link.json",
             })),
         },
         context: fixture.evidence_context("json-trigger", Timestamp::Logical(1)),
@@ -785,7 +794,7 @@ async fn json_provider_invalid_jsonpath_rejected() -> Result<(), Box<dyn std::er
     let report_path = root_dir.path().join("report.json");
     fs::write(&report_path, r#"{"summary":{"ok":true}}"#)?;
 
-    let json_config = json_provider_config(root_dir.path(), 1024)?;
+    let json_config = json_provider_config(root_dir.path(), "providers-root", 1024)?;
     set_provider_config(&mut config, "json", json_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -798,7 +807,7 @@ async fn json_provider_invalid_jsonpath_rejected() -> Result<(), Box<dyn std::er
             provider_id: ProviderId::new("json"),
             check_id: "path".to_string(),
             params: Some(json!({
-                "file": report_path.to_string_lossy(),
+                "file": "report.json",
                 "jsonpath": "$..["
             })),
         },
@@ -831,14 +840,17 @@ async fn json_provider_invalid_jsonpath_rejected() -> Result<(), Box<dyn std::er
 async fn json_provider_contains_array_succeeds() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("json_provider_contains_array_succeeds")?;
     let bind = allocate_bind_addr()?.to_string();
-    let config = base_http_config(&bind);
-    let server = spawn_mcp_server(config).await?;
-    let client = server.client(Duration::from_secs(5))?;
-    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+    let mut config = base_http_config(&bind);
 
     let dir = tempdir()?;
     let report_path = dir.path().join("report.json");
     fs::write(&report_path, r#"{"summary":{"status":"ok","tags":["alpha","beta","gamma"]}}"#)?;
+    let json_config = json_provider_config(dir.path(), "providers-root", 1024)?;
+    set_provider_config(&mut config, "json", json_config)?;
+
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(Duration::from_secs(5))?;
+    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
 
     let scenario_id = ScenarioId::new("json-provider-contains");
     let stage_id = StageId::new("stage-1");
@@ -865,7 +877,7 @@ async fn json_provider_contains_array_succeeds() -> Result<(), Box<dyn std::erro
                 provider_id: ProviderId::new("json"),
                 check_id: "path".to_string(),
                 params: Some(json!({
-                    "file": report_path.to_string_lossy(),
+                    "file": "report.json",
                     "jsonpath": "$.summary.tags"
                 })),
             },
@@ -930,6 +942,157 @@ async fn json_provider_contains_array_succeeds() -> Result<(), Box<dyn std::erro
     reporter.finish(
         "pass",
         vec!["json provider contains comparator evaluated".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+        ],
+    )?;
+    drop(reporter);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[allow(clippy::too_many_lines, reason = "Full JSON anchor policy flow kept in one block.")]
+async fn json_provider_anchor_policy_enforced() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("json_provider_anchor_policy_enforced")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let mut config = base_http_config(&bind);
+
+    let dir = tempdir()?;
+    let report_path = dir.path().join("report.json");
+    fs::write(&report_path, r#"{"summary":{"failed":0}}"#)?;
+    let json_config = json_provider_config(dir.path(), "providers-root", 1024)?;
+    set_provider_config(&mut config, "json", json_config)?;
+    config.anchors.providers.push(AnchorProviderConfig {
+        provider_id: "json".to_string(),
+        anchor_type: "file_path_rooted".to_string(),
+        required_fields: vec!["root_id".to_string(), "path".to_string()],
+    });
+
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(Duration::from_secs(5))?;
+    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+
+    let fixture = ScenarioFixture::time_after("json-anchor-policy", "run-1", 0);
+    let request = EvidenceQueryRequest {
+        query: EvidenceQuery {
+            provider_id: ProviderId::new("json"),
+            check_id: "path".to_string(),
+            params: Some(json!({
+                "file": "report.json",
+                "jsonpath": "$.summary.failed"
+            })),
+        },
+        context: fixture.evidence_context("json-trigger", Timestamp::Logical(1)),
+    };
+    let input = serde_json::to_value(&request)?;
+    let response: EvidenceQueryResponse = client.call_tool_typed("evidence_query", input).await?;
+    let anchor = response
+        .result
+        .evidence_anchor
+        .ok_or_else(|| io::Error::other("missing evidence anchor"))?;
+    if anchor.anchor_type != "file_path_rooted" {
+        return Err(format!("unexpected anchor type: {}", anchor.anchor_type).into());
+    }
+    let anchor_value: Value = serde_json::from_str(&anchor.anchor_value)?;
+    if anchor_value["root_id"] != "providers-root" {
+        return Err("expected root_id in anchor".into());
+    }
+    if anchor_value["path"] != "report.json" {
+        return Err("expected relative path in anchor".into());
+    }
+
+    let scenario_id = ScenarioId::new("json-anchor-policy");
+    let stage_id = StageId::new("stage-1");
+    let condition_id = ConditionId::new("summary-failed");
+    let spec = ScenarioSpec {
+        scenario_id: scenario_id.clone(),
+        namespace_id: namespace_id_one(),
+        spec_version: SpecVersion::new("1"),
+        stages: vec![StageSpec {
+            stage_id: stage_id.clone(),
+            entry_packets: Vec::new(),
+            gates: vec![GateSpec {
+                gate_id: GateId::new("gate-anchor"),
+                requirement: ret_logic::Requirement::condition(condition_id.clone()),
+                trust: None,
+            }],
+            advance_to: AdvanceTo::Terminal,
+            timeout: None,
+            on_timeout: TimeoutPolicy::Fail,
+        }],
+        conditions: vec![ConditionSpec {
+            condition_id,
+            query: EvidenceQuery {
+                provider_id: ProviderId::new("json"),
+                check_id: "path".to_string(),
+                params: Some(json!({
+                    "file": "report.json",
+                    "jsonpath": "$.summary.failed"
+                })),
+            },
+            comparator: Comparator::Equals,
+            expected: Some(json!(0)),
+            policy_tags: Vec::new(),
+            trust: None,
+        }],
+        policies: Vec::new(),
+        schemas: Vec::new(),
+        default_tenant_id: Some(tenant_id_one()),
+    };
+
+    let define_request = ScenarioDefineRequest {
+        spec,
+    };
+    let define_input = serde_json::to_value(&define_request)?;
+    let define_output: ScenarioDefineResponse =
+        client.call_tool_typed("scenario_define", define_input).await?;
+
+    let start_request = ScenarioStartRequest {
+        scenario_id: define_output.scenario_id.clone(),
+        run_config: RunConfig {
+            tenant_id: tenant_id_one(),
+            namespace_id: namespace_id_one(),
+            run_id: RunId::new("run-1"),
+            scenario_id: define_output.scenario_id.clone(),
+            dispatch_targets: Vec::new(),
+            policy_tags: Vec::new(),
+        },
+        started_at: Timestamp::Logical(1),
+        issue_entry_packets: false,
+    };
+    let start_input = serde_json::to_value(&start_request)?;
+    let _state: decision_gate_core::RunState =
+        client.call_tool_typed("scenario_start", start_input).await?;
+
+    let trigger_request = ScenarioTriggerRequest {
+        scenario_id: define_output.scenario_id,
+        trigger: decision_gate_core::TriggerEvent {
+            run_id: RunId::new("run-1"),
+            tenant_id: tenant_id_one(),
+            namespace_id: namespace_id_one(),
+            trigger_id: TriggerId::new("trigger-1"),
+            kind: TriggerKind::ExternalEvent,
+            time: Timestamp::Logical(2),
+            source_id: "json-provider-anchor".to_string(),
+            payload: None,
+            correlation_id: None,
+        },
+    };
+    let trigger_input = serde_json::to_value(&trigger_request)?;
+    let trigger_result: TriggerResult =
+        client.call_tool_typed("scenario_trigger", trigger_input).await?;
+
+    let outcome = &trigger_result.decision.outcome;
+    if !matches!(outcome, DecisionOutcome::Complete { .. }) {
+        return Err(format!("unexpected decision outcome: {outcome:?}").into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["json provider anchor policy enforced".to_string()],
         vec![
             "summary.json".to_string(),
             "summary.md".to_string(),
@@ -2715,7 +2878,7 @@ async fn assetcore_interop_fixtures() -> Result<(), Box<dyn std::error::Error>> 
         .iter()
         .enumerate()
         .map(|(index, fixture)| {
-            let world_seq = u64::try_from(index).expect("fixture index fits in u64") + 1;
+            let world_seq = u64::try_from(index).unwrap_or(u64::MAX).saturating_add(1);
             let anchor_value = json!({
                 "assetcore.namespace_id": namespace_id,
                 "assetcore.commit_id": commit_id,

@@ -9,6 +9,7 @@
 //! CLI auth matrix tests.
 
 use std::fs;
+use std::path::Path;
 use std::time::Duration;
 
 use serde::Serialize;
@@ -32,6 +33,92 @@ struct CliAuthEntry {
     stderr: String,
 }
 
+fn record_cli_entry(
+    transcript: &mut Vec<CliAuthEntry>,
+    scenario: &str,
+    output: &std::process::Output,
+) {
+    transcript.push(CliAuthEntry {
+        scenario: scenario.to_string(),
+        status: output.status.code().unwrap_or(-1),
+        stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+        stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+    });
+}
+
+async fn run_bearer_auth_checks(
+    cli: &Path,
+    transcript: &mut Vec<CliAuthEntry>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let bearer_token = "cli-bearer-token";
+    let bearer_bind = allocate_bind_addr()?.to_string();
+    let bearer_server =
+        spawn_mcp_server(base_http_config_with_bearer(&bearer_bind, bearer_token)).await?;
+    let bearer_client =
+        bearer_server.client(Duration::from_secs(5))?.with_bearer_token(bearer_token.to_string());
+    wait_for_ready(
+        || async { bearer_client.list_tools().await.map(|_| ()) },
+        Duration::from_secs(5),
+        "bearer server",
+    )
+    .await?;
+    let bearer_url = bearer_server.base_url().to_string();
+
+    let unauthorized = run_cli(cli, &["mcp", "tools", "list", "--endpoint", &bearer_url])?;
+    record_cli_entry(transcript, "bearer_unauthorized", &unauthorized);
+    if unauthorized.status.success() {
+        return Err("expected bearer auth failure without token".into());
+    }
+
+    let authorized = run_cli(
+        cli,
+        &["mcp", "tools", "list", "--endpoint", &bearer_url, "--bearer-token", bearer_token],
+    )?;
+    record_cli_entry(transcript, "bearer_authorized", &authorized);
+    if !authorized.status.success() {
+        return Err("expected bearer auth success with token".into());
+    }
+
+    bearer_server.shutdown().await;
+    Ok(())
+}
+
+async fn run_mtls_auth_checks(
+    cli: &Path,
+    transcript: &mut Vec<CliAuthEntry>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let subject = "CN=decision-gate-cli,O=Example";
+    let mtls_bind = allocate_bind_addr()?.to_string();
+    let mtls_server = spawn_mcp_server(base_http_config_with_mtls(&mtls_bind, subject)).await?;
+    let mtls_client =
+        mtls_server.client(Duration::from_secs(5))?.with_client_subject(subject.to_string());
+    wait_for_ready(
+        || async { mtls_client.list_tools().await.map(|_| ()) },
+        Duration::from_secs(5),
+        "mtls server",
+    )
+    .await?;
+    let mtls_url = mtls_server.base_url().to_string();
+
+    let unauthorized = run_cli(cli, &["mcp", "tools", "list", "--endpoint", &mtls_url])?;
+    record_cli_entry(transcript, "mtls_unauthorized", &unauthorized);
+    if unauthorized.status.success() {
+        return Err("expected mTLS subject failure without client subject".into());
+    }
+
+    let authorized = run_cli(
+        cli,
+        &["mcp", "tools", "list", "--endpoint", &mtls_url, "--client-subject", subject],
+    )?;
+    record_cli_entry(transcript, "mtls_authorized", &authorized);
+    if !authorized.status.success() {
+        return Err("expected mTLS subject success with client subject".into());
+    }
+
+    mtls_server.shutdown().await;
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn cli_auth_matrix() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("cli_auth_matrix")?;
@@ -51,85 +138,8 @@ async fn cli_auth_matrix() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let mut transcript: Vec<CliAuthEntry> = Vec::new();
-
-    let bearer_token = "cli-bearer-token";
-    let bearer_bind = allocate_bind_addr()?.to_string();
-    let bearer_server =
-        spawn_mcp_server(base_http_config_with_bearer(&bearer_bind, bearer_token)).await?;
-    let bearer_client =
-        bearer_server.client(Duration::from_secs(5))?.with_bearer_token(bearer_token.to_string());
-    wait_for_ready(
-        || async { bearer_client.list_tools().await.map(|_| ()) },
-        Duration::from_secs(5),
-        "bearer server",
-    )
-    .await?;
-    let bearer_url = bearer_server.base_url().to_string();
-
-    let unauthorized = run_cli(&cli, &["mcp", "tools", "list", "--endpoint", &bearer_url])?;
-    transcript.push(CliAuthEntry {
-        scenario: "bearer_unauthorized".to_string(),
-        status: unauthorized.status.code().unwrap_or(-1),
-        stdout: String::from_utf8_lossy(&unauthorized.stdout).to_string(),
-        stderr: String::from_utf8_lossy(&unauthorized.stderr).to_string(),
-    });
-    if unauthorized.status.success() {
-        return Err("expected bearer auth failure without token".into());
-    }
-
-    let authorized = run_cli(
-        &cli,
-        &["mcp", "tools", "list", "--endpoint", &bearer_url, "--bearer-token", bearer_token],
-    )?;
-    transcript.push(CliAuthEntry {
-        scenario: "bearer_authorized".to_string(),
-        status: authorized.status.code().unwrap_or(-1),
-        stdout: String::from_utf8_lossy(&authorized.stdout).to_string(),
-        stderr: String::from_utf8_lossy(&authorized.stderr).to_string(),
-    });
-    if !authorized.status.success() {
-        return Err("expected bearer auth success with token".into());
-    }
-
-    bearer_server.shutdown().await;
-
-    let subject = "CN=decision-gate-cli,O=Example";
-    let mtls_bind = allocate_bind_addr()?.to_string();
-    let mtls_server = spawn_mcp_server(base_http_config_with_mtls(&mtls_bind, subject)).await?;
-    let mtls_client =
-        mtls_server.client(Duration::from_secs(5))?.with_client_subject(subject.to_string());
-    wait_for_ready(
-        || async { mtls_client.list_tools().await.map(|_| ()) },
-        Duration::from_secs(5),
-        "mtls server",
-    )
-    .await?;
-    let mtls_url = mtls_server.base_url().to_string();
-
-    let mtls_unauthorized = run_cli(&cli, &["mcp", "tools", "list", "--endpoint", &mtls_url])?;
-    transcript.push(CliAuthEntry {
-        scenario: "mtls_unauthorized".to_string(),
-        status: mtls_unauthorized.status.code().unwrap_or(-1),
-        stdout: String::from_utf8_lossy(&mtls_unauthorized.stdout).to_string(),
-        stderr: String::from_utf8_lossy(&mtls_unauthorized.stderr).to_string(),
-    });
-    if mtls_unauthorized.status.success() {
-        return Err("expected mTLS subject failure without client subject".into());
-    }
-
-    let mtls_authorized = run_cli(
-        &cli,
-        &["mcp", "tools", "list", "--endpoint", &mtls_url, "--client-subject", subject],
-    )?;
-    transcript.push(CliAuthEntry {
-        scenario: "mtls_authorized".to_string(),
-        status: mtls_authorized.status.code().unwrap_or(-1),
-        stdout: String::from_utf8_lossy(&mtls_authorized.stdout).to_string(),
-        stderr: String::from_utf8_lossy(&mtls_authorized.stderr).to_string(),
-    });
-    if !mtls_authorized.status.success() {
-        return Err("expected mTLS subject success with client subject".into());
-    }
+    run_bearer_auth_checks(&cli, &mut transcript).await?;
+    run_mtls_auth_checks(&cli, &mut transcript).await?;
 
     reporter.artifacts().write_json("tool_transcript.json", &transcript)?;
     reporter.finish(
@@ -141,7 +151,6 @@ async fn cli_auth_matrix() -> Result<(), Box<dyn std::error::Error>> {
             "tool_transcript.json".to_string(),
         ],
     )?;
-    mtls_server.shutdown().await;
     drop(reporter);
     Ok(())
 }

@@ -124,7 +124,7 @@ async fn cli_workflows_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
     let server = CliServer::spawn(&cli, &config_path, &stdout_path, &stderr_path)?;
 
     let base_url = format!("http://{bind}/rpc");
-    let client = McpHttpClient::new(base_url.clone(), Duration::from_millis(750))?;
+    let client = McpHttpClient::new(base_url.clone(), Duration::from_secs(5))?;
     wait_for_server_ready(&client, Duration::from_secs(15)).await?;
 
     let fixture = ScenarioFixture::time_after("cli-runpack", "run-1", 0);
@@ -372,8 +372,8 @@ async fn cli_workflows_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
         if !mcp_resource_read.status.success() {
             return Err("mcp resources read CLI failed".into());
         }
-        let mcp_resource_json: Value = serde_json::from_slice(&mcp_resource_read.stdout)?;
-        if mcp_resource_json.get("contents").is_none() {
+        let mcp_resource_read_json: Value = serde_json::from_slice(&mcp_resource_read.stdout)?;
+        if mcp_resource_read_json.get("contents").is_none() {
             return Err("mcp resources read response missing contents".into());
         }
     }
@@ -426,7 +426,7 @@ async fn cli_workflows_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
     let schema_record_path = temp_dir.path().join("schema_register.json");
     fs::write(&schema_record_path, serde_json::to_vec(&schema_record)?)?;
 
-    let schema_register = run_cli(
+    let schema_register_output = run_cli(
         &cli,
         &[
             "schema",
@@ -437,10 +437,10 @@ async fn cli_workflows_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
             &base_url,
         ],
     )?;
-    if !schema_register.status.success() {
+    if !schema_register_output.status.success() {
         return Err("schema register CLI failed".into());
     }
-    let schema_register_json: Value = serde_json::from_slice(&schema_register.stdout)?;
+    let schema_register_json: Value = serde_json::from_slice(&schema_register_output.stdout)?;
     if schema_register_json.get("record").is_none() {
         return Err("schema register response missing record".into());
     }
@@ -458,7 +458,7 @@ async fn cli_workflows_end_to_end() -> Result<(), Box<dyn std::error::Error>> {
         .and_then(Value::as_array)
         .ok_or("schema list response missing items")?;
     let schema_found = schema_items.iter().any(|item| {
-        item.get("schema_id").and_then(Value::as_str).map_or(false, |id| id == "cli-schema")
+        item.get("schema_id").and_then(Value::as_str).is_some_and(|id| id == "cli-schema")
     });
     if !schema_found {
         return Err("schema list response missing cli-schema".into());

@@ -830,8 +830,7 @@ impl ProxyClient {
     }
 
     fn record_transcript(&mut self, request: Value, response: Value, error: Option<String>) {
-        let sequence =
-            u64::try_from(self.transcript.len()).expect("transcript length fits in u64") + 1;
+        let sequence = u64::try_from(self.transcript.len()).unwrap_or(u64::MAX).saturating_add(1);
         self.transcript.push(TranscriptEntry {
             sequence,
             method: request.get("method").and_then(Value::as_str).unwrap_or("unknown").to_string(),

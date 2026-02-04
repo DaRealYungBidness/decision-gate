@@ -35,15 +35,16 @@ struct TestSummary {
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
-        .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")), |parent| parent.to_path_buf())
+        .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")), Path::to_path_buf)
 }
+
+static RUN_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 fn default_run_root(test_name: &str) -> PathBuf {
     let base = workspace_root().join("target/system-tests");
     if let Ok(run_id) = env::var("NEXTEST_RUN_ID") {
         return base.join(run_id).join(test_name);
     }
-    static RUN_COUNTER: AtomicU64 = AtomicU64::new(1);
     let run_id = RUN_COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id();
     base.join(format!("run_{pid}_{run_id}")).join(test_name)
@@ -175,11 +176,12 @@ impl TestReporter {
         self.artifacts.write_text("summary.md", &summary_markdown(&summary))?;
         self.finalized = true;
         if status != "pass" {
+            let notes_summary = summary.notes.join("; ");
             eprintln!(
-                "[system-tests] {} status={} notes={:?} artifacts_root={}",
+                "[system-tests] {} status={} notes={} artifacts_root={}",
                 self.test_name,
                 status,
-                summary.notes,
+                notes_summary,
                 self.artifacts.root().display()
             );
         }

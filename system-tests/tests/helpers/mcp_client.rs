@@ -286,7 +286,7 @@ impl McpHttpClient {
         let Ok(mut guard) = self.transcript.lock() else {
             return;
         };
-        let sequence = u64::try_from(guard.len()).expect("transcript length fits in u64") + 1;
+        let sequence = u64::try_from(guard.len()).unwrap_or(u64::MAX).saturating_add(1);
         guard.push(TranscriptEntry {
             sequence,
             method: request.get("method").and_then(Value::as_str).unwrap_or("unknown").to_string(),

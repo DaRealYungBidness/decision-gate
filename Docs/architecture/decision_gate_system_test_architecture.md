@@ -136,6 +136,10 @@ stable, scenario-derived ports to prevent runpack hash drift; the port can be
 overridden via `DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT` when needed.
 [F:system-tests/README.md L82-L104](system-tests/README.md#L82-L104) [F:system-tests/AGENTS.md L71-L84](system-tests/AGENTS.md#L71-L84)
 
+JSON evidence tests configure a per-test `json` provider root and use **relative**
+file paths so evidence anchors are stable across operating systems. Absolute
+paths are rejected by the provider to avoid runpack hash drift.
+
 ## Execution Workflow
 
 Recommended entry points:

@@ -12,7 +12,7 @@
       "content_type": "application/toml",
       "digest": {
         "algorithm": "sha256",
-        "value": "0740761b6ef385e4ee9cfb0230b69587035f23ebc10f331f650e78859b85d6b1"
+        "value": "14b4fcf5aad9d27517e4226d09433cfd50d2b42d924fc9cc319831e85a38130c"
       },
       "path": "examples/decision-gate.toml"
     },
@@ -52,7 +52,7 @@
       "content_type": "application/json",
       "digest": {
         "algorithm": "sha256",
-        "value": "507033d3230fe158be4a418b78d8d2a0b0ec91e318f42cb588ce53ba31578f50"
+        "value": "765591fbeac470bf8fbf72324414d2951e5b5e6c901949b46b50bef8a8afe903"
       },
       "path": "providers.json"
     },
@@ -60,7 +60,7 @@
       "content_type": "text/markdown",
       "digest": {
         "algorithm": "sha256",
-        "value": "3486d2826ecfffcf6bb7ea27e1f4387d497cb5e3a301abdc500530d6747315ab"
+        "value": "b09f3a52dfec70ffbba85db1f8109b0053aee3ff554f5496fedb3ac77a790b99"
       },
       "path": "providers.md"
     },

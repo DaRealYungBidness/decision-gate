@@ -34,7 +34,7 @@
 mod common;
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::Path;
 
 use decision_gate_core::EvidenceProvider;
 use decision_gate_core::EvidenceQuery;
@@ -54,6 +54,26 @@ use crate::common::sample_context;
 // SECTION: Happy Path Tests
 // ============================================================================
 
+fn provider_with_root(root: &Path) -> JsonProvider {
+    JsonProvider::new(JsonProviderConfig {
+        root: root.to_path_buf(),
+        root_id: "test-root".to_string(),
+        max_bytes: 1024 * 1024,
+        allow_yaml: true,
+    })
+    .expect("json provider config should be valid")
+}
+
+fn provider_with_limits(root: &Path, max_bytes: usize, allow_yaml: bool) -> JsonProvider {
+    JsonProvider::new(JsonProviderConfig {
+        root: root.to_path_buf(),
+        root_id: "test-root".to_string(),
+        max_bytes,
+        allow_yaml,
+    })
+    .expect("json provider config should be valid")
+}
+
 /// Tests that JSON provider selects values via `JSONPath`.
 #[test]
 fn json_provider_selects_jsonpath() {
@@ -61,10 +81,7 @@ fn json_provider_selects_jsonpath() {
     let path = dir.path().join("data.json");
     fs::write(&path, r#"{"nested":{"value":"ok"}}"#).unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -85,10 +102,7 @@ fn json_provider_parses_yaml() {
     let path = dir.path().join("config.yaml");
     fs::write(&path, "version: 2").unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -109,10 +123,7 @@ fn json_provider_parses_yml_extension() {
     let path = dir.path().join("config.yml");
     fs::write(&path, "name: test").unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -133,10 +144,7 @@ fn json_provider_multiple_jsonpath_matches() {
     let path = dir.path().join("data.json");
     fs::write(&path, r#"{"items":[{"id":1},{"id":2},{"id":3}]}"#).unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -157,10 +165,7 @@ fn json_provider_jsonpath_no_match_returns_none() {
     let path = dir.path().join("data.json");
     fs::write(&path, r#"{"a":"b"}"#).unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -180,10 +185,7 @@ fn json_provider_reads_entire_file() {
     let path = dir.path().join("data.json");
     fs::write(&path, r#"{"key":"value"}"#).unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -204,10 +206,7 @@ fn json_provider_sets_evidence_metadata() {
     let path = dir.path().join("data.json");
     fs::write(&path, r#"{"x":1}"#).unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -216,11 +215,74 @@ fn json_provider_sets_evidence_metadata() {
 
     let result = provider.query(&query, &sample_context()).unwrap();
     let anchor = result.evidence_anchor.unwrap();
-    assert_eq!(anchor.anchor_type, "file_path");
-    assert!(anchor.anchor_value.contains("data.json"));
+    assert_eq!(anchor.anchor_type, "file_path_rooted");
+    let anchor_value: Value =
+        serde_json::from_str(&anchor.anchor_value).expect("anchor must be JSON");
+    assert_eq!(anchor_value["root_id"], "test-root");
+    assert_eq!(anchor_value["path"], "data.json");
 
     let evidence_ref = result.evidence_ref.unwrap();
-    assert!(evidence_ref.uri.contains("data.json"));
+    assert_eq!(evidence_ref.uri, "dg+file://test-root/data.json");
+}
+
+/// Tests path normalization to POSIX separators in anchors.
+#[test]
+fn json_provider_normalizes_path_separators() {
+    let dir = tempdir().unwrap();
+    let subdir = dir.path().join("subdir");
+    fs::create_dir_all(&subdir).unwrap();
+    let path = subdir.join("data.json");
+    fs::write(&path, r#"{"x":1}"#).unwrap();
+
+    let provider = provider_with_root(dir.path());
+    let file_arg = format!("subdir{}data.json", std::path::MAIN_SEPARATOR);
+    let query = EvidenceQuery {
+        provider_id: ProviderId::new("json"),
+        check_id: "path".to_string(),
+        params: Some(json!({"file": file_arg})),
+    };
+
+    let result = provider.query(&query, &sample_context()).unwrap();
+    let anchor = result.evidence_anchor.unwrap();
+    let anchor_value: Value =
+        serde_json::from_str(&anchor.anchor_value).expect("anchor must be JSON");
+    assert_eq!(anchor_value["path"], "subdir/data.json");
+    let evidence_ref = result.evidence_ref.unwrap();
+    assert_eq!(evidence_ref.uri, "dg+file://test-root/subdir/data.json");
+}
+
+/// Tests invalid `root_id` values are rejected during provider construction.
+#[test]
+fn json_provider_rejects_invalid_root_id() {
+    let dir = tempdir().unwrap();
+    let bad_config = JsonProviderConfig {
+        root: dir.path().to_path_buf(),
+        root_id: "BadRoot".to_string(),
+        max_bytes: 1024,
+        allow_yaml: true,
+    };
+    let Err(err) = JsonProvider::new(bad_config) else {
+        panic!("expected invalid root_id");
+    };
+    let message = format!("{err}");
+    assert!(message.contains("root_id"), "unexpected error: {message}");
+}
+
+/// Tests `root_id` length enforcement.
+#[test]
+fn json_provider_rejects_root_id_too_long() {
+    let dir = tempdir().unwrap();
+    let bad_config = JsonProviderConfig {
+        root: dir.path().to_path_buf(),
+        root_id: "a".repeat(65),
+        max_bytes: 1024,
+        allow_yaml: true,
+    };
+    let Err(err) = JsonProvider::new(bad_config) else {
+        panic!("expected long root_id error");
+    };
+    let message = format!("{err}");
+    assert!(message.contains("root_id"), "unexpected error: {message}");
 }
 
 /// Deterministic `JSONPath` corpus fuzzing: invalid/edge paths fail closed.
@@ -231,10 +293,7 @@ fn json_provider_jsonpath_corpus_fuzz() {
     fs::write(&path, r#"{"nested":{"value":"ok"}, "items":[{"id":1},{"id":2}], "empty": []}"#)
         .unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
 
     let corpus = vec![
         "$.nested.value",
@@ -283,10 +342,7 @@ fn json_path_traversal_basic_blocked() {
     let safe_path = dir.path().join("safe.json");
     fs::write(&safe_path, r#"{"safe":true}"#).unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
 
     // Attempt to escape the root directory
     let query = EvidenceQuery {
@@ -314,10 +370,7 @@ fn json_path_traversal_vectors_blocked() {
     let safe_path = dir.path().join("safe.json");
     fs::write(&safe_path, r#"{"safe":true}"#).unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
 
     for vector in path_traversal_vectors() {
         let query = EvidenceQuery {
@@ -329,8 +382,11 @@ fn json_path_traversal_vectors_blocked() {
         let result = provider.query(&query, &sample_context()).unwrap();
         let error = result.error.expect("missing error");
         assert!(
-            error.code == "path_outside_root" || error.code == "file_not_found",
-            "Expected path_outside_root or file_not_found for {vector}, got: {}",
+            error.code == "path_outside_root"
+                || error.code == "file_not_found"
+                || error.code == "absolute_path_forbidden",
+            "Expected path_outside_root, file_not_found, or absolute_path_forbidden for {vector}, \
+             got: {}",
             error.code
         );
     }
@@ -343,10 +399,7 @@ fn json_absolute_path_outside_root_blocked() {
     let safe_path = dir.path().join("safe.json");
     fs::write(&safe_path, r#"{"safe":true}"#).unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
 
     // Try an absolute path that's definitely outside the root
     #[cfg(unix)]
@@ -362,11 +415,7 @@ fn json_absolute_path_outside_root_blocked() {
 
     let result = provider.query(&query, &sample_context()).unwrap();
     let error = result.error.expect("missing error");
-    assert!(
-        error.code == "path_outside_root" || error.code == "file_not_found",
-        "Expected path_outside_root or file_not_found, got: {}",
-        error.code
-    );
+    assert_eq!(error.code, "absolute_path_forbidden");
 }
 
 // ============================================================================
@@ -384,11 +433,7 @@ fn json_file_exceeds_size_limit_rejected() {
     let large_content = format!(r#"{{"data":"{}"}}"#, oversized_string(200));
     fs::write(&path, large_content).unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        max_bytes: 100, // Small limit
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_limits(dir.path(), 100, true);
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -409,11 +454,7 @@ fn json_file_at_size_limit_accepted() {
     let content = r#"{"a":"b"}"#; // 9 bytes
     fs::write(&path, content).unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        max_bytes: 9,
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_limits(dir.path(), 9, true);
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -435,10 +476,7 @@ fn json_invalid_json_rejected() {
     let path = dir.path().join("invalid.json");
     fs::write(&path, r#"{"broken": }"#).unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -457,10 +495,7 @@ fn json_invalid_yaml_rejected() {
     let path = dir.path().join("invalid.yaml");
     fs::write(&path, "key: : value").unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -479,11 +514,7 @@ fn json_yaml_disabled_rejects_yaml_files() {
     let path = dir.path().join("config.yaml");
     fs::write(&path, "valid: yaml").unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        allow_yaml: false,
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_limits(dir.path(), 1024 * 1024, false);
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -502,10 +533,7 @@ fn json_invalid_jsonpath_rejected() {
     let path = dir.path().join("data.json");
     fs::write(&path, r#"{"key":"value"}"#).unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -524,7 +552,8 @@ fn json_invalid_jsonpath_rejected() {
 /// Tests that unsupported checks are rejected.
 #[test]
 fn json_unsupported_check_rejected() {
-    let provider = JsonProvider::new(JsonProviderConfig::default());
+    let dir = tempdir().unwrap();
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "read".to_string(),
@@ -540,7 +569,8 @@ fn json_unsupported_check_rejected() {
 /// Tests that missing params are rejected.
 #[test]
 fn json_missing_params_rejected() {
-    let provider = JsonProvider::new(JsonProviderConfig::default());
+    let dir = tempdir().unwrap();
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -555,7 +585,8 @@ fn json_missing_params_rejected() {
 /// Tests that non-object params are rejected.
 #[test]
 fn json_params_not_object_rejected() {
-    let provider = JsonProvider::new(JsonProviderConfig::default());
+    let dir = tempdir().unwrap();
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -570,7 +601,8 @@ fn json_params_not_object_rejected() {
 /// Tests that missing file param is rejected.
 #[test]
 fn json_missing_file_param_rejected() {
-    let provider = JsonProvider::new(JsonProviderConfig::default());
+    let dir = tempdir().unwrap();
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -585,7 +617,8 @@ fn json_missing_file_param_rejected() {
 /// Tests that non-string file param is rejected.
 #[test]
 fn json_file_param_not_string_rejected() {
-    let provider = JsonProvider::new(JsonProviderConfig::default());
+    let dir = tempdir().unwrap();
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -604,10 +637,7 @@ fn json_jsonpath_param_not_string_rejected() {
     let path = dir.path().join("data.json");
     fs::write(&path, r#"{"key":"value"}"#).unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -623,10 +653,7 @@ fn json_jsonpath_param_not_string_rejected() {
 #[test]
 fn json_missing_file_returns_error() {
     let dir = tempdir().unwrap();
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -641,19 +668,18 @@ fn json_missing_file_returns_error() {
 /// Tests that invalid root directory returns an error.
 #[test]
 fn json_invalid_root_rejected() {
+    let dir = tempdir().unwrap();
+    let invalid_root = dir.path().join("missing-root");
     let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(PathBuf::from("/nonexistent/directory/that/does/not/exist")),
+        root: invalid_root,
+        root_id: "test-root".to_string(),
         ..JsonProviderConfig::default()
     });
-    let query = EvidenceQuery {
-        provider_id: ProviderId::new("json"),
-        check_id: "path".to_string(),
-        params: Some(json!({"file": "test.json"})),
+    let Err(err) = provider else {
+        panic!("invalid root should fail provider creation");
     };
-
-    let result = provider.query(&query, &sample_context()).unwrap();
-    let error = result.error.expect("missing error");
-    assert_eq!(error.code, "invalid_root");
+    let message = format!("{err:?}");
+    assert!(message.contains("root does not exist"), "error: {message:?}");
 }
 
 // ============================================================================
@@ -667,10 +693,7 @@ fn json_empty_object_handling() {
     let path = dir.path().join("empty.json");
     fs::write(&path, "{}").unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -691,10 +714,7 @@ fn json_empty_yaml_handling() {
     let path = dir.path().join("empty.yaml");
     fs::write(&path, "").unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -713,10 +733,7 @@ fn json_content_type_json() {
     let path = dir.path().join("data.json");
     fs::write(&path, r#"{"x":1}"#).unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -734,10 +751,7 @@ fn json_content_type_yaml() {
     let path = dir.path().join("data.yaml");
     fs::write(&path, "x: 1").unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -757,10 +771,7 @@ fn json_deeply_nested_document() {
     let content = r#"{"a":{"b":{"c":{"d":{"e":"deep"}}}}}"#;
     fs::write(&path, content).unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -781,10 +792,7 @@ fn json_special_filename_handling() {
     let path = dir.path().join("data-with-dash.json");
     fs::write(&path, r#"{"ok":true}"#).unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),
@@ -804,10 +812,7 @@ fn json_subdirectory_access_allowed() {
     let path = subdir.join("data.json");
     fs::write(&path, r#"{"in":"subdir"}"#).unwrap();
 
-    let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
-        ..JsonProviderConfig::default()
-    });
+    let provider = provider_with_root(dir.path());
     let query = EvidenceQuery {
         provider_id: ProviderId::new("json"),
         check_id: "path".to_string(),

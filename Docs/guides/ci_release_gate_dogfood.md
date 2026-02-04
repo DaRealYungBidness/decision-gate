@@ -46,7 +46,8 @@ If any requirement is missing or false, the gate denies the release.
 ## Evidence Bundle
 
 The release workflow writes a JSON evidence bundle to
-`.tmp/ci/release_evidence.json`. This is the input to Decision Gate.
+`./evidence/release_evidence.json` (relative to the repo root). This is the
+input to Decision Gate.
 
 Example (shape only):
 
@@ -87,7 +88,7 @@ The release gate is expressed as a standard Decision Gate scenario:
 The scenario is instantiated at runtime by replacing the template placeholders:
 
 - `{{SCENARIO_ID}}` -> unique scenario identifier
-- `{{EVIDENCE_FILE}}` -> absolute path to the evidence bundle
+- `{{EVIDENCE_FILE}}` -> relative path to the evidence bundle (within the `json` provider root)
 
 ## How It Runs in CI
 
@@ -126,14 +127,14 @@ python3 - <<'PY'
 import json
 from pathlib import Path
 
-Path("/tmp/release_evidence.json").write_text(json.dumps({
+Path("evidence/release_evidence.json").write_text(json.dumps({
     "release": {
         "tag": "v0.1.0",
         "version": "0.1.0",
         "tag_matches_version": True,
         "sha": "local",
         "generated_at": 0,
-        "sbom_path": "/tmp/decision-gate.sbom.spdx.json",
+        "sbom_path": "evidence/sbom/decision-gate.sbom.spdx.json",
     },
     "checks": {
         "fmt": True,
@@ -151,8 +152,8 @@ Path("/tmp/release_evidence.json").write_text(json.dumps({
 PY
 
 bash scripts/ci/ci_release_gate.sh \
-  --evidence-file /tmp/release_evidence.json \
-  --output-dir /tmp/release-runpack \
+  --evidence-file evidence/release_evidence.json \
+  --output-dir evidence/release-runpack \
   --config configs/presets/ci-release-gate.toml
 ```
 

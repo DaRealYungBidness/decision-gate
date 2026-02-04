@@ -42,15 +42,29 @@ use decision_gate_core::ProviderId;
 use decision_gate_core::ProviderMissingError;
 use decision_gate_core::ScenarioSpec;
 use decision_gate_core::TrustLane;
+use decision_gate_providers::BuiltinProviderConfigs;
+use decision_gate_providers::JsonProviderConfig;
 use decision_gate_providers::ProviderAccessPolicy;
 use decision_gate_providers::ProviderRegistry;
 use serde_json::json;
+use tempfile::TempDir;
 
 use crate::common::sample_context;
 
 // ============================================================================
 // SECTION: Test Fixtures
 // ============================================================================
+
+fn builtin_configs() -> (TempDir, BuiltinProviderConfigs) {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let json = JsonProviderConfig {
+        root: dir.path().to_path_buf(),
+        root_id: "registry-root".to_string(),
+        max_bytes: 1024 * 1024,
+        allow_yaml: true,
+    };
+    (dir, BuiltinProviderConfigs::new(json))
+}
 
 /// Dummy provider that always returns an error for basic tests.
 struct DummyProvider;
@@ -311,9 +325,12 @@ fn register_provider_rejects_duplicates() {
 #[test]
 fn register_builtin_providers_rejects_duplicates() {
     let mut registry = ProviderRegistry::new(ProviderAccessPolicy::default());
-    registry.register_builtin_providers().expect("builtin registration should succeed");
+    let (_dir, configs) = builtin_configs();
+    registry
+        .register_builtin_providers(configs.clone())
+        .expect("builtin registration should succeed");
     let err = registry
-        .register_builtin_providers()
+        .register_builtin_providers(configs)
         .expect_err("expected duplicate builtin registration failure");
     let EvidenceError::Provider(message) = err;
     assert!(
@@ -572,7 +589,8 @@ fn validate_reports_mixed_missing_and_blocked() {
 /// Verifies builtin providers are registered with expected names.
 #[test]
 fn builtin_providers_registers_expected_providers() {
-    let registry = ProviderRegistry::with_builtin_providers().unwrap();
+    let (_dir, configs) = builtin_configs();
+    let registry = ProviderRegistry::with_builtin_providers(configs).unwrap();
     let ctx = sample_context();
 
     // Verify time provider is registered

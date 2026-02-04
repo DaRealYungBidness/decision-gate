@@ -111,7 +111,8 @@ pub fn config_docs_markdown() -> Result<String, DocsError> {
          (integer)\n  - `max_key_bytes` (integer)\n  - `overrides` (table)\n",
     );
     out.push_str(
-        "- `json`:\n  - `root` (string)\n  - `max_bytes` (integer)\n  - `allow_yaml` (bool)\n",
+        "- `json`:\n  - `root` (string)\n  - `root_id` (string)\n  - `max_bytes` (integer)\n  - \
+         `allow_yaml` (bool)\n",
     );
     out.push_str(
         "- `http`:\n  - `allow_http` (bool)\n  - `timeout_ms` (integer)\n  - `max_response_bytes` \

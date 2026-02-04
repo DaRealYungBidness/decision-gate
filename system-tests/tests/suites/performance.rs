@@ -58,7 +58,7 @@ async fn performance_smoke() -> Result<(), Box<dyn std::error::Error>> {
     let start = Instant::now();
 
     for idx in 0 .. iterations {
-        let seq = u64::try_from(idx).expect("iteration index fits in u64");
+        let seq = u64::try_from(idx).unwrap_or(u64::MAX);
         let run_id = decision_gate_core::RunId::new(format!("run-{idx}"));
         let run_config = decision_gate_core::RunConfig {
             tenant_id: fixture.tenant_id,
@@ -72,7 +72,7 @@ async fn performance_smoke() -> Result<(), Box<dyn std::error::Error>> {
         let start_request = ScenarioStartRequest {
             scenario_id: define_output.scenario_id.clone(),
             run_config,
-            started_at: Timestamp::Logical(seq + 1),
+            started_at: Timestamp::Logical(seq.saturating_add(1)),
             issue_entry_packets: false,
         };
         let start_input = serde_json::to_value(&start_request)?;

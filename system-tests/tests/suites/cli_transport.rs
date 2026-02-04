@@ -9,6 +9,7 @@
 //! CLI transport matrix tests for Decision Gate.
 
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -35,100 +36,10 @@ struct CliTransportEntry {
     stderr: String,
 }
 
-fn tools_from_output(output: &Value) -> Result<Vec<String>, String> {
-    let mut tools = output
-        .get("tools")
-        .and_then(Value::as_array)
-        .ok_or("tools list missing tools array")?
-        .iter()
-        .filter_map(|tool| tool.get("name").and_then(Value::as_str).map(str::to_string))
-        .collect::<Vec<_>>();
-    tools.sort();
-    Ok(tools)
-}
-
-fn providers_from_output(output: &Value) -> Result<Vec<String>, String> {
-    let mut providers = output
-        .get("providers")
-        .and_then(Value::as_array)
-        .ok_or("providers list missing providers array")?
-        .iter()
-        .filter_map(|provider| {
-            provider.get("provider_id").and_then(Value::as_str).map(str::to_string)
-        })
-        .collect::<Vec<_>>();
-    providers.sort();
-    Ok(providers)
-}
-
-fn run_cli_json(
-    cli: &PathBuf,
-    args: &[&str],
-    transcript: &mut Vec<CliTransportEntry>,
-    transport: &str,
-    command_label: &str,
-) -> Result<Value, String> {
-    let output = run_cli(cli, args)?;
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-    transcript.push(CliTransportEntry {
-        transport: transport.to_string(),
-        command: command_label.to_string(),
-        status: output.status.code().unwrap_or(-1),
-        stdout: stdout.clone(),
-        stderr: stderr.clone(),
-    });
-    if !output.status.success() {
-        return Err(format!("cli {command_label} failed: {stderr}"));
-    }
-    serde_json::from_slice(&output.stdout)
-        .map_err(|err| format!("invalid json output for {command_label}: {err}"))
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn cli_transport_matrix() -> Result<(), Box<dyn std::error::Error>> {
-    let mut reporter = TestReporter::new("cli_transport_matrix")?;
-    let Some(cli) = cli_binary() else {
-        reporter.artifacts().write_json("tool_transcript.json", &Vec::<Value>::new())?;
-        reporter.finish(
-            "skip",
-            vec!["decision-gate CLI binary unavailable".to_string()],
-            vec![
-                "summary.json".to_string(),
-                "summary.md".to_string(),
-                "tool_transcript.json".to_string(),
-            ],
-        )?;
-        drop(reporter);
-        return Ok(());
-    };
-
-    let http_bind = allocate_bind_addr()?.to_string();
-    let http_server = spawn_mcp_server(base_http_config(&http_bind)).await?;
-    let http_client = http_server.client(Duration::from_secs(5))?;
-    wait_for_server_ready(&http_client, Duration::from_secs(5)).await?;
-    let http_url = http_server.base_url().to_string();
-
-    let sse_bind = allocate_bind_addr()?.to_string();
-    let sse_server = spawn_mcp_server(base_sse_config(&sse_bind)).await?;
-    let sse_url = sse_server.base_url().to_string();
-
-    wait_for_ready(
-        || async {
-            let output = run_cli(
-                &cli,
-                &["mcp", "tools", "list", "--transport", "sse", "--endpoint", &sse_url],
-            )?;
-            if output.status.success() { Ok(()) } else { Err("sse cli not ready".to_string()) }
-        },
-        Duration::from_secs(5),
-        "sse cli",
-    )
-    .await?;
-
-    let temp_dir = TempDir::new()?;
-    let stdio_config = temp_dir.path().join("decision-gate-stdio.toml");
-    let stdio_config_contents = r#"[server]
+fn stdio_config_contents(json_root: &Path) -> String {
+    let json_root = json_root.to_string_lossy().replace('\\', "/");
+    format!(
+        r#"[server]
 transport = "stdio"
 mode = "strict"
 
@@ -159,32 +70,103 @@ type = "builtin"
 [[providers]]
 name = "json"
 type = "builtin"
+config = {{ root = "{}", root_id = "cli-transport-root", max_bytes = 1048576, allow_yaml = true }}
 
 [[providers]]
 name = "http"
 type = "builtin"
-"#;
-    fs::write(&stdio_config, stdio_config_contents)?;
-    let stdio_server = PathBuf::from(env!("CARGO_BIN_EXE_decision_gate_stdio_server"));
+"#,
+        json_root
+    )
+}
 
-    let mut transcript: Vec<CliTransportEntry> = Vec::new();
+fn tools_from_output(output: &Value) -> Result<Vec<String>, String> {
+    let mut tools = output
+        .get("tools")
+        .and_then(Value::as_array)
+        .ok_or("tools list missing tools array")?
+        .iter()
+        .filter_map(|tool| tool.get("name").and_then(Value::as_str).map(str::to_string))
+        .collect::<Vec<_>>();
+    tools.sort();
+    Ok(tools)
+}
 
-    let http_tools = run_cli_json(
-        &cli,
-        &["mcp", "tools", "list", "--endpoint", &http_url],
-        &mut transcript,
+fn providers_from_output(output: &Value) -> Result<Vec<String>, String> {
+    let mut providers = output
+        .get("providers")
+        .and_then(Value::as_array)
+        .ok_or("providers list missing providers array")?
+        .iter()
+        .filter_map(|provider| {
+            provider.get("provider_id").and_then(Value::as_str).map(str::to_string)
+        })
+        .collect::<Vec<_>>();
+    providers.sort();
+    Ok(providers)
+}
+
+fn run_cli_json(
+    cli: &Path,
+    args: &[&str],
+    transcript: &mut Vec<CliTransportEntry>,
+    transport: &str,
+    command_label: &str,
+) -> Result<Value, String> {
+    let output = run_cli(cli, args)?;
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    transcript.push(CliTransportEntry {
+        transport: transport.to_string(),
+        command: command_label.to_string(),
+        status: output.status.code().unwrap_or(-1),
+        stdout,
+        stderr,
+    });
+    if !output.status.success() {
+        let stderr = transcript.last().map(|entry| entry.stderr.as_str()).unwrap_or_default();
+        return Err(format!("cli {command_label} failed: {stderr}"));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|err| format!("invalid json output for {command_label}: {err}"))
+}
+
+fn tools_list_http(
+    cli: &Path,
+    http_url: &str,
+    transcript: &mut Vec<CliTransportEntry>,
+) -> Result<Value, String> {
+    run_cli_json(
+        cli,
+        &["mcp", "tools", "list", "--endpoint", http_url],
+        transcript,
         "http",
         "mcp tools list",
-    )?;
-    let sse_tools = run_cli_json(
-        &cli,
-        &["mcp", "tools", "list", "--transport", "sse", "--endpoint", &sse_url],
-        &mut transcript,
+    )
+}
+
+fn tools_list_sse(
+    cli: &Path,
+    sse_url: &str,
+    transcript: &mut Vec<CliTransportEntry>,
+) -> Result<Value, String> {
+    run_cli_json(
+        cli,
+        &["mcp", "tools", "list", "--transport", "sse", "--endpoint", sse_url],
+        transcript,
         "sse",
         "mcp tools list",
-    )?;
-    let stdio_tools = run_cli_json(
-        &cli,
+    )
+}
+
+fn tools_list_stdio(
+    cli: &Path,
+    stdio_server: &Path,
+    stdio_config: &Path,
+    transcript: &mut Vec<CliTransportEntry>,
+) -> Result<Value, String> {
+    run_cli_json(
+        cli,
         &[
             "mcp",
             "tools",
@@ -196,21 +178,19 @@ type = "builtin"
             "--stdio-config",
             stdio_config.to_str().unwrap_or_default(),
         ],
-        &mut transcript,
+        transcript,
         "stdio",
         "mcp tools list",
-    )?;
+    )
+}
 
-    let http_tool_names = tools_from_output(&http_tools)?;
-    let sse_tool_names = tools_from_output(&sse_tools)?;
-    let stdio_tool_names = tools_from_output(&stdio_tools)?;
-
-    if http_tool_names != sse_tool_names || http_tool_names != stdio_tool_names {
-        return Err("tool lists differ across transports".into());
-    }
-
-    let http_providers = run_cli_json(
-        &cli,
+fn providers_list_http(
+    cli: &Path,
+    http_url: &str,
+    transcript: &mut Vec<CliTransportEntry>,
+) -> Result<Value, String> {
+    run_cli_json(
+        cli,
         &[
             "mcp",
             "tools",
@@ -220,14 +200,21 @@ type = "builtin"
             "--json",
             "{}",
             "--endpoint",
-            &http_url,
+            http_url,
         ],
-        &mut transcript,
+        transcript,
         "http",
         "mcp tools call providers_list",
-    )?;
-    let sse_providers = run_cli_json(
-        &cli,
+    )
+}
+
+fn providers_list_sse(
+    cli: &Path,
+    sse_url: &str,
+    transcript: &mut Vec<CliTransportEntry>,
+) -> Result<Value, String> {
+    run_cli_json(
+        cli,
         &[
             "mcp",
             "tools",
@@ -239,14 +226,22 @@ type = "builtin"
             "--transport",
             "sse",
             "--endpoint",
-            &sse_url,
+            sse_url,
         ],
-        &mut transcript,
+        transcript,
         "sse",
         "mcp tools call providers_list",
-    )?;
-    let stdio_providers = run_cli_json(
-        &cli,
+    )
+}
+
+fn providers_list_stdio(
+    cli: &Path,
+    stdio_server: &Path,
+    stdio_config: &Path,
+    transcript: &mut Vec<CliTransportEntry>,
+) -> Result<Value, String> {
+    run_cli_json(
+        cli,
         &[
             "mcp",
             "tools",
@@ -262,10 +257,88 @@ type = "builtin"
             "--stdio-config",
             stdio_config.to_str().unwrap_or_default(),
         ],
-        &mut transcript,
+        transcript,
         "stdio",
         "mcp tools call providers_list",
-    )?;
+    )
+}
+
+async fn wait_for_sse_cli_ready(
+    cli: &Path,
+    sse_url: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    wait_for_ready(
+        || async {
+            let output = run_cli(
+                cli,
+                &["mcp", "tools", "list", "--transport", "sse", "--endpoint", sse_url],
+            )?;
+            if output.status.success() { Ok(()) } else { Err("sse cli not ready".to_string()) }
+        },
+        Duration::from_secs(5),
+        "sse cli",
+    )
+    .await
+    .map_err(std::io::Error::other)?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn cli_transport_matrix() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("cli_transport_matrix")?;
+    let Some(cli) = cli_binary() else {
+        reporter.artifacts().write_json("tool_transcript.json", &Vec::<Value>::new())?;
+        reporter.finish(
+            "skip",
+            vec!["decision-gate CLI binary unavailable".to_string()],
+            vec![
+                "summary.json".to_string(),
+                "summary.md".to_string(),
+                "tool_transcript.json".to_string(),
+            ],
+        )?;
+        drop(reporter);
+        return Ok(());
+    };
+
+    let http_bind = allocate_bind_addr()?.to_string();
+    let http_server = spawn_mcp_server(base_http_config(&http_bind)).await?;
+    let http_client = http_server.client(Duration::from_secs(5))?;
+    wait_for_server_ready(&http_client, Duration::from_secs(5)).await?;
+    let http_url = http_server.base_url().to_string();
+
+    let sse_bind = allocate_bind_addr()?.to_string();
+    let sse_server = spawn_mcp_server(base_sse_config(&sse_bind)).await?;
+    let sse_url = sse_server.base_url().to_string();
+
+    wait_for_sse_cli_ready(&cli, &sse_url).await?;
+
+    let temp_dir = TempDir::new()?;
+    let stdio_config = temp_dir.path().join("decision-gate-stdio.toml");
+    let json_root = temp_dir.path().join("json-root");
+    fs::create_dir_all(&json_root)?;
+    fs::write(&stdio_config, stdio_config_contents(&json_root))?;
+    let stdio_server = PathBuf::from(env!("CARGO_BIN_EXE_decision_gate_stdio_server"));
+
+    let mut transcript: Vec<CliTransportEntry> = Vec::new();
+
+    let http_tools = tools_list_http(&cli, &http_url, &mut transcript)?;
+    let sse_tools = tools_list_sse(&cli, &sse_url, &mut transcript)?;
+    let stdio_tools =
+        tools_list_stdio(&cli, stdio_server.as_path(), &stdio_config, &mut transcript)?;
+
+    let http_tool_names = tools_from_output(&http_tools)?;
+    let sse_tool_names = tools_from_output(&sse_tools)?;
+    let stdio_tool_names = tools_from_output(&stdio_tools)?;
+
+    if http_tool_names != sse_tool_names || http_tool_names != stdio_tool_names {
+        return Err("tool lists differ across transports".into());
+    }
+
+    let http_providers = providers_list_http(&cli, &http_url, &mut transcript)?;
+    let sse_providers = providers_list_sse(&cli, &sse_url, &mut transcript)?;
+    let stdio_providers =
+        providers_list_stdio(&cli, stdio_server.as_path(), &stdio_config, &mut transcript)?;
 
     let http_provider_ids = providers_from_output(&http_providers)?;
     let sse_provider_ids = providers_from_output(&sse_providers)?;

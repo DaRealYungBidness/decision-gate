@@ -38,10 +38,8 @@ pub fn node_options_with_loader(existing: Option<String>, loader_path: Option<&P
         _ => "--unhandled-rejections=strict".to_string(),
     };
     if let Some(path) = loader_path {
-        let loader_arg = match Url::from_file_path(path) {
-            Ok(url) => url.to_string(),
-            Err(_) => path.display().to_string(),
-        };
+        let loader_arg = Url::from_file_path(path)
+            .map_or_else(|()| path.display().to_string(), |url| url.to_string());
         options = format!("{options} --experimental-loader={loader_arg}");
     }
     options

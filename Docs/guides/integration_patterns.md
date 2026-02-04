@@ -42,6 +42,9 @@ Dependencies:
 3. `scenario_next` -> DG reads JSON via `json` provider
 4. Decision outcome drives deploy
 
+Configure the `json` provider with a root that points at your evidence
+workspace, and keep file paths **relative** to that root.
+
 **Scenario (minimal, accurate fields):**
 ```json dg-parse dg-level=fast
 {
@@ -76,7 +79,7 @@ Dependencies:
         "provider_id": "json",
         "check_id": "path",
         "params": {
-          "file": "/workspace/test-results.json",
+          "file": "test-results.json",
           "jsonpath": "$.summary.failed"
         }
       },
@@ -90,7 +93,7 @@ Dependencies:
         "provider_id": "json",
         "check_id": "path",
         "params": {
-          "file": "/workspace/coverage.json",
+          "file": "coverage.json",
           "jsonpath": "$.total.lines.percent"
         }
       },
@@ -104,7 +107,7 @@ Dependencies:
         "provider_id": "json",
         "check_id": "path",
         "params": {
-          "file": "/workspace/scan.json",
+          "file": "scan.json",
           "jsonpath": "$.summary.critical"
         }
       },

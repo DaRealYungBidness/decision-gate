@@ -54,10 +54,12 @@ fn provider_with_root() -> (tempfile::TempDir, JsonProvider) {
     let path = dir.path().join("data.json");
     fs::write(&path, r#"{"value": 42, "nested": {"ok": true}}"#).unwrap();
     let provider = JsonProvider::new(JsonProviderConfig {
-        root: Some(dir.path().to_path_buf()),
+        root: dir.path().to_path_buf(),
+        root_id: "proptest-root".to_string(),
         max_bytes: 1024 * 1024,
         allow_yaml: true,
-    });
+    })
+    .expect("json provider config should be valid");
     (dir, provider)
 }
 

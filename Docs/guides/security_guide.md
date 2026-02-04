@@ -162,6 +162,7 @@ require_provider_opt_in = true
 [[providers]]
 name = "json"
 type = "builtin"
+config = { root = "/var/lib/decision-gate/evidence", root_id = "evidence-root", max_bytes = 1048576, allow_yaml = false }
 allow_raw = true
 ```
 
@@ -199,8 +200,8 @@ require_provider_opt_in = true
 [anchors]
 [[anchors.providers]]
 provider_id = "json"
-anchor_type = "file_path"
-required_fields = ["path"]
+anchor_type = "file_path_rooted"
+required_fields = ["root_id", "path"]
 
 [namespace]
 allow_default = false

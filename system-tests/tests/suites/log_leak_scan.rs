@@ -36,14 +36,13 @@ mode = "strict"
 
 [server.audit]
 enabled = true
-path = "{}"
+path = "{audit_path_toml}"
 log_precheck_payloads = false
 
 [[providers]]
 name = "time"
 type = "builtin"
-"#,
-        audit_path_toml
+"#
     );
     std::fs::write(&config_path, config_contents)?;
 

@@ -88,6 +88,8 @@ check params and results. It validates:
 - Params schema conformance
 - Expected-value schema conformance
 - Comparator allow-lists
+- Anchor types declared by provider contracts (e.g., `file_path_rooted` for the
+  built-in `json` provider)
 
 [F:decision-gate-mcp/src/capabilities.rs L313-L379](decision-gate-mcp/src/capabilities.rs#L313-L379) [F:decision-gate-mcp/src/capabilities.rs L598-L636](decision-gate-mcp/src/capabilities.rs#L598-L636)
 

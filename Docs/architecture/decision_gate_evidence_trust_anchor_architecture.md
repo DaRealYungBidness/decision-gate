@@ -143,6 +143,11 @@ When an anchor requirement is configured for a provider:
 - Gate evaluation evidence records are stored in canonical condition order to
   keep runpack artifacts deterministic across executions.
 
+For the built-in `json` provider, anchors use `file_path_rooted` with required
+fields `root_id` and `path`. The `path` value is normalized to a POSIX-style
+relative path under the configured root to keep runpack hashes stable across
+platforms.
+
 Invalid anchors result in an `anchor_invalid` provider error and the evidence
 result is converted to an empty verified result for evaluation.
 [F:decision-gate-core/src/runtime/engine.rs L730-L755](decision-gate-core/src/runtime/engine.rs#L730-L755) [F:decision-gate-core/src/runtime/engine.rs L983-L1018](decision-gate-core/src/runtime/engine.rs#L983-L1018)

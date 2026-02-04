@@ -334,7 +334,8 @@ Reads JSON or YAML files and evaluates JSONPath queries against them.
 
 **Notes**
 
-- File access is constrained by root policy and size limits.
+- File access is constrained by the configured root and size limits.
+- File paths must be root-relative; absolute paths are rejected.
 - JSONPath is optional; omitted means the full document.
 - Missing JSONPath yields a null value with error metadata (jsonpath_not_found).
 
@@ -344,7 +345,8 @@ Config fields:
 
 - `allow_yaml` (optional): Allow YAML parsing for .yaml/.yml files. Default: true.
 - `max_bytes` (optional): Maximum file size in bytes. Default: 1048576.
-- `root` (optional): Optional root directory for file resolution.
+- `root` (required): Root directory for file resolution (required).
+- `root_id` (required): Stable identifier for the configured root (required).
 
 ```json
 {
@@ -362,10 +364,19 @@ Config fields:
       "type": "integer"
     },
     "root": {
-      "description": "Optional root directory for file resolution.",
+      "description": "Root directory for file resolution (required).",
+      "type": "string"
+    },
+    "root_id": {
+      "description": "Stable identifier for the configured root (required).",
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
       "type": "string"
     }
   },
+  "required": [
+    "root",
+    "root_id"
+  ],
   "type": "object"
 }
 ```
@@ -379,7 +390,7 @@ Select values via JSONPath from a JSON/YAML file.
 - Determinism: external
 - Params required: yes
 - Allowed comparators: equals, not_equals, greater_than, greater_than_or_equal, less_than, less_than_or_equal, lex_greater_than, lex_greater_than_or_equal, lex_less_than, lex_less_than_or_equal, contains, in_set, deep_equals, deep_not_equals, exists, not_exists
-- Anchor types: file_path
+- Anchor types: file_path_rooted
 - Content types: application/json, application/yaml
 
 Params fields:
@@ -418,12 +429,12 @@ Result schema:
 ```
 Examples:
 
-Example 1: Read version from config.json.
+Example 1: Read version from config.json (root-relative path).
 
 Params:
 ```json
 {
-  "file": "/etc/config.json",
+  "file": "config.json",
   "jsonpath": "$.version"
 }
 ```
@@ -436,7 +447,7 @@ Example 2: Return full document when jsonpath is omitted.
 Params:
 ```json
 {
-  "file": "/etc/config.json"
+  "file": "config.json"
 }
 ```
 Result:

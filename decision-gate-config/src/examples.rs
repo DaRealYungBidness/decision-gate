@@ -68,7 +68,7 @@ type = "builtin"
 [[providers]]
 name = "json"
 type = "builtin"
-config = { root = "/etc/decision-gate", max_bytes = 1048576, allow_yaml = true }
+config = { root = "./evidence", root_id = "evidence-root", max_bytes = 1048576, allow_yaml = true }
 
 [[providers]]
 name = "http"

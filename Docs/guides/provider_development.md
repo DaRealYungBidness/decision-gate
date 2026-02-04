@@ -95,8 +95,8 @@ def handle_evidence_query(query, context):
             "content_type": None
         }
 
-    path = query.get("params", {}).get("path")
-    if not path:
+    rel_path = query.get("params", {}).get("path")
+    if not rel_path:
         return {
             "value": None,
             "lane": "verified",
@@ -112,16 +112,19 @@ def handle_evidence_query(query, context):
             "content_type": None
         }
 
-    exists = os.path.exists(path)
+    root = CONFIG["root"]
+    root_id = CONFIG["root_id"]
+    abs_path = os.path.normpath(os.path.join(root, rel_path))
+    exists = os.path.exists(abs_path)
     return {
         "value": {"kind": "json", "value": exists},
         "lane": "verified",
         "error": None,
         "evidence_hash": None,
-        "evidence_ref": {"uri": path},
+        "evidence_ref": {"uri": f"dg+file://{root_id}/{rel_path}"},
         "evidence_anchor": {
-            "anchor_type": "file_path",
-            "anchor_value": json.dumps({"path": path}, separators=(",", ":"), sort_keys=True)
+            "anchor_type": "file_path_rooted",
+            "anchor_value": json.dumps({"root_id": root_id, "path": rel_path}, separators=(",", ":"), sort_keys=True)
         },
         "signature": None,
         "content_type": "application/json"
@@ -157,12 +160,12 @@ All fields below are **required** by the contract schema.
       },
       "result_schema": { "type": "boolean" },
       "allowed_comparators": ["equals", "not_equals"],
-      "anchor_types": ["file_path"],
+      "anchor_types": ["file_path_rooted"],
       "content_types": ["application/json"],
       "examples": [
         {
           "description": "Check a report file",
-          "params": { "path": "/tmp/report.json" },
+          "params": { "path": "report.json" },
           "result": true
         }
       ]

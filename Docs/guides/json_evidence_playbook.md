@@ -83,7 +83,9 @@ The provider does **not** return JSON `null` for missing paths; it returns **no 
 
 - **File size limit:** `max_bytes` (default `1_048_576`). Oversize returns `size_limit_exceeded`.
 - **YAML support:** enabled when `allow_yaml = true` and file extension is `.yaml`/`.yml`.
-- **Root restriction:** if `root` is set, all paths must resolve within it; otherwise `path_outside_root`.
+- **Root restriction:** `root` and `root_id` are required. File paths are **relative** to `root`.
+  Absolute paths return `absolute_path_forbidden`; escapes return `path_outside_root`.
+- **Anchors:** evidence anchors use `file_path_rooted` with `root_id` and the relative `path`.
 - **Parsing errors:** invalid JSON -> `invalid_json`; invalid YAML -> `invalid_yaml`; YAML disabled -> `yaml_disabled`.
 
 All file/JSONPath errors are returned via `EvidenceResult.error` (not JSON-RPC errors).

@@ -581,6 +581,7 @@ Built-in providers accept optional `config` blocks:
   - `overrides` (table)
 - `json`:
   - `root` (string)
+  - `root_id` (string)
   - `max_bytes` (integer)
   - `allow_yaml` (bool)
 - `http`:

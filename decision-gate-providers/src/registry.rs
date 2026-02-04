@@ -38,6 +38,39 @@ use crate::TimeProvider;
 use crate::TimeProviderConfig;
 
 // ============================================================================
+// SECTION: Built-in Config
+// ============================================================================
+
+/// Configuration bundle for built-in providers.
+///
+/// # Invariants
+/// - `json` must include a valid root and `root_id`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuiltinProviderConfigs {
+    /// Configuration for the time provider.
+    pub time: TimeProviderConfig,
+    /// Configuration for the env provider.
+    pub env: EnvProviderConfig,
+    /// Configuration for the json provider.
+    pub json: JsonProviderConfig,
+    /// Configuration for the http provider.
+    pub http: HttpProviderConfig,
+}
+
+impl BuiltinProviderConfigs {
+    /// Creates configs with defaults except for the required JSON provider config.
+    #[must_use]
+    pub fn new(json: JsonProviderConfig) -> Self {
+        Self {
+            time: TimeProviderConfig::default(),
+            env: EnvProviderConfig::default(),
+            json,
+            http: HttpProviderConfig::default(),
+        }
+    }
+}
+
+// ============================================================================
 // SECTION: Access Policy
 // ============================================================================
 
@@ -115,9 +148,9 @@ impl ProviderRegistry {
     /// # Errors
     ///
     /// Returns [`EvidenceError`] when provider initialization fails.
-    pub fn with_builtin_providers() -> Result<Self, EvidenceError> {
+    pub fn with_builtin_providers(configs: BuiltinProviderConfigs) -> Result<Self, EvidenceError> {
         let mut registry = Self::new(ProviderAccessPolicy::default());
-        registry.register_builtin_providers()?;
+        registry.register_builtin_providers(configs)?;
         Ok(registry)
     }
 
@@ -146,11 +179,14 @@ impl ProviderRegistry {
     /// # Errors
     ///
     /// Returns [`EvidenceError`] when provider initialization fails.
-    pub fn register_builtin_providers(&mut self) -> Result<(), EvidenceError> {
-        self.register_provider("time", TimeProvider::new(TimeProviderConfig::default()))?;
-        self.register_provider("env", EnvProvider::new(EnvProviderConfig::default()))?;
-        self.register_provider("json", JsonProvider::new(JsonProviderConfig::default()))?;
-        let http = HttpProvider::new(HttpProviderConfig::default())?;
+    pub fn register_builtin_providers(
+        &mut self,
+        configs: BuiltinProviderConfigs,
+    ) -> Result<(), EvidenceError> {
+        self.register_provider("time", TimeProvider::new(configs.time))?;
+        self.register_provider("env", EnvProvider::new(configs.env))?;
+        self.register_provider("json", JsonProvider::new(configs.json)?)?;
+        let http = HttpProvider::new(configs.http)?;
         self.register_provider("http", http)?;
         Ok(())
     }

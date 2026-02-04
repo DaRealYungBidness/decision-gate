@@ -779,8 +779,8 @@ fn register_builtin_provider(
             let config = provider
                 .parse_config::<decision_gate_providers::JsonProviderConfig>()
                 .map_err(|err| EvidenceError::Provider(err.to_string()))?;
-            registry
-                .register_provider("json", decision_gate_providers::JsonProvider::new(config))?;
+            let provider = decision_gate_providers::JsonProvider::new(config)?;
+            registry.register_provider("json", provider)?;
         }
         "http" => {
             let config = provider

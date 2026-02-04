@@ -37,6 +37,7 @@ pub use http::HttpProvider;
 pub use http::HttpProviderConfig;
 pub use json::JsonProvider;
 pub use json::JsonProviderConfig;
+pub use registry::BuiltinProviderConfigs;
 pub use registry::ProviderAccessPolicy;
 pub use registry::ProviderRegistry;
 pub use time::TimeProvider;

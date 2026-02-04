@@ -319,23 +319,26 @@ fn json_provider_contract() -> ProviderContract {
             }),
             result_schema,
             allowed_comparators,
-            anchor_types: vec![String::from("file_path")],
+            anchor_types: vec![String::from("file_path_rooted")],
             content_types: vec![String::from("application/json"), String::from("application/yaml")],
             examples: vec![
                 CheckExample {
-                    description: String::from("Read version from config.json."),
-                    params: json!({ "file": "/etc/config.json", "jsonpath": "$.version" }),
+                    description: String::from(
+                        "Read version from config.json (root-relative path).",
+                    ),
+                    params: json!({ "file": "config.json", "jsonpath": "$.version" }),
                     result: json!("1.2.3"),
                 },
                 CheckExample {
                     description: String::from("Return full document when jsonpath is omitted."),
-                    params: json!({ "file": "/etc/config.json" }),
+                    params: json!({ "file": "config.json" }),
                     result: json!({ "version": "1.2.3" }),
                 },
             ],
         }],
         notes: vec![
-            String::from("File access is constrained by root policy and size limits."),
+            String::from("File access is constrained by the configured root and size limits."),
+            String::from("File paths must be root-relative; absolute paths are rejected."),
             String::from("JSONPath is optional; omitted means the full document."),
             String::from(
                 "Missing JSONPath yields a null value with error metadata (jsonpath_not_found).",
@@ -802,7 +805,12 @@ fn json_config_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "root": { "type": "string", "description": "Optional root directory for file resolution." },
+            "root": { "type": "string", "description": "Root directory for file resolution (required)." },
+            "root_id": {
+                "type": "string",
+                "description": "Stable identifier for the configured root (required).",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+            },
             "max_bytes": {
                 "type": "integer",
                 "minimum": 0,
@@ -815,6 +823,7 @@ fn json_config_schema() -> Value {
                 "default": true
             }
         },
+        "required": ["root", "root_id"],
         "additionalProperties": false
     })
 }

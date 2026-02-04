@@ -27,6 +27,7 @@
 
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use decision_gate_core::AdvanceTo;
@@ -91,6 +92,8 @@ use decision_gate_mcp::tools::ToolError;
 use decision_gate_mcp::tools::ToolRouterConfig;
 use serde_json::Value;
 use serde_json::json;
+use toml::Value as TomlValue;
+use toml::value::Table;
 
 // ============================================================================
 // SECTION: Test Fixtures
@@ -306,7 +309,7 @@ fn builtin_providers() -> Vec<ProviderConfig> {
     vec![
         builtin_provider("time"),
         builtin_provider("env"),
-        builtin_provider("json"),
+        json_provider(),
         builtin_provider("http"),
     ]
 }
@@ -325,6 +328,28 @@ fn builtin_provider(name: &str) -> ProviderConfig {
         timeouts: ProviderTimeoutConfig::default(),
         config: None,
     }
+}
+
+fn json_root_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("fixtures").join("json_root")
+}
+
+fn json_provider() -> ProviderConfig {
+    let mut provider = builtin_provider("json");
+    provider.config = Some(json_provider_config());
+    provider
+}
+
+fn json_provider_config() -> TomlValue {
+    let mut table = Table::new();
+    table.insert(
+        "root".to_string(),
+        TomlValue::String(json_root_dir().to_string_lossy().to_string()),
+    );
+    table.insert("root_id".to_string(), TomlValue::String("mcp-tests-root".to_string()));
+    table.insert("allow_yaml".to_string(), TomlValue::Boolean(true));
+    table.insert("max_bytes".to_string(), TomlValue::Integer(1_048_576));
+    TomlValue::Table(table)
 }
 
 /// Creates a minimal scenario spec for testing.

@@ -157,6 +157,8 @@ Decision Gate is composed of:
   propagates anchor requirements into runpack verification.
 - Size and path limits for config files, provider contracts, run state stores,
   docs ingestion, runpack artifacts, and object-store keys.
+- JSON provider enforces root-bound **relative** paths and emits
+  `file_path_rooted` anchors with `root_id` + normalized `path`.
 - RET logic hard limits: DSL inputs capped at 1 MiB with nesting depth 32;
   serialized requirement inputs capped at 1 MiB with default max depth 32;
   plan execution stack depth capped at 64 frames; constant pools capped at
@@ -190,8 +192,8 @@ Decision Gate is composed of:
 
 - Untrusted JSON-RPC/config inputs: strict typed decoding, comparator
   validation, canonical JSON normalization, and size/path limits.
-- JSONPath/YAML parsing in `json` provider: path traversal checks, size limits,
-  and structured error handling.
+- JSONPath/YAML parsing in `json` provider: root-bound relative paths (absolute
+  paths rejected), traversal checks, size limits, and structured error handling.
 - Provider contract tampering: contract path validation and canonical hashing
   of contract payloads.
 

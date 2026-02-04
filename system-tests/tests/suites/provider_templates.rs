@@ -125,9 +125,8 @@ impl ProviderProcess {
 
 impl Drop for ProviderProcess {
     fn drop(&mut self) {
-        match self.child.try_wait() {
-            Ok(Some(_)) => return,
-            Ok(None) | Err(_) => {}
+        if let Ok(Some(_)) = self.child.try_wait() {
+            return;
         }
         let _ = self.child.kill();
         let _ = self.child.try_wait();

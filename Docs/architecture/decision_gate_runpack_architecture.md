@@ -47,6 +47,11 @@ replays integrity checks, validates decision log uniqueness, and optionally
 validates evidence anchors when an anchor policy is present.
 [F:decision-gate-core/src/runtime/runpack.rs L83-L374](decision-gate-core/src/runtime/runpack.rs#L83-L374)
 
+Evidence anchors are stored verbatim in the runpack logs. For file-based
+anchors (`file_path_rooted`), anchors include a stable `root_id` plus a
+POSIX-style relative path to ensure hashes are consistent across operating
+systems.
+
 Runpack exports select a sink in this order: an optional `RunpackStorage`
 backend (exports to a temp directory and delegates storage), an OSS object-store
 backend when configured, or a filesystem export requiring `output_dir`.

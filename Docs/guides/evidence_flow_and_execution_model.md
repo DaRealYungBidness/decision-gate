@@ -127,11 +127,11 @@ Anchors are enforced via config (not the scenario spec):
 [anchors]
 [[anchors.providers]]
 provider_id = "json"
-anchor_type = "file_path"
-required_fields = ["path"]
+anchor_type = "file_path_rooted"
+required_fields = ["root_id", "path"]
 ```
 
-`EvidenceResult.evidence_anchor.anchor_value` must be a **string** containing canonical JSON that parses to an **object**. Required fields must exist and must be scalar (string/number). Violations produce `error.code = "anchor_invalid"` and the condition becomes `unknown`.
+`EvidenceResult.evidence_anchor.anchor_value` must be a **string** containing canonical JSON that parses to an **object**. Required fields must exist and must be scalar (string/number). Violations produce `error.code = "anchor_invalid"` and the condition becomes `unknown`. For `file_path_rooted`, `path` is relative to the configured provider root.
 
 ---
 

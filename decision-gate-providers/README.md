@@ -109,16 +109,17 @@ Check:
 Params:
 
 ```json
-{ "file": "/path/to/file.json", "jsonpath": "$.summary.failed" }
+{ "file": "file.json", "jsonpath": "$.summary.failed" }
 ```
 
 Config:
-- `root` (string, optional root directory)
+- `root` (string, required root directory)
+- `root_id` (string, required stable identifier)
 - `max_bytes` (integer)
 - `allow_yaml` (bool)
 
-When `root` is set, file paths must resolve under the root. JSONPath misses
-return an error result with a `jsonpath_not_found` code.
+File paths are **relative** to `root`; absolute paths are rejected. JSONPath
+misses return an error result with a `jsonpath_not_found` code.
 
 ### http
 

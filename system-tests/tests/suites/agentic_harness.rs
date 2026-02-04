@@ -652,7 +652,7 @@ fn apply_provider_config(
     pack: &ScenarioPack,
     http_base_url: Option<&str>,
 ) -> Result<(), DynError> {
-    let json_config = json_provider_config(&pack.fixtures_dir);
+    let json_config = json_provider_config(&pack.fixtures_dir, &pack.id);
     set_provider_config(config, "json", json_config)?;
 
     let env_config = env_provider_config(&pack.env_overrides);
@@ -715,9 +715,10 @@ fn env_provider_config(overrides: &BTreeMap<String, String>) -> TomlValue {
     TomlValue::Table(table)
 }
 
-fn json_provider_config(root: &Path) -> TomlValue {
+fn json_provider_config(root: &Path, scenario_id: &str) -> TomlValue {
     let mut table = Table::new();
     table.insert("root".to_string(), TomlValue::String(root.to_string_lossy().to_string()));
+    table.insert("root_id".to_string(), TomlValue::String(format!("agentic_{scenario_id}")));
     table.insert("allow_yaml".to_string(), TomlValue::Boolean(false));
     table.insert("max_bytes".to_string(), TomlValue::Integer(1024 * 1024));
     TomlValue::Table(table)

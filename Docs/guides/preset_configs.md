@@ -98,6 +98,7 @@ type = "builtin"
 [[providers]]
 name = "json"
 type = "builtin"
+config = { root = "./evidence", root_id = "evidence-root", max_bytes = 1048576, allow_yaml = true }
 
 [[providers]]
 name = "http"
@@ -106,6 +107,9 @@ type = "builtin"
 
 **Risk posture:** local-only bypass is enabled for registry access. This is
 fine for a single-user machine but not for shared hosts.
+
+**Note:** These presets assume an `./evidence` directory exists for the `json`
+provider root. Create it (or change `root`) before starting the server.
 
 ---
 
@@ -181,6 +185,7 @@ type = "builtin"
 [[providers]]
 name = "json"
 type = "builtin"
+config = { root = "./evidence", root_id = "evidence-root", max_bytes = 1048576, allow_yaml = true }
 
 [[providers]]
 name = "http"
@@ -259,6 +264,7 @@ type = "builtin"
 [[providers]]
 name = "json"
 type = "builtin"
+config = { root = "./evidence", root_id = "evidence-root", max_bytes = 1048576, allow_yaml = true }
 
 [[providers]]
 name = "http"
@@ -344,6 +350,7 @@ type = "builtin"
 [[providers]]
 name = "json"
 type = "builtin"
+config = { root = "./evidence", root_id = "evidence-root", max_bytes = 1048576, allow_yaml = true }
 
 [[providers]]
 name = "http"

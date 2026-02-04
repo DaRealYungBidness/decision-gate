@@ -34,7 +34,8 @@ DG-E is built for two customer types:
 ## What DG-E Is Not
 
 - **No public managed cloud service yet.** We do not operate a generally
-  available DG-Cloud today.
+  available DG-Cloud today. For select customers, a limited managed cloud
+  offering may be available while we continue hardening it.
 - **No promise of 24/7 operations.** You operate your deployment.
 - **No hidden coupling.** DG-E integrates with standard enterprise primitives
   (OIDC, API keys, Postgres, S3, Prometheus-style metrics) without requiring a
@@ -61,6 +62,12 @@ unchanged. Everything below is implemented in the enterprise repositories.
 - Tenant lifecycle scaffolding and namespace membership tracking.
 - Namespace authority enforcement (existence, lifecycle state, tenant matching).
 
+### Docs Governance and Tool Visibility
+
+- Tenant-scoped docs catalogs with RBAC and policy enforcement.
+- Tool visibility policies per tenant.
+- Optional rate limits, encryption, and audit trails for docs access.
+
 ### Audit and Compliance
 
 - **Hash-chained JSONL audit log** with retention policies.
@@ -81,8 +88,9 @@ unchanged. Everything below is implemented in the enterprise repositories.
 
 ### Admin Surface
 
-- **Lightweight HTML admin console** for tenants, API keys, runs, and runpack
-  download workflows. This is a minimal, deterministic UI, not a full GUI app.
+- **Admin API + lightweight HTML console** for tenants, API keys, runs, docs
+  governance, and runpack download workflows. This is a minimal, deterministic
+  UI, not a full GUI app.
 
 ### Telemetry
 
@@ -105,7 +113,7 @@ We provide:
 - Software, documentation, and best-effort integration help.
 - Clear boundaries so you retain control of your environment.
 
-Managed cloud is invite-only early access.
+Managed cloud is invite-only and limited to select customers while we harden it.
 
 ---
 
@@ -119,12 +127,12 @@ DG-E is an extension of Decision Gate OSS, not a fork of its core semantics:
 
 ---
 
-## Managed Cloud (Early Access)
+## Managed Cloud (Select Customers)
 
-We are actively developing a managed cloud version of Decision Gate.
-Early access is available for serious evaluations or high-value deployments.
-If a managed option is important to your team, reach out and we can discuss
-fit, timeline, and prerequisites.
+We are actively developing a managed cloud version of Decision Gate. For select
+customers, we may offer a managed cloud service while it is still being
+hardened. This is not generally available. If a managed option is important to
+your team, reach out and we can discuss fit, timeline, and prerequisites.
 
 ---
 

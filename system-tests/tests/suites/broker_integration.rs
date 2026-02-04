@@ -118,8 +118,10 @@ async fn broker_composite_sources_and_sinks() -> Result<(), Box<dyn std::error::
 
     let file_hash = hash_canonical_json(DEFAULT_HASH_ALGORITHM, &file_value)?;
     let file_envelope = sample_envelope("packet-file", "application/json", file_hash.clone());
+    let file_url =
+        Url::from_file_path(&file_path).map_err(|()| std::io::Error::other("file url"))?;
     let file_ref = ContentRef {
-        uri: Url::from_file_path(&file_path).expect("file url").to_string(),
+        uri: file_url.to_string(),
         content_hash: file_hash,
         encryption: None,
     };

@@ -464,8 +464,12 @@ Params:
 Params:
 
 ```json
-{ "file": "/config.json", "jsonpath": "$.version" }
+{ "file": "config.json", "jsonpath": "$.version" }
 ```
+
+Notes:
+- `file` is resolved relative to the JSON provider `root` config.
+- Evidence anchors include the configured `root_id` plus the relative path.
 
 ### http
 

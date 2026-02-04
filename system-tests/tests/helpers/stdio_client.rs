@@ -199,7 +199,7 @@ fn record_transcript(
     let Ok(mut guard) = transcript.lock() else {
         return;
     };
-    let sequence = u64::try_from(guard.len()).expect("transcript length fits in u64") + 1;
+    let sequence = u64::try_from(guard.len()).unwrap_or(u64::MAX).saturating_add(1);
     guard.push(TranscriptEntry {
         sequence,
         method: request.method.clone(),

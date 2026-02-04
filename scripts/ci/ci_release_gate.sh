@@ -10,19 +10,21 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$REPO_ROOT"
 
 EVIDENCE_FILE=""
 OUTPUT_DIR=""
 CONFIG_PATH="$REPO_ROOT/configs/presets/ci-release-gate.toml"
 SCENARIO_TEMPLATE="$REPO_ROOT/configs/ci/release_gate_scenario.json"
 BASE_URL="http://127.0.0.1:4010/rpc"
+EVIDENCE_ROOT="$REPO_ROOT/evidence"
 
 print_usage() {
     cat <<EOF
 Usage: $(basename "$0") --evidence-file PATH --output-dir DIR [--config PATH] [--base-url URL]
 
 Options:
-  --evidence-file PATH  Path to JSON evidence bundle.
+  --evidence-file PATH  Path to JSON evidence bundle (must live under ./evidence).
   --output-dir DIR      Output directory for runpack artifacts.
   --config PATH         MCP server config file (default: configs/presets/ci-release-gate.toml).
   --base-url URL        MCP server base URL (default: http://127.0.0.1:4010).
@@ -70,11 +72,6 @@ if [[ "$BASE_URL" != */rpc ]]; then
     BASE_URL="${BASE_URL%/}/rpc"
 fi
 
-if [[ ! -f "$EVIDENCE_FILE" ]]; then
-    echo "ERROR: evidence file not found: $EVIDENCE_FILE" >&2
-    exit 1
-fi
-
 if [[ ! -f "$CONFIG_PATH" ]]; then
     echo "ERROR: config file not found: $CONFIG_PATH" >&2
     exit 1
@@ -98,6 +95,29 @@ fi
 ABS_EVIDENCE_FILE="$(python3 - <<PY
 import pathlib
 print(pathlib.Path("$EVIDENCE_FILE").resolve())
+PY
+)"
+
+ABS_EVIDENCE_ROOT="$(python3 - <<PY
+import pathlib
+print(pathlib.Path("$EVIDENCE_ROOT").resolve())
+PY
+)"
+
+if [[ ! -f "$ABS_EVIDENCE_FILE" ]]; then
+    echo "ERROR: evidence file not found: $ABS_EVIDENCE_FILE" >&2
+    exit 1
+fi
+
+REL_EVIDENCE_FILE="$(python3 - <<PY
+import pathlib
+root = pathlib.Path("$ABS_EVIDENCE_ROOT")
+path = pathlib.Path("$ABS_EVIDENCE_FILE")
+try:
+    rel = path.relative_to(root)
+except ValueError:
+    raise SystemExit(f"evidence file must be inside {root}")
+print(rel.as_posix())
 PY
 )"
 
@@ -165,7 +185,7 @@ python3 - <<PY
 import json
 from pathlib import Path
 text = Path("$SCENARIO_TEMPLATE").read_text()
-text = text.replace("{{EVIDENCE_FILE}}", "$ABS_EVIDENCE_FILE")
+text = text.replace("{{EVIDENCE_FILE}}", "$REL_EVIDENCE_FILE")
 text = text.replace("{{SCENARIO_ID}}", "$SCENARIO_ID")
 json.loads(text)
 Path("$SPEC_FILE").write_text(text)
