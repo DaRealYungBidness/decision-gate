@@ -66,6 +66,11 @@ The manifest is the canonical index for runpack artifacts. Key fields include:
 
 [F:decision-gate-core/src/core/runpack.rs L57-L116](decision-gate-core/src/core/runpack.rs#L57-L116)
 
+Manifest versioning is explicit. The verifier currently supports `v1` and fails
+closed on unknown `manifest_version` values to preserve backward compatibility
+guarantees as new versions are introduced.
+[F:decision-gate-core/src/runtime/runpack.rs L60-L374](decision-gate-core/src/runtime/runpack.rs#L60-L374)
+
 Security context metadata captures dev-permissive and namespace authority
 posture when provided by the MCP server.
 [F:decision-gate-core/src/core/runpack.rs L94-L104](decision-gate-core/src/core/runpack.rs#L94-L104)

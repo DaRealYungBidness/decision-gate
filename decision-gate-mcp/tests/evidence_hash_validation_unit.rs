@@ -7,7 +7,7 @@
 // Dependencies: decision-gate-mcp, decision-gate-core
 // ============================================================================
 //! ## Overview
-//! Tests the enhanced ensure_evidence_hash function that validates evidence
+//! Tests the enhanced `ensure_evidence_hash` function that validates evidence
 //! integrity by computing and verifying hashes of evidence values.
 //!
 //! Security posture: hash validation prevents evidence tampering during
@@ -37,7 +37,7 @@ use serde_json::json;
 // SECTION: Test Helpers
 // ============================================================================
 
-/// Creates an EvidenceResult with a JSON value.
+/// Creates an `EvidenceResult` with a JSON value.
 fn evidence_with_json(value: serde_json::Value) -> EvidenceResult {
     EvidenceResult {
         value: Some(EvidenceValue::Json(value)),
@@ -51,7 +51,7 @@ fn evidence_with_json(value: serde_json::Value) -> EvidenceResult {
     }
 }
 
-/// Creates an EvidenceResult with a Bytes value.
+/// Creates an `EvidenceResult` with a Bytes value.
 fn evidence_with_bytes(bytes: Vec<u8>) -> EvidenceResult {
     EvidenceResult {
         value: Some(EvidenceValue::Bytes(bytes)),
@@ -307,7 +307,7 @@ fn hash_validation_handles_complex_nested_json() {
 fn hash_validation_handles_large_json_payloads() {
     // Arrange - Create a large JSON object (not quite MAX_EVIDENCE_VALUE_BYTES but substantial)
     let mut large_obj = serde_json::Map::new();
-    for i in 0..100 {
+    for i in 0 .. 100 {
         large_obj.insert(
             format!("field_{i:04}"),
             json!({

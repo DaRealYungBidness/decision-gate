@@ -1,11 +1,11 @@
-// decision-gate-core/tests/lexicographic_evidence_ordering_units.rs
+// decision-gate-core/tests/lexicographic_evidence_ordering_unit.rs
 //! Unit tests for lexicographic evidence ordering.
 // ============================================================================
 // Module: Lexicographic Evidence Ordering Unit Tests
 // Description: Tests for canonical evidence record sorting by condition_id.
 // ============================================================================
 //! ## Overview
-//! Tests the lexicographic sorting of evidence records by condition_id to
+//! Tests the lexicographic sorting of evidence records by `condition_id` to
 //! ensure canonical ordering regardless of provider call order.
 
 #![allow(
@@ -33,7 +33,7 @@ use serde_json::json;
 // SECTION: Test Helpers
 // ============================================================================
 
-/// Creates a minimal evidence record with specific condition_id.
+/// Creates a minimal evidence record with specific `condition_id`.
 fn evidence_record(condition_id: &str, value: serde_json::Value) -> EvidenceRecord {
     EvidenceRecord {
         condition_id: ConditionId::new(condition_id),
@@ -51,7 +51,7 @@ fn evidence_record(condition_id: &str, value: serde_json::Value) -> EvidenceReco
     }
 }
 
-/// Extracts condition_id strings from evidence records.
+/// Extracts `condition_id` strings from evidence records.
 fn extract_condition_ids(records: &[EvidenceRecord]) -> Vec<String> {
     records.iter().map(|r| r.condition_id.as_str().to_string()).collect()
 }
@@ -132,7 +132,7 @@ fn evidence_sorting_preserves_stability() {
     // Arrange - Multiple records with same condition_id but different values
     // Note: Since EvidenceRecord doesn't have a timestamp field, we verify
     // stability using different values in the result
-    let mut records = vec![
+    let mut records = [
         evidence_record("same-id", json!({"order": 1})),
         evidence_record("same-id", json!({"order": 2})),
         evidence_record("same-id", json!({"order": 3})),

@@ -8,6 +8,8 @@
 
 //! Runpack validation tests for Decision Gate system-tests.
 
+use std::fs;
+use std::path::PathBuf;
 use std::sync::LazyLock;
 
 use decision_gate_core::ArtifactReader;
@@ -21,6 +23,7 @@ use decision_gate_mcp::config::NamespaceAuthorityMode;
 use decision_gate_mcp::config::ObjectStoreConfig;
 use decision_gate_mcp::config::ObjectStoreProvider;
 use decision_gate_mcp::config::RunpackStorageConfig;
+use decision_gate_mcp::runpack::FileArtifactReader;
 use decision_gate_mcp::runpack_object_store::ObjectStoreRunpackBackend;
 use decision_gate_mcp::runpack_object_store::RunpackObjectKey;
 use decision_gate_mcp::tools::RunpackExportRequest;
@@ -44,9 +47,34 @@ use tokio::sync::Mutex;
 use crate::helpers;
 
 static RUNPACK_TEST_MUTEX: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+const BACKCOMPAT_ROOT: &str = "tests/fixtures/runpacks/backcompat/v1";
+const BACKCOMPAT_MANIFEST: &str = "manifest.json";
 
 async fn lock_runpack_mutex() -> tokio::sync::MutexGuard<'static, ()> {
     RUNPACK_TEST_MUTEX.lock().await
+}
+
+#[test]
+fn runpack_backcompat_v1_fixture_verifies() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("runpack_backcompat_v1_fixture_verifies")?;
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(BACKCOMPAT_ROOT);
+    let manifest_path = root.join(BACKCOMPAT_MANIFEST);
+    let manifest_bytes = fs::read(&manifest_path)
+        .map_err(|_| format!("missing backcompat manifest at {}", manifest_path.display()))?;
+    let manifest: RunpackManifest = serde_json::from_slice(&manifest_bytes)?;
+    let reader = FileArtifactReader::new(root)?;
+    let verifier = RunpackVerifier::new(manifest.hash_algorithm);
+    let report = verifier.verify_manifest(&reader, &manifest)?;
+    if report.status != decision_gate_core::runtime::VerificationStatus::Pass {
+        return Err(format!("expected verification pass, got {:?}", report.status).into());
+    }
+    reporter.finish(
+        "pass",
+        vec!["backcompat v1 runpack verified".to_string()],
+        vec!["summary.json".to_string(), "summary.md".to_string()],
+    )?;
+    drop(reporter);
+    Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]

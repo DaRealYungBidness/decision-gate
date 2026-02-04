@@ -238,10 +238,13 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 - `decision-gate-cli/tests/runpack_commands.rs`
 - `system-tests/tests/suites/runpack.rs` (export/verify + object store)
 - `system-tests/tests/suites/sqlite_registry_runpack.rs`
+- Back-compat fixture verification against committed `v1` runpack artifacts
+  (`system-tests/tests/fixtures/runpacks/backcompat/v1`, `system-tests/tests/suites/runpack.rs`).
+- Verifier rejects unsupported `manifest_version` values (fail-closed).
 
 **Missing**
 
-- Explicit backward compatibility test vectors.
+- None.
 
 ---
 

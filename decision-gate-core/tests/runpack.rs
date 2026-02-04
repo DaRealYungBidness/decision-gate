@@ -43,6 +43,7 @@ use decision_gate_core::ProviderId;
 use decision_gate_core::RunId;
 use decision_gate_core::RunState;
 use decision_gate_core::RunStatus;
+use decision_gate_core::RunpackVersion;
 use decision_gate_core::ScenarioId;
 use decision_gate_core::ScenarioSpec;
 use decision_gate_core::SpecVersion;
@@ -290,6 +291,45 @@ fn test_runpack_build_and_verify() {
     assert_eq!(report.status, decision_gate_core::runtime::VerificationStatus::Pass);
 }
 
+/// Verifies unsupported runpack manifest versions fail closed.
+#[test]
+fn runpack_verifier_rejects_unknown_manifest_version() {
+    let spec = minimal_spec();
+    let spec_hash = spec.canonical_hash_with(DEFAULT_HASH_ALGORITHM).expect("spec hash");
+
+    let state = RunState {
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        run_id: RunId::new("run-1"),
+        scenario_id: ScenarioId::new("scenario"),
+        spec_hash,
+        current_stage_id: StageId::new("stage-1"),
+        stage_entered_at: Timestamp::Logical(0),
+        status: RunStatus::Active,
+        dispatch_targets: vec![],
+        triggers: vec![],
+        gate_evals: vec![],
+        decisions: vec![],
+        packets: vec![],
+        submissions: vec![],
+        tool_calls: vec![],
+    };
+
+    let mut store = InMemoryArtifactStore::default();
+    let builder = RunpackBuilder::default();
+    let mut manifest =
+        builder.build(&mut store, &spec, &state, Timestamp::Logical(1)).expect("runpack build");
+
+    manifest.manifest_version = RunpackVersion("v999".to_string());
+
+    let verifier = RunpackVerifier::new(DEFAULT_HASH_ALGORITHM);
+    let report = verifier.verify_manifest(&store, &manifest).expect("runpack verify");
+
+    assert_eq!(report.status, decision_gate_core::runtime::VerificationStatus::Fail);
+    assert_eq!(report.checked_files, 0);
+    assert!(report.errors.iter().any(|err| err.contains("unsupported manifest version")));
+}
+
 /// Tests verifier rejection of oversized artifacts.
 #[test]
 fn runpack_verifier_rejects_oversized_artifact() {
@@ -369,4 +409,244 @@ fn runpack_verifier_accepts_anchor_policy() {
     let report = verifier.verify_manifest(&store, &manifest).expect("runpack verify");
 
     assert_eq!(report.status, decision_gate_core::runtime::VerificationStatus::Pass);
+}
+
+// ============================================================================
+// SECTION: Hash Validation and Tampering Tests
+// ============================================================================
+
+/// Verifies that tampering with artifact bytes is detected via hash mismatch.
+#[test]
+fn runpack_verifier_detects_tampered_artifact() {
+    let spec = minimal_spec();
+    let spec_hash = spec.canonical_hash_with(DEFAULT_HASH_ALGORITHM).expect("spec hash");
+
+    let state = RunState {
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        run_id: RunId::new("run-1"),
+        scenario_id: ScenarioId::new("scenario"),
+        spec_hash,
+        current_stage_id: StageId::new("stage-1"),
+        stage_entered_at: Timestamp::Logical(0),
+        status: RunStatus::Active,
+        dispatch_targets: vec![],
+        triggers: vec![],
+        gate_evals: vec![],
+        decisions: vec![],
+        packets: vec![],
+        submissions: vec![],
+        tool_calls: vec![],
+    };
+
+    let mut store = InMemoryArtifactStore::default();
+    let builder = RunpackBuilder::default();
+    let manifest =
+        builder.build(&mut store, &spec, &state, Timestamp::Logical(1)).expect("runpack build");
+
+    // Tamper with artifact after build
+    store.insert_bytes("artifacts/scenario_spec.json", b"tampered content".to_vec());
+
+    let verifier = RunpackVerifier::new(DEFAULT_HASH_ALGORITHM);
+    let report = verifier.verify_manifest(&store, &manifest).expect("runpack verify");
+
+    assert_eq!(report.status, decision_gate_core::runtime::VerificationStatus::Fail);
+    assert!(
+        report.errors.iter().any(|err| err.contains("hash mismatch for artifacts/scenario_spec.json")),
+        "expected hash mismatch error, got: {:?}",
+        report.errors
+    );
+}
+
+/// Verifies that modifying the root hash in the manifest is detected.
+#[test]
+fn runpack_verifier_detects_root_hash_mismatch() {
+    let spec = minimal_spec();
+    let spec_hash = spec.canonical_hash_with(DEFAULT_HASH_ALGORITHM).expect("spec hash");
+
+    let state = RunState {
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        run_id: RunId::new("run-1"),
+        scenario_id: ScenarioId::new("scenario"),
+        spec_hash,
+        current_stage_id: StageId::new("stage-1"),
+        stage_entered_at: Timestamp::Logical(0),
+        status: RunStatus::Active,
+        dispatch_targets: vec![],
+        triggers: vec![],
+        gate_evals: vec![],
+        decisions: vec![],
+        packets: vec![],
+        submissions: vec![],
+        tool_calls: vec![],
+    };
+
+    let mut store = InMemoryArtifactStore::default();
+    let builder = RunpackBuilder::default();
+    let mut manifest =
+        builder.build(&mut store, &spec, &state, Timestamp::Logical(1)).expect("runpack build");
+
+    // Tamper with root hash (provide invalid bytes)
+    manifest.integrity.root_hash = decision_gate_core::hashing::HashDigest::new(
+        DEFAULT_HASH_ALGORITHM,
+        &[0u8; 32],
+    );
+
+    let verifier = RunpackVerifier::new(DEFAULT_HASH_ALGORITHM);
+    let report = verifier.verify_manifest(&store, &manifest).expect("runpack verify");
+
+    assert_eq!(report.status, decision_gate_core::runtime::VerificationStatus::Fail);
+    assert!(
+        report.errors.iter().any(|err| err.contains("root hash mismatch")),
+        "expected root hash mismatch error, got: {:?}",
+        report.errors
+    );
+}
+
+// Note: Hash algorithm mismatch test is not included because HashAlgorithm currently
+// only has one variant (Sha256). When additional algorithms are added, a test should
+// be added here to verify the algorithm mismatch detection at runpack.rs:340-342.
+
+/// Verifies that missing artifacts cause verification to fail closed.
+#[test]
+fn runpack_verifier_fails_on_missing_artifact() {
+    let spec = minimal_spec();
+    let spec_hash = spec.canonical_hash_with(DEFAULT_HASH_ALGORITHM).expect("spec hash");
+
+    let state = RunState {
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        run_id: RunId::new("run-1"),
+        scenario_id: ScenarioId::new("scenario"),
+        spec_hash,
+        current_stage_id: StageId::new("stage-1"),
+        stage_entered_at: Timestamp::Logical(0),
+        status: RunStatus::Active,
+        dispatch_targets: vec![],
+        triggers: vec![],
+        gate_evals: vec![],
+        decisions: vec![],
+        packets: vec![],
+        submissions: vec![],
+        tool_calls: vec![],
+    };
+
+    let mut store = InMemoryArtifactStore::default();
+    let builder = RunpackBuilder::default();
+    let manifest =
+        builder.build(&mut store, &spec, &state, Timestamp::Logical(1)).expect("runpack build");
+
+    // Remove an artifact to simulate missing file
+    {
+        let mut guard = store.files.lock().expect("artifact store mutex");
+        guard.remove("artifacts/scenario_spec.json");
+    }
+
+    let verifier = RunpackVerifier::new(DEFAULT_HASH_ALGORITHM);
+    let report = verifier.verify_manifest(&store, &manifest).expect("runpack verify");
+
+    assert_eq!(report.status, decision_gate_core::runtime::VerificationStatus::Fail);
+    assert!(
+        report.errors.iter().any(|err| err.contains("artifact read failed for artifacts/scenario_spec.json")),
+        "expected artifact read failed error, got: {:?}",
+        report.errors
+    );
+}
+
+// ============================================================================
+// SECTION: Anchor Policy Edge Cases
+// ============================================================================
+
+/// Verifies that anchors missing required fields fail verification.
+#[test]
+fn runpack_verifier_rejects_anchor_missing_required_field() {
+    let spec = anchor_spec();
+    // Create anchor with incomplete field set (missing assetcore.world_seq)
+    let anchor_value = serde_json::json!({
+        "assetcore.namespace_id": 1,
+        "assetcore.commit_id": "commit-1"
+        // Missing "assetcore.world_seq"
+    });
+    let anchor = EvidenceAnchor {
+        anchor_type: "assetcore.anchor_set".to_string(),
+        anchor_value: serde_json::to_string(&anchor_value).expect("anchor json"),
+    };
+    let state = anchor_state(&spec, Some(anchor));
+    let mut store = InMemoryArtifactStore::default();
+    let builder = RunpackBuilder::new(anchor_policy());
+    let manifest =
+        builder.build(&mut store, &spec, &state, Timestamp::Logical(1)).expect("runpack build");
+
+    let verifier = RunpackVerifier::new(DEFAULT_HASH_ALGORITHM);
+    let report = verifier.verify_manifest(&store, &manifest).expect("runpack verify");
+
+    assert_eq!(report.status, decision_gate_core::runtime::VerificationStatus::Fail);
+    assert!(
+        report.errors.iter().any(|err| err.contains("anchor invalid")),
+        "expected anchor invalid error, got: {:?}",
+        report.errors
+    );
+}
+
+/// Verifies that anchors with wrong type fail verification.
+#[test]
+fn runpack_verifier_rejects_anchor_type_mismatch() {
+    let spec = anchor_spec();
+    let anchor_value = serde_json::json!({
+        "assetcore.namespace_id": 1,
+        "assetcore.commit_id": "commit-1",
+        "assetcore.world_seq": 42
+    });
+    // Wrong anchor type - policy expects "assetcore.anchor_set"
+    let anchor = EvidenceAnchor {
+        anchor_type: "assetcore.anchor_invalid".to_string(),
+        anchor_value: serde_json::to_string(&anchor_value).expect("anchor json"),
+    };
+    let state = anchor_state(&spec, Some(anchor));
+    let mut store = InMemoryArtifactStore::default();
+    let builder = RunpackBuilder::new(anchor_policy());
+    let manifest =
+        builder.build(&mut store, &spec, &state, Timestamp::Logical(1)).expect("runpack build");
+
+    let verifier = RunpackVerifier::new(DEFAULT_HASH_ALGORITHM);
+    let report = verifier.verify_manifest(&store, &manifest).expect("runpack verify");
+
+    assert_eq!(report.status, decision_gate_core::runtime::VerificationStatus::Fail);
+    assert!(
+        report.errors.iter().any(|err| err.contains("anchor invalid")),
+        "expected anchor invalid error, got: {:?}",
+        report.errors
+    );
+}
+
+/// Verifies that anchors with invalid field types fail verification.
+#[test]
+fn runpack_verifier_rejects_anchor_wrong_field_type() {
+    let spec = anchor_spec();
+    // Provide boolean for world_seq (only string/number are allowed)
+    let anchor_value = serde_json::json!({
+        "assetcore.namespace_id": 1,
+        "assetcore.commit_id": "commit-1",
+        "assetcore.world_seq": true
+    });
+    let anchor = EvidenceAnchor {
+        anchor_type: "assetcore.anchor_set".to_string(),
+        anchor_value: serde_json::to_string(&anchor_value).expect("anchor json"),
+    };
+    let state = anchor_state(&spec, Some(anchor));
+    let mut store = InMemoryArtifactStore::default();
+    let builder = RunpackBuilder::new(anchor_policy());
+    let manifest =
+        builder.build(&mut store, &spec, &state, Timestamp::Logical(1)).expect("runpack build");
+
+    let verifier = RunpackVerifier::new(DEFAULT_HASH_ALGORITHM);
+    let report = verifier.verify_manifest(&store, &manifest).expect("runpack verify");
+
+    assert_eq!(report.status, decision_gate_core::runtime::VerificationStatus::Fail);
+    assert!(
+        report.errors.iter().any(|err| err.contains("anchor invalid") || err.contains("must be string or number")),
+        "expected anchor invalid error, got: {:?}",
+        report.errors
+    );
 }

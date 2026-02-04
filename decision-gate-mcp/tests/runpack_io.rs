@@ -153,3 +153,99 @@ fn file_artifact_sink_rejects_overlong_total_path() {
     let result = FileArtifactSink::new(root, "runpack.json");
     assert!(result.is_err());
 }
+
+// ========================================================================
+// SECTION: Path Edge Cases
+// ========================================================================
+
+/// Verifies that Windows UNC paths are rejected.
+#[cfg(windows)]
+#[test]
+fn file_artifact_sink_rejects_unc_paths() {
+    let root = temp_root("unc");
+    let mut sink = FileArtifactSink::new(root.clone(), "runpack.json").unwrap();
+
+    // Test verbatim UNC path
+    let verbatim_unc = r"\\?\C:\Windows\System32\config";
+    let artifact = sample_artifact(verbatim_unc, b"nope");
+    let err = sink.write(&artifact).unwrap_err();
+    assert!(
+        err.to_string().contains("absolute artifact path") || err.to_string().contains("artifact path"),
+        "unexpected error for verbatim UNC path: {err}"
+    );
+
+    // Test server UNC path
+    let server_unc = r"\\server\share\file.txt";
+    let artifact2 = sample_artifact(server_unc, b"nope");
+    let err2 = sink.write(&artifact2).unwrap_err();
+    assert!(
+        err2.to_string().contains("absolute artifact path") || err2.to_string().contains("artifact path"),
+        "unexpected error for server UNC path: {err2}"
+    );
+
+    cleanup(&root);
+}
+
+/// Verifies that path traversal attempts are rejected even with normalization tricks.
+#[test]
+fn file_artifact_sink_rejects_traversal_with_normalization() {
+    let root = temp_root("normalized");
+    let mut sink = FileArtifactSink::new(root.clone(), "runpack.json").unwrap();
+
+    // Test path attempting traversal through relative components
+    // This should be rejected because it contains .. component
+    let traversal = "artifacts/../escape.json";
+    let artifact = sample_artifact(traversal, b"test");
+    let err = sink.write(&artifact).unwrap_err();
+    assert!(
+        err.to_string().contains("artifact path"),
+        "expected path error for traversal, got: {err}"
+    );
+
+    cleanup(&root);
+}
+
+/// Verifies that certain non-normalized paths are safely handled.
+#[test]
+fn file_artifact_sink_normalizes_safe_paths() {
+    let root = temp_root("safe-normalized");
+    let mut sink = FileArtifactSink::new(root.clone(), "runpack.json").unwrap();
+
+    // These paths should be normalized and allowed (not rejected)
+    // The implementation safely handles ./ and // by normalizing them
+
+    // Path with ./ should be normalized to artifacts/log.json
+    let dot_slash = "artifacts/./log.json";
+    let artifact = sample_artifact(dot_slash, b"test-dot");
+    let result = sink.write(&artifact);
+    assert!(
+        result.is_ok(),
+        "safe path normalization should allow ./, got error: {:?}",
+        result
+    );
+
+    cleanup(&root);
+}
+
+/// Verifies path component and total path length boundaries.
+#[test]
+fn file_artifact_sink_path_component_boundaries() {
+    let root = temp_root("boundaries");
+
+    // Test exact boundary for component length (255 chars should pass)
+    let component_254 = "a".repeat(254);
+    let result_254 = FileArtifactSink::new(root.join(&component_254), "runpack.json");
+    assert!(result_254.is_ok(), "254-char component should be accepted");
+
+    // Test exact boundary (255 chars should pass)
+    let component_255 = "a".repeat(255);
+    let result_255 = FileArtifactSink::new(root.join(&component_255), "runpack.json");
+    assert!(result_255.is_ok(), "255-char component should be accepted");
+
+    // Test over boundary (256 chars should fail)
+    let component_256 = "a".repeat(256);
+    let result_256 = FileArtifactSink::new(root.join(&component_256), "runpack.json");
+    assert!(result_256.is_err(), "256-char component should be rejected");
+
+    cleanup(&root);
+}

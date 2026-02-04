@@ -20,7 +20,8 @@
       "Bash(cargo tree:*)",
       "Bash(cargo deny check:*)",
       "Bash(git log:*)",
-      "Bash(sort:*)"
+      "Bash(sort:*)",
+      "Bash(cargo nextest run:*)"
     ]
   }
 }

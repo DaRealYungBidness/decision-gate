@@ -75,6 +75,8 @@ const TOOL_LOG_PATH: &str = "artifacts/tool_calls.json";
 const VERIFIER_REPORT_PATH: &str = "artifacts/verifier_report.json";
 /// Maximum artifact size accepted by the runpack verifier.
 pub const MAX_RUNPACK_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
+/// Supported runpack manifest versions for offline verification.
+const SUPPORTED_RUNPACK_MANIFEST_VERSIONS: [&str; 1] = ["v1"];
 
 // ============================================================================
 // SECTION: Builder
@@ -321,6 +323,17 @@ impl RunpackVerifier {
         reader: &R,
         manifest: &RunpackManifest,
     ) -> Result<VerificationReport, RunpackError> {
+        if !manifest_version_supported(&manifest.manifest_version) {
+            return Ok(VerificationReport {
+                status: VerificationStatus::Fail,
+                checked_files: 0,
+                errors: vec![format!(
+                    "unsupported manifest version: {}",
+                    manifest.manifest_version.0
+                )],
+            });
+        }
+
         let mut errors = Vec::new();
         let mut checked = 0usize;
 
@@ -565,6 +578,11 @@ fn verify_anchor_policy<R: ArtifactReader>(
     }
 
     Ok(errors)
+}
+
+/// Returns true when the manifest version is supported by this verifier.
+fn manifest_version_supported(version: &RunpackVersion) -> bool {
+    SUPPORTED_RUNPACK_MANIFEST_VERSIONS.contains(&version.0.as_str())
 }
 
 /// Builds a condition-to-provider lookup from a scenario spec.

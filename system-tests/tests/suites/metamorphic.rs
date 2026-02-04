@@ -505,18 +505,12 @@ async fn metamorphic_concurrent_triggers_deterministic() -> Result<(), Box<dyn s
             correlation_id: None,
         },
     };
-    let trigger_a_input = serde_json::to_value(&trigger_a)?;
-    let trigger_b_input = serde_json::to_value(&trigger_b)?;
-    let client_a = client.clone();
-    let client_b = client.clone();
-
-    let (result_a, result_b): (
-        decision_gate_core::runtime::TriggerResult,
-        decision_gate_core::runtime::TriggerResult,
-    ) = tokio::try_join!(
-        client_a.call_tool_typed("scenario_trigger", trigger_a_input),
-        client_b.call_tool_typed("scenario_trigger", trigger_b_input)
-    )?;
+    let (result_a, result_b) = tokio::join!(
+        trigger_with_retry(&client, &trigger_a),
+        trigger_with_retry(&client, &trigger_b)
+    );
+    let result_a = result_a?;
+    let result_b = result_b?;
 
     let decision_a_trigger = result_a.decision.trigger_id.as_str();
     let decision_b_trigger = result_b.decision.trigger_id.as_str();
@@ -632,4 +626,30 @@ async fn run_flow(
     let manifest: RunpackManifest = serde_json::from_slice(&manifest_bytes)?;
 
     Ok(manifest)
+}
+
+async fn trigger_with_retry(
+    client: &helpers::mcp_client::McpHttpClient,
+    request: &ScenarioTriggerRequest,
+) -> Result<decision_gate_core::runtime::TriggerResult, Box<dyn std::error::Error>> {
+    const MAX_ATTEMPTS: u8 = 3;
+    for attempt in 1 ..= MAX_ATTEMPTS {
+        let trigger_input = serde_json::to_value(request)?;
+        match client.call_tool_typed("scenario_trigger", trigger_input).await {
+            Ok(result) => return Ok(result),
+            Err(err) => {
+                let message = err.to_lowercase();
+                let is_overloaded = message.contains("overloaded") || message.contains("inflight");
+                if is_overloaded && attempt < MAX_ATTEMPTS {
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                    continue;
+                }
+                if is_overloaded {
+                    return Err(format!("scenario_trigger retries exhausted: {err}").into());
+                }
+                return Err(err.into());
+            }
+        }
+    }
+    Err("scenario_trigger retries exhausted".into())
 }

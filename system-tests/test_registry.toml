@@ -44,6 +44,16 @@ artifacts = ["summary.json", "summary.md", "tool_transcript.json", "runpack/"]
 estimated_runtime_sec = 15
 
 [[tests]]
+name = "runpack_backcompat_v1_fixture_verifies"
+category = "runpack"
+priority = "P0"
+description = "Verify committed v1 runpack fixtures with the current verifier."
+files = ["system-tests/tests/suites/runpack.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test runpack -- --exact runpack::runpack_backcompat_v1_fixture_verifies"
+artifacts = ["summary.json", "summary.md"]
+estimated_runtime_sec = 5
+
+[[tests]]
 name = "golden_runpack_cross_os"
 category = "runpack"
 priority = "P0"

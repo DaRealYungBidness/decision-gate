@@ -1,4 +1,4 @@
-// decision-gate-core/tests/condition_eval_ordering_units.rs
+// decision-gate-core/tests/condition_eval_ordering_unit.rs
 //! Unit tests for condition evaluation ordering functions.
 // ============================================================================
 // Module: Condition Evaluation Ordering Unit Tests
@@ -37,7 +37,7 @@ use decision_gate_core::runtime::engine::reorder_condition_specs;
 // SECTION: Test Helpers
 // ============================================================================
 
-/// Creates a minimal ConditionSpec for testing.
+/// Creates a minimal `ConditionSpec` for testing.
 fn test_condition_spec(condition_id: &str) -> ConditionSpec {
     ConditionSpec {
         condition_id: ConditionId::new(condition_id),
@@ -53,7 +53,7 @@ fn test_condition_spec(condition_id: &str) -> ConditionSpec {
     }
 }
 
-/// Extracts condition_id strings from specs for easy assertion.
+/// Extracts `condition_id` strings from specs for easy assertion.
 fn extract_condition_ids(specs: &[ConditionSpec]) -> Vec<String> {
     specs.iter().map(|s| s.condition_id.as_str().to_string()).collect()
 }
@@ -102,7 +102,9 @@ fn reorder_deterministically_shuffles_with_seed() {
     // Act
     reorder_condition_specs(
         &mut specs,
-        ConditionEvalOrder::DeterministicShuffle { seed: 42 },
+        ConditionEvalOrder::DeterministicShuffle {
+            seed: 42,
+        },
         HashAlgorithm::Sha256,
     );
 
@@ -124,17 +126,21 @@ fn reorder_different_seeds_produce_different_orders() {
     ];
 
     let mut specs_seed_7 = base_specs.clone();
-    let mut specs_seed_11 = base_specs.clone();
+    let mut specs_seed_11 = base_specs;
 
     // Act
     reorder_condition_specs(
         &mut specs_seed_7,
-        ConditionEvalOrder::DeterministicShuffle { seed: 7 },
+        ConditionEvalOrder::DeterministicShuffle {
+            seed: 7,
+        },
         HashAlgorithm::Sha256,
     );
     reorder_condition_specs(
         &mut specs_seed_11,
-        ConditionEvalOrder::DeterministicShuffle { seed: 11 },
+        ConditionEvalOrder::DeterministicShuffle {
+            seed: 11,
+        },
         HashAlgorithm::Sha256,
     );
 
@@ -159,21 +165,27 @@ fn reorder_same_seed_produces_same_order_repeatedly() {
     let mut specs_1 = base_specs.clone();
     reorder_condition_specs(
         &mut specs_1,
-        ConditionEvalOrder::DeterministicShuffle { seed: 42 },
+        ConditionEvalOrder::DeterministicShuffle {
+            seed: 42,
+        },
         HashAlgorithm::Sha256,
     );
 
     let mut specs_2 = base_specs.clone();
     reorder_condition_specs(
         &mut specs_2,
-        ConditionEvalOrder::DeterministicShuffle { seed: 42 },
+        ConditionEvalOrder::DeterministicShuffle {
+            seed: 42,
+        },
         HashAlgorithm::Sha256,
     );
 
-    let mut specs_3 = base_specs.clone();
+    let mut specs_3 = base_specs;
     reorder_condition_specs(
         &mut specs_3,
-        ConditionEvalOrder::DeterministicShuffle { seed: 42 },
+        ConditionEvalOrder::DeterministicShuffle {
+            seed: 42,
+        },
         HashAlgorithm::Sha256,
     );
 
@@ -193,7 +205,9 @@ fn reorder_handles_empty_list() {
     // Act
     reorder_condition_specs(
         &mut specs,
-        ConditionEvalOrder::DeterministicShuffle { seed: 42 },
+        ConditionEvalOrder::DeterministicShuffle {
+            seed: 42,
+        },
         HashAlgorithm::Sha256,
     );
 
@@ -209,7 +223,9 @@ fn reorder_handles_single_item() {
     // Act
     reorder_condition_specs(
         &mut specs,
-        ConditionEvalOrder::DeterministicShuffle { seed: 42 },
+        ConditionEvalOrder::DeterministicShuffle {
+            seed: 42,
+        },
         HashAlgorithm::Sha256,
     );
 
@@ -237,7 +253,9 @@ fn reorder_uses_condition_id_as_tiebreaker() {
     // Act
     reorder_condition_specs(
         &mut specs,
-        ConditionEvalOrder::DeterministicShuffle { seed: 42 },
+        ConditionEvalOrder::DeterministicShuffle {
+            seed: 42,
+        },
         HashAlgorithm::Sha256,
     );
 
@@ -257,7 +275,9 @@ fn reorder_uses_condition_id_as_tiebreaker() {
     ];
     reorder_condition_specs(
         &mut specs_2,
-        ConditionEvalOrder::DeterministicShuffle { seed: 42 },
+        ConditionEvalOrder::DeterministicShuffle {
+            seed: 42,
+        },
         HashAlgorithm::Sha256,
     );
     let ids_2 = extract_condition_ids(&specs_2);
@@ -269,13 +289,15 @@ fn reorder_with_many_conditions() {
     // Stress test with 20+ conditions
     // Arrange
     let mut specs: Vec<ConditionSpec> =
-        (0..25).map(|i| test_condition_spec(&format!("cond-{i:03}"))).collect();
+        (0 .. 25).map(|i| test_condition_spec(&format!("cond-{i:03}"))).collect();
     let original_ids = extract_condition_ids(&specs);
 
     // Act
     reorder_condition_specs(
         &mut specs,
-        ConditionEvalOrder::DeterministicShuffle { seed: 12345 },
+        ConditionEvalOrder::DeterministicShuffle {
+            seed: 12345,
+        },
         HashAlgorithm::Sha256,
     );
 
@@ -286,10 +308,12 @@ fn reorder_with_many_conditions() {
 
     // Verify determinism with large list
     let mut specs_2: Vec<ConditionSpec> =
-        (0..25).map(|i| test_condition_spec(&format!("cond-{i:03}"))).collect();
+        (0 .. 25).map(|i| test_condition_spec(&format!("cond-{i:03}"))).collect();
     reorder_condition_specs(
         &mut specs_2,
-        ConditionEvalOrder::DeterministicShuffle { seed: 12345 },
+        ConditionEvalOrder::DeterministicShuffle {
+            seed: 12345,
+        },
         HashAlgorithm::Sha256,
     );
     let result_ids_2 = extract_condition_ids(&specs_2);
@@ -375,9 +399,9 @@ fn shuffle_key_handles_special_chars_in_condition_id() {
     assert!(!key_dots.is_empty(), "Should handle dots in condition ID");
 
     // Verify they all produce different hashes
-    let keys = vec![key_colons, key_slashes, key_hyphens, key_underscores, key_dots];
-    for i in 0..keys.len() {
-        for j in (i + 1)..keys.len() {
+    let keys = [key_colons, key_slashes, key_hyphens, key_underscores, key_dots];
+    for i in 0 .. keys.len() {
+        for j in (i + 1) .. keys.len() {
             assert_ne!(
                 keys[i], keys[j],
                 "Different special characters should produce different hashes"
