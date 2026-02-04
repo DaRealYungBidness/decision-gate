@@ -124,6 +124,24 @@ pub struct ControlPlaneConfig {
     pub anchor_policy: EvidenceAnchorPolicy,
     /// Optional per-provider trust requirement overrides.
     pub provider_trust_overrides: BTreeMap<String, TrustRequirement>,
+    /// Condition evaluation ordering strategy.
+    pub condition_eval_order: ConditionEvalOrder,
+}
+
+/// Strategy for ordering condition evaluation.
+///
+/// # Invariants
+/// - Ordering must be deterministic for identical inputs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ConditionEvalOrder {
+    /// Use the order implied by the requirement tree.
+    #[default]
+    Spec,
+    /// Deterministically reorder condition evaluation using a seed.
+    DeterministicShuffle {
+        /// Seed used to derive the ordering.
+        seed: u64,
+    },
 }
 
 impl ControlPlaneConfig {
@@ -142,6 +160,7 @@ impl Default for ControlPlaneConfig {
             trust_requirement: TrustRequirement::default(),
             anchor_policy: EvidenceAnchorPolicy::default(),
             provider_trust_overrides: BTreeMap::new(),
+            condition_eval_order: ConditionEvalOrder::default(),
         }
     }
 }
@@ -712,7 +731,12 @@ where
         stage_def: &StageSpec,
         evidence_context: &EvidenceContext,
     ) -> Result<GateEvaluationOutcome, ControlPlaneError> {
-        let condition_specs = condition_specs(&self.spec, stage_def)?;
+        let mut condition_specs = condition_specs(&self.spec, stage_def)?;
+        reorder_condition_specs(
+            &mut condition_specs,
+            self.config.condition_eval_order,
+            self.config.hash_algorithm,
+        );
         let evidence_records = self.evaluate_conditions(&condition_specs, evidence_context)?;
         let default_requirement = self.config.trust_requirement;
         let mut condition_requirements = BTreeMap::new();
@@ -1507,6 +1531,49 @@ fn condition_specs(
         specs.push(condition.clone());
     }
     Ok(specs)
+}
+
+/// Applies deterministic ordering to condition specs based on configuration.
+///
+/// Exposed as `pub` for unit testing in integration tests.
+pub fn reorder_condition_specs(
+    specs: &mut Vec<ConditionSpec>,
+    order: ConditionEvalOrder,
+    algorithm: HashAlgorithm,
+) {
+    match order {
+        ConditionEvalOrder::Spec => {}
+        ConditionEvalOrder::DeterministicShuffle {
+            seed,
+        } => {
+            let mut keyed: Vec<(String, ConditionSpec)> = specs
+                .drain(..)
+                .map(|spec| {
+                    let key = condition_shuffle_key(seed, algorithm, &spec.condition_id);
+                    (key, spec)
+                })
+                .collect();
+            keyed.sort_by(|left, right| {
+                left.0
+                    .cmp(&right.0)
+                    .then_with(|| left.1.condition_id.as_str().cmp(right.1.condition_id.as_str()))
+            });
+            *specs = keyed.into_iter().map(|(_, spec)| spec).collect();
+        }
+    }
+}
+
+/// Builds a deterministic ordering key for condition evaluation.
+///
+/// Exposed as `pub` for unit testing in integration tests.
+#[must_use]
+pub fn condition_shuffle_key(
+    seed: u64,
+    algorithm: HashAlgorithm,
+    condition_id: &ConditionId,
+) -> String {
+    let payload = format!("{seed}:{}", condition_id.as_str());
+    hash_bytes(algorithm, payload.as_bytes()).value
 }
 
 /// Filters evidence records relevant to a gate.

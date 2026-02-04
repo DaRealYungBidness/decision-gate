@@ -122,6 +122,7 @@ Notes:
 - Each `keys` entry is a **file path**. The key file may contain raw 32-byte public key bytes or base64 text.
 - `EvidenceResult.signature.key_id` must match the configured key path string.
 - The signature is verified over **canonical JSON of the HashDigest**.
+- If `evidence_hash` is present, it must match the canonical hash of the evidence value.
 
 If a signature check fails, the provider call fails and the condition becomes `unknown` with `provider_error` recorded.
 

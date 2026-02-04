@@ -18,7 +18,9 @@
       "Bash(./target/release/decision-gate-cli.exe:*)",
       "Bash(./target/release/decision-gate.exe:*)",
       "Bash(cargo tree:*)",
-      "Bash(cargo deny check:*)"
+      "Bash(cargo deny check:*)",
+      "Bash(git log:*)",
+      "Bash(sort:*)"
     ]
   }
 }

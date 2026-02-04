@@ -25,6 +25,7 @@ pub mod store;
 // SECTION: Re-Exports
 // ============================================================================
 
+pub use engine::ConditionEvalOrder;
 pub use engine::ControlPlane;
 pub use engine::ControlPlaneConfig;
 pub use engine::ControlPlaneError;

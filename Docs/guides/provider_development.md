@@ -227,7 +227,7 @@ When `trust.default_policy = { require_signature = { keys = [...] } }`, provider
 2. Serialize the **HashDigest object** as canonical JSON.
 3. Sign those bytes with Ed25519.
 
-Decision Gate verifies that signature against the configured public key file. If `evidence_hash` is missing, DG computes it before verification.
+Decision Gate verifies that signature against the configured public key file. If `evidence_hash` is missing, DG computes it before verification. If `evidence_hash` is present, it must match the canonical hash of the evidence value or the response is rejected.
 
 ---
 

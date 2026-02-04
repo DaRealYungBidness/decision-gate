@@ -14,7 +14,7 @@ Dependencies:
   - Docs/architecture/decision_gate_evidence_trust_anchor_architecture.md
   - system-tests/test_registry.toml
 ============================================================================
-Last Updated: 2026-02-03 (UTC)
+Last Updated: 2026-02-04 (UTC)
 ============================================================================
 -->
 
@@ -98,6 +98,11 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 - Determinism replay suite: `system-tests/tests/suites/determinism.rs` (AssetCore fixture replay).
 - Cross-OS CI matrix: `.github/workflows/golden_runpack_cross_os.yml` runs on Linux + Windows.
 
+**Missing / gaps**
+
+- Golden runpack fixtures include `verifier_report.json` but do not capture a committed
+  `runpack_verify` transcript artifact alongside the golden runpacks.
+
 ---
 
 ## Gate 2 — Metamorphic Determinism
@@ -120,12 +125,16 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 - Core: canonical gate-eval evidence ordering (`decision-gate-core/tests/metamorphic_determinism.rs`).
 - System: concurrent runs yield identical runpack hashes (`system-tests/tests/suites/metamorphic.rs`).
 - Related reliability coverage: trigger/submission idempotency (`system-tests/tests/suites/reliability.rs`).
+- Core: deterministic condition evaluation shuffles preserve runpack hash and evidence order
+  (`decision-gate-core/tests/metamorphic_determinism.rs`).
+- System: evidence ordering is canonical across multiple trigger evaluations
+  (`system-tests/tests/suites/metamorphic.rs`).
+- System: concurrent trigger ordering produces deterministic records
+  (`system-tests/tests/suites/metamorphic.rs`).
 
 **Missing**
 
-- Evidence arrival reorder scenarios across triggers.
-- Provider call order shuffling / randomized evaluation order.
-- Explicit concurrent trigger ordering cases beyond run-level concurrency.
+- None.
 
 ---
 
@@ -200,12 +209,13 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
   epoch boundary cases.
 - MCP provider: malformed JSON-RPC, text/empty results, flaky responses, namespace mismatch,
   missing/unauthorized/invalid signatures, contract mismatch, timeout enforcement.
+- MCP provider: evidence hash mismatch vs signed payload.
 - Provider templates: tools/list + tools/call + header/body size limits + fail-closed framing.
 - Provider discovery: HTTP + stdio discovery tools, denylist enforcement, response size limits.
 
 **Missing / gaps**
 
-- MCP provider evidence hash tamper cases (digest mismatch vs signed payload).
+- None.
 
 ---
 
@@ -260,6 +270,11 @@ safe logging across failure paths.
 - **PR tier:** bounded fuzz (short time budget).
 - **Nightly tier:** long-running fuzz suite.
 
+**Missing / gaps**
+
+- Provider response fuzzing harnesses for malformed/oversized/corrupt provider outputs.
+- Nightly fuzz runners are not wired into CI.
+
 ---
 
 ## Gate 8 — Performance & Scaling (OSS)
@@ -280,6 +295,11 @@ safe logging across failure paths.
 - Performance smoke test (ignored) in `system-tests/tests/suites/performance.rs`.
 - Stress tests for registry concurrency, paging stability, and precheck storms
   (`system-tests/tests/suites/stress.rs`).
+
+**Missing / gaps**
+
+- Capacity targets and thresholds are not encoded in tests or CI (stress tests exist,
+  but no pass/fail limits are defined).
 
 ---
 
@@ -365,14 +385,15 @@ safe logging across failure paths.
 | ---- | -------------------------------- | ------ | --------------------------------------- |
 | 1    | Golden runpack suite committed   | ✅     | Fixtures + `golden_runpacks` suite      |
 | 1    | Cross-OS determinism             | ✅     | `golden_runpack_cross_os` workflow + fixtures |
-| 2    | Metamorphic determinism          | 🟡     | Core evidence order + concurrent runs   |
+| 1    | Runpack verify transcript committed | ❌   | Golden fixtures include `verifier_report.json` only |
+| 2    | Metamorphic determinism          | ✅     | Core evidence order + deterministic shuffle + system trigger ordering |
 | 3    | Canonicalization contract tests  | ✅     | `decision-gate-core/tests/hashing.rs`   |
 | 4    | Trust lanes enforced             | ✅     | Core + system tests                     |
 | 5    | Provider hardening (built-ins)   | ✅     | Unit + system tests + chaos matrix      |
-| 5    | External MCP adversarial harness | 🟡     | MCP provider + templates + timeouts     |
+| 5    | External MCP adversarial harness | ✅     | MCP provider + templates + timeouts + hash tamper |
 | 6    | Runpack integrity                | ✅     | Core + MCP IO + CLI + system tests      |
 | 6    | Runpack backward compatibility   | ❌     | Add legacy vectors                      |
-| 7    | Fuzzing breadth                  | ✅     | ScenarioSpec + evidence + comparator + JSONPath + anchor + schema registry |
+| 7    | Fuzzing breadth                  | 🟡     | Spec/evidence/comparator/JSONPath/anchor/schema coverage; provider response fuzz missing |
 | 7    | Log leakage scanning             | ✅     | `log_leak_scan` suite + audit checks    |
 | 8    | Performance smoke                | ✅     | Ignored test                            |
 | 8    | Capacity targets                 | ❌     | Stress tests only; no thresholds        |
@@ -395,10 +416,10 @@ suite present; cross-OS CI enforcement is wired via `.github/workflows/golden_ru
 
 ## Phase B — Metamorphic Determinism
 
-**Current status:** evidence ordering canonical in core + concurrent runpack hash check; no
-reordering/shuffle scenarios yet.
+**Current status:** evidence ordering canonical in core + concurrent runpack hash check;
+deterministic shuffle coverage and multi-trigger ordering cases implemented.
 
-1. Expand reordering, provider shuffle, and concurrency cases.
+1. Maintain reorder/shuffle and concurrency cases as providers and evaluation logic evolve.
 2. Compare decisions + runpack hashes.
 
 **Stop condition:** decision or runpack hash mismatch.
@@ -411,7 +432,8 @@ mid-stream truncation).
 
 1. Maintain chaos/fault injection matrix coverage as providers evolve.
 2. Maintain JSONPath fuzzing corpus for the JSON provider.
-3. Extend MCP provider schema/namespace/hash mismatches as new cases appear.
+3. Extend MCP provider schema/namespace/hash mismatches as new cases appear
+   (signature/hash mismatch covered).
 
 **Stop condition:** any fail-open behavior or missing error metadata.
 

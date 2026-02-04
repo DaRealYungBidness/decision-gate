@@ -118,6 +118,8 @@ When `require_signature` is active:
 - The signature is verified over **canonical JSON of `evidence_hash`**.
 
 If `evidence_hash` is missing, Decision Gate computes it from the evidence value.
+If `evidence_hash` is present, it must match the canonical hash of the evidence
+value or the provider response is rejected.
 
 ### Anchor Validation
 Anchors are enforced via config (not the scenario spec):

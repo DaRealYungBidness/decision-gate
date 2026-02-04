@@ -179,6 +179,7 @@ Notes:
 - `value.kind = "bytes"` uses a JSON array of integers `0..255`.
 - `signature.signature` is a JSON array of bytes (the `Vec<u8>` serialization).
 - If `evidence_hash` is missing, Decision Gate computes it from `value` before verification.
+- If `evidence_hash` is present, it must match the canonical hash of `value` or the response is rejected.
 
 ---
 

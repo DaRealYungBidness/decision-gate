@@ -102,6 +102,7 @@ control-plane evaluation:
 Policy evaluation:
 - Missing signatures, unsupported schemes, or unauthorized keys are rejected.
 - If the evidence hash is missing, it is computed from the canonical payload.
+- If the evidence hash is present, it must match the canonical payload hash.
 
 [F:decision-gate-mcp/src/evidence.rs L122-L210](decision-gate-mcp/src/evidence.rs#L122-L210) [F:decision-gate-mcp/src/evidence.rs L628-L701](decision-gate-mcp/src/evidence.rs#L628-L701)
 

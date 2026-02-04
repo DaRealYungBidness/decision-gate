@@ -2333,7 +2333,9 @@ async fn mcp_provider_signature_verification_failed() -> Result<(), Box<dyn std:
     let key_dir = tempdir()?;
     let key_path = key_dir.path().join("ed25519.pub");
     let signing_key = ed25519_dalek::SigningKey::from_bytes(&[11u8; 32]);
-    let digest = hash_bytes(HashAlgorithm::Sha256, b"payload");
+    let value = json!(true);
+    let canonical = canonical_json_bytes(&value)?;
+    let digest = hash_bytes(HashAlgorithm::Sha256, &canonical);
     let verifying_key = signing_key.verifying_key();
     fs::write(&key_path, verifying_key.to_bytes())?;
     let signature = EvidenceSignature {
@@ -2343,17 +2345,19 @@ async fn mcp_provider_signature_verification_failed() -> Result<(), Box<dyn std:
     };
 
     let digest_clone = digest.clone();
+    let value_clone = value.clone();
     let signature_clone = signature.clone();
     let app = Router::new().route(
         "/rpc",
         post(move |bytes: Bytes| {
             let digest = digest_clone.clone();
+            let value = value_clone.clone();
             let signature = signature_clone.clone();
             async move {
                 let id = jsonrpc_id_from_bytes(&bytes);
                 axum::Json(jsonrpc_success(
                     id,
-                    tool_result_with_signature(json!(true), digest, signature),
+                    tool_result_with_signature(value, digest, signature),
                 ))
             }
         }),
@@ -2401,6 +2405,92 @@ async fn mcp_provider_signature_verification_failed() -> Result<(), Box<dyn std:
     reporter.finish(
         "pass",
         vec!["MCP provider rejects invalid signatures".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+            "echo_provider_contract.json".to_string(),
+        ],
+    )?;
+    drop(reporter);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn mcp_provider_signature_hash_mismatch_rejected() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("mcp_provider_signature_hash_mismatch_rejected")?;
+    let bind = allocate_bind_addr()?.to_string();
+
+    let key_dir = tempdir()?;
+    let key_path = key_dir.path().join("ed25519.pub");
+    let signing_key = ed25519_dalek::SigningKey::from_bytes(&[13u8; 32]);
+    let verifying_key = signing_key.verifying_key();
+    fs::write(&key_path, verifying_key.to_bytes())?;
+
+    let tampered_hash = hash_bytes(HashAlgorithm::Sha256, b"tampered");
+    let message = canonical_json_bytes(&tampered_hash)?;
+    let signature_bytes = signing_key.sign(&message).to_bytes().to_vec();
+    let signature = EvidenceSignature {
+        scheme: "ed25519".to_string(),
+        key_id: key_path.to_string_lossy().to_string(),
+        signature: signature_bytes,
+    };
+
+    let tampered_hash_clone = tampered_hash.clone();
+    let signature_clone = signature.clone();
+    let app = Router::new().route(
+        "/rpc",
+        post(move |bytes: Bytes| {
+            let tampered_hash = tampered_hash_clone.clone();
+            let signature = signature_clone.clone();
+            async move {
+                let id = jsonrpc_id_from_bytes(&bytes);
+                axum::Json(jsonrpc_success(
+                    id,
+                    tool_result_with_signature(json!(true), tampered_hash, signature),
+                ))
+            }
+        }),
+    );
+    let provider = spawn_mcp_provider(app).await?;
+    let capabilities_path = write_echo_contract(&reporter, "mcp-signed-hash")?;
+    let mut config =
+        config_with_provider(&bind, "mcp-signed-hash", provider.base_url(), &capabilities_path);
+    enable_raw_evidence(&mut config);
+
+    let provider_config = config
+        .providers
+        .iter_mut()
+        .find(|provider| provider.name == "mcp-signed-hash")
+        .ok_or("missing provider config")?;
+    provider_config.trust = Some(TrustPolicy::RequireSignature {
+        keys: vec![key_path.to_string_lossy().to_string()],
+    });
+
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(Duration::from_secs(5))?;
+    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+
+    let fixture = ScenarioFixture::time_after("mcp-signed-hash", "run-1", 0);
+    let request = EvidenceQueryRequest {
+        query: EvidenceQuery {
+            provider_id: ProviderId::new("mcp-signed-hash"),
+            check_id: "echo".to_string(),
+            params: Some(json!({ "value": true })),
+        },
+        context: fixture.evidence_context("mcp-trigger", Timestamp::Logical(1)),
+    };
+    let input = serde_json::to_value(&request)?;
+    let response: EvidenceQueryResponse = client.call_tool_typed("evidence_query", input).await?;
+    let error = response.result.error.ok_or("missing error metadata")?;
+    if !error.message.contains("evidence hash mismatch") {
+        return Err(format!("expected evidence hash mismatch, got {}", error.message).into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["MCP provider rejects evidence hash mismatches".to_string()],
         vec![
             "summary.json".to_string(),
             "summary.md".to_string(),

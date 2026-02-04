@@ -680,16 +680,20 @@ fn apply_signature_policy(
 }
 
 /// Ensures an evidence hash is present for signature verification.
-fn ensure_evidence_hash(result: &mut EvidenceResult) -> Result<HashDigest, EvidenceError> {
-    if let Some(hash) = &result.evidence_hash {
-        return Ok(hash.clone());
-    }
+///
+/// Exposed as `pub` for unit testing in integration tests.
+///
+/// # Errors
+///
+/// Returns [`EvidenceError`] when the evidence payload is missing, hashing fails,
+/// or a provided hash does not match the computed value.
+pub fn ensure_evidence_hash(result: &mut EvidenceResult) -> Result<HashDigest, EvidenceError> {
     let Some(value) = &result.value else {
         return Err(EvidenceError::Provider(
             "missing evidence hash for signature verification".to_string(),
         ));
     };
-    let hash = match value {
+    let computed = match value {
         EvidenceValue::Json(json) => {
             let bytes = canonical_json_bytes(json)
                 .map_err(|_| EvidenceError::Provider("hashing failed".to_string()))?;
@@ -697,8 +701,14 @@ fn ensure_evidence_hash(result: &mut EvidenceResult) -> Result<HashDigest, Evide
         }
         EvidenceValue::Bytes(bytes) => hash_bytes(HashAlgorithm::Sha256, bytes),
     };
-    result.evidence_hash = Some(hash.clone());
-    Ok(hash)
+    if let Some(hash) = &result.evidence_hash {
+        if hash != &computed {
+            return Err(EvidenceError::Provider("evidence hash mismatch".to_string()));
+        }
+        return Ok(hash.clone());
+    }
+    result.evidence_hash = Some(computed.clone());
+    Ok(computed)
 }
 
 /// Verifies a signature against the evidence hash.
