@@ -12,6 +12,9 @@ Dependencies:
 
 # Decision Gate
 
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/rust-1.92.0-orange.svg)](rust-toolchain.toml)
+
 Languages: [English](README.md) | [Català](README.ca.md)
 
 Note: Work is ongoing to translate documentation into additional languages. Please see
