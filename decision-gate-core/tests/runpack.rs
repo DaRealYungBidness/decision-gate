@@ -32,6 +32,7 @@ use decision_gate_core::EvidenceAnchor;
 use decision_gate_core::EvidenceAnchorPolicy;
 use decision_gate_core::EvidenceRecord;
 use decision_gate_core::EvidenceResult;
+use decision_gate_core::EvidenceSignature;
 use decision_gate_core::EvidenceValue;
 use decision_gate_core::GateEvalRecord;
 use decision_gate_core::GateEvaluation;
@@ -52,9 +53,11 @@ use decision_gate_core::StageSpec;
 use decision_gate_core::TenantId;
 use decision_gate_core::Timestamp;
 use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
+use decision_gate_core::hashing::hash_canonical_json;
 use decision_gate_core::runtime::RunpackBuilder;
 use decision_gate_core::runtime::RunpackVerifier;
 use ret_logic::TriState;
+use serde_json::json;
 
 // ============================================================================
 // SECTION: In-Memory Artifact Store
@@ -252,6 +255,305 @@ fn anchor_state(spec: &ScenarioSpec, anchor: Option<EvidenceAnchor>) -> RunState
     }
 }
 
+fn ordering_spec() -> ScenarioSpec {
+    ScenarioSpec {
+        scenario_id: ScenarioId::new("ordering-scenario"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        spec_version: SpecVersion::new("1"),
+        stages: vec![StageSpec {
+            stage_id: StageId::new("stage-1"),
+            entry_packets: Vec::new(),
+            gates: vec![
+                decision_gate_core::GateSpec {
+                    gate_id: GateId::new("gate-a"),
+                    requirement: ret_logic::Requirement::condition("cond-a".into()),
+                    trust: None,
+                },
+                decision_gate_core::GateSpec {
+                    gate_id: GateId::new("gate-b"),
+                    requirement: ret_logic::Requirement::condition("cond-b".into()),
+                    trust: None,
+                },
+            ],
+            advance_to: decision_gate_core::AdvanceTo::Terminal,
+            timeout: None,
+            on_timeout: decision_gate_core::TimeoutPolicy::Fail,
+        }],
+        conditions: vec![
+            ConditionSpec {
+                condition_id: "cond-a".into(),
+                query: decision_gate_core::EvidenceQuery {
+                    provider_id: ProviderId::new("test"),
+                    check_id: "check-a".to_string(),
+                    params: None,
+                },
+                comparator: decision_gate_core::Comparator::Equals,
+                expected: Some(json!(true)),
+                policy_tags: Vec::new(),
+                trust: None,
+            },
+            ConditionSpec {
+                condition_id: "cond-b".into(),
+                query: decision_gate_core::EvidenceQuery {
+                    provider_id: ProviderId::new("test"),
+                    check_id: "check-b".to_string(),
+                    params: None,
+                },
+                comparator: decision_gate_core::Comparator::Equals,
+                expected: Some(json!(true)),
+                policy_tags: Vec::new(),
+                trust: None,
+            },
+        ],
+        policies: Vec::new(),
+        schemas: Vec::new(),
+        default_tenant_id: None,
+    }
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "Test fixture builds full run state to validate log ordering."
+)]
+fn ordering_state(spec: &ScenarioSpec) -> RunState {
+    let spec_hash = spec.canonical_hash_with(DEFAULT_HASH_ALGORITHM).expect("spec hash");
+    let run_id = RunId::new("run-1");
+    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
+    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+    let stage_id = StageId::new("stage-1");
+
+    let trigger_one = decision_gate_core::TriggerEvent {
+        trigger_id: decision_gate_core::TriggerId::new("trigger-1"),
+        tenant_id,
+        namespace_id,
+        run_id: run_id.clone(),
+        kind: decision_gate_core::TriggerKind::ExternalEvent,
+        time: Timestamp::Logical(10),
+        source_id: "source-a".to_string(),
+        payload: None,
+        correlation_id: None,
+    };
+    let trigger_two = decision_gate_core::TriggerEvent {
+        trigger_id: decision_gate_core::TriggerId::new("trigger-2"),
+        tenant_id,
+        namespace_id,
+        run_id: run_id.clone(),
+        kind: decision_gate_core::TriggerKind::ExternalEvent,
+        time: Timestamp::Logical(20),
+        source_id: "source-b".to_string(),
+        payload: None,
+        correlation_id: None,
+    };
+
+    let triggers = vec![
+        decision_gate_core::TriggerRecord {
+            seq: 1,
+            event: trigger_one,
+        },
+        decision_gate_core::TriggerRecord {
+            seq: 2,
+            event: trigger_two,
+        },
+    ];
+
+    let evidence_a = EvidenceRecord {
+        condition_id: "cond-a".into(),
+        status: TriState::True,
+        result: EvidenceResult {
+            value: Some(EvidenceValue::Json(json!(true))),
+            lane: decision_gate_core::TrustLane::Verified,
+            error: None,
+            evidence_hash: Some(
+                hash_canonical_json(DEFAULT_HASH_ALGORITHM, &json!(true)).expect("hash"),
+            ),
+            evidence_ref: None,
+            evidence_anchor: None,
+            signature: None,
+            content_type: Some("application/json".to_string()),
+        },
+    };
+    let evidence_b = EvidenceRecord {
+        condition_id: "cond-b".into(),
+        status: TriState::True,
+        result: EvidenceResult {
+            value: Some(EvidenceValue::Json(json!(true))),
+            lane: decision_gate_core::TrustLane::Verified,
+            error: None,
+            evidence_hash: Some(
+                hash_canonical_json(DEFAULT_HASH_ALGORITHM, &json!(true)).expect("hash"),
+            ),
+            evidence_ref: None,
+            evidence_anchor: None,
+            signature: None,
+            content_type: Some("application/json".to_string()),
+        },
+    };
+
+    let gate_eval_for = |trigger_id: &str, gate_id: &str| GateEvalRecord {
+        trigger_id: decision_gate_core::TriggerId::new(trigger_id),
+        stage_id: stage_id.clone(),
+        evaluation: GateEvaluation {
+            gate_id: GateId::new(gate_id),
+            status: TriState::True,
+            trace: vec![
+                GateTraceEntry {
+                    condition_id: "cond-a".into(),
+                    status: TriState::True,
+                },
+                GateTraceEntry {
+                    condition_id: "cond-b".into(),
+                    status: TriState::True,
+                },
+            ],
+        },
+        evidence: vec![evidence_a.clone(), evidence_b.clone()],
+    };
+
+    let gate_evals = vec![
+        gate_eval_for("trigger-1", "gate-a"),
+        gate_eval_for("trigger-1", "gate-b"),
+        gate_eval_for("trigger-2", "gate-a"),
+        gate_eval_for("trigger-2", "gate-b"),
+    ];
+
+    let decisions = vec![
+        decision_gate_core::DecisionRecord {
+            decision_id: decision_gate_core::DecisionId::new("decision-1"),
+            seq: 1,
+            trigger_id: decision_gate_core::TriggerId::new("trigger-1"),
+            stage_id: stage_id.clone(),
+            decided_at: Timestamp::Logical(11),
+            outcome: decision_gate_core::DecisionOutcome::Hold {
+                summary: decision_gate_core::SafeSummary {
+                    status: "hold".to_string(),
+                    unmet_gates: vec![],
+                    retry_hint: None,
+                    policy_tags: Vec::new(),
+                },
+            },
+            correlation_id: None,
+        },
+        decision_gate_core::DecisionRecord {
+            decision_id: decision_gate_core::DecisionId::new("decision-2"),
+            seq: 2,
+            trigger_id: decision_gate_core::TriggerId::new("trigger-2"),
+            stage_id: stage_id.clone(),
+            decided_at: Timestamp::Logical(21),
+            outcome: decision_gate_core::DecisionOutcome::Hold {
+                summary: decision_gate_core::SafeSummary {
+                    status: "hold".to_string(),
+                    unmet_gates: vec![],
+                    retry_hint: None,
+                    policy_tags: Vec::new(),
+                },
+            },
+            correlation_id: None,
+        },
+    ];
+
+    let packet_payload = decision_gate_core::PacketPayload::Json {
+        value: json!({"packet": true}),
+    };
+    let packet_hash =
+        hash_canonical_json(DEFAULT_HASH_ALGORITHM, &json!({"packet": true})).expect("packet hash");
+    let packets = vec![
+        decision_gate_core::PacketRecord {
+            envelope: decision_gate_core::PacketEnvelope {
+                scenario_id: spec.scenario_id.clone(),
+                run_id: run_id.clone(),
+                stage_id: stage_id.clone(),
+                packet_id: decision_gate_core::PacketId::new("packet-1"),
+                schema_id: decision_gate_core::SchemaId::new("schema-1"),
+                content_type: "application/json".to_string(),
+                content_hash: packet_hash.clone(),
+                visibility: decision_gate_core::VisibilityPolicy::new(Vec::new(), Vec::new()),
+                expiry: None,
+                correlation_id: None,
+                issued_at: Timestamp::Logical(12),
+            },
+            payload: packet_payload.clone(),
+            receipts: Vec::new(),
+            decision_id: decision_gate_core::DecisionId::new("decision-1"),
+        },
+        decision_gate_core::PacketRecord {
+            envelope: decision_gate_core::PacketEnvelope {
+                scenario_id: spec.scenario_id.clone(),
+                run_id: run_id.clone(),
+                stage_id: stage_id.clone(),
+                packet_id: decision_gate_core::PacketId::new("packet-2"),
+                schema_id: decision_gate_core::SchemaId::new("schema-2"),
+                content_type: "application/json".to_string(),
+                content_hash: packet_hash,
+                visibility: decision_gate_core::VisibilityPolicy::new(Vec::new(), Vec::new()),
+                expiry: None,
+                correlation_id: None,
+                issued_at: Timestamp::Logical(22),
+            },
+            payload: packet_payload,
+            receipts: Vec::new(),
+            decision_id: decision_gate_core::DecisionId::new("decision-2"),
+        },
+    ];
+
+    let submission_payload = decision_gate_core::PacketPayload::Json {
+        value: json!({"submission": 1}),
+    };
+    let submission_hash = hash_canonical_json(DEFAULT_HASH_ALGORITHM, &json!({"submission": 1}))
+        .expect("submission hash");
+    let submissions = vec![
+        decision_gate_core::SubmissionRecord {
+            submission_id: "submission-1".to_string(),
+            run_id: run_id.clone(),
+            payload: submission_payload.clone(),
+            content_type: "application/json".to_string(),
+            content_hash: submission_hash.clone(),
+            submitted_at: Timestamp::Logical(13),
+            correlation_id: None,
+        },
+        decision_gate_core::SubmissionRecord {
+            submission_id: "submission-2".to_string(),
+            run_id: run_id.clone(),
+            payload: submission_payload,
+            content_type: "application/json".to_string(),
+            content_hash: submission_hash,
+            submitted_at: Timestamp::Logical(23),
+            correlation_id: None,
+        },
+    ];
+
+    let tool_request = json!({"tool": "scenario.next"});
+    let tool_response = json!({"ok": true});
+    let tool_calls = vec![decision_gate_core::ToolCallRecord {
+        call_id: "call-1".to_string(),
+        method: "scenario.next".to_string(),
+        request_hash: hash_canonical_json(DEFAULT_HASH_ALGORITHM, &tool_request)
+            .expect("request hash"),
+        response_hash: hash_canonical_json(DEFAULT_HASH_ALGORITHM, &tool_response)
+            .expect("response hash"),
+        called_at: Timestamp::Logical(14),
+        correlation_id: None,
+        error: None,
+    }];
+
+    RunState {
+        tenant_id,
+        namespace_id,
+        run_id,
+        scenario_id: spec.scenario_id.clone(),
+        spec_hash,
+        current_stage_id: stage_id,
+        stage_entered_at: Timestamp::Logical(0),
+        status: RunStatus::Active,
+        dispatch_targets: vec![],
+        triggers,
+        gate_evals,
+        decisions,
+        packets,
+        submissions,
+        tool_calls,
+    }
+}
+
 // ============================================================================
 // SECTION: Tests
 // ============================================================================
@@ -402,6 +704,105 @@ fn runpack_verifier_accepts_anchor_policy() {
     let state = anchor_state(&spec, Some(anchor));
     let mut store = InMemoryArtifactStore::default();
     let builder = RunpackBuilder::new(anchor_policy());
+    let manifest =
+        builder.build(&mut store, &spec, &state, Timestamp::Logical(1)).expect("runpack build");
+
+    let verifier = RunpackVerifier::new(DEFAULT_HASH_ALGORITHM);
+    let report = verifier.verify_manifest(&store, &manifest).expect("runpack verify");
+
+    assert_eq!(report.status, decision_gate_core::runtime::VerificationStatus::Pass);
+}
+
+/// Verifies serialized runpack logs preserve deterministic ordering.
+#[test]
+fn runpack_serialized_log_order_is_deterministic() {
+    let spec = ordering_spec();
+    let state = ordering_state(&spec);
+    let mut store = InMemoryArtifactStore::default();
+    let builder = RunpackBuilder::default();
+    builder.build(&mut store, &spec, &state, Timestamp::Logical(99)).expect("runpack build");
+
+    let gate_eval_bytes = store
+        .read_with_limit(
+            "artifacts/gate_evals.json",
+            decision_gate_core::runtime::MAX_RUNPACK_ARTIFACT_BYTES,
+        )
+        .expect("gate eval bytes");
+    let gate_evals: Vec<GateEvalRecord> =
+        serde_json::from_slice(&gate_eval_bytes).expect("gate eval parse");
+
+    let trigger_order: Vec<&str> =
+        gate_evals.iter().map(|record| record.trigger_id.as_str()).collect();
+    assert_eq!(trigger_order, vec!["trigger-1", "trigger-1", "trigger-2", "trigger-2"]);
+
+    for chunk in gate_evals.chunks(2) {
+        let gate_ids: Vec<&str> =
+            chunk.iter().map(|record| record.evaluation.gate_id.as_str()).collect();
+        assert_eq!(gate_ids, vec!["gate-a", "gate-b"]);
+        for record in chunk {
+            let evidence_ids: Vec<&str> =
+                record.evidence.iter().map(|evidence| evidence.condition_id.as_str()).collect();
+            assert_eq!(evidence_ids, vec!["cond-a", "cond-b"]);
+        }
+    }
+
+    let decision_bytes = store
+        .read_with_limit(
+            "artifacts/decisions.json",
+            decision_gate_core::runtime::MAX_RUNPACK_ARTIFACT_BYTES,
+        )
+        .expect("decision bytes");
+    let decisions: Vec<decision_gate_core::DecisionRecord> =
+        serde_json::from_slice(&decision_bytes).expect("decision parse");
+    let decision_seqs: Vec<u64> = decisions.iter().map(|decision| decision.seq).collect();
+    assert_eq!(decision_seqs, vec![1, 2]);
+
+    let packet_bytes = store
+        .read_with_limit(
+            "artifacts/packets.json",
+            decision_gate_core::runtime::MAX_RUNPACK_ARTIFACT_BYTES,
+        )
+        .expect("packet bytes");
+    let packets: Vec<decision_gate_core::PacketRecord> =
+        serde_json::from_slice(&packet_bytes).expect("packet parse");
+    let issued_times: Vec<u64> = packets
+        .iter()
+        .map(|packet| packet.envelope.issued_at.as_logical().expect("logical"))
+        .collect();
+    assert_eq!(issued_times, vec![12, 22]);
+    let packet_decisions: Vec<&str> =
+        packets.iter().map(|packet| packet.decision_id.as_str()).collect();
+    assert_eq!(packet_decisions, vec!["decision-1", "decision-2"]);
+
+    let submission_bytes = store
+        .read_with_limit(
+            "artifacts/submissions.json",
+            decision_gate_core::runtime::MAX_RUNPACK_ARTIFACT_BYTES,
+        )
+        .expect("submission bytes");
+    let submissions: Vec<decision_gate_core::SubmissionRecord> =
+        serde_json::from_slice(&submission_bytes).expect("submission parse");
+    let submission_times: Vec<u64> = submissions
+        .iter()
+        .map(|submission| submission.submitted_at.as_logical().expect("logical"))
+        .collect();
+    assert_eq!(submission_times, vec![13, 23]);
+}
+
+/// Verifies runpack verification does not enforce evidence signatures offline.
+#[test]
+fn runpack_verifier_does_not_verify_evidence_signatures() {
+    let spec = anchor_spec();
+    let mut state = anchor_state(&spec, None);
+    let signature = EvidenceSignature {
+        scheme: "ed25519".to_string(),
+        key_id: "unknown-key".to_string(),
+        signature: vec![0u8; 64],
+    };
+    state.gate_evals[0].evidence[0].result.signature = Some(signature);
+
+    let mut store = InMemoryArtifactStore::default();
+    let builder = RunpackBuilder::default();
     let manifest =
         builder.build(&mut store, &spec, &state, Timestamp::Logical(1)).expect("runpack build");
 

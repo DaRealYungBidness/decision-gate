@@ -112,6 +112,11 @@ pub fn read_env_strict(name: &str) -> Result<Option<String>, String> {
     })
 }
 
+/// Reads an environment variable and rejects empty values.
+///
+/// # Errors
+///
+/// Returns an error when the variable is set but empty or whitespace.
 fn read_env_nonempty(name: &str) -> Result<Option<String>, String> {
     match read_env_strict(name)? {
         Some(value) if value.trim().is_empty() => Err(format!("{name} must not be empty")),
@@ -120,6 +125,11 @@ fn read_env_nonempty(name: &str) -> Result<Option<String>, String> {
     }
 }
 
+/// Parses a positive timeout value from an environment variable string.
+///
+/// # Errors
+///
+/// Returns an error when the value is missing, non-numeric, or zero.
 fn parse_timeout_seconds(name: &str, raw: &str) -> Result<Duration, String> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
@@ -134,10 +144,14 @@ fn parse_timeout_seconds(name: &str, raw: &str) -> Result<Duration, String> {
     Ok(Duration::from_secs(secs))
 }
 
+/// Parses a boolean environment variable with permissive defaults.
+///
+/// # Errors
+///
+/// Returns an error when the value is not a recognized boolean literal.
 fn parse_bool_env(name: &str, raw: Option<String>) -> Result<bool, String> {
-    let value = match raw {
-        Some(value) => value,
-        None => return Ok(false),
+    let Some(value) = raw else {
+        return Ok(false);
     };
     let trimmed = value.trim();
     if trimmed.eq_ignore_ascii_case("true") || trimmed == "1" {
