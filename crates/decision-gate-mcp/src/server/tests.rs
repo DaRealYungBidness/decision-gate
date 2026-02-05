@@ -46,16 +46,25 @@ use axum::http::StatusCode;
 use axum::http::header::CONTENT_TYPE;
 use axum::http::header::WWW_AUTHENTICATE;
 use axum::response::IntoResponse;
+use decision_gate_core::EvidenceContext;
+use decision_gate_core::EvidenceQuery;
 use decision_gate_core::InMemoryDataShapeRegistry;
 use decision_gate_core::InMemoryRunStateStore;
 use decision_gate_core::NamespaceId;
+use decision_gate_core::ProviderId;
+use decision_gate_core::RunId;
+use decision_gate_core::ScenarioId;
 use decision_gate_core::SharedDataShapeRegistry;
 use decision_gate_core::SharedRunStateStore;
+use decision_gate_core::StageId;
 use decision_gate_core::StoreError;
 use decision_gate_core::TenantId;
+use decision_gate_core::Timestamp;
+use decision_gate_core::TriggerId;
 use serde_json::json;
 
 use super::JsonRpcResponse;
+use super::McpServer;
 use super::ReadinessState;
 use super::ServerState;
 use super::build_provider_transports;
@@ -102,6 +111,8 @@ use crate::telemetry::McpMetrics;
 use crate::telemetry::McpOutcome;
 use crate::tenant_authz::NoopTenantAuthorizer;
 use crate::tools::DocsProvider;
+use crate::tools::EvidenceQueryRequest;
+use crate::tools::EvidenceQueryResponse;
 use crate::tools::ToolError;
 use crate::tools::ToolRouter;
 use crate::tools::ToolRouterConfig;
@@ -456,6 +467,31 @@ fn parse_request_sync(
     tokio::runtime::Runtime::new().expect("runtime").block_on(parse_request(state, context, bytes))
 }
 
+fn server_state_from_config(config: DecisionGateConfig) -> ServerState {
+    let McpServer {
+        config,
+        router,
+        metrics,
+        audit,
+        auth_challenge,
+        readiness,
+    } = McpServer::from_config(config).expect("server");
+    build_server_state(router, &config.server, metrics, audit, auth_challenge, readiness)
+}
+
+fn evidence_context_for_tests() -> EvidenceContext {
+    EvidenceContext {
+        tenant_id: TenantId::from_raw(100).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        run_id: RunId::new("run"),
+        scenario_id: ScenarioId::new("scenario"),
+        stage_id: StageId::new("stage"),
+        trigger_id: TriggerId::new("trigger"),
+        trigger_time: Timestamp::Logical(1),
+        correlation_id: None,
+    }
+}
+
 // ============================================================================
 // SECTION: Tests
 // ============================================================================
@@ -546,6 +582,61 @@ fn metrics_recorded_for_tools_list() {
     assert_eq!(latencies.len(), 1);
     assert_eq!(latencies[0].0.method, McpMethod::ToolsList);
     drop(latencies);
+}
+
+#[test]
+fn from_config_tools_list_round_trip() {
+    let config = sample_config();
+    let state = server_state_from_config(config);
+    let context = RequestContext::stdio();
+    let payload = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/list",
+    });
+    let bytes = Bytes::from(serde_json::to_vec(&payload).expect("payload bytes"));
+    let response = parse_request_sync(&state, &context, &bytes);
+    assert_eq!(response.0, StatusCode::OK);
+    let result = response.1.result.expect("result");
+    let tools = result.get("tools").and_then(|value| value.as_array()).expect("tools array");
+    assert!(!tools.is_empty());
+}
+
+#[test]
+fn from_config_tools_call_evidence_query_round_trip() {
+    let config = sample_config();
+    let state = server_state_from_config(config);
+    let context = RequestContext::stdio();
+    let request = EvidenceQueryRequest {
+        query: EvidenceQuery {
+            provider_id: ProviderId::new("time"),
+            check_id: "now".to_string(),
+            params: None,
+        },
+        context: evidence_context_for_tests(),
+    };
+    let payload = json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/call",
+        "params": {
+            "name": "evidence_query",
+            "arguments": request,
+        }
+    });
+    let bytes = Bytes::from(serde_json::to_vec(&payload).expect("payload bytes"));
+    let response = parse_request_sync(&state, &context, &bytes);
+    assert_eq!(response.0, StatusCode::OK);
+    let result = response.1.result.expect("result");
+    let content = result
+        .get("content")
+        .and_then(|value| value.as_array())
+        .and_then(|items| items.first())
+        .expect("content entry");
+    let json_value = content.get("json").expect("json payload");
+    let response: EvidenceQueryResponse =
+        serde_json::from_value(json_value.clone()).expect("evidence response");
+    assert!(response.result.evidence_hash.is_some());
 }
 
 // ============================================================================

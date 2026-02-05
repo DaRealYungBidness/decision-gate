@@ -264,7 +264,11 @@ impl DocsCatalog {
     pub fn from_config(config: &DocsConfig) -> Result<Self, DocsCatalogError> {
         let max_sections = config.max_sections.min(ABSOLUTE_MAX_SECTIONS);
         if !config.enabled {
-            return Ok(Self { docs: Vec::new(), max_sections, warnings: Vec::new() });
+            return Ok(Self {
+                docs: Vec::new(),
+                max_sections,
+                warnings: Vec::new(),
+            });
         }
 
         let mut warnings = Vec::new();
@@ -305,14 +309,22 @@ impl DocsCatalog {
             docs.push(doc);
         }
 
-        Ok(Self { docs, max_sections, warnings })
+        Ok(Self {
+            docs,
+            max_sections,
+            warnings,
+        })
     }
 
     /// Builds a catalog from pre-loaded entries.
     #[must_use]
     pub fn from_entries(entries: Vec<DocEntry>, max_sections: u32) -> Self {
         let max_sections = max_sections.clamp(1, ABSOLUTE_MAX_SECTIONS);
-        Self { docs: entries, max_sections, warnings: Vec::new() }
+        Self {
+            docs: entries,
+            max_sections,
+            warnings: Vec::new(),
+        }
     }
 
     /// Returns warnings emitted during catalog construction.
@@ -685,7 +697,11 @@ fn search_sections(docs: &[DocEntry], query: &str, max_sections: u32) -> SearchR
     let docs_covered = coverage_from_sections(&ranked_sections);
     let suggested_followups = suggested_followups(&docs_covered);
 
-    SearchResult { sections: ranked_sections, docs_covered, suggested_followups }
+    SearchResult {
+        sections: ranked_sections,
+        docs_covered,
+        suggested_followups,
+    }
 }
 
 /// Builds a search result with overview sections across doc roles.
@@ -843,7 +859,10 @@ fn profile_query(normalized_query: &str) -> QueryProfile {
     let primary_role = Some(sorted[0].0);
     let secondary_roles = sorted.into_iter().skip(1).map(|(role, _)| role).collect();
 
-    QueryProfile { primary_role, secondary_roles }
+    QueryProfile {
+        primary_role,
+        secondary_roles,
+    }
 }
 
 /// Returns a deterministic role bonus for ranking.
@@ -1019,7 +1038,10 @@ mod tests {
 
     #[test]
     fn docs_catalog_from_config_respects_enabled_false() {
-        let config = DocsConfig { enabled: false, ..DocsConfig::default() };
+        let config = DocsConfig {
+            enabled: false,
+            ..DocsConfig::default()
+        };
         let catalog = DocsCatalog::from_config(&config).expect("should load");
         assert_eq!(catalog.docs().len(), 0, "should have no docs when disabled");
         assert!(catalog.is_empty(), "catalog should be empty");
@@ -1027,7 +1049,10 @@ mod tests {
 
     #[test]
     fn docs_catalog_from_config_excludes_defaults_when_disabled() {
-        let config = DocsConfig { include_default_docs: false, ..DocsConfig::default() };
+        let config = DocsConfig {
+            include_default_docs: false,
+            ..DocsConfig::default()
+        };
         let catalog = DocsCatalog::from_config(&config).expect("should load");
         assert_eq!(catalog.docs().len(), 0, "should have no docs when defaults excluded");
     }
@@ -1132,7 +1157,10 @@ mod tests {
 
     #[test]
     fn docs_catalog_from_config_empty_extra_paths() {
-        let config = DocsConfig { extra_paths: Vec::new(), ..DocsConfig::default() };
+        let config = DocsConfig {
+            extra_paths: Vec::new(),
+            ..DocsConfig::default()
+        };
         let catalog = DocsCatalog::from_config(&config).expect("should load");
         assert_eq!(catalog.docs().len(), 13, "should have only default docs");
     }
@@ -1173,7 +1201,7 @@ mod tests {
         let temp_dir = TempDir::new().expect("create temp dir");
 
         // Create multiple small docs
-        for i in 0..5 {
+        for i in 0 .. 5 {
             let doc_path = temp_dir.path().join(format!("doc{i}.md"));
             fs::write(&doc_path, format!("# Doc {i}\nContent")).expect("write file");
         }
@@ -1309,20 +1337,26 @@ mod tests {
     fn docs_search_respects_max_sections() {
         let catalog = DocsCatalog::from_config(&DocsConfig::default()).expect("catalog");
 
-        let result = catalog
-            .search(&DocsSearchRequest { query: "provider".to_string(), max_sections: Some(3) });
+        let result = catalog.search(&DocsSearchRequest {
+            query: "provider".to_string(),
+            max_sections: Some(3),
+        });
         assert!(result.sections.len() <= 3, "should not exceed max_sections=3");
 
-        let result2 = catalog
-            .search(&DocsSearchRequest { query: "provider".to_string(), max_sections: Some(7) });
+        let result2 = catalog.search(&DocsSearchRequest {
+            query: "provider".to_string(),
+            max_sections: Some(7),
+        });
         assert!(result2.sections.len() <= 7, "should not exceed max_sections=7");
     }
 
     #[test]
     fn docs_search_empty_query_returns_overview() {
         let catalog = DocsCatalog::from_config(&DocsConfig::default()).expect("catalog");
-        let result =
-            catalog.search(&DocsSearchRequest { query: String::new(), max_sections: Some(4) });
+        let result = catalog.search(&DocsSearchRequest {
+            query: String::new(),
+            max_sections: Some(4),
+        });
 
         assert!(!result.sections.is_empty(), "overview should return sections");
         assert!(result.sections.len() <= 4, "should respect max_sections for overview");
@@ -1355,8 +1389,10 @@ mod tests {
     #[test]
     fn docs_search_includes_suggested_followups() {
         let catalog = DocsCatalog::from_config(&DocsConfig::default()).expect("catalog");
-        let result = catalog
-            .search(&DocsSearchRequest { query: "provider".to_string(), max_sections: Some(3) });
+        let result = catalog.search(&DocsSearchRequest {
+            query: "provider".to_string(),
+            max_sections: Some(3),
+        });
 
         // Should have followup suggestions
         assert!(!result.suggested_followups.is_empty(), "should suggest followups");
@@ -1382,8 +1418,10 @@ mod tests {
     #[test]
     fn docs_search_deterministic_across_runs() {
         let catalog = DocsCatalog::from_config(&DocsConfig::default()).expect("catalog");
-        let query =
-            DocsSearchRequest { query: "evidence trust".to_string(), max_sections: Some(5) };
+        let query = DocsSearchRequest {
+            query: "evidence trust".to_string(),
+            max_sections: Some(5),
+        };
 
         let result1 = catalog.search(&query);
         let result2 = catalog.search(&query);
@@ -1428,11 +1466,15 @@ mod tests {
     fn docs_search_case_insensitive_matching() {
         let catalog = DocsCatalog::from_config(&DocsConfig::default()).expect("catalog");
 
-        let result1 = catalog
-            .search(&DocsSearchRequest { query: "PROVIDER".to_string(), max_sections: Some(5) });
+        let result1 = catalog.search(&DocsSearchRequest {
+            query: "PROVIDER".to_string(),
+            max_sections: Some(5),
+        });
 
-        let result2 = catalog
-            .search(&DocsSearchRequest { query: "provider".to_string(), max_sections: Some(5) });
+        let result2 = catalog.search(&DocsSearchRequest {
+            query: "provider".to_string(),
+            max_sections: Some(5),
+        });
 
         // Should return similar results (case insensitive)
         assert_eq!(
@@ -1444,11 +1486,16 @@ mod tests {
 
     #[test]
     fn docs_search_empty_catalog_returns_empty() {
-        let config = DocsConfig { enabled: false, ..DocsConfig::default() };
+        let config = DocsConfig {
+            enabled: false,
+            ..DocsConfig::default()
+        };
         let catalog = DocsCatalog::from_config(&config).expect("catalog");
 
-        let result = catalog
-            .search(&DocsSearchRequest { query: "anything".to_string(), max_sections: Some(5) });
+        let result = catalog.search(&DocsSearchRequest {
+            query: "anything".to_string(),
+            max_sections: Some(5),
+        });
 
         assert!(result.sections.is_empty(), "empty catalog should return no results");
         assert!(result.docs_covered.is_empty());
@@ -1576,8 +1623,10 @@ mod tests {
     fn docs_search_sections_have_complete_metadata() {
         let catalog = DocsCatalog::from_config(&DocsConfig::default()).expect("catalog");
 
-        let result = catalog
-            .search(&DocsSearchRequest { query: "provider".to_string(), max_sections: Some(3) });
+        let result = catalog.search(&DocsSearchRequest {
+            query: "provider".to_string(),
+            max_sections: Some(3),
+        });
 
         for section in &result.sections {
             assert!(!section.doc_id.is_empty(), "doc_id should not be empty");
@@ -1594,12 +1643,15 @@ mod tests {
         let catalog = DocsCatalog::from_config(&DocsConfig::default()).expect("catalog");
 
         // Run same query multiple times
-        let query = DocsSearchRequest { query: "evidence".to_string(), max_sections: Some(10) };
+        let query = DocsSearchRequest {
+            query: "evidence".to_string(),
+            max_sections: Some(10),
+        };
 
-        let results: Vec<_> = (0..5).map(|_| catalog.search(&query)).collect();
+        let results: Vec<_> = (0 .. 5).map(|_| catalog.search(&query)).collect();
 
         // All results should be identical
-        for i in 1..results.len() {
+        for i in 1 .. results.len() {
             assert_eq!(
                 results[0].sections.len(),
                 results[i].sections.len(),

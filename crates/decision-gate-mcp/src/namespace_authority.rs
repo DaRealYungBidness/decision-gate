@@ -188,3 +188,10 @@ pub enum NamespaceAuthorityError {
 }
 
 // (helpers removed; correlation sanitization lives in crate::correlation)
+
+// ============================================================================
+// SECTION: Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests;

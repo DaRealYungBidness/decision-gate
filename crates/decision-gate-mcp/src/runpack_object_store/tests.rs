@@ -463,9 +463,53 @@ fn validate_relative_path_rejects_backslashes() {
 }
 
 #[test]
+fn validate_relative_path_rejects_empty() {
+    let result = validate_relative_path("");
+    assert!(result.is_err());
+}
+
+#[test]
+fn validate_relative_path_rejects_absolute() {
+    let result = validate_relative_path("/absolute/path");
+    assert!(result.is_err());
+}
+
+#[test]
+fn validate_relative_path_rejects_overlong_segment() {
+    let segment = "a".repeat(MAX_PATH_COMPONENT_LENGTH + 1);
+    let path = format!("ok/{segment}");
+    let result = validate_relative_path(&path);
+    assert!(result.is_err());
+}
+
+#[test]
+fn validate_segment_rejects_dot_segments() {
+    assert!(validate_segment(".").is_err());
+    assert!(validate_segment("..").is_err());
+}
+
+#[test]
 fn normalize_prefix_rejects_backslashes() {
     let result = normalize_prefix("bad\\prefix");
     assert!(result.is_err());
+}
+
+#[test]
+fn normalize_prefix_rejects_leading_slash() {
+    let result = normalize_prefix("/leading");
+    assert!(result.is_err());
+}
+
+#[test]
+fn normalize_prefix_trims_trailing_slash() {
+    let result = normalize_prefix("root/").expect("prefix");
+    assert_eq!(result, "root/");
+}
+
+#[test]
+fn normalize_prefix_empty_is_empty() {
+    let result = normalize_prefix("   ").expect("empty prefix");
+    assert!(result.is_empty());
 }
 
 #[test]
