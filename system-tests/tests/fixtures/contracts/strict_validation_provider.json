@@ -1,0 +1,96 @@
+{
+  "provider_id": "strict",
+  "name": "Strict Comparator Provider",
+  "description": "Test-only provider for strict comparator validation.",
+  "transport": "mcp",
+  "config_schema": {
+    "type": "object",
+    "additionalProperties": false
+  },
+  "notes": [
+    "Test-only contract for strict comparator validation."
+  ],
+  "checks": [
+    {
+      "description": "Return a string for lexicographic comparison tests.",
+      "determinism": "deterministic",
+      "params_required": false,
+      "params_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      },
+      "result_schema": {
+        "type": "string",
+        "x-decision-gate": {
+          "allowed_comparators": [
+            "equals",
+            "not_equals",
+            "lex_greater_than",
+            "lex_less_than"
+          ]
+        }
+      },
+      "allowed_comparators": [
+        "equals",
+        "not_equals",
+        "lex_greater_than",
+        "lex_less_than"
+      ],
+      "anchor_types": [
+        "strict"
+      ],
+      "content_types": [
+        "application/json"
+      ],
+      "examples": [
+        {
+          "description": "Example lexicographic value.",
+          "params": {},
+          "result": "beta"
+        }
+      ],
+      "check_id": "lex_value"
+    },
+    {
+      "description": "Return an object for deep equality tests.",
+      "determinism": "deterministic",
+      "params_required": false,
+      "params_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      },
+      "result_schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "x-decision-gate": {
+          "allowed_comparators": [
+            "deep_equals",
+            "deep_not_equals"
+          ]
+        }
+      },
+      "allowed_comparators": [
+        "deep_equals",
+        "deep_not_equals"
+      ],
+      "anchor_types": [
+        "strict"
+      ],
+      "content_types": [
+        "application/json"
+      ],
+      "examples": [
+        {
+          "description": "Example deep value.",
+          "params": {},
+          "result": {
+            "a": 1
+          }
+        }
+      ],
+      "check_id": "deep_value"
+    }
+  ]
+}

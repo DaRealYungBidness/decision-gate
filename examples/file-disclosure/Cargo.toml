@@ -1,0 +1,20 @@
+# Copyright (c) 2026 Michael Campbell. All rights reserved.
+# Decision Gate File Disclosure Example manifest
+
+[package]
+name = "decision-gate-example-file-disclosure"
+version = { workspace = true }
+license = { workspace = true }
+edition = "2024"
+rust-version = "1.92"
+
+[dependencies]
+decision-gate-core = { workspace = true }
+decision-gate-broker = { workspace = true }
+ret-logic = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+url = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,27 @@
+{
+  "typeCheckingMode": "strict",
+  "pythonVersion": "3.10",
+  "include": [
+    "adapters",
+    "scripts/adapters/adapter_conformance.py",
+    "scripts/adapters/adapter_roundtrip.py"
+  ],
+  "extraPaths": [
+    "sdks/python",
+    "adapters/crewai/src",
+    "adapters/langchain/src",
+    "adapters/autogen/src",
+    "adapters/openai_agents/src"
+  ],
+  "exclude": [
+    "**/.venv",
+    "**/node_modules",
+    "**/target",
+    "**/artifacts",
+    "**/*.egg-info",
+    "Docs/generated"
+  ],
+  "reportMissingImports": "warning",
+  "reportMissingTypeStubs": "none",
+  "reportExplicitAny": "error"
+}

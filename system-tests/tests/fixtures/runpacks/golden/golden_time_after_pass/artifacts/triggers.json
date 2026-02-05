@@ -1,0 +1,1 @@
+[{"event":{"correlation_id":null,"kind":"external_event","namespace_id":1,"payload":null,"run_id":"run-1","source_id":"system-tests","tenant_id":1,"time":{"kind":"logical","value":2},"trigger_id":"trigger-1"},"seq":1}]

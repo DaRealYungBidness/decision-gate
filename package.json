@@ -1,0 +1,15 @@
+{
+  "__comment": "Root-level dev tooling for documentation linting.",
+  "name": "decision-gate-devtools",
+  "private": true,
+  "version": "0.0.0",
+  "devDependencies": {
+    "markdownlint-cli2": "^0.13.0"
+  },
+  "scripts": {
+    "docs:lint": "markdownlint-cli2 --config .markdownlint.json \"Docs/**/*.md\" \"README.md\"",
+    "docs:lint:fix": "markdownlint-cli2 --fix --config .markdownlint.json \"Docs/**/*.md\" \"README.md\"",
+    "docs:linkify": "python3 scripts/docs/docs_linkify_refs.py --write",
+    "docs:linkify:check": "python3 scripts/docs/docs_linkify_refs.py"
+  }
+}

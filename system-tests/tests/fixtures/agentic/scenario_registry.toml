@@ -1,0 +1,57 @@
+# Decision Gate Agentic Scenario Registry
+# Canonical scenario inventory for the agentic flow harness.
+
+[[scenarios]]
+id = "agentic-ci-gate"
+description = "CI gate using JSON evidence, time windows, and deployment env flags."
+providers = ["json", "time", "env"]
+drivers = ["raw_mcp", "python_sdk", "typescript_sdk", "langchain", "crewai", "autogen", "openai_agents"]
+modes = ["deterministic"]
+expected_status = "completed"
+expected_outcome = "complete"
+
+[[scenarios]]
+id = "agentic-artifact-integrity"
+description = "Artifact availability and manifest validation via HTTP + JSON."
+providers = ["http", "json"]
+drivers = ["raw_mcp", "python_sdk", "typescript_sdk", "langchain", "crewai", "autogen", "openai_agents"]
+modes = ["deterministic"]
+expected_status = "completed"
+expected_outcome = "complete"
+
+[[scenarios]]
+id = "agentic-policy-disclosure"
+description = "Gate-controlled disclosure with JSON approval + time policy."
+providers = ["json", "time"]
+drivers = ["raw_mcp", "python_sdk", "typescript_sdk", "langchain", "crewai", "autogen", "openai_agents"]
+modes = ["deterministic"]
+expected_status = "active"
+expected_outcome = "advance"
+
+[[scenarios]]
+id = "agentic-attack-rejection"
+description = "Fail-closed hold on rejected evidence payload (env + json)."
+providers = ["json", "env"]
+drivers = ["raw_mcp", "python_sdk", "typescript_sdk", "langchain", "crewai", "autogen", "openai_agents"]
+modes = ["deterministic"]
+expected_status = "active"
+expected_outcome = "hold"
+
+[[scenarios]]
+id = "agentic-policy-fetch"
+description = "Policy-gated HTTP fetch with env allow + JSON policy guard."
+providers = ["http", "json", "env"]
+drivers = ["raw_mcp", "python_sdk", "typescript_sdk", "langchain", "crewai", "autogen", "openai_agents"]
+modes = ["deterministic"]
+expected_status = "completed"
+expected_outcome = "complete"
+
+[[scenarios]]
+id = "agentic-policy-collision"
+description = "Policy engine denial on restricted disclosure packet."
+providers = ["env", "time"]
+drivers = ["raw_mcp", "python_sdk", "typescript_sdk", "langchain", "crewai", "autogen", "openai_agents"]
+modes = ["deterministic"]
+expected_status = "failed"
+expected_outcome = "fail"
+policy_mode = "deny_restricted"

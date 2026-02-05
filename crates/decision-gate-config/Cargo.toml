@@ -1,0 +1,28 @@
+# Copyright (c) 2026 Michael Campbell. All rights reserved.
+# Decision Gate Config manifest
+# ============================================================================
+# Canonical configuration model + validation + docs/schema generation.
+# ============================================================================
+
+[package]
+name = "decision-gate-config"
+version = { workspace = true }
+license = { workspace = true }
+edition = "2024"
+rust-version = "1.92"
+
+[dependencies]
+decision-gate-core = { workspace = true }
+decision-gate-store-sqlite = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+toml = { workspace = true }
+
+[dev-dependencies]
+jsonschema = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

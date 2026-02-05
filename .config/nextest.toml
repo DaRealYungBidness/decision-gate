@@ -1,0 +1,5 @@
+# Decision Gate nextest configuration
+# Keep failure output until the end of the run for easy triage.
+
+[profile.default]
+failure-output = "final"

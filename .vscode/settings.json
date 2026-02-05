@@ -1,0 +1,10 @@
+{
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/sdks/python",
+    "${workspaceFolder}/adapters/crewai/src",
+    "${workspaceFolder}/adapters/langchain/src",
+    "${workspaceFolder}/adapters/autogen/src",
+    "${workspaceFolder}/adapters/openai_agents/src"
+  ],
+  "python.analysis.autoSearchPaths": true
+}

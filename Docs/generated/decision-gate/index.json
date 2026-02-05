@@ -1,0 +1,110 @@
+{
+  "artifacts": [
+    {
+      "content_type": "text/markdown",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "c49efbf3a5c8c4f5917a783cff90f393707f5c8025e12082ae4713f597fd3a61"
+      },
+      "path": "authoring.md"
+    },
+    {
+      "content_type": "application/toml",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "14b4fcf5aad9d27517e4226d09433cfd50d2b42d924fc9cc319831e85a38130c"
+      },
+      "path": "examples/decision-gate.toml"
+    },
+    {
+      "content_type": "application/json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "9623c2270ddec2c1bbf2f3514b6892d94dc4ff7126560782492410abd7d355a5"
+      },
+      "path": "examples/run-config.json"
+    },
+    {
+      "content_type": "application/json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "690dffcfda024b26024e118d00b8ab2e513fedee60865f7577a6348aca1712ec"
+      },
+      "path": "examples/scenario.json"
+    },
+    {
+      "content_type": "text/plain",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "506d3587f186bf7e8e3d220dea9b4ec9c078fb7f128bc80095415edb6f0277f1"
+      },
+      "path": "examples/scenario.ron"
+    },
+    {
+      "content_type": "text/markdown",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "9a559af3018caef81bd9b7523fa525acfc41905a36eb4bfdc6d5ada755d8f4b0"
+      },
+      "path": "glossary.md"
+    },
+    {
+      "content_type": "application/json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "765591fbeac470bf8fbf72324414d2951e5b5e6c901949b46b50bef8a8afe903"
+      },
+      "path": "providers.json"
+    },
+    {
+      "content_type": "text/markdown",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "b09f3a52dfec70ffbba85db1f8109b0053aee3ff554f5496fedb3ac77a790b99"
+      },
+      "path": "providers.md"
+    },
+    {
+      "content_type": "application/json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "e124282948ed0a86b9c665df028e2c6b3f9b6796822b4f10d9234c049466aae2"
+      },
+      "path": "schemas/config.schema.json"
+    },
+    {
+      "content_type": "application/json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "714feb5c6f22770325719dd7bc460a483465cbd02efb116ea4d27a55b7fddeac"
+      },
+      "path": "schemas/scenario.schema.json"
+    },
+    {
+      "content_type": "application/json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "d03814e1b346072e64b5456992fd1bb00947d1f5df4670cbe84c69fb2b7ad012"
+      },
+      "path": "tooling.json"
+    },
+    {
+      "content_type": "text/markdown",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "1b740df752d4bf76be30d2fa2a9630f203fb327f5fccefa1da9c19af7f49cf38"
+      },
+      "path": "tooling.md"
+    },
+    {
+      "content_type": "application/json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "58c0886f82d702e0e88bf98afd17271054fd6a544dbb4a4cf4555ab3bd69286c"
+      },
+      "path": "tooltips.json"
+    }
+  ],
+  "contract_version": "0.1.0",
+  "hash_algorithm": "sha256"
+}

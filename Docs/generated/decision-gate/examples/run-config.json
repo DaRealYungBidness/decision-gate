@@ -1,0 +1,13 @@
+{
+  "dispatch_targets": [
+    {
+      "agent_id": "agent-alpha",
+      "kind": "agent"
+    }
+  ],
+  "namespace_id": 1,
+  "policy_tags": [],
+  "run_id": "run-0001",
+  "scenario_id": "example-scenario",
+  "tenant_id": 1
+}

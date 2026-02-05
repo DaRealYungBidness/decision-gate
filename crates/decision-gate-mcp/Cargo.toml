@@ -1,0 +1,48 @@
+# Copyright (c) 2026 Michael Campbell. All rights reserved.
+# Decision Gate MCP manifest
+# ============================================================================
+# This manifest inherits workspace defaults for shared version and lint settings.
+# ============================================================================
+
+[package]
+name = "decision-gate-mcp"
+version = { workspace = true }
+license = { workspace = true }
+edition = "2024"
+rust-version = "1.92"
+
+[dependencies]
+axum = { workspace = true }
+axum-server = { workspace = true, features = ["tls-rustls"] }
+async-trait = { workspace = true }
+aws-config = { workspace = true }
+aws-sdk-s3 = { workspace = true }
+base64 = { workspace = true }
+bytes = { workspace = true }
+decision-gate-core = { workspace = true }
+decision-gate-config = { workspace = true }
+decision-gate-contract = { workspace = true }
+decision-gate-providers = { workspace = true }
+decision-gate-store-sqlite = { workspace = true }
+ed25519-dalek = { workspace = true, features = ["std"] }
+jsonschema = { workspace = true }
+reqwest = { workspace = true, default-features = false, features = ["blocking", "json", "rustls", "webpki-roots"] }
+rand = { workspace = true }
+rustls = { workspace = true, default-features = false, features = ["aws_lc_rs"] }
+rustls-pki-types = { workspace = true, features = ["std"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_jcs = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["io-std", "io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio-stream = { workspace = true }
+tempfile = { workspace = true }
+
+[dev-dependencies]
+ret-logic = { workspace = true }
+tempfile = { workspace = true }
+toml = { workspace = true }
+url = { workspace = true }
+
+[lints]
+workspace = true

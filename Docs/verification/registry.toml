@@ -1,0 +1,80 @@
+# Docs Verification Registry
+# =============================================================================
+# Maps documentation files to runnable verification proofs.
+# Proof kinds:
+#   - system-test: must match a test name in system-tests/test_registry.toml
+#   - doc-runner: requires at least one dg-run/dg-parse/dg-validate block
+# =============================================================================
+
+[docs]
+
+[docs."Docs/guides/assetcore_interop_runbook.md"]
+proofs = [
+  { kind = "system-test", name = "assetcore_interop_fixtures" },
+  { kind = "doc-runner" }
+]
+
+[docs."Docs/guides/condition_authoring.md"]
+proofs = [{ kind = "doc-runner" }]
+
+[docs."Docs/guides/evidence_flow_and_execution_model.md"]
+proofs = [{ kind = "doc-runner" }]
+
+[docs."Docs/guides/getting_started.md"]
+proofs = [
+  { kind = "system-test", name = "smoke_define_start_next_status" },
+  { kind = "doc-runner" }
+]
+
+[docs."Docs/guides/integration_patterns.md"]
+proofs = [{ kind = "doc-runner" }]
+
+[docs."Docs/guides/json_evidence_playbook.md"]
+proofs = [
+  { kind = "system-test", name = "json_evidence_playbook_templates_pass" },
+  { kind = "doc-runner" }
+]
+
+[docs."Docs/guides/llm_native_playbook.md"]
+proofs = [
+  { kind = "system-test", name = "llm_native_precheck_payload_flow" },
+  { kind = "doc-runner" }
+]
+
+[docs."Docs/guides/preset_configs.md"]
+proofs = [
+  { kind = "system-test", name = "preset_quickstart_dev_http" },
+  { kind = "system-test", name = "preset_default_recommended_http" },
+  { kind = "system-test", name = "preset_hardened_http" },
+  { kind = "doc-runner" }
+]
+
+[docs."Docs/guides/provider_development.md"]
+proofs = [{ kind = "doc-runner" }]
+
+[docs."Docs/guides/provider_protocol.md"]
+proofs = [{ kind = "doc-runner" }]
+
+[docs."Docs/guides/provider_schema_authoring.md"]
+proofs = [{ kind = "doc-runner" }]
+
+[docs."Docs/guides/ret_logic.md"]
+proofs = [{ kind = "doc-runner" }]
+
+[docs."Docs/guides/security_guide.md"]
+proofs = [{ kind = "doc-runner" }]
+
+[docs."Docs/guides/ci_release_gate_dogfood.md"]
+proofs = [{ kind = "doc-runner" }]
+
+[docs."Docs/guides/container_deployment.md"]
+proofs = [{ kind = "doc-runner" }]
+
+[docs."Docs/guides/docs_corpus_swapping.md"]
+proofs = [{ kind = "doc-runner" }]
+
+[docs."sdks/python/README.md"]
+proofs = [{ kind = "doc-runner" }]
+
+[docs."sdks/typescript/README.md"]
+proofs = [{ kind = "doc-runner" }]

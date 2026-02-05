@@ -1,0 +1,47 @@
+# Copyright (c) 2026 Michael Campbell. All rights reserved.
+# Decision Gate CLI manifest
+# ============================================================================
+# This manifest inherits workspace defaults for shared version and lint settings.
+# ============================================================================
+
+[package]
+name = "decision-gate-cli"
+version = { workspace = true }
+license = { workspace = true }
+edition = "2024"
+rust-version = "1.92"
+
+[[bin]]
+name = "decision-gate"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true, features = ["derive"] }
+base64 = { workspace = true }
+decision-gate-broker = { workspace = true }
+decision-gate-contract = { workspace = true }
+decision-gate-config = { workspace = true }
+decision-gate-core = { workspace = true }
+decision-gate-mcp = { workspace = true }
+decision-gate-sdk-gen = { workspace = true }
+decision-gate-store-sqlite = { workspace = true }
+ed25519-dalek = { workspace = true, features = ["std"] }
+jsonschema = { workspace = true }
+reqwest = { workspace = true, default-features = false, features = ["json", "rustls", "webpki-roots"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_jcs = { workspace = true }
+subtle = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+toml = { workspace = true }
+
+[dev-dependencies]
+bytes = { workspace = true }
+http-body-util = { workspace = true }
+hyper = { workspace = true }
+hyper-util = { workspace = true, features = ["tokio"] }
+proptest = { workspace = true }
+
+[lints]
+workspace = true

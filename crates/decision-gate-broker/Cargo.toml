@@ -1,0 +1,30 @@
+# Copyright (c) 2026 Michael Campbell. All rights reserved.
+# Decision Gate Broker manifest
+# ============================================================================
+# This manifest inherits workspace defaults for shared version and lint settings.
+# ============================================================================
+
+[package]
+name = "decision-gate-broker"
+version = { workspace = true }
+license = { workspace = true }
+edition = "2024"
+rust-version = "1.92"
+
+[dependencies]
+base64 = { workspace = true }
+cap-std = { workspace = true }
+cap-primitives = { workspace = true }
+decision-gate-core = { workspace = true }
+reqwest = { workspace = true, default-features = false, features = ["blocking", "rustls", "webpki-roots"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
+url = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tiny_http = { workspace = true }
+
+[lints]
+workspace = true

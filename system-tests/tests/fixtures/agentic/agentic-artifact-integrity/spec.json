@@ -1,0 +1,95 @@
+{
+  "scenario_id": "agentic-artifact-integrity",
+  "namespace_id": 1,
+  "spec_version": "v1",
+  "default_tenant_id": 1,
+  "policies": [],
+  "schemas": [],
+  "stages": [
+    {
+      "stage_id": "main",
+      "entry_packets": [],
+      "gates": [
+        {
+          "gate_id": "gate-artifact",
+          "requirement": {
+            "And": [
+              {
+                "Condition": "artifact_status"
+              },
+              {
+                "Condition": "artifact_body_hash"
+              },
+              {
+                "Condition": "manifest_artifact_id"
+              },
+              {
+                "Condition": "manifest_expected_hash"
+              }
+            ]
+          }
+        }
+      ],
+      "advance_to": {
+        "kind": "terminal"
+      },
+      "timeout": null,
+      "on_timeout": "fail"
+    }
+  ],
+  "conditions": [
+    {
+      "query": {
+        "provider_id": "http",
+        "params": {
+          "url": "{{HTTP_BASE_URL}}/artifact.json"
+        },
+        "check_id": "status"
+      },
+      "comparator": "equals",
+      "expected": 200,
+      "policy_tags": [],
+      "condition_id": "artifact_status"
+    },
+    {
+      "query": {
+        "provider_id": "http",
+        "params": {
+          "url": "{{HTTP_BASE_URL}}/artifact.json"
+        },
+        "check_id": "body_hash"
+      },
+      "comparator": "exists",
+      "policy_tags": [],
+      "condition_id": "artifact_body_hash"
+    },
+    {
+      "query": {
+        "provider_id": "json",
+        "params": {
+          "file": "artifact_manifest.json",
+          "jsonpath": "$.artifact_id"
+        },
+        "check_id": "path"
+      },
+      "comparator": "equals",
+      "expected": "build-123",
+      "policy_tags": [],
+      "condition_id": "manifest_artifact_id"
+    },
+    {
+      "query": {
+        "provider_id": "json",
+        "params": {
+          "file": "artifact_manifest.json",
+          "jsonpath": "$.expected_hash"
+        },
+        "check_id": "path"
+      },
+      "comparator": "equals",
+      "expected": "sha256:deadbeef",
+      "policy_tags": [],
+      "condition_id": "manifest_expected_hash"
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "scenario_id": "agentic-ci-gate",
+  "namespace_id": 1,
+  "spec_version": "v1",
+  "default_tenant_id": 1,
+  "policies": [],
+  "schemas": [],
+  "stages": [
+    {
+      "stage_id": "main",
+      "entry_packets": [],
+      "gates": [
+        {
+          "gate_id": "gate-ci",
+          "requirement": {
+            "And": [
+              {
+                "Condition": "env_is_prod"
+              },
+              {
+                "Condition": "tests_pass"
+              },
+              {
+                "Condition": "coverage_ok"
+              },
+              {
+                "Condition": "after_freeze"
+              }
+            ]
+          }
+        }
+      ],
+      "advance_to": {
+        "kind": "terminal"
+      },
+      "timeout": null,
+      "on_timeout": "fail"
+    }
+  ],
+  "conditions": [
+    {
+      "query": {
+        "provider_id": "env",
+        "params": {
+          "key": "DEPLOY_ENV"
+        },
+        "check_id": "get"
+      },
+      "comparator": "equals",
+      "expected": "production",
+      "policy_tags": [],
+      "condition_id": "env_is_prod"
+    },
+    {
+      "query": {
+        "provider_id": "json",
+        "params": {
+          "file": "ci_report.json",
+          "jsonpath": "$.tests.passed"
+        },
+        "check_id": "path"
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": [],
+      "condition_id": "tests_pass"
+    },
+    {
+      "query": {
+        "provider_id": "json",
+        "params": {
+          "file": "ci_report.json",
+          "jsonpath": "$.coverage.percent"
+        },
+        "check_id": "path"
+      },
+      "comparator": "greater_than_or_equal",
+      "expected": 90,
+      "policy_tags": [],
+      "condition_id": "coverage_ok"
+    },
+    {
+      "query": {
+        "provider_id": "time",
+        "params": {
+          "timestamp": 0
+        },
+        "check_id": "after"
+      },
+      "comparator": "equals",
+      "expected": true,
+      "policy_tags": [],
+      "condition_id": "after_freeze"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+# sdks/python/pyproject.toml
+# ============================================================================
+# Package: decision-gate (Python SDK)
+# Description: Decision Gate client SDK for Python.
+# Purpose: Provide Python bindings for Decision Gate MCP JSON-RPC tools.
+# Dependencies: typing_extensions (for NotRequired)
+# ============================================================================
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "decision-gate"
+version = "0.1.0"
+description = "Decision Gate client SDK"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Decision Gate OSS" }]
+dependencies = ["typing_extensions>=4.7"]
+
+[project.optional-dependencies]
+validation = ["jsonschema>=4.21"]
+
+[tool.setuptools]
+packages = ["decision_gate"]
+
+[tool.setuptools.package-data]
+decision_gate = ["py.typed"]

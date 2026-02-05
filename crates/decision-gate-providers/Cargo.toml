@@ -1,0 +1,33 @@
+# Copyright (c) 2026 Michael Campbell. All rights reserved.
+# Decision Gate Providers manifest
+# ============================================================================
+# This manifest inherits workspace defaults for shared version and lint settings.
+# ============================================================================
+
+[package]
+name = "decision-gate-providers"
+version = { workspace = true }
+license = { workspace = true }
+edition = "2024"
+rust-version = "1.92"
+
+[dependencies]
+decision-gate-core = { workspace = true }
+jsonpath_lib = { workspace = true }
+reqwest = { workspace = true, default-features = false, features = ["blocking", "rustls", "webpki-roots"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+time = { workspace = true, features = ["formatting", "parsing"] }
+
+[dev-dependencies]
+ret-logic = { workspace = true }
+tempfile = { workspace = true }
+tiny_http = { workspace = true }
+proptest = { workspace = true }
+rcgen = { workspace = true }
+rustls = { workspace = true, default-features = false, features = ["aws_lc_rs"] }
+rustls-pki-types = { workspace = true, features = ["std"] }
+
+[lints]
+workspace = true

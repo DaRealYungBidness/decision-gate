@@ -1,0 +1,281 @@
+# Decision Gate System-Test Gaps
+# Tracks missing coverage and acceptance criteria.
+
+[[gaps]]
+id = "asc-auth-mapping-matrix"
+title = "AssetCore auth mapping matrix coverage"
+priority = "P1"
+category = "security"
+status = "closed"
+acceptance_criteria = "Define the ASC role/policy_class mapping and add system-tests that validate each permission pathway."
+notes = "Implemented in system-tests/tests/suites/auth_matrix.rs with auth proxy mapping; integration contract updated."
+
+[[gaps]]
+id = "asc-determinism-replay"
+title = "Determinism across identical AssetCore state and replay"
+priority = "P1"
+category = "reliability"
+status = "closed"
+acceptance_criteria = "Execute identical ASC fixture runs and assert identical decisions plus runpack hashes."
+notes = "Implemented in system-tests/tests/suites/determinism.rs using AssetCore fixture map runs."
+
+[[gaps]]
+id = "multi-transport-parity"
+title = "Multi-transport parity across MCP/CLI/HTTP"
+priority = "P2"
+category = "mcp_transport"
+status = "closed"
+acceptance_criteria = "Run a single scenario via HTTP, stdio, and CLI and compare decisions/runpack artifacts."
+notes = "Implemented in system-tests/tests/suites/transport_parity.rs using HTTP, stdio, and CLI interop."
+
+[[gaps]]
+id = "security-fuzzing-anchors"
+title = "Fuzz/property tests for malformed inputs and anchor injection"
+priority = "P2"
+category = "security"
+status = "closed"
+acceptance_criteria = "Add fuzz/property coverage for malformed evidence payloads, oversize anchors, and injection attempts."
+notes = "Implemented deterministic fuzz cases in system-tests/tests/suites/anchor_fuzz.rs (malformed JSON, missing fields, wrong types, oversized responses)."
+
+[[gaps]]
+id = "registry-acl-matrix-system"
+title = "Schema registry ACL matrix coverage (system-tests)"
+priority = "P1"
+category = "security"
+status = "closed"
+acceptance_criteria = "System-tests exercise schemas_register/list/get for every built-in role + policy_class combination, including deny-by-default when principals are absent."
+notes = "Implemented in system-tests/tests/suites/registry_acl.rs (registry_acl_builtin_matrix)."
+
+[[gaps]]
+id = "registry-acl-principal-subject-mapping"
+title = "Principal subject mapping coverage (stdio/loopback/bearer/mTLS)"
+priority = "P1"
+category = "security"
+status = "closed"
+acceptance_criteria = "System-tests verify principals resolve correctly for stdio, loopback HTTP, bearer token fingerprint, and mTLS subject headers, and that ACL decisions follow."
+notes = "Implemented in system-tests/tests/suites/registry_acl.rs (registry_acl_principal_subject_mapping)."
+
+[[gaps]]
+id = "registry-acl-signing-required"
+title = "Schema signing requirement enforcement (system-tests)"
+priority = "P1"
+category = "security"
+status = "closed"
+acceptance_criteria = "When schema_registry.acl.require_signing = true, schemas_register rejects missing/empty signing, accepts valid signing, and list/get preserves metadata (memory + sqlite)."
+notes = "Implemented in system-tests/tests/suites/registry_acl.rs (registry_acl_signing_required_memory_and_sqlite)."
+
+[[gaps]]
+id = "namespace-default-allowlist-system"
+title = "Default namespace allowlist enforcement (system-tests)"
+priority = "P1"
+category = "security"
+status = "closed"
+acceptance_criteria = "System-tests prove default namespace is allowed only for allowlisted tenants and denied otherwise across tool calls."
+notes = "Implemented in system-tests/tests/suites/namespace_defaults.rs (default_namespace_allowlist_enforced)."
+
+[[gaps]]
+id = "dev-permissive-assetcore-reject-runtime"
+title = "Dev-permissive rejected with AssetCore authority (system-tests)"
+priority = "P1"
+category = "security"
+status = "closed"
+acceptance_criteria = "Server fails to start (or rejects config) when dev.permissive=true and namespace.authority.mode=assetcore_http; verify error path and audit behavior."
+notes = "Implemented in system-tests/tests/suites/config_validation.rs (dev_permissive_assetcore_rejected)."
+
+[[gaps]]
+id = "runpack-security-context-export"
+title = "Runpack export includes security context"
+priority = "P2"
+category = "audit"
+status = "closed"
+acceptance_criteria = "System-tests verify runpack_export manifest includes security.dev_permissive and security.namespace_authority."
+notes = "Implemented in system-tests/tests/suites/runpack.rs (runpack_export_includes_security_context)."
+
+[[gaps]]
+id = "audit-events-registry-security"
+title = "Registry + security audit event validation"
+priority = "P1"
+category = "audit"
+status = "closed"
+acceptance_criteria = "System-tests capture audit sinks and assert registry_audit and security_audit events emit required fields and allow/deny decisions."
+notes = "Implemented in system-tests/tests/suites/audit_registry.rs (registry_security_audit_events)."
+
+[[gaps]]
+id = "schema-registry-cursor-fuzz"
+title = "Schema registry cursor + schema validation fuzz coverage"
+priority = "P1"
+category = "security"
+status = "closed"
+acceptance_criteria = "Add system-tests (property/fuzz or deterministic corpus) that send malformed/oversized cursor tokens and invalid limit values to schemas_list, plus invalid or malformed JSON schema payloads to schemas_register/precheck, and assert fail-closed errors with no registry mutation."
+notes = "Implemented in system-tests/tests/suites/schema_registry_fuzz.rs (schema_registry_cursor_rejects_invalid_inputs, schema_registry_invalid_schema_and_precheck_rejected)."
+
+[[gaps]]
+id = "cli-workflows-e2e"
+title = "Decision Gate CLI end-to-end workflows"
+priority = "P1"
+category = "operations"
+status = "closed"
+acceptance_criteria = "System-tests invoke the decision-gate CLI for serve, runpack export/verify, authoring validate/normalize, config validate, provider contract/schema get, and interop evaluation; verify artifacts, exit codes, and fail-closed behavior (including non-loopback binding enforcement)."
+notes = "Implemented in system-tests/tests/suites/cli_workflows.rs (cli_workflows_end_to_end, cli_rejects_non_loopback_bind)."
+
+[[gaps]]
+id = "sdk-gen-cli-e2e"
+title = "SDK generator CLI system coverage"
+priority = "P2"
+category = "operations"
+status = "closed"
+acceptance_criteria = "System-tests run decision-gate-sdk-gen generate/check against a fixture tooling.json in a temp workspace, assert outputs exist and check detects drift, and validate fail-closed behavior on invalid tooling input."
+notes = "Implemented in system-tests/tests/suites/sdk_gen_cli.rs (sdk_gen_cli_generate_and_check)."
+
+[[gaps]]
+id = "provider-template-interop"
+title = "Provider template integration coverage (Go/Python/TypeScript)"
+priority = "P1"
+category = "providers"
+status = "closed"
+acceptance_criteria = "System-tests spawn each provider template (stdio and optional HTTP), exercise tools/list and tools/call, enforce framing/size limits, and run a Decision Gate scenario using each provider; assert fail-closed behavior on malformed responses."
+notes = "Implemented in system-tests/tests/suites/provider_templates.rs (provider_template_python/go/typescript + provider_template_error_fails_closed)."
+
+[[gaps]]
+id = "ret-logic-authoring-e2e"
+title = "RET logic authoring + evaluation system coverage"
+priority = "P2"
+category = "functional"
+status = "closed"
+acceptance_criteria = "System-tests load authored requirements (RON/DSL) into ScenarioSpec via CLI or fixtures, evaluate through Decision Gate flows, and verify malformed or deep inputs fail closed (including depth guard expectations)."
+notes = "Implemented in system-tests/tests/suites/ret_logic_authoring.rs (authoring_ron_normalize_and_execute, authoring_invalid_ron_rejected, authoring_dsl_evaluates_and_rejects_deep_inputs)."
+
+[[gaps]]
+id = "sqlite-registry-runpack-persistence"
+title = "SQLite registry + runpack persistence across restarts"
+priority = "P1"
+category = "reliability"
+status = "closed"
+acceptance_criteria = "System-tests enable SQLite run state + schema registry, register schemas, run scenarios, restart the server, and verify registry entries + runpack export/verify remain valid; include corruption or oversize record handling that fails closed."
+notes = "Implemented in system-tests/tests/suites/sqlite_registry_runpack.rs (sqlite_registry_and_runpack_persist_across_restart)."
+
+[[gaps]]
+id = "sse-transport-e2e"
+title = "SSE transport end-to-end tool calls"
+priority = "P1"
+category = "mcp_transport"
+status = "closed"
+acceptance_criteria = "System-tests use SSE transport to call tools/list and tools/call (scenario_define/start/trigger/status), validate response framing and correlation IDs, and verify fail-closed behavior under auth errors."
+notes = "Implemented in system-tests/tests/suites/sse_transport.rs (sse_transport_end_to_end, sse_transport_bearer_rejects_missing_token)."
+
+[[gaps]]
+id = "provider-discovery-denylist-limits"
+title = "Provider discovery denylist + size-limit enforcement"
+priority = "P2"
+category = "contract"
+status = "closed"
+acceptance_criteria = "System-tests configure provider_discovery denylist and max_response_bytes, verify provider_contract_get/provider_check_schema_get are denied for blocked providers, and assert over-limit responses are rejected deterministically."
+notes = "Implemented in system-tests/tests/suites/provider_discovery.rs (provider_discovery_denylist_and_size_limits)."
+
+[[gaps]]
+id = "docs-search-e2e"
+title = "Docs search tool end-to-end coverage (HTTP/SSE)"
+priority = "P1"
+category = "functional"
+status = "closed"
+acceptance_criteria = "System-tests call decision_gate_docs_search over HTTP (and SSE), assert deterministic ordering across repeated calls, max_sections clamping to config + hard cap, empty query returns role overview, and results include expected default docs; tools/list includes the tool when docs.enabled + enable_search."
+notes = "Implemented in system-tests/tests/suites/docs_search.rs (docs_search_http_end_to_end) and system-tests/tests/suites/sse_transport.rs (docs_search_sse_end_to_end)."
+
+[[gaps]]
+id = "docs-resources-e2e"
+title = "MCP resources list/read docs coverage"
+priority = "P1"
+category = "mcp_transport"
+status = "closed"
+acceptance_criteria = "System-tests call resources/list and resources/read over HTTP and SSE, verify URIs use decision-gate://docs/ prefix, resource bodies match embedded docs (contain known headings), and unknown URIs fail closed with invalid params. Verify bearer/mTLS auth applies."
+notes = "Implemented in system-tests/tests/suites/mcp_transport.rs (docs_resources_http_list_read) and system-tests/tests/suites/sse_transport.rs (docs_resources_sse_list_read)."
+
+[[gaps]]
+id = "docs-config-toggles-system"
+title = "Docs search/resources toggle behavior (system-tests)"
+priority = "P1"
+category = "operations"
+status = "closed"
+acceptance_criteria = "With docs.enabled=false, decision_gate_docs_search is hidden from tools/list and tools/call returns unknown; resources/list and resources/read return method not found. With docs.enabled=true and enable_search=false, tools/list hides docs search but resources remain available. With enable_resources=false, resources methods are unavailable while docs search still works."
+notes = "Implemented in system-tests/tests/suites/docs_config.rs (docs_config_toggles)."
+
+[[gaps]]
+id = "stress-soak-perf"
+title = "Long-running soak/perf regression coverage"
+priority = "P2"
+category = "reliability"
+status = "open"
+acceptance_criteria = "Add long-running soak/perf regression system-tests for MCP tooling, gated by CI infra, with deterministic assertions and artifact capture."
+notes = "Requires dedicated CI capacity for multi-minute soak runs."
+
+[[gaps]]
+id = "server-tools-visibility-system"
+title = "Server tool visibility allowlist/denylist enforcement"
+priority = "P1"
+category = "security"
+status = "closed"
+acceptance_criteria = "When server.tools.mode=filter, tools/list returns only allowlisted tools minus denylisted tools; tool calls to hidden tools return unknown tool errors (no existence leak). Allowlist empty defaults to all; denylist always removes. Validate that server.auth.allowed_tools does not affect tools/list but still blocks tool calls."
+notes = "Implemented in system-tests/tests/suites/tool_visibility.rs (server_tools_visibility_filtering, server_tools_visibility_defaults_and_auth_separation)."
+
+[[gaps]]
+id = "docs-extra-paths-limits-system"
+title = "Docs extra_paths ingestion + size limits"
+priority = "P2"
+category = "operations"
+status = "closed"
+acceptance_criteria = "System-tests start server with docs.extra_paths pointing to files/directories, verify markdown files are indexed and discoverable via docs search/resources, non-markdown files ignored, and missing paths fail server start. Oversized docs or exceeding max_doc_bytes/max_total_bytes/max_docs are skipped with warnings and do not appear in search/resources."
+notes = "Implemented in system-tests/tests/suites/docs_config.rs (docs_extra_paths_ingestion_limits)."
+
+[[gaps]]
+id = "cli-auth-matrix"
+title = "CLI auth matrix coverage"
+priority = "P1"
+category = "security"
+status = "closed"
+acceptance_criteria = "System-tests exercise CLI MCP client auth paths for bearer tokens and mTLS subject headers, verifying fail-closed behavior when credentials are missing."
+notes = "Implemented in system-tests/tests/suites/cli_auth.rs (cli_auth_matrix)."
+
+[[gaps]]
+id = "cli-tool-wrapper-conformance"
+title = "CLI MCP tool wrapper conformance coverage"
+priority = "P1"
+category = "functional"
+status = "closed"
+acceptance_criteria = "System-tests invoke CLI MCP tool wrappers for the full MCP tool surface and validate successful responses."
+notes = "Implemented in system-tests/tests/suites/cli_conformance.rs (cli_mcp_tool_wrappers_conformance)."
+
+[[gaps]]
+id = "cli-transport-matrix"
+title = "CLI MCP transport matrix coverage"
+priority = "P2"
+category = "mcp_transport"
+status = "closed"
+acceptance_criteria = "System-tests compare CLI MCP outputs across HTTP, SSE, and stdio transports for tools list and providers list parity."
+notes = "Implemented in system-tests/tests/suites/cli_transport.rs (cli_transport_matrix)."
+
+[[gaps]]
+id = "cli-size-limits"
+title = "CLI input/output size limit coverage"
+priority = "P1"
+category = "operations"
+status = "closed"
+acceptance_criteria = "System-tests assert CLI rejects oversized inputs and fails when output exceeds configured limits."
+notes = "Implemented in system-tests/tests/suites/cli_limits.rs (cli_size_limits_enforced)."
+
+[[gaps]]
+id = "cli-golden-output"
+title = "CLI golden output snapshot coverage"
+priority = "P2"
+category = "operations"
+status = "closed"
+acceptance_criteria = "System-tests compare CLI JSON output against a golden canonical fixture."
+notes = "Implemented in system-tests/tests/suites/cli_golden_outputs.rs (cli_golden_provider_list)."
+
+[[gaps]]
+id = "cli-i18n-disclaimer"
+title = "CLI i18n disclaimer coverage"
+priority = "P2"
+category = "operations"
+status = "closed"
+acceptance_criteria = "System-tests verify non-English CLI output includes the machine-translation disclaimer."
+notes = "Implemented in system-tests/tests/suites/cli_workflows.rs (cli_i18n_catalan_disclaimer)."

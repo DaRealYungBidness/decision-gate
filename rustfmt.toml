@@ -1,0 +1,57 @@
+# rustfmt.toml
+# ============================================================================
+# Project: Decision Gate (LLM/agent-friendly formatting)
+# Purpose: Deterministic layout; imports split & grouped; narrow, consistent lines
+# ============================================================================
+# --- Core Layout -------------------------------------------------------------
+edition = "2024"
+max_width = 100
+use_small_heuristics = "Max"      # Prefer vertical overcramming long constructs
+newline_style = "Unix"
+hard_tabs = false
+tab_spaces = 4
+# --- Comments & Docs ---------------------------------------------------------
+normalize_comments = true
+wrap_comments = true
+comment_width = 100
+format_code_in_doc_comments = true
+# --- Imports (critical for grepability) -------------------------------------
+# Split nested trees (e.g., `use foo::{bar::Baz, qux}`) into one item per line.
+imports_granularity = "Item"
+reorder_imports = true
+# Group std, external, and local separately.
+# (Requires nightly rustfmt; you already run `cargo +nightly fmt`.)
+group_imports = "StdExternalCrate"
+# --- Module / Impl Ordering --------------------------------------------------
+reorder_modules = true
+reorder_impl_items = true
+merge_derives = true
+# --- Expression/Layout Preferences ------------------------------------------
+trailing_comma = "Vertical"       # Cleaner diffs, less churn
+trailing_semicolon = true
+spaces_around_ranges = true        # `x .. y` -> `x..y` vs `x .. y`; keeps ranges legible
+# Put the binary operator at the start of wrapped lines (aids quick scanning).
+# Example:
+#   let x = foo
+#       + bar
+#       - baz;
+binop_separator = "Front"
+# Avoid forcing single-line functions/struct-lits; vertical is clearer for agents.
+fn_single_line = false
+struct_lit_single_line = false
+# --- Macros & Strings (nightly-only niceties) -------------------------------
+unstable_features = true
+format_macro_bodies = true
+format_macro_matchers = true
+format_strings = true
+use_field_init_shorthand = true    # When possible, prefer `x` over `x: x`
+# --- Blank lines & misc ------------------------------------------------------
+blank_lines_upper_bound = 2
+# --- Repository hygiene (don’t format generated or 3P code) -----------------
+ignore = [
+  "target/**",
+  "vendor/**",
+  "**/generated/**",
+  "**/snapshots/**",
+  "**/fixtures/**"
+]

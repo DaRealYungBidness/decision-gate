@@ -1,0 +1,8 @@
+{
+  "scenario_id": "agentic-artifact-integrity",
+  "run_id": "run-artifact-1",
+  "tenant_id": 1,
+  "namespace_id": 1,
+  "policy_tags": [],
+  "dispatch_targets": []
+}

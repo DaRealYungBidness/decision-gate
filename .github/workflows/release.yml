@@ -1,0 +1,190 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    env:
+      RUST_BACKTRACE: "1"
+      CARGO_TERM_COLOR: "always"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install nightly toolchain (rustfmt)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+          components: rustfmt
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.92.0"
+          components: rustfmt, clippy
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: https://registry.npmjs.org
+      - name: Format check
+        run: |
+          cargo +nightly fmt --all -- --check
+          echo "DG_FMT=true" >> "$GITHUB_ENV"
+      - name: Clippy
+        run: |
+          cargo clippy --all-targets --all-features -D warnings
+          echo "DG_CLIPPY=true" >> "$GITHUB_ENV"
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+      - name: Install cargo-sbom
+        run: cargo install cargo-sbom --locked
+      - name: Cargo deny
+        run: |
+          cargo deny check
+          echo "DG_CARGO_DENY=true" >> "$GITHUB_ENV"
+      - name: Generation drift
+        run: |
+          scripts/ci/generate_all.sh --check
+          echo "DG_GENERATE_ALL=true" >> "$GITHUB_ENV"
+      - name: Unit tests
+        run: |
+          cargo test --workspace --exclude system-tests
+          echo "DG_UNIT_TESTS=true" >> "$GITHUB_ENV"
+      - name: System tests (P0)
+        run: |
+          python scripts/system_tests/test_runner.py --priority P0 --run-root .tmp/system-tests/release-p0
+          echo "DG_SYSTEM_TESTS_P0=true" >> "$GITHUB_ENV"
+      - name: System tests (P1)
+        run: |
+          python scripts/system_tests/test_runner.py --priority P1 --run-root .tmp/system-tests/release-p1
+          echo "DG_SYSTEM_TESTS_P1=true" >> "$GITHUB_ENV"
+      - name: Upload system test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: system-tests-release
+          path: .tmp/system-tests
+      - name: Packaging dry run
+        run: |
+          scripts/ci/package_dry_run.sh --all
+          echo "DG_PACKAGE_DRY_RUN=true" >> "$GITHUB_ENV"
+      - name: Generate SBOM (dependencies)
+        run: |
+          scripts/ci/sbom.sh --output .tmp/ci/sbom/decision-gate.sbom.spdx.json
+          echo "DG_SBOM=true" >> "$GITHUB_ENV"
+          echo "DG_SBOM_PATH=.tmp/ci/sbom/decision-gate.sbom.spdx.json" >> "$GITHUB_ENV"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build amd64 image for smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: decision-gate:smoke
+      - name: Smoke test (amd64)
+        run: |
+          docker run --rm decision-gate:smoke --version
+          echo "DG_DOCKER_SMOKE=true" >> "$GITHUB_ENV"
+      - name: Build Decision Gate evidence bundle
+        env:
+          DG_TAG: ${{ github.ref_name }}
+          DG_SHA: ${{ github.sha }}
+        run: |
+          mkdir -p .tmp/ci
+          VERSION="$(python3 - <<'PY'
+          from pathlib import Path
+
+          version = None
+          in_section = False
+          for line in Path("Cargo.toml").read_text().splitlines():
+              stripped = line.strip()
+              if stripped.startswith("[") and stripped.endswith("]"):
+                  in_section = stripped == "[workspace.package]"
+                  continue
+              if in_section and stripped.startswith("version"):
+                  _, value = stripped.split("=", 1)
+                  version = value.strip().strip('"')
+                  break
+          if not version:
+              raise SystemExit("workspace.package version not found")
+          print(version)
+          PY
+          )"
+          TAG_STRIPPED="${DG_TAG#v}"
+          if [[ "$TAG_STRIPPED" == "$VERSION" ]]; then
+            DG_TAG_MATCH="true"
+          else
+            DG_TAG_MATCH="false"
+          fi
+          export DG_VERSION="$VERSION"
+          export DG_TAG_MATCH="$DG_TAG_MATCH"
+          python3 - <<'PY'
+          import json
+          import os
+          import time
+          from pathlib import Path
+
+          def env_bool(name: str) -> bool:
+              return os.environ.get(name, "false").lower() == "true"
+
+          evidence = {
+              "release": {
+                  "tag": os.environ.get("DG_TAG"),
+                  "version": os.environ.get("DG_VERSION"),
+                  "tag_matches_version": os.environ.get("DG_TAG_MATCH") == "true",
+                  "sha": os.environ.get("DG_SHA"),
+                  "generated_at": int(time.time() * 1000),
+                  "sbom_path": os.environ.get("DG_SBOM_PATH"),
+              },
+              "checks": {
+                  "fmt": env_bool("DG_FMT"),
+                  "clippy": env_bool("DG_CLIPPY"),
+                  "cargo_deny": env_bool("DG_CARGO_DENY"),
+                  "generate_all": env_bool("DG_GENERATE_ALL"),
+                  "unit_tests": env_bool("DG_UNIT_TESTS"),
+                  "system_tests_p0": env_bool("DG_SYSTEM_TESTS_P0"),
+                  "system_tests_p1": env_bool("DG_SYSTEM_TESTS_P1"),
+                  "sbom": env_bool("DG_SBOM"),
+                  "package_dry_run": env_bool("DG_PACKAGE_DRY_RUN"),
+                  "docker_smoke": env_bool("DG_DOCKER_SMOKE"),
+              },
+          }
+
+          path = Path(".tmp/ci/release_evidence.json")
+          path.write_text(json.dumps(evidence, indent=2))
+          print(f"Wrote {path}")
+          PY
+          echo "DG_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "DG_TAG_MATCH=$DG_TAG_MATCH" >> "$GITHUB_ENV"
+          echo "DG_EVIDENCE_FILE=.tmp/ci/release_evidence.json" >> "$GITHUB_ENV"
+      - name: Decision Gate release eligibility
+        run: |
+          bash scripts/ci/ci_release_gate.sh \
+            --evidence-file "$DG_EVIDENCE_FILE" \
+            --output-dir .tmp/ci/release-runpack \
+            --config configs/presets/ci-release-gate.toml
+      - name: Upload Decision Gate artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: decision-gate-release-gate
+          path: |
+            .tmp/ci/release_evidence.json
+            .tmp/ci/release-runpack
+            .tmp/ci/sbom
+          if-no-files-found: warn

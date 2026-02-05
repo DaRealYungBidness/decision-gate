@@ -1,0 +1,117 @@
+# Decision Gate System Tests manifest
+# ============================================================================
+# This manifest defines the system-tests crate and its dependencies.
+# ============================================================================
+
+[package]
+name = "system-tests"
+version = { workspace = true }
+license = { workspace = true }
+edition = "2024"
+rust-version = "1.92"
+publish = false
+autotests = false
+
+[dependencies]
+axum = { workspace = true, features = ["json"] }
+aws-config = { workspace = true }
+aws-sdk-s3 = { workspace = true }
+base64 = { workspace = true }
+decision-gate-config = { workspace = true }
+decision-gate-contract = { workspace = true }
+decision-gate-core = { workspace = true }
+decision-gate-cli = { workspace = true }
+decision-gate-broker = { workspace = true }
+decision-gate-mcp = { workspace = true }
+decision-gate-store-sqlite = { workspace = true }
+ed25519-dalek = { workspace = true, features = ["std"] }
+jsonschema = { workspace = true }
+rcgen = { workspace = true }
+reqwest = { workspace = true, default-features = false, features = ["json", "rustls", "webpki-roots"] }
+rustls = { workspace = true, default-features = false, features = ["aws_lc_rs"] }
+ret-logic = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_jcs = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+testcontainers = { workspace = true }
+tokio = { workspace = true, features = ["io-util", "macros", "rt-multi-thread", "sync", "time"] }
+tokio-stream = { workspace = true }
+toml = { workspace = true }
+url = { workspace = true }
+
+[lints]
+workspace = true
+
+[features]
+system-tests = []
+
+[[test]]
+name = "smoke"
+path = "tests/smoke.rs"
+required-features = ["system-tests"]
+
+[[test]]
+name = "functional"
+path = "tests/functional.rs"
+required-features = ["system-tests"]
+
+[[test]]
+name = "providers"
+path = "tests/providers.rs"
+required-features = ["system-tests"]
+
+[[test]]
+name = "mcp_transport"
+path = "tests/mcp_transport.rs"
+required-features = ["system-tests"]
+
+[[test]]
+name = "runpack"
+path = "tests/runpack.rs"
+required-features = ["system-tests"]
+
+[[test]]
+name = "reliability"
+path = "tests/reliability.rs"
+required-features = ["system-tests"]
+
+[[test]]
+name = "security"
+path = "tests/security.rs"
+required-features = ["system-tests"]
+
+[[test]]
+name = "contract"
+path = "tests/contract.rs"
+required-features = ["system-tests"]
+
+[[test]]
+name = "operations"
+path = "tests/operations.rs"
+required-features = ["system-tests"]
+
+[[test]]
+name = "performance"
+path = "tests/performance.rs"
+required-features = ["system-tests"]
+
+[[test]]
+name = "golden_runpacks"
+path = "tests/golden_runpacks.rs"
+required-features = ["system-tests"]
+
+[[test]]
+name = "sdk_client"
+path = "tests/sdk_client.rs"
+required-features = ["system-tests"]
+
+[[test]]
+name = "sdk_examples"
+path = "tests/sdk_examples.rs"
+required-features = ["system-tests"]
+
+[[test]]
+name = "agentic"
+path = "tests/agentic.rs"
+required-features = ["system-tests"]

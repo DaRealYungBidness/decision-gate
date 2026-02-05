@@ -1,0 +1,48 @@
+# deny.toml
+# ============================================================================
+# Decision Gate dependency policy for cargo-deny.
+# https://embarkstudios.github.io/cargo-deny/
+# ============================================================================
+
+[advisories]
+version = 2
+# Default RustSec advisory database.
+db-urls = ["https://github.com/rustsec/advisory-db"]
+db-path = ".cargo/advisory-db"
+
+# Treat unsound advisories anywhere in the graph as actionable.
+unsound = "all"
+# Flag unmaintained advisories for workspace crates.
+unmaintained = "workspace"
+yanked = "deny"
+
+[bans]
+# Multiple versions happen in Rust dependency graphs; keep it visible but not
+# blocking until we intentionally tighten it.
+multiple-versions = "warn"
+# Avoid unbounded dependency ranges.
+wildcards = "deny"
+
+[licenses]
+version = 2
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT-0",
+    "Zlib",
+    "CC0-1.0",
+    "OpenSSL",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+]
+# Require high confidence when inferring licenses from text.
+confidence-threshold = 0.93
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

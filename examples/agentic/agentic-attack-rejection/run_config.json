@@ -1,0 +1,8 @@
+{
+  "scenario_id": "agentic-attack-rejection",
+  "run_id": "run-attack-1",
+  "tenant_id": 1,
+  "namespace_id": 1,
+  "policy_tags": [],
+  "dispatch_targets": []
+}

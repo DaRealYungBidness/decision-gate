@@ -1,0 +1,30 @@
+name: golden-runpack-cross-os
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  golden-runpack-cross-os:
+    name: golden_runpack_cross_os (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+    env:
+      RUST_BACKTRACE: "1"
+      CARGO_TERM_COLOR: "always"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.92.0"
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Run golden runpack test
+        run: cargo test -p system-tests --features system-tests --test golden_runpacks -- --exact golden_runpacks::golden_runpack_cross_os

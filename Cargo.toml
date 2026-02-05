@@ -1,0 +1,146 @@
+# Decision Gate Workspace Root
+# ============================================================================
+# This is the workspace manifest coordinating all crates in the Decision Gate project.
+# ============================================================================
+
+[workspace]
+members = [
+    "crates/decision-gate-core",
+    "crates/decision-gate-config",
+    "crates/decision-gate-broker",
+    "crates/decision-gate-contract",
+    "crates/decision-gate-sdk-gen",
+    "crates/decision-gate-providers",
+    "crates/decision-gate-store-sqlite",
+    "crates/decision-gate-mcp",
+    "crates/decision-gate-cli",
+    "crates/ret-logic",
+    "examples/minimal",
+    "examples/file-disclosure",
+    "examples/llm-scenario",
+    "examples/agent-loop",
+    "examples/ci-gate",
+    "examples/data-disclosure",
+    "system-tests",
+]
+default-members = [
+    "crates/decision-gate-core",
+    "crates/decision-gate-config",
+    "crates/decision-gate-broker",
+    "crates/decision-gate-contract",
+    "crates/decision-gate-sdk-gen",
+    "crates/decision-gate-providers",
+    "crates/decision-gate-store-sqlite",
+    "crates/decision-gate-mcp",
+    "crates/decision-gate-cli",
+    "crates/ret-logic",
+    "examples/minimal",
+    "examples/file-disclosure",
+    "examples/llm-scenario",
+    "examples/agent-loop",
+    "examples/ci-gate",
+    "examples/data-disclosure",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+
+license = "Apache-2.0"
+
+[workspace.dependencies]
+async-trait = "0.1"
+aws-config = "1.1"
+aws-sdk-s3 = "1.121.0"
+axum = "0.8"
+axum-server = "0.8"
+base64 = "0.22"
+bigdecimal = "0.4"
+bytes = "1.9"
+cap-std = "4.0.0"
+cap-primitives = "4.0.0"
+clap = "4.5.56"
+decision-gate-broker = { path = "crates/decision-gate-broker", version = "0.1.0" }
+decision-gate-cli = { path = "crates/decision-gate-cli", version = "0.1.0" }
+decision-gate-config = { path = "crates/decision-gate-config", version = "0.1.0" }
+decision-gate-contract = { path = "crates/decision-gate-contract", version = "0.1.0" }
+decision-gate-core = { path = "crates/decision-gate-core", version = "0.1.0" }
+decision-gate-mcp = { path = "crates/decision-gate-mcp", version = "0.1.0" }
+decision-gate-providers = { path = "crates/decision-gate-providers", version = "0.1.0" }
+decision-gate-sdk-gen = { path = "crates/decision-gate-sdk-gen", version = "0.1.0" }
+decision-gate-store-sqlite = { path = "crates/decision-gate-store-sqlite", version = "0.1.0" }
+ed25519-dalek = "2.1"
+http-body-util = "0.1"
+hyper = "1.5"
+hyper-util = "0.1"
+jsonpath_lib = "0.3"
+jsonschema = "0.40"
+proptest = "1.5"
+rand = "0.8.5"
+rcgen = "0.14"
+reqwest = { version = "0.13", default-features = false }
+ret-logic = { path = "crates/ret-logic", version = "0.1.0" }
+ron = "0.12"
+rusqlite = "0.38"
+rustls = { version = "0.23", default-features = false }
+rustls-pki-types = "1.14"
+serde = "1.0"
+serde_jcs = "0.1"
+serde_json = "1.0"
+serde_yaml = "0.9"
+sha2 = "0.10"
+smallvec = "1.13.0"
+subtle = "2.5"
+tempfile = "3.10"
+testcontainers = "0.26"
+thiserror = "2.0"
+time = "0.3.46"
+tiny_http = "0.12"
+tokio = "1.49"
+tokio-stream = "0.1"
+toml = "0.9"
+url = "2.5"
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+incremental = false
+debug = false
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_docs = "deny"
+unused_imports = "deny"
+unused_variables = "deny"
+unused_mut = "deny"
+unused_must_use = "deny"
+dead_code = "deny"
+unreachable_code = "deny"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+cast_possible_truncation = "deny"
+allow_attributes_without_reason = "deny"
+dbg_macro = "deny"
+exit = "deny"
+mem_forget = "deny"
+panic_in_result_fn = "deny"
+unwrap_in_result = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+use_debug = "deny"
+undocumented_unsafe_blocks = "deny"
+multiple_unsafe_ops_per_block = "deny"
+missing_docs_in_private_items = "deny"
+missing_errors_doc = "warn"
+missing_panics_doc = "warn"
+
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
+private_intra_doc_links = "warn"
+bare_urls = "warn"

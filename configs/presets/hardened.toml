@@ -1,0 +1,68 @@
+# Decision Gate preset: Hardened
+# Strong local security posture. For production, add TLS + mTLS.
+
+[server]
+transport = "http"
+bind = "127.0.0.1:4000"
+mode = "strict"
+
+[server.auth]
+mode = "bearer_token"
+# Replace this token and update the principal subject hash below.
+bearer_tokens = ["dg-hardened-demo-token"]
+
+[[server.auth.principals]]
+# Subject is token:sha256(bearer_token). Update when rotating the token.
+subject = "token:73a7ceabc74caaa14553ad02540165ba8ad8b709f15e6503b8879552f22042a1"
+policy_class = "prod"
+
+[[server.auth.principals.roles]]
+name = "TenantAdmin"
+tenant_id = 1
+
+[namespace]
+# Disable the default namespace id=1; use a non-default namespace (e.g., 2).
+allow_default = false
+
+[trust]
+# Audit mode (no signature enforcement).
+default_policy = "audit"
+min_lane = "verified"
+
+[evidence]
+allow_raw_values = false
+require_provider_opt_in = true
+
+[schema_registry]
+type = "sqlite"
+path = "decision-gate-registry.db"
+
+[schema_registry.acl]
+# Require signatures for schema registry writes.
+allow_local_only = false
+require_signing = true
+
+[run_state_store]
+# Use SQLite for local durability.
+type = "sqlite"
+path = "decision-gate.db"
+journal_mode = "wal"
+sync_mode = "full"
+busy_timeout_ms = 5000
+
+[[providers]]
+name = "time"
+type = "builtin"
+
+[[providers]]
+name = "env"
+type = "builtin"
+
+[[providers]]
+name = "json"
+type = "builtin"
+config = { root = "./evidence", root_id = "evidence-root", max_bytes = 1048576, allow_yaml = true }
+
+[[providers]]
+name = "http"
+type = "builtin"

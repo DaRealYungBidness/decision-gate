@@ -1,0 +1,76 @@
+{
+    "conditions": [
+        {
+            "comparator": "equals",
+            "condition_id": "env_is_prod",
+            "expected": "production",
+            "policy_tags": [],
+            "query": {
+                "check_id": "get",
+                "params": {
+                    "key": "DEPLOY_ENV",
+                },
+                "provider_id": "env",
+            },
+        },
+        {
+            "comparator": "equals",
+            "condition_id": "after_freeze",
+            "expected": true,
+            "policy_tags": [],
+            "query": {
+                "check_id": "after",
+                "params": {
+                    "timestamp": 1710000000000,
+                },
+                "provider_id": "time",
+            },
+        },
+    ],
+    "default_tenant_id": (),
+    "namespace_id": 1,
+    "policies": [],
+    "scenario_id": "example-scenario",
+    "schemas": [],
+    "spec_version": "v1",
+    "stages": [
+        {
+            "advance_to": {
+                "kind": "terminal",
+            },
+            "entry_packets": [
+                {
+                    "content_type": "application/json",
+                    "expiry": (),
+                    "packet_id": "packet-hello",
+                    "payload": {
+                        "kind": "json",
+                        "value": {"message": "hello", "purpose": "scenario entry packet"},
+                    },
+                    "policy_tags": [],
+                    "schema_id": "schema-hello",
+                    "visibility_labels": [
+                        "public",
+                    ],
+                },
+            ],
+            "gates": [
+                {
+                    "gate_id": "env_gate",
+                    "requirement": {
+                        "Condition": "env_is_prod",
+                    },
+                },
+                {
+                    "gate_id": "time_gate",
+                    "requirement": {
+                        "Condition": "after_freeze",
+                    },
+                },
+            ],
+            "on_timeout": "fail",
+            "stage_id": "main",
+            "timeout": (),
+        },
+    ],
+}

@@ -1,0 +1,4 @@
+{
+  "artifact_id": "build-123",
+  "expected_hash": "sha256:deadbeef"
+}

@@ -1,0 +1,326 @@
+{
+  "assetcore_namespace_id": 1,
+  "fixture_version": "v1",
+  "fixtures": [
+    {
+      "comparator": "equals",
+      "example_description": "Classify a container by topology.",
+      "expected": "balance",
+      "params": {
+        "container_id": "vault-001"
+      },
+      "templates": [
+        "0d_balance",
+        "0d_slots",
+        "1d_grid",
+        "2d_grid",
+        "continuous_1d",
+        "continuous_2d"
+      ],
+      "condition_id": "container_kind",
+      "check_id": "container_kind"
+    },
+    {
+      "comparator": "equals",
+      "example_description": "Read a container quantization scale.",
+      "expected": 1000,
+      "params": {
+        "container_id": "vault-001"
+      },
+      "templates": [
+        "0d_balance",
+        "continuous_1d",
+        "continuous_2d"
+      ],
+      "condition_id": "container_quantization_inv",
+      "check_id": "container_quantization_inv"
+    },
+    {
+      "comparator": "equals",
+      "example_description": "Scaled balance amount (quantization_inv=1000).",
+      "expected": 150000,
+      "params": {
+        "class_id": "gold",
+        "container_id": "vault-001"
+      },
+      "templates": [
+        "0d_balance"
+      ],
+      "condition_id": "balance_amount_scaled",
+      "check_id": "balance_amount_scaled"
+    },
+    {
+      "comparator": "equals",
+      "example_description": "Read slot count for a slots container.",
+      "expected": 8,
+      "params": {
+        "container_id": "slots-gear"
+      },
+      "templates": [
+        "0d_slots"
+      ],
+      "condition_id": "slot_count",
+      "check_id": "slot_count"
+    },
+    {
+      "comparator": "equals",
+      "example_description": "Check whether a slot is occupied.",
+      "expected": true,
+      "params": {
+        "container_id": "slots-gear",
+        "slot_index": 1
+      },
+      "templates": [
+        "0d_slots"
+      ],
+      "condition_id": "slot_occupied",
+      "check_id": "slot_occupied"
+    },
+    {
+      "comparator": "equals",
+      "example_description": "Check whether a slot holds a specific class.",
+      "expected": true,
+      "params": {
+        "class_id": "helmet",
+        "container_id": "slots-gear",
+        "slot_index": 1
+      },
+      "templates": [
+        "0d_slots"
+      ],
+      "condition_id": "slot_instance_is_class",
+      "check_id": "slot_instance_is_class"
+    },
+    {
+      "comparator": "equals",
+      "example_description": "Read a grid container capacity.",
+      "expected": 25,
+      "params": {
+        "container_id": "grid-007"
+      },
+      "templates": [
+        "1d_grid",
+        "2d_grid"
+      ],
+      "condition_id": "grid_capacity",
+      "check_id": "grid_capacity"
+    },
+    {
+      "comparator": "equals",
+      "example_description": "Read stack quantity at a 1D grid position.",
+      "expected": 12,
+      "params": {
+        "class_id": "widget",
+        "container_id": "belt-01",
+        "x": 4
+      },
+      "templates": [
+        "1d_grid"
+      ],
+      "condition_id": "grid1d_cell_stack_qty",
+      "check_id": "grid1d_cell_stack_qty"
+    },
+    {
+      "comparator": "equals",
+      "example_description": "Check for an instance at a 1D grid position.",
+      "expected": true,
+      "params": {
+        "container_id": "belt-01",
+        "x": 3
+      },
+      "templates": [
+        "1d_grid"
+      ],
+      "condition_id": "grid1d_cell_instance_present",
+      "check_id": "grid1d_cell_instance_present"
+    },
+    {
+      "comparator": "equals",
+      "example_description": "Check for an instance of a class at a 1D grid position.",
+      "expected": true,
+      "params": {
+        "class_id": "robot",
+        "container_id": "belt-01",
+        "x": 3
+      },
+      "templates": [
+        "1d_grid"
+      ],
+      "condition_id": "grid1d_cell_instance_is_class",
+      "check_id": "grid1d_cell_instance_is_class"
+    },
+    {
+      "comparator": "equals",
+      "example_description": "Read grid width for a 2D container.",
+      "expected": 5,
+      "params": {
+        "container_id": "grid-007"
+      },
+      "templates": [
+        "2d_grid"
+      ],
+      "condition_id": "grid_width",
+      "check_id": "grid_width"
+    },
+    {
+      "comparator": "equals",
+      "example_description": "Read stack quantity at a 2D grid position.",
+      "expected": 12,
+      "params": {
+        "class_id": "medkit",
+        "container_id": "grid-007",
+        "x": 4,
+        "y": 2
+      },
+      "templates": [
+        "2d_grid"
+      ],
+      "condition_id": "grid2d_cell_stack_qty",
+      "check_id": "grid2d_cell_stack_qty"
+    },
+    {
+      "comparator": "equals",
+      "example_description": "Check for an instance at a 2D grid position.",
+      "expected": true,
+      "params": {
+        "container_id": "grid-007",
+        "x": 1,
+        "y": 1
+      },
+      "templates": [
+        "2d_grid"
+      ],
+      "condition_id": "grid2d_cell_instance_present",
+      "check_id": "grid2d_cell_instance_present"
+    },
+    {
+      "comparator": "equals",
+      "example_description": "Check for an instance of a class at a 2D grid position.",
+      "expected": true,
+      "params": {
+        "class_id": "sword",
+        "container_id": "grid-007",
+        "x": 1,
+        "y": 1
+      },
+      "templates": [
+        "2d_grid"
+      ],
+      "condition_id": "grid2d_cell_instance_is_class",
+      "check_id": "grid2d_cell_instance_is_class"
+    },
+    {
+      "comparator": "equals",
+      "example_description": "Read the minimum X bound for a continuous 1D container.",
+      "expected": 0,
+      "params": {
+        "container_id": "line-01"
+      },
+      "templates": [
+        "continuous_1d"
+      ],
+      "condition_id": "continuous1d_min_x_scaled",
+      "check_id": "continuous1d_min_x_scaled"
+    },
+    {
+      "comparator": "equals",
+      "example_description": "Read the maximum X bound for a continuous 1D container.",
+      "expected": 10000,
+      "params": {
+        "container_id": "line-01"
+      },
+      "templates": [
+        "continuous_1d"
+      ],
+      "condition_id": "continuous1d_max_x_scaled",
+      "check_id": "continuous1d_max_x_scaled"
+    },
+    {
+      "comparator": "equals",
+      "example_description": "Return overlap count for a 1D placement candidate.",
+      "expected": 0,
+      "params": {
+        "center_x_scaled": 1200,
+        "container_id": "line-01",
+        "span_length_scaled": 400
+      },
+      "templates": [
+        "continuous_1d"
+      ],
+      "condition_id": "continuous1d_overlap_count",
+      "check_id": "continuous1d_overlap_count"
+    },
+    {
+      "comparator": "equals",
+      "example_description": "Read the minimum X bound for a continuous 2D container.",
+      "expected": 0,
+      "params": {
+        "container_id": "floor-01"
+      },
+      "templates": [
+        "continuous_2d"
+      ],
+      "condition_id": "continuous2d_min_x_scaled",
+      "check_id": "continuous2d_min_x_scaled"
+    },
+    {
+      "comparator": "equals",
+      "example_description": "Read the maximum X bound for a continuous 2D container.",
+      "expected": 10000,
+      "params": {
+        "container_id": "floor-01"
+      },
+      "templates": [
+        "continuous_2d"
+      ],
+      "condition_id": "continuous2d_max_x_scaled",
+      "check_id": "continuous2d_max_x_scaled"
+    },
+    {
+      "comparator": "equals",
+      "example_description": "Read the minimum Y bound for a continuous 2D container.",
+      "expected": 0,
+      "params": {
+        "container_id": "floor-01"
+      },
+      "templates": [
+        "continuous_2d"
+      ],
+      "condition_id": "continuous2d_min_y_scaled",
+      "check_id": "continuous2d_min_y_scaled"
+    },
+    {
+      "comparator": "equals",
+      "example_description": "Read the maximum Y bound for a continuous 2D container.",
+      "expected": 8000,
+      "params": {
+        "container_id": "floor-01"
+      },
+      "templates": [
+        "continuous_2d"
+      ],
+      "condition_id": "continuous2d_max_y_scaled",
+      "check_id": "continuous2d_max_y_scaled"
+    },
+    {
+      "comparator": "equals",
+      "example_description": "Return overlap count for a 2D placement candidate.",
+      "expected": 0,
+      "params": {
+        "center_x_scaled": 1200,
+        "center_y_scaled": 800,
+        "container_id": "floor-01",
+        "rect_height_scaled": 100,
+        "rect_width_scaled": 200,
+        "rotation_millideg": 0
+      },
+      "templates": [
+        "continuous_2d"
+      ],
+      "condition_id": "continuous2d_overlap_count",
+      "check_id": "continuous2d_overlap_count"
+    }
+  ],
+  "provider_id": "assetcore_read",
+  "scenario_id": "assetcore-interop-full"
+}
