@@ -14,26 +14,19 @@ Dependencies:
 
 Languages: [English](README.md) | [Català](README.ca.md)
 
-Note: Work is ongoing to translate documentation into other languages. Please see
+Note: Work is ongoing to translate documentation into additional languages. Please see
 [assetcore.io/decision-gate](https://assetcore.io/decision-gate) for currently supported languages.
 
-Decision Gate is a deterministic checkpoint and requirement-evaluation system
-for gated steps and controlled disclosure. It evaluates evidence-backed gates,
-decides whether conditions are met, and emits auditable decisions. In an
-operational sense, it is geared for LLM/task evaluation.
+Agents can call programs as tools, but they are stochastic actors. They cannot
+prove they followed requirements, cannot guarantee the same outcome twice, and
+cannot show a verifiable execution trail.
 
-The original motivation came from an experiment with AssetCore: I needed to
-progressively disclose information to LLMs as external conditions changed.
-After grappling with that problem for a few days, I realized the
-[ret-logic crate](ret-logic/README.md) I had already built could model the
-general problem. This repo is the result. If you want the integration details,
-start with [Docs/integrations/assetcore/README.md](Docs/integrations/assetcore/README.md).
+If an agent cannot prove why it did something, you cannot ship it in regulated
+or high-risk workflows.
 
-My hope is that it will be useful for improving the reliability, security, and
-performance of software (not just LLMs) across many industries. Given the
-mathematical nature of the problem, the core model is stable; near-term work
-focuses on ergonomics and a broader provider ecosystem. For more, see
-[Docs/roadmap/README.md](Docs/roadmap/README.md).
+Decision Gate closes that gap with deterministic, program-grade formalism:
+explicit checkpoints that evaluate evidence and produce auditable decisions.
+Any process that produces data and has a desired end state can be gated.
 
 ## Table of Contents
 
@@ -60,7 +53,7 @@ focuses on ergonomics and a broader provider ecosystem. For more, see
 - [Security](#security)
 - [Formatting](#formatting)
 - [Contributing](#contributing)
-- [Authors](#authors)
+- [Author's Note](#authors-note)
 - [References](#references)
 
 ## Overview
@@ -628,7 +621,20 @@ This project is not currently accepting pull requests.
 Please open an issue if you want to report a bug, propose a feature, or start a
 discussion. See `CONTRIBUTING.md` for details.
 
-## Authors
+## Author's Note
+
+The original motivation came from an experiment with AssetCore: I needed to
+progressively disclose information to LLMs as external conditions changed.
+After grappling with that problem for a few days, I realized the
+[ret-logic crate](ret-logic/README.md) I had already built could model the
+general problem. This repo is the result. If you want the integration details,
+start with [Docs/integrations/assetcore/README.md](Docs/integrations/assetcore/README.md).
+
+My hope is that it will be useful for improving the reliability, security, and
+performance of software (not just LLMs) across many industries. Given the
+mathematical nature of the problem, the core model is stable; near-term work
+focuses on ergonomics and a broader provider ecosystem. For more, see
+[Docs/roadmap/README.md](Docs/roadmap/README.md).
 
 Decision Gate is built by Michael "Yung Bidness" Campbell.
 

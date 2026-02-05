@@ -21,7 +21,8 @@
       "Bash(cargo deny check:*)",
       "Bash(git log:*)",
       "Bash(sort:*)",
-      "Bash(cargo nextest run:*)"
+      "Bash(cargo nextest run:*)",
+      "Bash(xargs -I {} sh -c 'echo \"\"=== {} ===\"\" && head -20 \"\"{}\"\"')"
     ]
   }
 }

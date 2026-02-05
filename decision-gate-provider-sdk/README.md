@@ -12,6 +12,11 @@ Dependencies:
 
 # Decision Gate Provider SDK
 
+> **Warning: Unstable and Under Active Development**
+> This SDK is experimental and may change at any time without notice.
+> It is not production-ready. No guarantees are made for correctness,
+> security, compatibility, performance, or support. Use at your own risk.
+
 Language templates for building MCP evidence providers that implement the
 `evidence_query` tool used by Decision Gate.
 

@@ -16,26 +16,20 @@ Idiomes: [Anglès](README.md) | Català
 
 **Nota**: aquesta versió és una traducció automàtica. Pot contenir errors o matisos imprecisos.
 
-Nota: s'està treballant per traduir la documentació a altres llengües. Consulteu
+Nota: s'està treballant per traduir la documentació a més llengües. Consulteu
 [assetcore.io/decision-gate](https://assetcore.io/decision-gate) per veure les llengües disponibles actualment.
 
-Decision Gate és un sistema determinista de punts de control i d'avaluació de requisits
-per a passos amb porta i divulgació controlada. Avalua portes basades en evidència,
-decideix si es compleixen les condicions i emet decisions auditables. En un sentit operatiu,
-està orientat a l'avaluació de tasques/LLM.
+Els agents poden cridar programes com a eines, però són actors estocàstics. No poden
+demostrar que han seguit requisits, no poden garantir el mateix resultat dues vegades
+i no poden mostrar un rastre d'execució verificable.
 
-La motivació original va venir d'un experiment amb AssetCore: necessitava divulgar
-informació de manera progressiva a LLMs a mesura que canviaven les condicions externes.
-Després de bregar amb el problema durant uns quants dies, vaig adonar-me que el
-[crate ret-logic](ret-logic/README.md) que ja havia construït podia modelar el problema
-general. Aquest repositori n'és el resultat. Si vols els detalls d'integració,
-comença per [Docs/integrations/assetcore/README.md](Docs/integrations/assetcore/README.md).
+Si un agent no pot demostrar per què va fer alguna cosa, no es pot desplegar en
+fluxos de treball regulats o d'alt risc.
 
-Espero que sigui útil per millorar la fiabilitat, la seguretat i el rendiment del
-programari (no només LLMs) en molts sectors. Donada la naturalesa matemàtica del
-problema, el model nucli és estable; el treball a curt termini se centra en l'ergonomia
-i en un ecosistema de proveïdors més ampli. Per a més informació, consulta
-[Docs/roadmap/README.md](Docs/roadmap/README.md).
+Decision Gate tanca aquest buit amb formalismes deterministes de grau programari:
+punts de control explícits que avaluen evidència i produeixen decisions auditables.
+Qualsevol procés que produeixi dades i tingui un estat final desitjat pot quedar
+sotmès a portes.
 
 ## Taula de continguts
 
@@ -62,7 +56,7 @@ i en un ecosistema de proveïdors més ampli. Per a més informació, consulta
 - [Seguretat](#seguretat)
 - [Format](#format)
 - [Contribuir](#contribuir)
-- [Autors](#autors)
+- [Nota de l'autor](#nota-de-lautor)
 - [Referències](#referències)
 
 ## Visió general
@@ -627,7 +621,20 @@ Aquest projecte no accepta pull requests actualment.
 Si us plau, obriu un issue si voleu reportar un error, proposar una funcionalitat o iniciar una
 discussió. Vegeu `CONTRIBUTING.md` per a més detalls.
 
-## Autors
+## Nota de l'autor
+
+La motivació original va venir d'un experiment amb AssetCore: necessitava divulgar
+informació de manera progressiva a LLMs a mesura que canviaven les condicions externes.
+Després de bregar amb el problema durant uns quants dies, vaig adonar-me que el
+[crate ret-logic](ret-logic/README.md) que ja havia construït podia modelar el problema
+general. Aquest repositori n'és el resultat. Si vols els detalls d'integració,
+comença per [Docs/integrations/assetcore/README.md](Docs/integrations/assetcore/README.md).
+
+Espero que sigui útil per millorar la fiabilitat, la seguretat i el rendiment del
+programari (no només LLMs) en molts sectors. Donada la naturalesa matemàtica del
+problema, el model nucli és estable; el treball a curt termini se centra en l'ergonomia
+i en un ecosistema de proveïdors més ampli. Per a més informació, consulta
+[Docs/roadmap/README.md](Docs/roadmap/README.md).
 
 Decision Gate està construït per Michael "Yung Bidness" Campbell.
 

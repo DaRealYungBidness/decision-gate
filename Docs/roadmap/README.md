@@ -45,11 +45,11 @@ Priority indicates importance, not sequence. Work can happen out of order.
 
 Status indicates active state, not priority.
 
-| Status      | Meaning                                                                         |
-| ----------- | ------------------------------------------------------------------------------- |
-| Planned     | Tracked and intended, but not active.                                           |
-| In progress | Actively being worked.                                                          |
-| Ongoing     | Continuous or recurring work without a clear end state.                         |
+| Status      | Meaning                                                                            |
+| ----------- | ---------------------------------------------------------------------------------- |
+| Planned     | Tracked and intended, but not active.                                              |
+| In progress | Actively being worked.                                                             |
+| Ongoing     | Continuous or recurring work without a clear end state.                            |
 | Complete    | Implemented and validated; completed items may be purged from this list over time. |
 
 ## P0) Highest Priority
@@ -73,14 +73,14 @@ Status indicates active state, not priority.
 
 ## P2) Medium Priority
 
-| Item                                                     | Why                                                               | Notes                                                                   | Status  |
-| -------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------- | ------- |
+| Item                                                        | Why                                                               | Notes                                                                                                                                   | Status  |
+| ----------------------------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------- |
 | Level 1 portable verification (offline evidence signatures) | Enables offline authenticity checks for evidence snapshots.       | Roadmap: [F:Docs/roadmap/decision_gate_portable_verification_level1.md L1-L200](decision_gate_portable_verification_level1.md#L1-L200). | Planned |
-| Scenario examples for hold, unknown, and branch outcomes | Authors need precise examples for tri-state routing.              | Add canonical scenarios under `Docs/generated/decision-gate/examples/`. | Planned |
-| Agent progress vs plan state guidance                    | Keep agent planning external while modeling progress as evidence. | Document guidance for common workflows.                                 | Planned |
-| Runpack verification with evidence replay (optional)     | Adds an audit mode when evidence sources are stable.              | Optional CLI or MCP flow.                                               | Planned |
-| Public integration docs hygiene                          | OSS docs should not depend on private repo content.               | Remove or replace AssetCore placeholders with OSS-safe examples.        | Planned |
-| AssetCore example and deployment placeholders            | Avoid public TODOs that imply private dependencies.               | Remove or replace if OSS-safe guidance is available.                    | Planned |
+| Scenario examples for hold, unknown, and branch outcomes    | Authors need precise examples for tri-state routing.              | Add canonical scenarios under `Docs/generated/decision-gate/examples/`.                                                                 | Planned |
+| Agent progress vs plan state guidance                       | Keep agent planning external while modeling progress as evidence. | Document guidance for common workflows.                                                                                                 | Planned |
+| Runpack verification with evidence replay (optional)        | Adds an audit mode when evidence sources are stable.              | Optional CLI or MCP flow.                                                                                                               | Planned |
+| Public integration docs hygiene                             | OSS docs should not depend on private repo content.               | Remove or replace AssetCore placeholders with OSS-safe examples.                                                                        | Planned |
+| AssetCore example and deployment placeholders               | Avoid public TODOs that imply private dependencies.               | Remove or replace if OSS-safe guidance is available.                                                                                    | Planned |
 
 ## P3) Low Priority
 
