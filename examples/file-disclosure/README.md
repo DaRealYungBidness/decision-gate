@@ -5,8 +5,8 @@ Document: examples/file-disclosure
 Description: File-backed payload disclosure using broker sources/sinks.
 Purpose: Demonstrate external payload resolution via the broker.
 Dependencies:
-  - ../../decision-gate-core/README.md
-  - ../../decision-gate-broker/README.md
+  - ../../crates/decision-gate-core/README.md
+  - ../../crates/decision-gate-broker/README.md
 ============================================================================
 -->
 

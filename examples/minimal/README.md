@@ -5,7 +5,7 @@ Document: examples/minimal
 Description: Minimal end-to-end scenario lifecycle example.
 Purpose: Demonstrate ControlPlane usage with in-memory adapters.
 Dependencies:
-  - ../../decision-gate-core/README.md
+  - ../../crates/decision-gate-core/README.md
 ============================================================================
 -->
 

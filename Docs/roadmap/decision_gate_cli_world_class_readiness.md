@@ -88,8 +88,8 @@ Out of scope:
 **Status:** Implemented.
 
 **Evidence (current files):**
-- `decision-gate-cli/src/main.rs` (MCP commands + typed tool wrappers)
-- `decision-gate-core/src/tooling.rs` (18 tools list)
+- `crates/decision-gate-cli/src/main.rs` (MCP commands + typed tool wrappers)
+- `crates/decision-gate-core/src/tooling.rs` (18 tools list)
 
 **Notes:**
 - Generic MCP client commands (`mcp tools list/call`, `mcp resources list/read`) exist.
@@ -103,8 +103,8 @@ Out of scope:
 **Status:** Implemented.
 
 **Evidence (current files):**
-- `decision-gate-cli/src/mcp_client.rs`
-- `decision-gate-cli/src/main.rs`
+- `crates/decision-gate-cli/src/mcp_client.rs`
+- `crates/decision-gate-cli/src/main.rs`
 
 **Notes:**
 - Transport selection is explicit via CLI flags.
@@ -118,8 +118,8 @@ Out of scope:
 **Status:** Implemented.
 
 **Evidence (current files):**
-- `decision-gate-cli/src/main.rs` (auth flags + auth profile loading)
-- `decision-gate-cli/src/mcp_client.rs` (headers)
+- `crates/decision-gate-cli/src/main.rs` (auth flags + auth profile loading)
+- `crates/decision-gate-cli/src/mcp_client.rs` (headers)
 
 **Notes:**
 - Bearer token and client subject headers are supported.
@@ -132,7 +132,7 @@ Out of scope:
 **Status:** Implemented.
 
 **Evidence (current files):**
-- `decision-gate-cli/src/main.rs` (`schema register/list/get`)
+- `crates/decision-gate-cli/src/main.rs` (`schema register/list/get`)
 
 ---
 
@@ -141,7 +141,7 @@ Out of scope:
 **Status:** Implemented.
 
 **Evidence (current files):**
-- `decision-gate-cli/src/main.rs` (`provider list/contract/check-schema`)
+- `crates/decision-gate-cli/src/main.rs` (`provider list/contract/check-schema`)
 
 ---
 
@@ -150,7 +150,7 @@ Out of scope:
 **Status:** Implemented.
 
 **Evidence (current files):**
-- `decision-gate-cli/src/main.rs` (`docs search/list/read`)
+- `crates/decision-gate-cli/src/main.rs` (`docs search/list/read`)
 
 ---
 
@@ -163,7 +163,7 @@ Out of scope:
   optionally upload/read from object storage with `--storage`.
 
 **Evidence (current files):**
-- `decision-gate-cli/src/main.rs` (`ObjectStoreRunpackBackend`, `--storage`).
+- `crates/decision-gate-cli/src/main.rs` (`ObjectStoreRunpackBackend`, `--storage`).
 
 ---
 
@@ -190,7 +190,7 @@ Out of scope:
 **Status:** Implemented.
 
 **Evidence (current files):**
-- `decision-gate-cli/src/main.rs` (`contract generate/check`, `sdk generate/check`)
+- `crates/decision-gate-cli/src/main.rs` (`contract generate/check`, `sdk generate/check`)
 
 ---
 
@@ -222,9 +222,9 @@ Out of scope:
 **Status:** Implemented.
 
 **Evidence (current files):**
-- `decision-gate-cli/src/i18n.rs` (en/ca catalogs)
-- `decision-gate-cli/src/tests/i18n.rs` (catalog parity tests)
-- `decision-gate-cli/src/main.rs` (disclaimer + language selection)
+- `crates/decision-gate-cli/src/i18n.rs` (en/ca catalogs)
+- `crates/decision-gate-cli/src/tests/i18n.rs` (catalog parity tests)
+- `crates/decision-gate-cli/src/main.rs` (disclaimer + language selection)
 
 ---
 

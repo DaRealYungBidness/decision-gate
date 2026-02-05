@@ -9,10 +9,10 @@ Purpose: Provide a spec to hand to an LLM for implementing a scenario builder
 Dependencies:
   - Docs/architecture/comparator_validation_architecture.md
   - Docs/generated/decision-gate/schemas/scenario.schema.json
-  - decision-gate-core/src/core/spec.rs
-  - decision-gate-mcp/src/capabilities.rs
-  - decision-gate-mcp/src/validation.rs
-  - ret-logic/src/dsl.rs
+  - crates/decision-gate-core/src/core/spec.rs
+  - crates/decision-gate-mcp/src/capabilities.rs
+  - crates/decision-gate-mcp/src/validation.rs
+  - crates/ret-logic/src/dsl.rs
 ============================================================================
 -->
 
@@ -46,7 +46,7 @@ ScenarioSpec JSON that passes strict validation.
 
 ## Terminology
 
-- ScenarioSpec: canonical scenario definition (`decision-gate-core/src/core/spec.rs`).
+- ScenarioSpec: canonical scenario definition (`crates/decision-gate-core/src/core/spec.rs`).
 - ConditionSpec: provider query + comparator + expected value definition.
 - GateSpec: RET requirement tree over condition identifiers.
 - StageSpec: ordered stages, gates, packets, and advancement rules.
@@ -63,10 +63,10 @@ The builder must load the same sources of truth used at runtime:
 - Provider contracts:
   - Built-ins: `Docs/generated/decision-gate/providers.json`
   - External: provider `capabilities_path` JSON loaded by MCP config
-    (`decision-gate-mcp/src/capabilities.rs`)
-- Strict validation rules: `decision-gate-mcp/src/validation.rs`
-- Comparator semantics: `decision-gate-core/src/runtime/comparator.rs`
-- Data shape registry schema rules: `decision-gate-core/src/core/data_shape.rs`
+    (`crates/decision-gate-mcp/src/capabilities.rs`)
+- Strict validation rules: `crates/decision-gate-mcp/src/validation.rs`
+- Comparator semantics: `crates/decision-gate-core/src/runtime/comparator.rs`
+- Data shape registry schema rules: `crates/decision-gate-core/src/core/data_shape.rs`
 
 ## Output
 
@@ -115,7 +115,7 @@ Expected value rules:
   - `gate_id`
   - `requirement`: RET tree over condition identifiers.
   - optional `trust`.
-- Use ret-logic DSL (`ret-logic/src/dsl.rs`) or build trees directly.
+- Use ret-logic DSL (`crates/ret-logic/src/dsl.rs`) or build trees directly.
 - Validate that all conditions referenced by gates exist.
 
 5) Stage authoring

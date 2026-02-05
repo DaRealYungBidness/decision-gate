@@ -5,7 +5,7 @@ Document: Requirement Evaluation Trees
 Description: Requirement algebra used for Decision Gate gates.
 Purpose: Explain RET structure, operators, and tri-state evaluation.
 Dependencies:
-  - ret-logic/README.md
+  - crates/ret-logic/README.md
   - decision-gate-core runtime gate evaluation
 ============================================================================
 -->
@@ -265,7 +265,7 @@ Outcome: unknown (gate holds until coverage is available)
 | [true, true, unknown] | 2 | **true** | 2 true >= min (already met) |
 | [false, false, false] | 2 | **false** | 0 true, impossible |
 
-> [Developer]: See [ret-logic crate](../../ret-logic/README.md) for implementation. RequireGroup counts true/false independently (unknown is neither).
+> [Developer]: See [ret-logic crate](../../crates/ret-logic/README.md) for implementation. RequireGroup counts true/false independently (unknown is neither).
 
 ---
 
@@ -468,7 +468,7 @@ Decision Gate uses **Strong Kleene logic** (tri-state):
 - Short-circuits when possible (`And(false, unknown)` -> `false`)
 - Balances fail-closed with usability
 
-> [Developer]: See [ret-logic/src/lib.rs](../../ret-logic/src/lib.rs) for the evaluation algorithm.
+> [Developer]: See [crates/ret-logic/src/lib.rs](../../crates/ret-logic/src/lib.rs) for the evaluation algorithm.
 
 ---
 

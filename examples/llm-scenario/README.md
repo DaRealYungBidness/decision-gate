@@ -5,8 +5,8 @@ Document: examples/llm-scenario
 Description: Disclosure flow into a callback sink (LLM simulation).
 Purpose: Demonstrate packet dispatch into a custom callback target.
 Dependencies:
-  - ../../decision-gate-core/README.md
-  - ../../decision-gate-broker/README.md
+  - ../../crates/decision-gate-core/README.md
+  - ../../crates/decision-gate-broker/README.md
 ============================================================================
 -->
 

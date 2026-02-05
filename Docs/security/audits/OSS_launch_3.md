@@ -68,7 +68,7 @@ None.
 None.
 
 System-test gaps: No system-tests cover the SDK generator CLI or output drift
-checks; only crate-level tests exist in `decision-gate-sdk-gen/tests/`.
+checks; only crate-level tests exist in `crates/decision-gate-sdk-gen/tests/`.
 
 ### Closed Findings
 

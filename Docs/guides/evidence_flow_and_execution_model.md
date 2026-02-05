@@ -6,10 +6,10 @@ Description: End-to-end explanation of how Decision Gate handles evidence,
              evaluation, and trust.
 Purpose: Provide a precise mental model for data flow and evaluation.
 Dependencies:
-  - decision-gate-core/src/runtime/engine.rs
-  - decision-gate-mcp/src/tools.rs
-  - decision-gate-mcp/src/evidence.rs
-  - decision-gate-providers/src/registry.rs
+  - crates/decision-gate-core/src/runtime/engine.rs
+  - crates/decision-gate-mcp/src/tools.rs
+  - crates/decision-gate-mcp/src/evidence.rs
+  - crates/decision-gate-providers/src/registry.rs
 ============================================================================
 -->
 

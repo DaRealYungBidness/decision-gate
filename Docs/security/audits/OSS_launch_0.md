@@ -30,9 +30,9 @@ None.
    - Impact: `FileSource::fetch` read entire files; `HttpSource::fetch` loaded
      full responses; `InlineSource::fetch` decoded base64 into an unbounded
      `Vec<u8>`.
-   - Affected files: `decision-gate-broker/src/source/file.rs`,
-     `decision-gate-broker/src/source/http.rs`,
-     `decision-gate-broker/src/source/inline.rs`.
+   - Affected files: `crates/decision-gate-broker/src/source/file.rs`,
+     `crates/decision-gate-broker/src/source/http.rs`,
+     `crates/decision-gate-broker/src/source/inline.rs`.
    - Resolution: added hard byte caps aligned with payload limits, enforced
      size checks before decoding/reading, and added fail-closed tests.
 
@@ -49,7 +49,7 @@ None.
    - Severity: High (resource exhaustion / DoS).
    - Impact: `runpack export` spec/state reads, `runpack verify` manifest reads,
      and authoring input reads used unbounded `fs::read`/`read_to_string`.
-   - Affected files: `decision-gate-cli/src/main.rs`.
+   - Affected files: `crates/decision-gate-cli/src/main.rs`.
    - Resolution: added hard byte limits and fail-closed errors for CLI input
      files aligned with runpack artifact sizing.
 
@@ -58,8 +58,8 @@ None.
    - Severity: Medium (path traversal / overwrite risk).
    - Impact: `runpack export --manifest-name ../...` could write manifests
      outside the intended output directory.
-   - Affected files: `decision-gate-mcp/src/runpack.rs`,
-     `decision-gate-cli/src/main.rs`.
+   - Affected files: `crates/decision-gate-mcp/src/runpack.rs`,
+     `crates/decision-gate-cli/src/main.rs`.
    - Resolution: validate manifest paths as relative, non-traversing, and
      within length limits; added traversal rejection tests.
 
@@ -77,8 +77,8 @@ None.
    - Impact: `RunpackVerifier::verify_manifest` reads full artifacts into
      memory and hashes them without size limits; malicious runpacks can exhaust
      memory during offline verification.
-   - Affected files: `decision-gate-core/src/runtime/runpack.rs`,
-     `decision-gate-core/src/interfaces/mod.rs`.
+   - Affected files: `crates/decision-gate-core/src/runtime/runpack.rs`,
+     `crates/decision-gate-core/src/interfaces/mod.rs`.
    - Resolution: added `read_with_limit` enforcement with hard caps and a
      fail-closed verifier test.
 
@@ -88,7 +88,7 @@ None.
    - Impact: `normalize_evidence_result` and `payload_hash` will hash arbitrary
      byte payloads, allowing untrusted providers or submissions to cause
      unbounded memory and CPU usage.
-   - Affected files: `decision-gate-core/src/runtime/engine.rs`.
+   - Affected files: `crates/decision-gate-core/src/runtime/engine.rs`.
    - Resolution: added hard byte caps with typed errors and fail-closed tests.
 
 ## decision-gate-mcp
@@ -103,8 +103,8 @@ None.
    - Status: Closed.
    - Severity: Medium (availability / DoS).
    - Impact: `McpProviderClient` used a blocking HTTP client without timeouts.
-   - Affected files: `decision-gate-mcp/src/evidence.rs`,
-     `decision-gate-config/src/config.rs`.
+   - Affected files: `crates/decision-gate-mcp/src/evidence.rs`,
+     `crates/decision-gate-config/src/config.rs`.
    - Resolution: added per-provider HTTP timeouts with bounded validation and
      fail-closed error handling plus system-test coverage.
 
@@ -113,8 +113,8 @@ None.
    - Severity: High (resource exhaustion / DoS).
    - Impact: stdio transport and external provider framing accepted unbounded
      `Content-Length` values, allowing oversized allocations.
-   - Affected files: `decision-gate-mcp/src/server.rs`,
-     `decision-gate-mcp/src/evidence.rs`.
+   - Affected files: `crates/decision-gate-mcp/src/server.rs`,
+     `crates/decision-gate-mcp/src/evidence.rs`.
    - Resolution: enforced `max_body_bytes` for stdio server requests and added
      hard caps on provider responses (stdio and HTTP) with fail-closed tests.
 
@@ -150,7 +150,7 @@ None.
    - Severity: High (SSRF / allowlist bypass).
    - Impact: redirect responses could send requests to disallowed hosts even
      when `allowed_hosts` was configured.
-   - Affected files: `decision-gate-providers/src/http.rs`.
+   - Affected files: `crates/decision-gate-providers/src/http.rs`.
    - Resolution: disabled automatic redirects in the HTTP provider client and
      added a regression test to assert 302 responses are returned directly.
 
@@ -167,7 +167,7 @@ None.
    - Severity: High (resource exhaustion / DoS).
    - Impact: `SqliteRunStateStore::load_state` read `state_json` blobs without a
      byte limit; a tampered SQLite file could force large allocations.
-   - Affected files: `decision-gate-store-sqlite/src/store.rs`.
+   - Affected files: `crates/decision-gate-store-sqlite/src/store.rs`.
    - Resolution: added a hard byte cap aligned with runpack artifact limits,
      rejected oversized blobs before loading, and added a fail-closed oversized
      blob test.
@@ -185,7 +185,7 @@ None.
    - Severity: Medium (resource exhaustion / DoS).
    - Impact: `ron_utils::load_from_file` and `ron_utils::validate_file` used
      unbounded `fs::read_to_string` on attacker-controlled paths.
-   - Affected files: `ret-logic/src/serde_support.rs`.
+   - Affected files: `crates/ret-logic/src/serde_support.rs`.
    - Resolution: added `MAX_RON_FILE_BYTES` cap with bounded reads and
      fail-closed errors for oversized files.
 
@@ -195,7 +195,7 @@ None.
    - Severity: High (resource exhaustion / DoS).
    - Impact: recursive descent and token buffering occurred before depth
      validation.
-   - Affected files: `ret-logic/src/dsl.rs`.
+   - Affected files: `crates/ret-logic/src/dsl.rs`.
    - Resolution: enforced maximum input size and nesting depth during parsing
      with typed, fail-closed errors and added regression tests.
 
@@ -204,8 +204,8 @@ None.
    - Status: Closed.
    - Severity: Medium (availability / correctness).
    - Impact: nested plans beyond the executor stack size returned `false`.
-   - Affected files: `ret-logic/src/executor.rs`,
-     `ret-logic/src/serde_support.rs`.
+   - Affected files: `crates/ret-logic/src/executor.rs`,
+     `crates/ret-logic/src/serde_support.rs`.
    - Resolution: increased executor stack depth beyond the default validation
      limit so validated plans no longer underflow the executor stack.
 
@@ -213,6 +213,6 @@ None.
    - Status: Closed.
    - Severity: Low (resource leak).
    - Impact: repeated `ExecutorBuilder::build` calls could leak memory.
-   - Affected files: `ret-logic/src/executor.rs`.
+   - Affected files: `crates/ret-logic/src/executor.rs`.
    - Resolution: removed the leak by passing owned dispatch tables into the
      executor builder and tests now use owned tables.

@@ -35,7 +35,7 @@ Applies to:
 Use the file/line cross-reference format below. Tooling linkifies these into
 clickable GitHub links for maximum usability.
 
-- Example: `[F:decision-gate-mcp/src/auth.rs L217-L296](decision-gate-mcp/src/auth.rs#L217-L296)`
+- Example: `[F:crates/decision-gate-mcp/src/auth.rs L217-L296](crates/decision-gate-mcp/src/auth.rs#L217-L296)`
 
 ## Authoring Notes
 - Prefer explicit language identifiers on code fences when practical.

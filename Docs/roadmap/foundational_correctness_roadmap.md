@@ -118,15 +118,15 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 **Implementation**
 
 - System-tests suite: `system-tests/tests/suites/metamorphic.rs`.
-- Core unit tests: `decision-gate-core/tests/metamorphic_determinism.rs`.
+- Core unit tests: `crates/decision-gate-core/tests/metamorphic_determinism.rs`.
 
 **Existing**
 
-- Core: canonical gate-eval evidence ordering (`decision-gate-core/tests/metamorphic_determinism.rs`).
+- Core: canonical gate-eval evidence ordering (`crates/decision-gate-core/tests/metamorphic_determinism.rs`).
 - System: concurrent runs yield identical runpack hashes (`system-tests/tests/suites/metamorphic.rs`).
 - Related reliability coverage: trigger/submission idempotency (`system-tests/tests/suites/reliability.rs`).
 - Core: deterministic condition evaluation shuffles preserve runpack hash and evidence order
-  (`decision-gate-core/tests/metamorphic_determinism.rs`).
+  (`crates/decision-gate-core/tests/metamorphic_determinism.rs`).
 - System: evidence ordering is canonical across multiple trigger evaluations
   (`system-tests/tests/suites/metamorphic.rs`).
 - System: concurrent trigger ordering produces deterministic records
@@ -152,7 +152,7 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 **Implementation**
 
 - Contract docs in `Docs/generated/decision-gate/*`.
-- Tests in `decision-gate-core/tests/hashing.rs`.
+- Tests in `crates/decision-gate-core/tests/hashing.rs`.
 
 ---
 
@@ -169,8 +169,8 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 
 **Existing**
 
-- `decision-gate-core/tests/precheck.rs`
-- `decision-gate-core/tests/trust_lane.rs`
+- `crates/decision-gate-core/tests/precheck.rs`
+- `crates/decision-gate-core/tests/trust_lane.rs`
 - `system-tests/tests/suites/precheck.rs`
 - `system-tests/tests/suites/validation.rs`
 
@@ -200,7 +200,7 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 **Coverage (so far)**
 
 - JSON provider: unit tests for path traversal, size limits, invalid JSON/YAML, JSONPath fuzz
-  (`decision-gate-providers/tests/json_provider.rs`, `decision-gate-providers/tests/proptest_json.rs`)
+  (`crates/decision-gate-providers/tests/json_provider.rs`, `crates/decision-gate-providers/tests/proptest_json.rs`)
   + system-test symlink escape coverage.
 - HTTP provider: HTTPS enforcement, allowlist/SSRF prevention, redirect handling/loops, timeouts,
   response size limits, TLS failure, slow-loris, truncation, and body hash check tests.
@@ -233,9 +233,9 @@ Every gate is **launch-blocking**. "Done" means all gates pass.
 
 **Existing**
 
-- `decision-gate-core/tests/runpack.rs`
-- `decision-gate-mcp/tests/runpack_io.rs`
-- `decision-gate-cli/tests/runpack_commands.rs`
+- `crates/decision-gate-core/tests/runpack.rs`
+- `crates/decision-gate-mcp/tests/runpack_io.rs`
+- `crates/decision-gate-cli/tests/runpack_commands.rs`
 - `system-tests/tests/suites/runpack.rs` (export/verify + object store)
 - `system-tests/tests/suites/sqlite_registry_runpack.rs`
 - Back-compat fixture verification against committed `v1` runpack artifacts
@@ -390,7 +390,7 @@ safe logging across failure paths.
 | 1    | Cross-OS determinism             | ✅     | `golden_runpack_cross_os` workflow + fixtures |
 | 1    | Runpack verify transcript committed | ❌   | Golden fixtures include `verifier_report.json` only |
 | 2    | Metamorphic determinism          | ✅     | Core evidence order + deterministic shuffle + system trigger ordering |
-| 3    | Canonicalization contract tests  | ✅     | `decision-gate-core/tests/hashing.rs`   |
+| 3    | Canonicalization contract tests  | ✅     | `crates/decision-gate-core/tests/hashing.rs`   |
 | 4    | Trust lanes enforced             | ✅     | Core + system tests                     |
 | 5    | Provider hardening (built-ins)   | ✅     | Unit + system tests + chaos matrix      |
 | 5    | External MCP adversarial harness | ✅     | MCP provider + templates + timeouts + hash tamper |

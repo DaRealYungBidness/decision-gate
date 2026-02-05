@@ -5,7 +5,7 @@ Document: examples/ci-gate
 Description: CI status + approval gating example.
 Purpose: Demonstrate evidence conditions for CI/CD checks.
 Dependencies:
-  - ../../decision-gate-core/README.md
+  - ../../crates/decision-gate-core/README.md
 ============================================================================
 -->
 

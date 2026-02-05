@@ -8,7 +8,7 @@ Purpose: Provide a practical, step-by-step guide for operators and integrators.
 Dependencies:
   - Docs/configuration/decision-gate.toml.md
   - Docs/architecture/decision_gate_docs_search_architecture.md
-  - decision-gate-mcp/src/docs.rs
+  - crates/decision-gate-mcp/src/docs.rs
 ============================================================================
 -->
 

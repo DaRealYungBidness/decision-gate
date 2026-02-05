@@ -30,7 +30,7 @@ Each file must begin with a path comment followed by a brief metadata block that
 ### Example
 
 ```rust
-// decision-gate-core/src/runtime/runpack.rs
+// crates/decision-gate-core/src/runtime/runpack.rs
 // ============================================================================
 // Module: Decision Gate Runpack Builder and Verifier
 // Description: Builds deterministic runpack artifacts and verifies them offline.

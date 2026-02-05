@@ -6,8 +6,8 @@ MCP HTTP responses. They are designed to be deterministic under parallel test
 execution and to fail closed on malformed or hostile inputs.
 
 ## Scope
-Applies to: `decision-gate-cli/src/tests/interop.rs` and the interop HTTP client
-in `decision-gate-cli/src/interop.rs`.
+Applies to: `crates/decision-gate-cli/src/tests/interop.rs` and the interop HTTP client
+in `crates/decision-gate-cli/src/interop.rs`.
 
 ## Security Invariants (Traceability)
 - **Strict size limits before JSON parsing**: responses at or below the limit

@@ -13,7 +13,8 @@ Dependencies:
 # Decision Gate
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Rust](https://img.shields.io/badge/rust-1.92.0-orange.svg)](rust-toolchain.toml)
+[![MSRV](https://img.shields.io/badge/msrv-1.92-orange.svg)](rust-toolchain.toml)
+[![Edition](https://img.shields.io/badge/edition-2024-blue.svg)](crates/decision-gate-core/Cargo.toml)
 
 Languages: [English](README.md) | [Català](README.ca.md)
 
@@ -421,7 +422,7 @@ Runpacks can be exported and verified offline after execution.
 
 ## Built-in Providers (Check Reference)
 
-These are the default providers shipped in `decision-gate-providers/src`.
+These are the default providers shipped in `crates/decision-gate-providers/src`.
 
 ### time
 
@@ -629,7 +630,7 @@ discussion. See `CONTRIBUTING.md` for details.
 The original motivation came from an experiment with AssetCore: I needed to
 progressively disclose information to LLMs as external conditions changed.
 After grappling with that problem for a few days, I realized the
-[ret-logic crate](ret-logic/README.md) I had already built could model the
+[ret-logic crate](crates/ret-logic/README.md) I had already built could model the
 general problem. This repo is the result. If you want the integration details,
 start with [Docs/integrations/assetcore/README.md](Docs/integrations/assetcore/README.md).
 

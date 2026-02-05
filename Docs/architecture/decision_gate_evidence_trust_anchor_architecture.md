@@ -7,12 +7,12 @@ Description: Current-state reference for evidence trust lanes, signature
 Purpose: Provide an implementation-grade map of how DG enforces evidence trust
          and anchor integrity across the control plane and runpack verifier.
 Dependencies:
-  - decision-gate-core/src/core/evidence.rs
-  - decision-gate-core/src/runtime/engine.rs
-  - decision-gate-core/src/runtime/runpack.rs
-  - decision-gate-mcp/src/evidence.rs
-  - decision-gate-mcp/src/tools.rs
-  - decision-gate-config/src/config.rs
+  - crates/decision-gate-core/src/core/evidence.rs
+  - crates/decision-gate-core/src/runtime/engine.rs
+  - crates/decision-gate-core/src/runtime/runpack.rs
+  - crates/decision-gate-mcp/src/evidence.rs
+  - crates/decision-gate-mcp/src/tools.rs
+  - crates/decision-gate-config/src/config.rs
 ============================================================================
 Last Updated: 2026-02-04 (UTC)
 ============================================================================
@@ -52,7 +52,7 @@ verifiable links to external systems. Enforcement occurs in two places:
 - **Runpack verifier**: replays anchor policy checks offline.
 
 Evidence disclosure is separately controlled at the tool layer.
-[F:decision-gate-core/src/core/evidence.rs L97-L257](decision-gate-core/src/core/evidence.rs#L97-L257) [F:decision-gate-core/src/runtime/engine.rs L511-L618](decision-gate-core/src/runtime/engine.rs#L511-L618) [F:decision-gate-core/src/runtime/engine.rs L983-L1018](decision-gate-core/src/runtime/engine.rs#L983-L1018) [F:decision-gate-core/src/runtime/runpack.rs L519-L567](decision-gate-core/src/runtime/runpack.rs#L519-L567) [F:decision-gate-mcp/src/tools.rs L2294-L2334](decision-gate-mcp/src/tools.rs#L2294-L2334)
+[F:crates/decision-gate-core/src/core/evidence.rs L97-L257](crates/decision-gate-core/src/core/evidence.rs#L97-L257) [F:crates/decision-gate-core/src/runtime/engine.rs L511-L618](crates/decision-gate-core/src/runtime/engine.rs#L511-L618) [F:crates/decision-gate-core/src/runtime/engine.rs L983-L1018](crates/decision-gate-core/src/runtime/engine.rs#L983-L1018) [F:crates/decision-gate-core/src/runtime/runpack.rs L519-L567](crates/decision-gate-core/src/runtime/runpack.rs#L519-L567) [F:crates/decision-gate-mcp/src/tools.rs L2294-L2334](crates/decision-gate-mcp/src/tools.rs#L2294-L2334)
 
 ---
 
@@ -65,7 +65,7 @@ Core evidence types define the canonical payloads and integrity metadata:
 - `EvidenceAnchor` contains an anchor type and JSON-encoded anchor value.
 - `EvidenceAnchorPolicy` maps providers to required anchor types and fields.
 
-[F:decision-gate-core/src/core/evidence.rs L175-L257](decision-gate-core/src/core/evidence.rs#L175-L257)
+[F:crates/decision-gate-core/src/core/evidence.rs L175-L257](crates/decision-gate-core/src/core/evidence.rs#L175-L257)
 
 ---
 
@@ -80,13 +80,13 @@ Trust lanes are a two-level lattice:
 condition and gate. If evidence does not meet the requirement, it is converted
 into an `Unknown` result with a `trust_lane` error.
 
-[F:decision-gate-core/src/core/evidence.rs L97-L141](decision-gate-core/src/core/evidence.rs#L97-L141) [F:decision-gate-core/src/runtime/engine.rs L730-L746](decision-gate-core/src/runtime/engine.rs#L730-L746) [F:decision-gate-core/src/runtime/engine.rs L1573-L1593](decision-gate-core/src/runtime/engine.rs#L1573-L1593)
+[F:crates/decision-gate-core/src/core/evidence.rs L97-L141](crates/decision-gate-core/src/core/evidence.rs#L97-L141) [F:crates/decision-gate-core/src/runtime/engine.rs L730-L746](crates/decision-gate-core/src/runtime/engine.rs#L730-L746) [F:crates/decision-gate-core/src/runtime/engine.rs L1573-L1593](crates/decision-gate-core/src/runtime/engine.rs#L1573-L1593)
 
 Control-plane configuration exposes:
 - global `trust_requirement`
 - per-provider overrides (via `provider_trust_overrides`)
 
-[F:decision-gate-core/src/runtime/engine.rs L111-L145](decision-gate-core/src/runtime/engine.rs#L111-L145)
+[F:crates/decision-gate-core/src/runtime/engine.rs L111-L145](crates/decision-gate-core/src/runtime/engine.rs#L111-L145)
 
 ---
 
@@ -104,7 +104,7 @@ Policy evaluation:
 - If the evidence hash is missing, it is computed from the canonical payload.
 - If the evidence hash is present, it must match the canonical payload hash.
 
-[F:decision-gate-mcp/src/evidence.rs L122-L210](decision-gate-mcp/src/evidence.rs#L122-L210) [F:decision-gate-mcp/src/evidence.rs L628-L701](decision-gate-mcp/src/evidence.rs#L628-L701)
+[F:crates/decision-gate-mcp/src/evidence.rs L122-L210](crates/decision-gate-mcp/src/evidence.rs#L122-L210) [F:crates/decision-gate-mcp/src/evidence.rs L628-L701](crates/decision-gate-mcp/src/evidence.rs#L628-L701)
 
 ---
 
@@ -118,7 +118,7 @@ Evidence disclosure is enforced at `evidence_query` time:
 
 If raw values are not allowed, the tool response redacts `value` and
 `content_type`, but retains hashes and anchors.
-[F:decision-gate-config/src/config.rs L1226-L1234](decision-gate-config/src/config.rs#L1226-L1234) [F:decision-gate-mcp/src/tools.rs L2294-L2334](decision-gate-mcp/src/tools.rs#L2294-L2334) [F:decision-gate-mcp/src/evidence.rs L138-L196](decision-gate-mcp/src/evidence.rs#L138-L196)
+[F:crates/decision-gate-config/src/config.rs L1226-L1234](crates/decision-gate-config/src/config.rs#L1226-L1234) [F:crates/decision-gate-mcp/src/tools.rs L2294-L2334](crates/decision-gate-mcp/src/tools.rs#L2294-L2334) [F:crates/decision-gate-mcp/src/evidence.rs L138-L196](crates/decision-gate-mcp/src/evidence.rs#L138-L196)
 
 ---
 
@@ -129,7 +129,7 @@ Anchor policy configuration is expressed in MCP config as
 validated and converted into the runtime `EvidenceAnchorPolicy` used by the
 control plane and runpack verifier. Provider ids must be **unique** and
 trimmed to prevent ambiguous anchor enforcement.
-[F:decision-gate-config/src/config.rs L1378-L1466](decision-gate-config/src/config.rs#L1378-L1466)
+[F:crates/decision-gate-config/src/config.rs L1378-L1466](crates/decision-gate-config/src/config.rs#L1378-L1466)
 
 ---
 
@@ -150,7 +150,7 @@ platforms.
 
 Invalid anchors result in an `anchor_invalid` provider error and the evidence
 result is converted to an empty verified result for evaluation.
-[F:decision-gate-core/src/runtime/engine.rs L730-L755](decision-gate-core/src/runtime/engine.rs#L730-L755) [F:decision-gate-core/src/runtime/engine.rs L983-L1018](decision-gate-core/src/runtime/engine.rs#L983-L1018)
+[F:crates/decision-gate-core/src/runtime/engine.rs L730-L755](crates/decision-gate-core/src/runtime/engine.rs#L730-L755) [F:crates/decision-gate-core/src/runtime/engine.rs L983-L1018](crates/decision-gate-core/src/runtime/engine.rs#L983-L1018)
 
 ---
 
@@ -163,7 +163,7 @@ Runpack verification replays anchor policy checks offline:
 - Evidence anchors in gate evaluation logs are validated against the policy.
 
 Errors are collected and reported in the verification report.
-[F:decision-gate-core/src/runtime/runpack.rs L519-L567](decision-gate-core/src/runtime/runpack.rs#L519-L567) [F:decision-gate-core/src/runtime/runpack.rs L579-L612](decision-gate-core/src/runtime/runpack.rs#L579-L612)
+[F:crates/decision-gate-core/src/runtime/runpack.rs L519-L567](crates/decision-gate-core/src/runtime/runpack.rs#L519-L567) [F:crates/decision-gate-core/src/runtime/runpack.rs L579-L612](crates/decision-gate-core/src/runtime/runpack.rs#L579-L612)
 
 ---
 
@@ -175,7 +175,7 @@ Precheck uses **asserted** evidence without contacting providers:
 - Control plane applies trust requirements per condition/gate, which can force
   asserted evidence to `Unknown` depending on configuration.
 
-[F:decision-gate-mcp/src/tools.rs L2663-L2707](decision-gate-mcp/src/tools.rs#L2663-L2707) [F:decision-gate-core/src/runtime/engine.rs L511-L618](decision-gate-core/src/runtime/engine.rs#L511-L618)
+[F:crates/decision-gate-mcp/src/tools.rs L2663-L2707](crates/decision-gate-mcp/src/tools.rs#L2663-L2707) [F:crates/decision-gate-core/src/runtime/engine.rs L511-L618](crates/decision-gate-core/src/runtime/engine.rs#L511-L618)
 
 ---
 
@@ -183,9 +183,9 @@ Precheck uses **asserted** evidence without contacting providers:
 
 | Area | File | Notes |
 | --- | --- | --- |
-| Evidence model + trust lanes | `decision-gate-core/src/core/evidence.rs` | Canonical types for trust lanes, anchors, policies. |
-| Trust enforcement + anchor validation | `decision-gate-core/src/runtime/engine.rs` | Applies trust requirements and validates anchors. |
-| Runpack anchor verification | `decision-gate-core/src/runtime/runpack.rs` | Offline validation against anchor policy. |
-| Provider signature policy | `decision-gate-mcp/src/evidence.rs` | TrustPolicy parsing + signature enforcement. |
-| Evidence disclosure policy | `decision-gate-mcp/src/tools.rs` | Raw evidence redaction for evidence_query. |
-| Config surface | `decision-gate-config/src/config.rs` | evidence.* and anchors.* configuration. |
+| Evidence model + trust lanes | `crates/decision-gate-core/src/core/evidence.rs` | Canonical types for trust lanes, anchors, policies. |
+| Trust enforcement + anchor validation | `crates/decision-gate-core/src/runtime/engine.rs` | Applies trust requirements and validates anchors. |
+| Runpack anchor verification | `crates/decision-gate-core/src/runtime/runpack.rs` | Offline validation against anchor policy. |
+| Provider signature policy | `crates/decision-gate-mcp/src/evidence.rs` | TrustPolicy parsing + signature enforcement. |
+| Evidence disclosure policy | `crates/decision-gate-mcp/src/tools.rs` | Raw evidence redaction for evidence_query. |
+| Config surface | `crates/decision-gate-config/src/config.rs` | evidence.* and anchors.* configuration. |

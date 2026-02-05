@@ -7,7 +7,7 @@ Purpose: Help authors define conditions that are correct, deterministic, and aud
 Dependencies:
   - Docs/generated/decision-gate/providers.json
   - Docs/generated/decision-gate/schemas/scenario.schema.json
-  - decision-gate-core/src/runtime/comparator.rs
+  - crates/decision-gate-core/src/runtime/comparator.rs
 ============================================================================
 -->
 

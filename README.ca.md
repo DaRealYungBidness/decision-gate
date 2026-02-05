@@ -12,6 +12,10 @@ Dependencies:
 
 # Decision Gate
 
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![MSRV](https://img.shields.io/badge/msrv-1.92-orange.svg)](rust-toolchain.toml)
+[![Edition](https://img.shields.io/badge/edition-2024-blue.svg)](crates/decision-gate-core/Cargo.toml)
+
 Idiomes: [Anglès](README.md) | Català
 
 **Nota**: aquesta versió és una traducció automàtica. Pot contenir errors o matisos imprecisos.
@@ -421,7 +425,7 @@ Els runpacks es poden exportar i verificar offline després de l'execució.
 
 ## Proveïdors integrats (consulteu la referència)
 
-Aquests són els proveïdors per defecte inclosos a `decision-gate-providers/src`.
+Aquests són els proveïdors per defecte inclosos a `crates/decision-gate-providers/src`.
 
 ### time
 
@@ -626,7 +630,7 @@ discussió. Vegeu `CONTRIBUTING.md` per a més detalls.
 La motivació original va venir d'un experiment amb AssetCore: necessitava divulgar
 informació de manera progressiva a LLMs a mesura que canviaven les condicions externes.
 Després de bregar amb el problema durant uns quants dies, vaig adonar-me que el
-[crate ret-logic](ret-logic/README.md) que ja havia construït podia modelar el problema
+[crate ret-logic](crates/ret-logic/README.md) que ja havia construït podia modelar el problema
 general. Aquest repositori n'és el resultat. Si vols els detalls d'integració,
 comença per [Docs/integrations/assetcore/README.md](Docs/integrations/assetcore/README.md).
 

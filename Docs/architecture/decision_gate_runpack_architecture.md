@@ -7,12 +7,12 @@ Description: Current-state reference for runpack manifest structure, export
 Purpose: Provide an implementation-grade map of how runpacks are built and
          verified in DG.
 Dependencies:
-  - decision-gate-core/src/core/runpack.rs
-  - decision-gate-core/src/runtime/runpack.rs
-  - decision-gate-mcp/src/tools.rs
-  - decision-gate-mcp/src/runpack.rs
-  - decision-gate-mcp/src/runpack_object_store.rs
-  - decision-gate-config/src/config.rs
+  - crates/decision-gate-core/src/core/runpack.rs
+  - crates/decision-gate-core/src/runtime/runpack.rs
+  - crates/decision-gate-mcp/src/tools.rs
+  - crates/decision-gate-mcp/src/runpack.rs
+  - crates/decision-gate-mcp/src/runpack_object_store.rs
+  - crates/decision-gate-config/src/config.rs
 ============================================================================
 Last Updated: 2026-02-04 (UTC)
 ============================================================================
@@ -45,7 +45,7 @@ integrity metadata. The builder writes canonical JSON artifacts and computes
 hashes for every file, plus a root hash over the file hash list. Verification
 replays integrity checks, validates decision log uniqueness, and optionally
 validates evidence anchors when an anchor policy is present.
-[F:decision-gate-core/src/runtime/runpack.rs L83-L374](decision-gate-core/src/runtime/runpack.rs#L83-L374)
+[F:crates/decision-gate-core/src/runtime/runpack.rs L83-L374](crates/decision-gate-core/src/runtime/runpack.rs#L83-L374)
 
 Evidence anchors are stored verbatim in the runpack logs. For file-based
 anchors (`file_path_rooted`), anchors include a stable `root_id` plus a
@@ -55,7 +55,7 @@ systems.
 Runpack exports select a sink in this order: an optional `RunpackStorage`
 backend (exports to a temp directory and delegates storage), an OSS object-store
 backend when configured, or a filesystem export requiring `output_dir`.
-[F:decision-gate-mcp/src/runpack_storage.rs L31-L67](decision-gate-mcp/src/runpack_storage.rs#L31-L67) [F:decision-gate-mcp/src/tools.rs L2342-L2480](decision-gate-mcp/src/tools.rs#L2342-L2480)
+[F:crates/decision-gate-mcp/src/runpack_storage.rs L31-L67](crates/decision-gate-mcp/src/runpack_storage.rs#L31-L67) [F:crates/decision-gate-mcp/src/tools.rs L2342-L2480](crates/decision-gate-mcp/src/tools.rs#L2342-L2480)
 
 ---
 
@@ -69,16 +69,16 @@ The manifest is the canonical index for runpack artifacts. Key fields include:
 - File hash list and root hash
 - Artifact index entries
 
-[F:decision-gate-core/src/core/runpack.rs L57-L116](decision-gate-core/src/core/runpack.rs#L57-L116)
+[F:crates/decision-gate-core/src/core/runpack.rs L57-L116](crates/decision-gate-core/src/core/runpack.rs#L57-L116)
 
 Manifest versioning is explicit. The verifier currently supports `v1` and fails
 closed on unknown `manifest_version` values to preserve backward compatibility
 guarantees as new versions are introduced.
-[F:decision-gate-core/src/runtime/runpack.rs L60-L374](decision-gate-core/src/runtime/runpack.rs#L60-L374)
+[F:crates/decision-gate-core/src/runtime/runpack.rs L60-L374](crates/decision-gate-core/src/runtime/runpack.rs#L60-L374)
 
 Security context metadata captures dev-permissive and namespace authority
 posture when provided by the MCP server.
-[F:decision-gate-core/src/core/runpack.rs L94-L104](decision-gate-core/src/core/runpack.rs#L94-L104)
+[F:crates/decision-gate-core/src/core/runpack.rs L94-L104](crates/decision-gate-core/src/core/runpack.rs#L94-L104)
 
 ---
 
@@ -93,8 +93,8 @@ Runpack export is initiated via the MCP tool `runpack_export`:
    configuration.
 4. Optional in-line verification can be requested during export.
 
-[F:decision-gate-mcp/src/tools.rs L2342-L2480](decision-gate-mcp/src/tools.rs#L2342-L2480)
-[F:decision-gate-mcp/src/runpack_object_store.rs L94-L260](decision-gate-mcp/src/runpack_object_store.rs#L94-L260)
+[F:crates/decision-gate-mcp/src/tools.rs L2342-L2480](crates/decision-gate-mcp/src/tools.rs#L2342-L2480)
+[F:crates/decision-gate-mcp/src/runpack_object_store.rs L94-L260](crates/decision-gate-mcp/src/runpack_object_store.rs#L94-L260)
 
 When a `RunpackStorage` override is configured, MCP builds the runpack on disk
 and delegates storage to the backend. Otherwise, object-store exports write
@@ -110,7 +110,7 @@ The builder writes deterministic JSON artifacts for:
 - Submission log
 - Tool call log
 
-[F:decision-gate-core/src/runtime/runpack.rs L130-L214](decision-gate-core/src/runtime/runpack.rs#L130-L214)
+[F:crates/decision-gate-core/src/runtime/runpack.rs L130-L214](crates/decision-gate-core/src/runtime/runpack.rs#L130-L214)
 
 ---
 
@@ -125,7 +125,7 @@ For each artifact, the builder:
 
 A root hash is computed over the canonical list of file hashes to guard against
 artifact reordering or omission.
-[F:decision-gate-core/src/runtime/runpack.rs L433-L480](decision-gate-core/src/runtime/runpack.rs#L433-L480)
+[F:crates/decision-gate-core/src/runtime/runpack.rs L433-L480](crates/decision-gate-core/src/runtime/runpack.rs#L433-L480)
 
 ---
 
@@ -138,11 +138,11 @@ Verification validates integrity and structural invariants:
 - Decision log contains no duplicate decisions per trigger id.
 - Anchor policy validation runs when present in the manifest.
 
-[F:decision-gate-core/src/runtime/runpack.rs L314-L567](decision-gate-core/src/runtime/runpack.rs#L314-L567)
+[F:crates/decision-gate-core/src/runtime/runpack.rs L314-L567](crates/decision-gate-core/src/runtime/runpack.rs#L314-L567)
 
 The `runpack_verify` tool parses the manifest, reads artifacts from disk, and
 returns a structured verification report.
-[F:decision-gate-mcp/src/tools.rs L2497-L2513](decision-gate-mcp/src/tools.rs#L2497-L2513)
+[F:crates/decision-gate-mcp/src/tools.rs L2497-L2513](crates/decision-gate-mcp/src/tools.rs#L2497-L2513)
 
 **Note on `include_verification`:** `runpack_export` generates the verification
 report before the report artifact is added to the manifest, so
@@ -160,7 +160,7 @@ Filesystem artifacts are handled by hardened sink/reader implementations:
 - Path component and total path length limits are enforced.
 - Reads enforce max byte limits and fail closed on violations.
 
-[F:decision-gate-mcp/src/runpack.rs L43-L217](decision-gate-mcp/src/runpack.rs#L43-L217)
+[F:crates/decision-gate-mcp/src/runpack.rs L43-L217](crates/decision-gate-mcp/src/runpack.rs#L43-L217)
 
 ---
 
@@ -174,7 +174,7 @@ storage:
 - Artifacts are capped at `MAX_RUNPACK_ARTIFACT_BYTES`.
 - Reads fail closed when size limits are exceeded.
 
-[F:decision-gate-mcp/src/runpack_object_store.rs L94-L260](decision-gate-mcp/src/runpack_object_store.rs#L94-L260)
+[F:crates/decision-gate-mcp/src/runpack_object_store.rs L94-L260](crates/decision-gate-mcp/src/runpack_object_store.rs#L94-L260)
 
 ---
 
@@ -182,8 +182,8 @@ storage:
 
 | Area | File | Notes |
 | --- | --- | --- |
-| Manifest schema | `decision-gate-core/src/core/runpack.rs` | Manifest fields, integrity, security context. |
-| Builder + verifier | `decision-gate-core/src/runtime/runpack.rs` | Artifact writing and verification logic. |
-| Tool integration | `decision-gate-mcp/src/tools.rs` | runpack_export/runpack_verify flows. |
-| Filesystem IO | `decision-gate-mcp/src/runpack.rs` | Safe artifact sink/reader with path validation. |
-| Object store IO | `decision-gate-mcp/src/runpack_object_store.rs` | Object-store sink/reader for runpack artifacts. |
+| Manifest schema | `crates/decision-gate-core/src/core/runpack.rs` | Manifest fields, integrity, security context. |
+| Builder + verifier | `crates/decision-gate-core/src/runtime/runpack.rs` | Artifact writing and verification logic. |
+| Tool integration | `crates/decision-gate-mcp/src/tools.rs` | runpack_export/runpack_verify flows. |
+| Filesystem IO | `crates/decision-gate-mcp/src/runpack.rs` | Safe artifact sink/reader with path validation. |
+| Object store IO | `crates/decision-gate-mcp/src/runpack_object_store.rs` | Object-store sink/reader for runpack artifacts. |

@@ -1,21 +1,20 @@
 # Decision Gate Workspace Root
 # ============================================================================
 # This is the workspace manifest coordinating all crates in the Decision Gate project.
-# The vendoring configuration in .cargo/config.toml applies to all workspace members.
 # ============================================================================
 
 [workspace]
 members = [
-    "decision-gate-core",
-    "decision-gate-config",
-    "decision-gate-broker",
-    "decision-gate-contract",
-    "decision-gate-sdk-gen",
-    "decision-gate-providers",
-    "decision-gate-store-sqlite",
-    "decision-gate-mcp",
-    "decision-gate-cli",
-    "ret-logic",
+    "crates/decision-gate-core",
+    "crates/decision-gate-config",
+    "crates/decision-gate-broker",
+    "crates/decision-gate-contract",
+    "crates/decision-gate-sdk-gen",
+    "crates/decision-gate-providers",
+    "crates/decision-gate-store-sqlite",
+    "crates/decision-gate-mcp",
+    "crates/decision-gate-cli",
+    "crates/ret-logic",
     "examples/minimal",
     "examples/file-disclosure",
     "examples/llm-scenario",
@@ -25,16 +24,16 @@ members = [
     "system-tests",
 ]
 default-members = [
-    "decision-gate-core",
-    "decision-gate-config",
-    "decision-gate-broker",
-    "decision-gate-contract",
-    "decision-gate-sdk-gen",
-    "decision-gate-providers",
-    "decision-gate-store-sqlite",
-    "decision-gate-mcp",
-    "decision-gate-cli",
-    "ret-logic",
+    "crates/decision-gate-core",
+    "crates/decision-gate-config",
+    "crates/decision-gate-broker",
+    "crates/decision-gate-contract",
+    "crates/decision-gate-sdk-gen",
+    "crates/decision-gate-providers",
+    "crates/decision-gate-store-sqlite",
+    "crates/decision-gate-mcp",
+    "crates/decision-gate-cli",
+    "crates/ret-logic",
     "examples/minimal",
     "examples/file-disclosure",
     "examples/llm-scenario",
@@ -61,15 +60,15 @@ bytes = "1.9"
 cap-std = "4.0.0"
 cap-primitives = "4.0.0"
 clap = "4.5.56"
-decision-gate-broker = { path = "decision-gate-broker", version = "0.1.0" }
-decision-gate-cli = { path = "decision-gate-cli", version = "0.1.0" }
-decision-gate-config = { path = "decision-gate-config", version = "0.1.0" }
-decision-gate-contract = { path = "decision-gate-contract", version = "0.1.0" }
-decision-gate-core = { path = "decision-gate-core", version = "0.1.0" }
-decision-gate-mcp = { path = "decision-gate-mcp", version = "0.1.0" }
-decision-gate-providers = { path = "decision-gate-providers", version = "0.1.0" }
-decision-gate-sdk-gen = { path = "decision-gate-sdk-gen", version = "0.1.0" }
-decision-gate-store-sqlite = { path = "decision-gate-store-sqlite", version = "0.1.0" }
+decision-gate-broker = { path = "crates/decision-gate-broker", version = "0.1.0" }
+decision-gate-cli = { path = "crates/decision-gate-cli", version = "0.1.0" }
+decision-gate-config = { path = "crates/decision-gate-config", version = "0.1.0" }
+decision-gate-contract = { path = "crates/decision-gate-contract", version = "0.1.0" }
+decision-gate-core = { path = "crates/decision-gate-core", version = "0.1.0" }
+decision-gate-mcp = { path = "crates/decision-gate-mcp", version = "0.1.0" }
+decision-gate-providers = { path = "crates/decision-gate-providers", version = "0.1.0" }
+decision-gate-sdk-gen = { path = "crates/decision-gate-sdk-gen", version = "0.1.0" }
+decision-gate-store-sqlite = { path = "crates/decision-gate-store-sqlite", version = "0.1.0" }
 ed25519-dalek = "2.1"
 http-body-util = "0.1"
 hyper = "1.5"
@@ -80,7 +79,7 @@ proptest = "1.5"
 rand = "0.8.5"
 rcgen = "0.14"
 reqwest = { version = "0.13", default-features = false }
-ret-logic = { path = "ret-logic", version = "0.1.0" }
+ret-logic = { path = "crates/ret-logic", version = "0.1.0" }
 ron = "0.12"
 rusqlite = "0.38"
 rustls = { version = "0.23", default-features = false }

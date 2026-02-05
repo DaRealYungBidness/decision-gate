@@ -5,8 +5,8 @@ Document: examples/data-disclosure
 Description: Disclosure stage with packet emission after approval.
 Purpose: Demonstrate packet dispatch and disclosure policy flow.
 Dependencies:
-  - ../../decision-gate-core/README.md
-  - ../../decision-gate-broker/README.md
+  - ../../crates/decision-gate-core/README.md
+  - ../../crates/decision-gate-broker/README.md
 ============================================================================
 -->
 

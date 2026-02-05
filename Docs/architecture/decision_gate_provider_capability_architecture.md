@@ -7,10 +7,10 @@ Description: Current-state reference for provider configuration, capability
 Purpose: Provide an implementation-grade map of how DG integrates providers and
          validates conditions/checks/queries.
 Dependencies:
-  - decision-gate-config/src/config.rs
-  - decision-gate-mcp/src/capabilities.rs
-  - decision-gate-mcp/src/evidence.rs
-  - decision-gate-mcp/src/tools.rs
+  - crates/decision-gate-config/src/config.rs
+  - crates/decision-gate-mcp/src/capabilities.rs
+  - crates/decision-gate-mcp/src/evidence.rs
+  - crates/decision-gate-mcp/src/tools.rs
 ============================================================================
 Last Updated: 2026-02-04 (UTC)
 ============================================================================
@@ -46,7 +46,7 @@ Provider capability contracts are the authoritative schema for check
 parameters, results, and allowed comparators. The capability registry validates
 scenario specs and evidence queries before evaluation. Evidence federation
 routes queries to providers and enforces trust policies.
-[F:decision-gate-config/src/config.rs L1883-L1990](decision-gate-config/src/config.rs#L1883-L1990) [F:decision-gate-mcp/src/capabilities.rs L229-L379](decision-gate-mcp/src/capabilities.rs#L229-L379) [F:decision-gate-mcp/src/evidence.rs L138-L210](decision-gate-mcp/src/evidence.rs#L138-L210)
+[F:crates/decision-gate-config/src/config.rs L1883-L1990](crates/decision-gate-config/src/config.rs#L1883-L1990) [F:crates/decision-gate-mcp/src/capabilities.rs L229-L379](crates/decision-gate-mcp/src/capabilities.rs#L229-L379) [F:crates/decision-gate-mcp/src/evidence.rs L138-L210](crates/decision-gate-mcp/src/evidence.rs#L138-L210)
 
 ---
 
@@ -74,7 +74,7 @@ Validation enforces:
 - Built-ins must use a reserved identifier and reject MCP-only fields (`command`, `url`,
   `allow_insecure_http`, `auth`, `capabilities_path`).
 
-[F:decision-gate-config/src/config.rs L1883-L1990](decision-gate-config/src/config.rs#L1883-L1990)
+[F:crates/decision-gate-config/src/config.rs L1883-L1990](crates/decision-gate-config/src/config.rs#L1883-L1990)
 
 ---
 
@@ -91,11 +91,11 @@ check params and results. It validates:
 - Anchor types declared by provider contracts (e.g., `file_path_rooted` for the
   built-in `json` provider)
 
-[F:decision-gate-mcp/src/capabilities.rs L313-L379](decision-gate-mcp/src/capabilities.rs#L313-L379) [F:decision-gate-mcp/src/capabilities.rs L598-L636](decision-gate-mcp/src/capabilities.rs#L598-L636)
+[F:crates/decision-gate-mcp/src/capabilities.rs L313-L379](crates/decision-gate-mcp/src/capabilities.rs#L313-L379) [F:crates/decision-gate-mcp/src/capabilities.rs L598-L636](crates/decision-gate-mcp/src/capabilities.rs#L598-L636)
 
 Capability registry queries are used by both scenario definition and evidence
 query tools.
-[F:decision-gate-mcp/src/tools.rs L2029-L2050](decision-gate-mcp/src/tools.rs#L2029-L2050) [F:decision-gate-mcp/src/tools.rs L979-L1017](decision-gate-mcp/src/tools.rs#L979-L1017)
+[F:crates/decision-gate-mcp/src/tools.rs L2029-L2050](crates/decision-gate-mcp/src/tools.rs#L2029-L2050) [F:crates/decision-gate-mcp/src/tools.rs L979-L1017](crates/decision-gate-mcp/src/tools.rs#L979-L1017)
 
 ---
 
@@ -108,7 +108,7 @@ External providers must supply a contract JSON file that:
 - Defines checks with allowed comparator lists
 
 Contracts are size-limited and path validated; invalid contracts fail closed.
-[F:decision-gate-mcp/src/capabilities.rs L533-L591](decision-gate-mcp/src/capabilities.rs#L533-L591)
+[F:crates/decision-gate-mcp/src/capabilities.rs L533-L591](crates/decision-gate-mcp/src/capabilities.rs#L533-L591)
 
 ---
 
@@ -127,10 +127,10 @@ Evidence federation combines built-in providers and MCP providers:
 - HTTP evidence providers enforce timeouts, disallow redirects, apply response
   size limits, and fail closed on truncated bodies (Content-Length mismatch).
 
-[F:decision-gate-mcp/src/evidence.rs L138-L210](decision-gate-mcp/src/evidence.rs#L138-L210) [F:decision-gate-mcp/src/evidence.rs L248-L266](decision-gate-mcp/src/evidence.rs#L248-L266) [F:decision-gate-providers/src/http.rs L82-L239](decision-gate-providers/src/http.rs#L82-L239)
+[F:crates/decision-gate-mcp/src/evidence.rs L138-L210](crates/decision-gate-mcp/src/evidence.rs#L138-L210) [F:crates/decision-gate-mcp/src/evidence.rs L248-L266](crates/decision-gate-mcp/src/evidence.rs#L248-L266) [F:crates/decision-gate-providers/src/http.rs L82-L239](crates/decision-gate-providers/src/http.rs#L82-L239)
 
 Trust policy enforcement (signature verification) runs per provider response.
-[F:decision-gate-mcp/src/evidence.rs L636-L677](decision-gate-mcp/src/evidence.rs#L636-L677)
+[F:crates/decision-gate-mcp/src/evidence.rs L636-L677](crates/decision-gate-mcp/src/evidence.rs#L636-L677)
 
 ---
 
@@ -147,7 +147,7 @@ Tool behavior enforces capability and disclosure policy:
 - Comparator allow-lists are enforced from provider contracts; `json.path`
   exposes the full comparator surface area for deterministic JSON evidence.
 
-[F:decision-gate-mcp/src/tools.rs L2029-L2050](decision-gate-mcp/src/tools.rs#L2029-L2050) [F:decision-gate-mcp/src/tools.rs L979-L1037](decision-gate-mcp/src/tools.rs#L979-L1037) [F:decision-gate-mcp/src/tools.rs L1110-L1150](decision-gate-mcp/src/tools.rs#L1110-L1150) [F:decision-gate-mcp/src/tools.rs L2294-L2334](decision-gate-mcp/src/tools.rs#L2294-L2334)
+[F:crates/decision-gate-mcp/src/tools.rs L2029-L2050](crates/decision-gate-mcp/src/tools.rs#L2029-L2050) [F:crates/decision-gate-mcp/src/tools.rs L979-L1037](crates/decision-gate-mcp/src/tools.rs#L979-L1037) [F:crates/decision-gate-mcp/src/tools.rs L1110-L1150](crates/decision-gate-mcp/src/tools.rs#L1110-L1150) [F:crates/decision-gate-mcp/src/tools.rs L2294-L2334](crates/decision-gate-mcp/src/tools.rs#L2294-L2334)
 
 ---
 
@@ -155,7 +155,7 @@ Tool behavior enforces capability and disclosure policy:
 
 | Area | File | Notes |
 | --- | --- | --- |
-| Provider config + validation | `decision-gate-config/src/config.rs` | Provider type, transport, contract path, timeouts, discovery allow/deny. |
-| Capability registry | `decision-gate-mcp/src/capabilities.rs` | Contract loading, schema compilation, validation. |
-| Evidence federation | `decision-gate-mcp/src/evidence.rs` | Provider registry + trust enforcement. |
-| Tool integration | `decision-gate-mcp/src/tools.rs` | Spec/query validation and disclosure policy. |
+| Provider config + validation | `crates/decision-gate-config/src/config.rs` | Provider type, transport, contract path, timeouts, discovery allow/deny. |
+| Capability registry | `crates/decision-gate-mcp/src/capabilities.rs` | Contract loading, schema compilation, validation. |
+| Evidence federation | `crates/decision-gate-mcp/src/evidence.rs` | Provider registry + trust enforcement. |
+| Tool integration | `crates/decision-gate-mcp/src/tools.rs` | Spec/query validation and disclosure policy. |

@@ -33,6 +33,7 @@ __pycache__/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 /.VSCodeCounter
+/.claude/
 /proptest-regressions
 
 # System test artifacts (temporary test outputs)

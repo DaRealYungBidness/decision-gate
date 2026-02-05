@@ -245,7 +245,7 @@ Error codes are provider-defined. Keep them stable and machine-readable (e.g., `
 
 ## Reference
 
-- Provider contract schema: `decision-gate-contract/src/schemas.rs` (`provider_contract_schema`)
+- Provider contract schema: `crates/decision-gate-contract/src/schemas.rs` (`provider_contract_schema`)
 - Built-in provider contracts: `Docs/generated/decision-gate/providers.json`
 - SDK templates: `decision-gate-provider-sdk/`
 

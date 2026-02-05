@@ -5,7 +5,7 @@ Document: examples/agent-loop
 Description: Multi-step condition satisfaction example.
 Purpose: Demonstrate staged gate progression across multiple triggers.
 Dependencies:
-  - ../../decision-gate-core/README.md
+  - ../../crates/decision-gate-core/README.md
 ============================================================================
 -->
 

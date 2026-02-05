@@ -7,9 +7,9 @@ Description: Roadmap for offline evidence signature verification in runpack
 Purpose: Define the scope, requirements, and implementation plan for Level 1
          portable verification in OSS.
 Dependencies:
-  - decision-gate-core/src/core/evidence.rs
-  - decision-gate-core/src/runtime/runpack.rs
-  - decision-gate-mcp/src/evidence.rs
+  - crates/decision-gate-core/src/core/evidence.rs
+  - crates/decision-gate-core/src/runtime/runpack.rs
+  - crates/decision-gate-mcp/src/evidence.rs
   - Docs/architecture/decision_gate_runpack_architecture.md
   - Docs/security/threat_model.md
 ============================================================================
@@ -56,9 +56,9 @@ Level 1 is an **auditability upgrade**, not a launch blocker.
 
 References:
 
-- `decision-gate-core/src/core/evidence.rs`
-- `decision-gate-mcp/src/evidence.rs`
-- `decision-gate-core/src/runtime/runpack.rs`
+- `crates/decision-gate-core/src/core/evidence.rs`
+- `crates/decision-gate-mcp/src/evidence.rs`
+- `crates/decision-gate-core/src/runtime/runpack.rs`
 
 ---
 

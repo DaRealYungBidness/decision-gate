@@ -39,8 +39,8 @@ Decision Gate is composed of:
   `Docs/architecture/decision_gate_runpack_architecture.md`,
   `Docs/architecture/decision_gate_namespace_registry_rbac_architecture.md`,
   `Docs/architecture/decision_gate_provider_capability_architecture.md`.
-- Component READMEs: `decision-gate-core/README.md`, `decision-gate-mcp/README.md`,
-  `decision-gate-broker/README.md`, `decision-gate-providers/README.md`.
+- Component READMEs: `crates/decision-gate-core/README.md`, `crates/decision-gate-mcp/README.md`,
+  `crates/decision-gate-broker/README.md`, `crates/decision-gate-providers/README.md`.
 
 ## Security Goals
 
@@ -257,61 +257,61 @@ Decision Gate is composed of:
 ### Core Runtime
 
 - Canonical JSON hashing and non-finite float rejection:
-  `decision-gate-core/src/core/hashing.rs`.
+  `crates/decision-gate-core/src/core/hashing.rs`.
 - Tri-state comparator evaluation:
-  `decision-gate-core/src/runtime/comparator.rs`.
+  `crates/decision-gate-core/src/runtime/comparator.rs`.
 - Trust lane enforcement and anchor policy validation:
-  `decision-gate-core/src/runtime/engine.rs`,
-  `decision-gate-core/src/core/evidence.rs`.
+  `crates/decision-gate-core/src/runtime/engine.rs`,
+  `crates/decision-gate-core/src/core/evidence.rs`.
 - Safe summaries:
-  `decision-gate-core/src/core/summary.rs`.
+  `crates/decision-gate-core/src/core/summary.rs`.
 - Runpack build/verify and artifact size limits:
-  `decision-gate-core/src/runtime/runpack.rs`.
+  `crates/decision-gate-core/src/runtime/runpack.rs`.
 
 ### MCP Server and Tooling
 
 - Authn/authz, tool allowlists, bearer parsing, and auth audit:
-  `decision-gate-mcp/src/auth.rs`, `decision-gate-config/src/config.rs`.
+  `crates/decision-gate-mcp/src/auth.rs`, `crates/decision-gate-config/src/config.rs`.
 - Request limits (max body, inflight, rate limiting) and transport handling:
-  `decision-gate-mcp/src/server.rs`, `decision-gate-config/src/config.rs`.
+  `crates/decision-gate-mcp/src/server.rs`, `crates/decision-gate-config/src/config.rs`.
 - Correlation ID sanitization:
-  `decision-gate-mcp/src/correlation.rs`.
+  `crates/decision-gate-mcp/src/correlation.rs`.
 - Tool visibility, docs gating, evidence redaction, and precheck handling:
-  `decision-gate-mcp/src/tools.rs`.
+  `crates/decision-gate-mcp/src/tools.rs`.
 - Audit event payloads:
-  `decision-gate-mcp/src/audit.rs`.
+  `crates/decision-gate-mcp/src/audit.rs`.
 - Tenant authz and usage meter seams:
-  `decision-gate-mcp/src/tenant_authz.rs`, `decision-gate-mcp/src/usage.rs`.
+  `crates/decision-gate-mcp/src/tenant_authz.rs`, `crates/decision-gate-mcp/src/usage.rs`.
 - Provider contract validation + strict comparator validation:
-  `decision-gate-mcp/src/capabilities.rs`, `decision-gate-mcp/src/validation.rs`.
+  `crates/decision-gate-mcp/src/capabilities.rs`, `crates/decision-gate-mcp/src/validation.rs`.
 - Evidence signature verification and MCP provider response caps:
-  `decision-gate-mcp/src/evidence.rs`.
+  `crates/decision-gate-mcp/src/evidence.rs`.
 
 ### Providers and Broker
 
 - Built-in provider limits and policies:
-  `decision-gate-providers/src/env.rs`, `decision-gate-providers/src/json.rs`,
-  `decision-gate-providers/src/http.rs`, `decision-gate-providers/src/time.rs`.
+  `crates/decision-gate-providers/src/env.rs`, `crates/decision-gate-providers/src/json.rs`,
+  `crates/decision-gate-providers/src/http.rs`, `crates/decision-gate-providers/src/time.rs`.
 - Provider allow/deny policy:
-  `decision-gate-providers/src/registry.rs`.
+  `crates/decision-gate-providers/src/registry.rs`.
 - Broker payload validation and source restrictions:
-  `decision-gate-broker/src/broker.rs`, `decision-gate-broker/src/source/file.rs`,
-  `decision-gate-broker/src/source/http.rs`, `decision-gate-broker/src/source/inline.rs`.
+  `crates/decision-gate-broker/src/broker.rs`, `crates/decision-gate-broker/src/source/file.rs`,
+  `crates/decision-gate-broker/src/source/http.rs`, `crates/decision-gate-broker/src/source/inline.rs`.
 
 ### Storage and Contracts
 
 - SQLite run state + schema registry integrity and size limits:
-  `decision-gate-store-sqlite/src/store.rs`.
+  `crates/decision-gate-store-sqlite/src/store.rs`.
 - In-memory stores (tests/demos only):
-  `decision-gate-core/src/runtime/store.rs`.
+  `crates/decision-gate-core/src/runtime/store.rs`.
 - Object-store runpack export key validation:
-  `decision-gate-mcp/src/runpack_object_store.rs`.
+  `crates/decision-gate-mcp/src/runpack_object_store.rs`.
 - Config file size/path validation and defaults:
-  `decision-gate-config/src/config.rs`.
+  `crates/decision-gate-config/src/config.rs`.
 - Canonical tool and schema contracts:
-  `decision-gate-contract/src/tooling.rs`, `decision-gate-contract/src/schemas.rs`.
+  `crates/decision-gate-contract/src/tooling.rs`, `crates/decision-gate-contract/src/schemas.rs`.
 - CLI authoring/runpack tooling:
-  `decision-gate-cli/src/main.rs`.
+  `crates/decision-gate-cli/src/main.rs`.
 
 ## Operational Requirements
 
