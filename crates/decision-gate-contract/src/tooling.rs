@@ -146,6 +146,7 @@ fn scenario_submit_contract() -> ToolContract {
         tool_examples(ToolName::ScenarioSubmit),
         vec![
             "Payload is hashed and stored as a submission record.".to_string(),
+            "Payload is persisted in run state/runpack logs; do not send raw secrets.".to_string(),
             "Does not advance the run by itself.".to_string(),
             "Use for artifacts the model or operator supplies.".to_string(),
         ],
@@ -163,6 +164,7 @@ fn scenario_trigger_contract() -> ToolContract {
         vec![
             "Trigger time is supplied by the caller; no wall-clock reads.".to_string(),
             "Records the trigger event and resulting decision.".to_string(),
+            "Payload is persisted in run state/runpack logs; do not send raw secrets.".to_string(),
             "Use for time-based or external system triggers.".to_string(),
         ],
     )
@@ -197,6 +199,9 @@ fn runpack_export_contract() -> ToolContract {
             "Writes manifest and logs to output_dir; generated_at is recorded in the manifest."
                 .to_string(),
             "include_verification adds a verification report artifact.".to_string(),
+            "Export-time report.checked_files excludes verifier_report.json; offline runpack_verify \
+             checked_files includes it (+1 for the same runpack)."
+                .to_string(),
             "Use after runs complete or for audit snapshots.".to_string(),
         ],
     )

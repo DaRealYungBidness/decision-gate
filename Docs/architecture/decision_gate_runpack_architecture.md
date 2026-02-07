@@ -14,7 +14,7 @@ Dependencies:
   - crates/decision-gate-mcp/src/runpack_object_store.rs
   - crates/decision-gate-config/src/config.rs
 ============================================================================
-Last Updated: 2026-02-04 (UTC)
+Last Updated: 2026-02-06 (UTC)
 ============================================================================
 -->
 
@@ -144,11 +144,15 @@ The `runpack_verify` tool parses the manifest, reads artifacts from disk, and
 returns a structured verification report.
 [F:crates/decision-gate-mcp/src/tools.rs L2497-L2513](crates/decision-gate-mcp/src/tools.rs#L2497-L2513)
 
-**Note on `include_verification`:** `runpack_export` generates the verification
-report before the report artifact is added to the manifest, so
-`report.checked_files` excludes `verifier_report.json`. `runpack_verify`
-validates all manifest file hashes (including the report) and may report
-`checked_files` as +1 compared to the export-time report.
+**Interop note (`checked_files` semantics):** `runpack_export` with
+`include_verification = true` generates the verification report before the
+`verifier_report.json` artifact is added to the manifest. Because of that,
+`runpack_export.report.checked_files` counts the pre-report manifest files.
+
+`runpack_verify` validates the finalized manifest file hash list (including
+`verifier_report.json`), so `runpack_verify.report.checked_files` is expected
+to be exactly `runpack_export.report.checked_files + 1` for the same runpack
+when export-time verification is enabled.
 
 ---
 

@@ -25,10 +25,16 @@ use reqwest::Identity;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
+use tokio::time::sleep;
 
 use super::docs::ResourceContent;
 use super::docs::ResourceMetadata;
 use super::timeouts;
+
+/// Maximum attempts for transient HTTP send failures in system tests.
+const MAX_HTTP_SEND_ATTEMPTS: u32 = 3;
+/// Base backoff delay for transient HTTP send retries.
+const BASE_HTTP_SEND_RETRY_DELAY_MS: u64 = 50;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct TranscriptEntry {
@@ -263,34 +269,48 @@ impl McpHttpClient {
     async fn send_request(&self, request: &JsonRpcRequest) -> Result<JsonRpcResponse, String> {
         let request_value = serde_json::to_value(request)
             .map_err(|err| format!("jsonrpc serialization failed: {err}"))?;
-        let mut request = self.client.post(&self.base_url).json(&request_value);
-        if let Some(token) = &self.bearer_token {
-            request = request.bearer_auth(token);
-        }
-        if let Some(subject) = &self.client_subject {
-            request = request.header("x-decision-gate-client-subject", subject);
-        }
-        let response = request.send().await.map_err(|err| format!("http request failed: {err}"))?;
-        let status = response.status();
-        let payload = response
-            .json::<JsonRpcResponse>()
-            .await
-            .map_err(|err| format!("invalid json-rpc response: {err}"))?;
+        for attempt in 1..=MAX_HTTP_SEND_ATTEMPTS {
+            let mut http_request = self.client.post(&self.base_url).json(&request_value);
+            if let Some(token) = &self.bearer_token {
+                http_request = http_request.bearer_auth(token);
+            }
+            if let Some(subject) = &self.client_subject {
+                http_request = http_request.header("x-decision-gate-client-subject", subject);
+            }
 
-        let error_message = payload.error.as_ref().map(|err| err.message.clone());
-        self.record_transcript(
-            request_value,
-            serde_json::to_value(&payload).unwrap_or(Value::Null),
-            error_message,
-        );
+            let response = match http_request.send().await {
+                Ok(response) => response,
+                Err(err) => {
+                    if should_retry_http_send(&err, attempt) {
+                        sleep(retry_delay_for_attempt(attempt)).await;
+                        continue;
+                    }
+                    return Err(format!("http request failed after {attempt} attempt(s): {err}"));
+                }
+            };
+            let status = response.status();
+            let payload = response
+                .json::<JsonRpcResponse>()
+                .await
+                .map_err(|err| format!("invalid json-rpc response: {err}"))?;
 
-        if let Some(error) = payload.error.as_ref() {
-            return Err(error.message.clone());
+            let error_message = payload.error.as_ref().map(|err| err.message.clone());
+            self.record_transcript(
+                request_value.clone(),
+                serde_json::to_value(&payload).unwrap_or(Value::Null),
+                error_message,
+            );
+
+            if let Some(error) = payload.error.as_ref() {
+                return Err(error.message.clone());
+            }
+            if !status.is_success() {
+                return Err(format!("http status {status} for json-rpc request"));
+            }
+            return Ok(payload);
         }
-        if !status.is_success() {
-            return Err(format!("http status {status} for json-rpc request"));
-        }
-        Ok(payload)
+
+        Err("http request failed: exhausted retry attempts".to_string())
     }
 
     fn record_transcript(&self, request: Value, response: Value, error: Option<String>) {
@@ -306,4 +326,30 @@ impl McpHttpClient {
             error,
         });
     }
+}
+
+/// Returns true when an HTTP send failure should be retried.
+fn should_retry_http_send(err: &reqwest::Error, attempt: u32) -> bool {
+    if attempt >= MAX_HTTP_SEND_ATTEMPTS {
+        return false;
+    }
+    if err.is_connect() || err.is_timeout() {
+        return true;
+    }
+    if !err.is_request() {
+        return false;
+    }
+    let msg = err.to_string().to_ascii_lowercase();
+    msg.contains("connection reset")
+        || msg.contains("connection refused")
+        || msg.contains("connection closed")
+        || msg.contains("broken pipe")
+        || msg.contains("connection aborted")
+        || msg.contains("timed out")
+        || msg.contains("eof")
+}
+
+/// Returns bounded linear backoff for HTTP send retries.
+fn retry_delay_for_attempt(attempt: u32) -> Duration {
+    Duration::from_millis(u64::from(attempt) * BASE_HTTP_SEND_RETRY_DELAY_MS)
 }

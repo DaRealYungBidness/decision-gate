@@ -171,6 +171,16 @@ Behavior:
 - This is **not** a JSON-RPC error.
 - Provider names are unique; built-in identifiers (`time`, `env`, `json`, `http`) are reserved.
 
+## Submission/Trigger Payload Handling
+
+`scenario_submit.payload` and `scenario_trigger.payload` are audit-log channels.
+Decision Gate persists these payloads in run state and runpack artifacts by
+design. Integrations must avoid sending raw secrets through these fields.
+
+Recommended pattern:
+- Send opaque references/handles in payloads.
+- Resolve secrets from a dedicated secret manager outside DG.
+
 ---
 
 ## Secure Production Configuration

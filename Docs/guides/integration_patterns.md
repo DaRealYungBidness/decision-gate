@@ -206,6 +206,31 @@ default_policy = { require_signature = { keys = ["/etc/decision-gate/keys/cloud.
 
 ---
 
+## Interop Notes (Runpack + Transcripts)
+
+### `checked_files` in `runpack_export` vs `runpack_verify`
+
+When `runpack_export` is called with `include_verification = true`, the returned
+`report.checked_files` value reflects verification executed **before**
+`artifacts/verifier_report.json` is appended to the manifest. For the same
+runpack, `runpack_verify.report.checked_files` is expected to be exactly `+1`
+because it validates the finalized manifest (including `verifier_report.json`).
+
+### Transcript Artifacts: Contract vs Test Harness
+
+- DG runpack artifact `artifacts/tool_calls.json` is the canonical contract
+  surface and contains hash-only run-state tool call records.
+- System-test artifact `tool_transcript.json` is raw client-side capture used
+  for diagnostics and is not a DG runpack contract artifact.
+
+### Sensitive Payload Warning
+
+`scenario_submit.payload` and `scenario_trigger.payload` are persisted to run
+state logs and exported into runpacks by design. Do not place raw secrets in
+these payload fields.
+
+---
+
 ## Deployment Checklist
 
 - [ ] Config validates (`decision-gate config validate`)

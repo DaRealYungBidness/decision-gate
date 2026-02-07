@@ -174,6 +174,8 @@ Decision Gate is composed of:
 - Precheck is read-only: asserted evidence validated against schemas, no run
   state mutation or disclosures.
 - Safe summaries for client-facing status; evidence redaction by policy.
+- `scenario_submit.payload` and `scenario_trigger.payload` are persisted as run
+  logs and included in runpacks; treat them as non-secret audit data channels.
 - SQLite run state uses canonical JSON + hash verification on load; runpack
   manifests use file hashes + root hash for integrity.
 
@@ -208,6 +210,9 @@ Decision Gate is composed of:
 
 - Evidence leakage through tools: evidence redaction policies for
   `evidence_query` and `scenario_next` feedback; safe summaries by default.
+- Sensitive data in submit/trigger payloads: payloads are intentionally durable
+  for audit/replay; mitigated by integration policy (no raw secrets, use opaque
+  handles and external secret stores).
 - Policy bypass in dispatch: optional policy engine (`permit_all`, `deny_all`,
   or static rules) gates disclosure before dispatch.
 

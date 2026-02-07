@@ -14,7 +14,7 @@ Dependencies:
   - crates/decision-gate-config/src/config.rs
   - crates/decision-gate-store-sqlite/src/store.rs
 ============================================================================
-Last Updated: 2026-02-04 (UTC)
+Last Updated: 2026-02-06 (UTC)
 ============================================================================
 -->
 
@@ -92,6 +92,10 @@ Subsequent tools operate on the cached runtime and persisted run state:
 - `scenario_trigger` injects an external trigger event
 
 [F:crates/decision-gate-mcp/src/tools.rs L816-L977](crates/decision-gate-mcp/src/tools.rs#L816-L977)
+
+`scenario_submit.payload` and `scenario_trigger.payload` are persisted in run
+state logs and exported into runpack artifacts by design. Integrations must
+treat these payload channels as audit-visible and avoid sending raw secrets.
 
 `scenario_next` can optionally include feedback (summary/trace/evidence) in the
 tool response when permitted by server feedback policy. Trace feedback reuses

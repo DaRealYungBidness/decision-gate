@@ -13,7 +13,7 @@ Dependencies:
   - system-tests/test_registry.toml
   - system-tests/test_gaps.toml
 ============================================================================
-Last Updated: 2026-02-04 (UTC)
+Last Updated: 2026-02-07 (UTC)
 ============================================================================
 -->
 
@@ -140,6 +140,18 @@ JSON evidence tests configure a per-test `json` provider root and use **relative
 file paths so evidence anchors are stable across operating systems. Absolute
 paths are rejected by the provider to avoid runpack hash drift.
 
+### Transcript Artifact Surfaces
+
+DG and the system-test harness emit different transcript artifacts on purpose:
+
+| Artifact | Producer | Contents | Contract Status |
+| --- | --- | --- | --- |
+| `artifacts/tool_calls.json` | DG runpack export | Hash-only run-state tool call records (`request_hash`, `response_hash`, metadata). | Canonical DG runpack artifact. |
+| `tool_transcript.json` | system-tests harness | Raw MCP client-side call/response capture for test diagnostics. | System-test artifact only (non-runpack contract). |
+
+Interop consumers should validate runpack integrity against DG artifacts and use
+`tool_transcript.json` only as a test harness debugging aid.
+
 ## Execution Workflow
 
 Recommended entry points:
@@ -161,6 +173,10 @@ System-test timeouts are centralized in the helpers layer. When
 `DECISION_GATE_SYSTEM_TEST_TIMEOUT_SEC` is set, MCP HTTP client and readiness
 timeouts honor the override as a minimum to reduce platform-specific flakiness
 while preserving longer, test-specific limits.
+
+The MCP HTTP helper applies bounded retries for transient transport send errors
+before failing closed, reducing non-deterministic CI flakes without masking
+server-side JSON-RPC errors.
 
 ---
 

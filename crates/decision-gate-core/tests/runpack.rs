@@ -20,6 +20,7 @@
 )]
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 use std::sync::Mutex;
 
 use decision_gate_core::AnchorRequirement;
@@ -63,9 +64,9 @@ use serde_json::json;
 // SECTION: In-Memory Artifact Store
 // ============================================================================
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct InMemoryArtifactStore {
-    files: Mutex<BTreeMap<String, Vec<u8>>>,
+    files: Arc<Mutex<BTreeMap<String, Vec<u8>>>>,
 }
 
 impl ArtifactSink for InMemoryArtifactStore {
@@ -591,6 +592,54 @@ fn test_runpack_build_and_verify() {
     let report = verifier.verify_manifest(&store, &manifest).expect("runpack verify");
 
     assert_eq!(report.status, decision_gate_core::runtime::VerificationStatus::Pass);
+}
+
+/// Verifies export-time and offline verification checked_files semantics.
+#[test]
+fn runpack_export_and_verify_checked_file_counts_match_contract() {
+    let spec = minimal_spec();
+    let spec_hash = spec.canonical_hash_with(DEFAULT_HASH_ALGORITHM).expect("spec hash");
+
+    let state = RunState {
+        tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),
+        namespace_id: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        run_id: RunId::new("run-1"),
+        scenario_id: ScenarioId::new("scenario"),
+        spec_hash,
+        current_stage_id: StageId::new("stage-1"),
+        stage_entered_at: Timestamp::Logical(0),
+        status: RunStatus::Active,
+        dispatch_targets: vec![],
+        triggers: vec![],
+        gate_evals: vec![],
+        decisions: vec![],
+        packets: vec![],
+        submissions: vec![],
+        tool_calls: vec![],
+    };
+
+    let mut sink = InMemoryArtifactStore::default();
+    let reader = sink.clone();
+    let builder = RunpackBuilder::default();
+    let (manifest, export_report) = builder
+        .build_with_verification(&mut sink, &reader, &spec, &state, Timestamp::Logical(1))
+        .expect("runpack build_with_verification");
+
+    let verifier = RunpackVerifier::new(DEFAULT_HASH_ALGORITHM);
+    let verify_report = verifier.verify_manifest(&sink, &manifest).expect("runpack verify");
+
+    assert_eq!(export_report.status, decision_gate_core::runtime::VerificationStatus::Pass);
+    assert_eq!(verify_report.status, decision_gate_core::runtime::VerificationStatus::Pass);
+    assert_eq!(
+        verify_report.checked_files,
+        manifest.integrity.file_hashes.len(),
+        "offline verification should check every finalized manifest file"
+    );
+    assert_eq!(
+        export_report.checked_files + 1,
+        verify_report.checked_files,
+        "export-time verification should exclude verifier_report.json"
+    );
 }
 
 /// Verifies unsupported runpack manifest versions fail closed.
