@@ -24,6 +24,7 @@ provider federation.
 - [Suite Layout](#suite-layout)
 - [Artifacts](#artifacts)
 - [Environment Variables](#environment-variables)
+- [Performance Gates](#performance-gates)
 - [Registry and Gaps](#registry-and-gaps)
 - [Testing Utilities](#testing-utilities)
 - [References](#references)
@@ -103,6 +104,24 @@ without explicit opt-in fails closed to avoid silently overwriting diagnostics.
 - `DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT`: force HTTP stub port for deterministic fixtures.
 - `DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_BASE`: base port for deterministic HTTP stub allocation.
 - `DECISION_GATE_SYSTEM_TEST_HTTP_STUB_PORT_RANGE`: port range for deterministic HTTP stub allocation.
+
+## Performance Gates
+
+Performance SLO tests are registry-driven under category `performance`. They run
+with release profile and fail closed on threshold breaches using local-machine
+thresholds.
+
+- `system-tests/perf_targets.toml` is the authoritative SLO source.
+- `scripts/system_tests/perf_calibrate.py` recomputes thresholds from repeated runs.
+- `scripts/system_tests/perf_analyze.py` ranks bottlenecks from `perf_summary.json`.
+- `scripts/system_tests/test_runner.py` enforces `min_executed_tests` (default `1`)
+  to fail selector mismatches that accidentally execute zero tests.
+
+Run performance tests:
+
+```bash
+python scripts/system_tests/test_runner.py --category performance
+```
 
 ## Registry and Gaps
 

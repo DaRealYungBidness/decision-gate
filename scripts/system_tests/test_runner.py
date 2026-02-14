@@ -13,6 +13,7 @@ import argparse
 import concurrent.futures
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -57,6 +58,7 @@ class TestDefinition:
     artifacts: Optional[List[str]] = None
     env: Optional[Dict[str, str]] = None
     estimated_runtime_sec: Optional[int] = None
+    min_executed_tests: int = 1
 
 
 @dataclass
@@ -75,6 +77,7 @@ class TestResult:
     artifact_root: str
     runner_stdout: str
     runner_stderr: str
+    executed_tests: Optional[int] = None
     return_code: Optional[int] = None
     error: Optional[str] = None
 
@@ -89,6 +92,11 @@ class Manifest:
     wall_duration_sec: float
     total_duration_sec: float
     test_results: List[Dict[str, Any]]
+
+
+TEST_RESULT_RE = re.compile(
+    r"test result: \w+\. (\d+) passed; (\d+) failed; (\d+) ignored; (\d+) measured; (\d+) filtered out"
+)
 
 
 def load_registry(path: Path) -> RegistryData:
@@ -112,9 +120,24 @@ def parse_tests(registry: RegistryData) -> List[TestDefinition]:
                 artifacts=list(entry.get("artifacts", [])),
                 env=entry.get("env"),
                 estimated_runtime_sec=entry.get("estimated_runtime_sec"),
+                min_executed_tests=int(entry.get("min_executed_tests", 1)),
             )
         )
     return tests
+
+
+def parse_executed_tests(stdout_path: Path) -> Optional[int]:
+    """Extract the number of executed tests from Cargo output logs."""
+    if not stdout_path.exists():
+        return None
+    text = stdout_path.read_text(encoding="utf-8", errors="replace")
+    matches = TEST_RESULT_RE.findall(text)
+    if not matches:
+        return None
+    executed_total = 0
+    for passed, failed, _ignored, _measured, _filtered in matches:
+        executed_total += int(passed) + int(failed)
+    return executed_total
 
 
 def select_tests(
@@ -154,6 +177,7 @@ def run_test(
 ) -> TestResult:
     """Execute a single test command and capture runner-level artifacts."""
     test_root = run_root / sanitize_name(test.name)
+    artifact_root = test_root / "artifacts"
     stdout_path = test_root / "runner.stdout.log"
     stderr_path = test_root / "runner.stderr.log"
     process: Optional[subprocess.Popen[str]] = None
@@ -168,7 +192,7 @@ def run_test(
         end_time=datetime.now(timezone.utc).isoformat(),
         duration_sec=0.0,
         artifacts=test.artifacts or [],
-        artifact_root=str(test_root),
+        artifact_root=str(artifact_root),
         runner_stdout=str(stdout_path),
         runner_stderr=str(stderr_path),
     )
@@ -179,7 +203,7 @@ def run_test(
     test_root.mkdir(parents=True, exist_ok=True)
 
     env = os.environ.copy()
-    env["DECISION_GATE_SYSTEM_TEST_RUN_ROOT"] = str(test_root)
+    env["DECISION_GATE_SYSTEM_TEST_RUN_ROOT"] = str(artifact_root.resolve())
     if test.env:
         for key, value in test.env.items():
             env[str(key)] = str(value)
@@ -231,6 +255,20 @@ def run_test(
             result.status = "passed"
         else:
             result.status = "failed"
+
+    executed_tests = parse_executed_tests(stdout_path)
+    result.executed_tests = executed_tests
+    if result.status == "passed":
+        if executed_tests is None:
+            result.status = "error"
+            result.error = "unable to parse executed test count from runner stdout"
+        elif executed_tests < test.min_executed_tests:
+            result.status = "failed"
+            result.error = (
+                f"executed {executed_tests} tests, below minimum {test.min_executed_tests}; "
+                "possible selector mismatch"
+            )
+
     result.return_code = return_code
     result.start_time = datetime.fromtimestamp(start, timezone.utc).isoformat()
     result.end_time = datetime.fromtimestamp(end, timezone.utc).isoformat()
@@ -245,6 +283,7 @@ def write_manifest(run_root: Path, results: List[TestResult], wall_duration: flo
     failed = len([r for r in results if r.status == "failed"])
     skipped = len([r for r in results if r.status == "skipped"])
     errors = len([r for r in results if r.status in ("error", "timeout")])
+    executed_tests_total = sum((r.executed_tests or 0) for r in results)
     success_rate = f"{(passed / total * 100):.1f}%" if total else "0%"
 
     manifest = Manifest(
@@ -257,6 +296,7 @@ def write_manifest(run_root: Path, results: List[TestResult], wall_duration: flo
             "skipped": skipped,
             "errors": errors,
             "success_rate": success_rate,
+            "executed_tests_total": executed_tests_total,
         },
         wall_duration_sec=round(wall_duration, 3),
         total_duration_sec=round(sum(r.duration_sec for r in results), 3),
@@ -274,6 +314,7 @@ def main() -> None:
     parser.add_argument("--priority", help="Filter by priority (P0/P1/P2)")
     parser.add_argument("--name", help="Run a single test by name")
     parser.add_argument("--quick", action="store_true", help="Run quick categories only")
+    parser.add_argument("--quick-only", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--parallel", type=int, default=1, help="Parallel workers")
     parser.add_argument("--timeout", type=int, help="Override timeout seconds")
     parser.add_argument("--dry-run", action="store_true", help="Print commands only")
@@ -292,7 +333,7 @@ def main() -> None:
         args.category,
         args.priority,
         args.name,
-        args.quick,
+        args.quick or args.quick_only,
         registry,
     )
 

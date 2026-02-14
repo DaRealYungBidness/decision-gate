@@ -286,7 +286,7 @@ safe logging across failure paths.
 
 **Must pass**
 
-- Performance smoke test runs (non-gated).
+- Performance SLO gates run in release profile against local calibrated thresholds.
 - Memory caps respected in runpack verification and stores.
 - High-volume scenarios do not exceed configured limits.
 - Capacity targets defined (e.g., 10k runs, provider fan-out, large evidence).
@@ -295,14 +295,19 @@ safe logging across failure paths.
 
 **Current coverage**
 
-- Performance smoke test (ignored) in `system-tests/tests/suites/performance.rs`.
+- Release-profile throughput/latency gates for core MCP, precheck, and mixed
+  registry workflows in `system-tests/tests/suites/performance.rs` with
+  thresholds defined in `system-tests/perf_targets.toml`.
+- Local perf runs emit artifacts that are analyzed with
+  `scripts/system_tests/perf_analyze.py` for bottleneck attribution.
 - Stress tests for registry concurrency, paging stability, and precheck storms
-  (`system-tests/tests/suites/stress.rs`).
+  remain reliability correctness checks (`system-tests/tests/suites/stress.rs`),
+  not throughput SLA gates.
 
 **Missing / gaps**
 
-- Capacity targets and thresholds are not encoded in tests or CI (stress tests exist,
-  but no pass/fail limits are defined).
+- Long-running soak/perf regression coverage remains open
+  (`system-tests/test_gaps.toml`, id `stress-soak-perf`).
 
 ---
 
@@ -398,7 +403,7 @@ safe logging across failure paths.
 | 6    | Runpack backward compatibility   | ❌     | Add legacy vectors                      |
 | 7    | Fuzzing breadth                  | 🟡     | Spec/evidence/comparator/JSONPath/anchor/schema coverage; provider response fuzz missing |
 | 7    | Log leakage scanning             | ✅     | `log_leak_scan` suite + audit checks    |
-| 8    | Performance smoke                | ✅     | Ignored test                            |
+| 8    | Performance throughput gates     | ✅     | Release perf suite + local artifact analysis |
 | 8    | Capacity targets                 | ❌     | Stress tests only; no thresholds        |
 | 9    | Docs + CLI usability             | 🟡     | CLI + SDK + contract suites; docs gaps  |
 | 10   | Agentic flow harness             | 🟡     | Deterministic harness + registry + packs; live-mode missing |

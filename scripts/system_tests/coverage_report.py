@@ -188,6 +188,7 @@ System-tests are registry-driven. Every test is declared in
 ```bash
 python scripts/system_tests/test_runner.py --priority P0
 python scripts/system_tests/test_runner.py --category runpack
+python scripts/system_tests/test_runner.py --category performance
 ```
 
 ## Environment Variables
@@ -209,6 +210,21 @@ Each system-test emits at least:
 - `tool_transcript.json`
 
 Runpack tests also emit `runpack/` with exported artifacts.
+
+Performance tests also emit:
+- `perf_summary.json` (throughput/latency/error metrics + SLO evaluation)
+- `perf_tool_metrics.json` (per-tool p95 and total-time rankings)
+- `perf_target.json` (resolved threshold/workload contract for the run)
+
+## Performance Operating Model
+
+- Absolute SLO thresholds are defined in `system-tests/perf_targets.toml`.
+- Performance runs are release-profile (`cargo test --release`) and are calibrated
+  against the local machine baseline.
+- `scripts/system_tests/perf_calibrate.py` recalibrates thresholds from repeated runs.
+- `scripts/system_tests/perf_analyze.py` aggregates artifacts to rank bottlenecks.
+- `scripts/system_tests/test_runner.py` enforces `min_executed_tests` (default `1`)
+  to fail selector mismatches that execute zero tests.
 
 ## Hygiene Rules
 

@@ -1,21 +1,22 @@
 // system-tests/tests/suites/stress.rs
 // ============================================================================
 // Module: Stress Tests
-// Description: Concurrency and burst-load checks for MCP tooling.
-// Purpose: Validate resilience under concurrent registry/list/precheck load.
+// Description: Concurrency and burst-load correctness checks for MCP tooling.
+// Purpose: Validate deterministic resilience under concurrent registry/list/precheck load.
 // Dependencies: system-tests helpers
 // ============================================================================
 
 //! ## Overview
-//! Concurrency and burst-load checks for MCP tooling.
-//! Purpose: Validate resilience under concurrent registry/list/precheck load.
+//! Concurrency and burst-load correctness checks for MCP tooling.
+//! Purpose: validate deterministic resilience under concurrent registry/list/precheck load.
+//! Throughput SLOs are owned by `suites/performance.rs`, not this suite.
 //! Invariants:
 //! - System-test execution is deterministic and fail-closed.
 //! - Inputs are treated as untrusted unless explicitly mocked.
 //!
 //! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
-// Planned soak/perf coverage is tracked in system-tests/test_gaps.toml (id: stress-soak-perf).
+// Planned long-running soak/perf coverage is tracked in system-tests/test_gaps.toml (id: stress-soak-perf).
 
 use std::collections::HashSet;
 

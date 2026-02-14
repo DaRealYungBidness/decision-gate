@@ -1,14 +1,14 @@
 // system-tests/tests/performance.rs
 // ============================================================================
 // Module: Performance Suite
-// Description: Aggregates performance smoke system tests.
-// Purpose: Reduce binaries while keeping performance coverage centralized.
+// Description: Aggregates performance throughput SLO system tests.
+// Purpose: Reduce binaries while keeping performance gate coverage centralized.
 // Dependencies: suites/*, helpers
 // ============================================================================
 
 //! ## Overview
-//! Aggregates performance smoke system tests.
-//! Purpose: Reduce binaries while keeping performance coverage centralized.
+//! Aggregates performance throughput SLO system tests.
+//! Purpose: reduce binaries while keeping performance gate coverage centralized.
 //! Invariants:
 //! - System-test execution is deterministic and fail-closed.
 //! - Inputs are treated as untrusted unless explicitly mocked.

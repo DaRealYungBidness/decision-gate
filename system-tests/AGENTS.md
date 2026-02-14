@@ -23,6 +23,8 @@ artifacts so results can be inspected by humans and machines.
 Scope note:
 - Stress tests validate concurrency and fail-closed behavior, not throughput SLAs.
 - Fuzz/property tests and long-running soak/perf tests are planned but not yet added.
+- Throughput SLAs are owned by the `performance` category and
+  `system-tests/perf_targets.toml`.
 
 ## Test Contract Standards
 - No fail-open logic. If a check is required, assert it explicitly.

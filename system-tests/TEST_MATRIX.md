@@ -151,10 +151,12 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `multi_transport_parity` | mcp_transport | HTTP, stdio, and CLI interop parity for decisions/runpacks. |
 | `runpack_export_includes_security_context` | runpack | Runpack manifests include security context metadata. |
 | `anchor_validation_fuzz_cases_fail_closed` | security | Malformed/oversized anchors fail closed with explicit errors. |
-| `performance_smoke` | performance | Non-gated MCP workflow throughput smoke test. |
-| `stress_registry_concurrent_writes` | reliability | Concurrent schema registry writes remain stable and ordered. |
-| `stress_schema_list_paging_concurrent_reads` | reliability | Schemas list paging stays deterministic under concurrent reads. |
-| `stress_precheck_request_storm` | reliability | Precheck request storms fail closed and remain stable. |
+| `perf_core_mcp_throughput_release` | performance | Release-profile throughput + latency SLO gate for scenario start/trigger. |
+| `perf_precheck_throughput_release` | performance | Release-profile throughput + latency SLO gate for precheck workflow. |
+| `perf_registry_mixed_throughput_release` | performance | Release-profile throughput + latency SLO gate for schemas register/list mix. |
+| `stress_registry_concurrent_writes` | reliability | Concurrent schema registry writes remain deterministic and ordered (not a throughput SLA test). |
+| `stress_schema_list_paging_concurrent_reads` | reliability | Schemas list paging stays deterministic under concurrent reads (not a throughput SLA test). |
+| `stress_precheck_request_storm` | reliability | Precheck storms remain fail-closed and deterministic (not a throughput SLA test). |
 | `sdk_gen_cli_generate_and_check` | operations | SDK generator CLI generate/check and drift detection. |
 | `contract_cli_generate_and_check` | operations | Contract CLI generate/check and drift detection. |
 | `broker_composite_sources_and_sinks` | operations | CompositeBroker resolves file/http/inline sources and dispatches via sink. |

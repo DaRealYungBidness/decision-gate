@@ -13,7 +13,7 @@ Dependencies:
   - system-tests/test_registry.toml
   - system-tests/test_gaps.toml
 ============================================================================
-Last Updated: 2026-02-07 (UTC)
+Last Updated: 2026-02-14 (UTC)
 ============================================================================
 -->
 
@@ -92,6 +92,8 @@ specifies:
 - name, category, priority
 - file locations and run command
 - required artifacts
+- `min_executed_tests` guard (default `1`) to fail selector mismatches that
+  accidentally execute zero tests.
 
 [F:system-tests/test_registry.toml L1-L43](system-tests/test_registry.toml#L1-L43)
 
@@ -99,6 +101,9 @@ Suite entrypoints live in `system-tests/tests/` and include test implementations
 under `system-tests/tests/suites/`. This reduces test binary proliferation while
 preserving category-driven inventory in the registry. Each registry
 `run_command` targets the suite binary with `--test <suite> -- --exact <module>::<test>`.
+
+Performance entries run with release profile and exact fully-qualified test
+selectors to ensure throughput assertions are exercised in production-like mode.
 
 ---
 
@@ -140,6 +145,16 @@ JSON evidence tests configure a per-test `json` provider root and use **relative
 file paths so evidence anchors are stable across operating systems. Absolute
 paths are rejected by the provider to avoid runpack hash drift.
 
+Performance suites emit additional deterministic artifacts:
+
+- `perf_summary.json` for throughput/latency/error metrics and SLO evaluation.
+- `perf_tool_metrics.json` for per-tool p95/total-time rankings.
+- `perf_target.json` for resolved workload + threshold contract.
+
+Absolute performance thresholds are tracked in `system-tests/perf_targets.toml`
+and calibrated by `scripts/system_tests/perf_calibrate.py`. Post-run bottleneck
+attribution is produced by `scripts/system_tests/perf_analyze.py`.
+
 ### Transcript Artifact Surfaces
 
 DG and the system-test harness emit different transcript artifacts on purpose:
@@ -162,6 +177,7 @@ passes. Use explicit features or the registry-driven runner.
 - `cargo test -p system-tests --features system-tests`
 - `cargo nextest run -p system-tests --features system-tests`
 - `python scripts/system_tests/test_runner.py --priority P0`
+- `python scripts/system_tests/test_runner.py --category performance`
 
 `cargo nextest` defaults are tuned in `.config/nextest.toml`, including emitting
 failure output at the end of the run for easier triage.
@@ -177,6 +193,10 @@ while preserving longer, test-specific limits.
 The MCP HTTP helper applies bounded retries for transient transport send errors
 before failing closed, reducing non-deterministic CI flakes without masking
 server-side JSON-RPC errors.
+
+Performance suites are currently executed locally in release mode
+(`python scripts/system_tests/test_runner.py --category performance`) with
+artifact analysis via `scripts/system_tests/perf_analyze.py`.
 
 ---
 

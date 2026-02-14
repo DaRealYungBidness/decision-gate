@@ -34,9 +34,9 @@ use system_tests::config::SystemTestConfig;
 struct TestSummary {
     test_name: String,
     status: String,
-    started_at_ms: u128,
-    ended_at_ms: u128,
-    duration_ms: u128,
+    started_at_ms: u64,
+    ended_at_ms: u64,
+    duration_ms: u64,
     notes: Vec<String>,
     artifacts: Vec<String>,
 }
@@ -170,7 +170,8 @@ impl TestReporter {
         notes: Vec<String>,
         artifacts: Vec<String>,
     ) -> io::Result<()> {
-        let ended_at_ms = self.started_at.elapsed().as_millis();
+        let ended_at_ms = u64::try_from(self.started_at.elapsed().as_millis())
+            .map_err(|_| io::Error::other("summary duration milliseconds overflow"))?;
         let summary = TestSummary {
             test_name: self.test_name.clone(),
             status: status.to_string(),

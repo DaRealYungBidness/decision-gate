@@ -1,0 +1,42 @@
+# system-tests/perf_targets.toml
+# ============================================================================
+# Module: Performance Targets
+# Description: Absolute throughput/latency SLOs for system-test perf workflows.
+# Purpose: Provide deterministic, auditable pass/fail thresholds for local perf runs.
+# ============================================================================
+
+[meta]
+version = 1
+runner_class = "local-workstation"
+profile = "release"
+notes = "Authoritative local thresholds. Recalibrate on this machine with scripts/system_tests/perf_calibrate.py when performance code changes."
+
+[tests.perf_core_mcp_throughput_release]
+description = "Scenario start/trigger MCP workflow throughput gate."
+workers = 8
+warmup_iterations = 40
+measure_iterations = 320
+payload_profile = "scenario_start+scenario_trigger"
+min_throughput_rps = 80.0
+max_p95_ms = 200
+max_error_rate = 0.0
+
+[tests.perf_precheck_throughput_release]
+description = "Precheck MCP workflow throughput gate."
+workers = 8
+warmup_iterations = 40
+measure_iterations = 640
+payload_profile = "precheck_boolean_payload"
+min_throughput_rps = 120.0
+max_p95_ms = 150
+max_error_rate = 0.0
+
+[tests.perf_registry_mixed_throughput_release]
+description = "Schemas register/list mixed workflow throughput gate."
+workers = 6
+warmup_iterations = 24
+measure_iterations = 360
+payload_profile = "schemas_register+schemas_list"
+min_throughput_rps = 60.0
+max_p95_ms = 250
+max_error_rate = 0.0
