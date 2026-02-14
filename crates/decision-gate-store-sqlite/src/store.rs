@@ -21,6 +21,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::time::Instant;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
@@ -69,6 +70,8 @@ pub const MAX_STATE_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;
 /// Maximum schema payload size accepted by the registry.
 /// Acts as a hard upper bound for configurable registry limits.
 pub const MAX_SCHEMA_BYTES: usize = 1024 * 1024;
+/// Millisecond bucket boundaries used for lightweight store perf snapshots.
+const PERF_BUCKETS_MS: [u64; 10] = [1, 2, 5, 10, 20, 50, 100, 250, 500, 1_000];
 
 /// Cursor payload for schema pagination.
 #[derive(Debug, Serialize, Deserialize)]
@@ -233,10 +236,7 @@ impl From<SqliteStoreError> for StoreError {
             SqliteStoreError::Corrupt(message) => Self::Corrupt(message),
             SqliteStoreError::VersionMismatch(message) => Self::VersionMismatch(message),
             SqliteStoreError::Invalid(message) => Self::Invalid(message),
-            SqliteStoreError::TooLarge {
-                max_bytes,
-                actual_bytes,
-            } => Self::Invalid(format!(
+            SqliteStoreError::TooLarge { max_bytes, actual_bytes } => Self::Invalid(format!(
                 "state_json exceeds size limit: {actual_bytes} bytes (max {max_bytes})"
             )),
         }
@@ -258,6 +258,8 @@ pub struct SqliteRunStateStore {
     config: SqliteStoreConfig,
     /// Shared `SQLite` connection guarded by a mutex.
     connection: Arc<Mutex<Connection>>,
+    /// Lightweight operation stats used for local performance diagnostics.
+    perf_stats: Arc<Mutex<SqlitePerfStats>>,
 }
 
 /// Summary metadata for a stored run.
@@ -290,6 +292,79 @@ pub struct RunVersionSummary {
     pub state_bytes: usize,
 }
 
+/// Store-level operation counters.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SqliteStoreOpCounts {
+    /// Run-state read operations (`load`).
+    pub read: u64,
+    /// Run-state write operations (`save`).
+    pub write: u64,
+    /// Registry register operations.
+    pub register: u64,
+    /// Registry list operations.
+    pub list: u64,
+}
+
+/// Classified database error counters.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SqliteDbErrorCounts {
+    /// Count of `busy` database errors.
+    pub busy: u64,
+    /// Count of `locked` database errors.
+    pub locked: u64,
+    /// Count of all other database errors.
+    pub other: u64,
+}
+
+/// Snapshot of lightweight SQLite perf/contention stats.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SqlitePerfStatsSnapshot {
+    /// Per-class operation counts.
+    pub op_counts: SqliteStoreOpCounts,
+    /// Operation latencies represented as `<= upper_bound` buckets plus overflow slot.
+    pub latency_buckets_ms: Vec<u64>,
+    /// Read-operation histogram counts (length = `latency_buckets_ms.len() + 1`).
+    pub read_latency_histogram: Vec<u64>,
+    /// Write-operation histogram counts (length = `latency_buckets_ms.len() + 1`).
+    pub write_latency_histogram: Vec<u64>,
+    /// Register-operation histogram counts (length = `latency_buckets_ms.len() + 1`).
+    pub register_latency_histogram: Vec<u64>,
+    /// List-operation histogram counts (length = `latency_buckets_ms.len() + 1`).
+    pub list_latency_histogram: Vec<u64>,
+    /// Cumulative read duration in milliseconds.
+    pub read_total_duration_ms: u64,
+    /// Cumulative write duration in milliseconds.
+    pub write_total_duration_ms: u64,
+    /// Cumulative register duration in milliseconds.
+    pub register_total_duration_ms: u64,
+    /// Cumulative list duration in milliseconds.
+    pub list_total_duration_ms: u64,
+    /// Database error counters.
+    pub db_errors: SqliteDbErrorCounts,
+}
+
+#[derive(Debug, Default)]
+struct SqlitePerfStats {
+    op_counts: SqliteStoreOpCounts,
+    read_latency_histogram: [u64; PERF_BUCKETS_MS.len() + 1],
+    write_latency_histogram: [u64; PERF_BUCKETS_MS.len() + 1],
+    register_latency_histogram: [u64; PERF_BUCKETS_MS.len() + 1],
+    list_latency_histogram: [u64; PERF_BUCKETS_MS.len() + 1],
+    read_total_duration_ms: u64,
+    write_total_duration_ms: u64,
+    register_total_duration_ms: u64,
+    list_total_duration_ms: u64,
+    db_errors: SqliteDbErrorCounts,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum SqlitePerfOp {
+    Read,
+    Write,
+    Register,
+    List,
+}
+
 impl SqliteRunStateStore {
     /// Opens an `SQLite`-backed run state store.
     ///
@@ -306,6 +381,7 @@ impl SqliteRunStateStore {
         Ok(Self {
             config,
             connection: Arc::new(Mutex::new(connection)),
+            perf_stats: Arc::new(Mutex::new(SqlitePerfStats::default())),
         })
     }
 
@@ -339,6 +415,92 @@ impl SqliteRunStateStore {
     const fn registry_max_entries(&self) -> Option<usize> {
         self.config.schema_registry_max_entries
     }
+
+    /// Returns a snapshot of lightweight operation and contention stats.
+    #[must_use]
+    pub fn perf_stats_snapshot(&self) -> SqlitePerfStatsSnapshot {
+        let guard = self.perf_stats.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        SqlitePerfStatsSnapshot {
+            op_counts: guard.op_counts.clone(),
+            latency_buckets_ms: PERF_BUCKETS_MS.to_vec(),
+            read_latency_histogram: guard.read_latency_histogram.to_vec(),
+            write_latency_histogram: guard.write_latency_histogram.to_vec(),
+            register_latency_histogram: guard.register_latency_histogram.to_vec(),
+            list_latency_histogram: guard.list_latency_histogram.to_vec(),
+            read_total_duration_ms: guard.read_total_duration_ms,
+            write_total_duration_ms: guard.write_total_duration_ms,
+            register_total_duration_ms: guard.register_total_duration_ms,
+            list_total_duration_ms: guard.list_total_duration_ms,
+            db_errors: guard.db_errors.clone(),
+        }
+    }
+
+    /// Resets lightweight operation and contention stats to zero.
+    pub fn reset_perf_stats(&self) {
+        if let Ok(mut guard) = self.perf_stats.lock() {
+            *guard = SqlitePerfStats::default();
+        }
+    }
+
+    fn record_store_op(
+        &self,
+        op: SqlitePerfOp,
+        elapsed: std::time::Duration,
+        db_error: Option<&str>,
+    ) {
+        let elapsed_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
+        let bucket_index = histogram_bucket_index(elapsed_ms);
+        let Ok(mut stats) = self.perf_stats.lock() else {
+            return;
+        };
+        match op {
+            SqlitePerfOp::Read => {
+                stats.op_counts.read = stats.op_counts.read.saturating_add(1);
+                stats.read_total_duration_ms =
+                    stats.read_total_duration_ms.saturating_add(elapsed_ms);
+                if let Some(slot) = stats.read_latency_histogram.get_mut(bucket_index) {
+                    *slot = slot.saturating_add(1);
+                }
+            }
+            SqlitePerfOp::Write => {
+                stats.op_counts.write = stats.op_counts.write.saturating_add(1);
+                stats.write_total_duration_ms =
+                    stats.write_total_duration_ms.saturating_add(elapsed_ms);
+                if let Some(slot) = stats.write_latency_histogram.get_mut(bucket_index) {
+                    *slot = slot.saturating_add(1);
+                }
+            }
+            SqlitePerfOp::Register => {
+                stats.op_counts.register = stats.op_counts.register.saturating_add(1);
+                stats.register_total_duration_ms =
+                    stats.register_total_duration_ms.saturating_add(elapsed_ms);
+                if let Some(slot) = stats.register_latency_histogram.get_mut(bucket_index) {
+                    *slot = slot.saturating_add(1);
+                }
+            }
+            SqlitePerfOp::List => {
+                stats.op_counts.list = stats.op_counts.list.saturating_add(1);
+                stats.list_total_duration_ms =
+                    stats.list_total_duration_ms.saturating_add(elapsed_ms);
+                if let Some(slot) = stats.list_latency_histogram.get_mut(bucket_index) {
+                    *slot = slot.saturating_add(1);
+                }
+            }
+        }
+        if let Some(message) = db_error {
+            match classify_db_error_message(message) {
+                SqliteDbErrorKind::Busy => {
+                    stats.db_errors.busy = stats.db_errors.busy.saturating_add(1);
+                }
+                SqliteDbErrorKind::Locked => {
+                    stats.db_errors.locked = stats.db_errors.locked.saturating_add(1);
+                }
+                SqliteDbErrorKind::Other => {
+                    stats.db_errors.other = stats.db_errors.other.saturating_add(1);
+                }
+            }
+        }
+    }
 }
 
 impl RunStateStore for SqliteRunStateStore {
@@ -348,11 +510,25 @@ impl RunStateStore for SqliteRunStateStore {
         namespace_id: &NamespaceId,
         run_id: &RunId,
     ) -> Result<Option<RunState>, StoreError> {
-        self.load_state(*tenant_id, *namespace_id, run_id).map_err(StoreError::from)
+        let started = Instant::now();
+        let result = self.load_state(*tenant_id, *namespace_id, run_id);
+        self.record_store_op(
+            SqlitePerfOp::Read,
+            started.elapsed(),
+            result.as_ref().err().and_then(db_error_message_store),
+        );
+        result.map_err(StoreError::from)
     }
 
     fn save(&self, state: &RunState) -> Result<(), StoreError> {
-        self.save_state(state).map_err(StoreError::from)
+        let started = Instant::now();
+        let result = self.save_state(state);
+        self.record_store_op(
+            SqlitePerfOp::Write,
+            started.elapsed(),
+            result.as_ref().err().and_then(db_error_message_store),
+        );
+        result.map_err(StoreError::from)
     }
 
     fn readiness(&self) -> Result<(), StoreError> {
@@ -362,24 +538,25 @@ impl RunStateStore for SqliteRunStateStore {
 
 impl DataShapeRegistry for SqliteRunStateStore {
     fn register(&self, record: DataShapeRecord) -> Result<(), DataShapeRegistryError> {
-        let schema_bytes = canonical_json_bytes(&record.schema)
-            .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
-        ensure_schema_bytes_within_limit(schema_bytes.len(), self.registry_max_schema_bytes())?;
-        let schema_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, &schema_bytes);
-        let created_at_json = serde_json::to_string(&record.created_at)
-            .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
-        let (signing_key_id, signing_signature, signing_algorithm) =
-            record.signing.as_ref().map_or((None, None, None), |signing| {
-                (
-                    Some(signing.key_id.clone()),
-                    Some(signing.signature.clone()),
-                    signing.algorithm.clone(),
-                )
-            });
-        let mut guard = self.connection.lock().map_err(|_| {
-            DataShapeRegistryError::Io("schema registry mutex poisoned".to_string())
-        })?;
-        let result = {
+        let started = Instant::now();
+        let result = (|| -> Result<(), DataShapeRegistryError> {
+            let schema_bytes = canonical_json_bytes(&record.schema)
+                .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
+            ensure_schema_bytes_within_limit(schema_bytes.len(), self.registry_max_schema_bytes())?;
+            let schema_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, &schema_bytes);
+            let created_at_json = serde_json::to_string(&record.created_at)
+                .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
+            let (signing_key_id, signing_signature, signing_algorithm) =
+                record.signing.as_ref().map_or((None, None, None), |signing| {
+                    (
+                        Some(signing.key_id.clone()),
+                        Some(signing.signature.clone()),
+                        signing.algorithm.clone(),
+                    )
+                });
+            let mut guard = self.connection.lock().map_err(|_| {
+                DataShapeRegistryError::Io("schema registry mutex poisoned".to_string())
+            })?;
             let tx =
                 guard.transaction().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
             if let Some(max_entries) = self.registry_max_entries() {
@@ -412,7 +589,7 @@ impl DataShapeRegistry for SqliteRunStateStore {
                     created_at_json,
                 ],
             );
-            match result {
+            let result = match result {
                 Ok(_) => tx.commit().map_err(|err| DataShapeRegistryError::Io(err.to_string())),
                 Err(rusqlite::Error::SqliteFailure(err, _))
                     if err.code == ErrorCode::ConstraintViolation =>
@@ -420,9 +597,14 @@ impl DataShapeRegistry for SqliteRunStateStore {
                     Err(DataShapeRegistryError::Conflict("schema already registered".to_string()))
                 }
                 Err(err) => Err(DataShapeRegistryError::Io(err.to_string())),
-            }
-        };
-        drop(guard);
+            };
+            result
+        })();
+        self.record_store_op(
+            SqlitePerfOp::Register,
+            started.elapsed(),
+            result.as_ref().err().and_then(db_error_message_registry),
+        );
         result
     }
 
@@ -433,29 +615,39 @@ impl DataShapeRegistry for SqliteRunStateStore {
         schema_id: &DataShapeId,
         version: &DataShapeVersion,
     ) -> Result<Option<DataShapeRecord>, DataShapeRegistryError> {
-        let mut guard = self.connection.lock().map_err(|_| {
-            DataShapeRegistryError::Io("schema registry mutex poisoned".to_string())
-        })?;
-        let row = {
-            let tx =
-                guard.transaction().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
-            let row = query_schema_row_by_id(
-                &tx,
-                *tenant_id,
-                *namespace_id,
-                schema_id,
-                version,
-                self.registry_max_schema_bytes(),
-            )?;
-            tx.commit().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
-            row
-        };
-        drop(guard);
-        let Some(row) = row else {
-            return Ok(None);
-        };
-        let record = build_schema_record(*tenant_id, *namespace_id, row)?;
-        Ok(Some(record))
+        let started = Instant::now();
+        let result = (|| -> Result<Option<DataShapeRecord>, DataShapeRegistryError> {
+            let mut guard = self.connection.lock().map_err(|_| {
+                DataShapeRegistryError::Io("schema registry mutex poisoned".to_string())
+            })?;
+            let row = {
+                let tx = guard
+                    .transaction()
+                    .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+                let row = query_schema_row_by_id(
+                    &tx,
+                    *tenant_id,
+                    *namespace_id,
+                    schema_id,
+                    version,
+                    self.registry_max_schema_bytes(),
+                )?;
+                tx.commit().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+                row
+            };
+            drop(guard);
+            let Some(row) = row else {
+                return Ok(None);
+            };
+            let record = build_schema_record(*tenant_id, *namespace_id, row)?;
+            Ok(Some(record))
+        })();
+        self.record_store_op(
+            SqlitePerfOp::Read,
+            started.elapsed(),
+            result.as_ref().err().and_then(db_error_message_registry),
+        );
+        result
     }
 
     fn list(
@@ -465,54 +657,62 @@ impl DataShapeRegistry for SqliteRunStateStore {
         cursor: Option<String>,
         limit: usize,
     ) -> Result<DataShapePage, DataShapeRegistryError> {
-        if limit == 0 {
-            return Err(DataShapeRegistryError::Invalid(
-                "schema list limit must be greater than zero".to_string(),
-            ));
-        }
-        let limit = i64::try_from(limit)
-            .map_err(|_| DataShapeRegistryError::Invalid("limit too large".to_string()))?;
-        let cursor = cursor.map(|value| parse_registry_cursor(&value)).transpose()?;
-        let mut guard = self.connection.lock().map_err(|_| {
-            DataShapeRegistryError::Io("schema registry mutex poisoned".to_string())
-        })?;
-        let records = {
-            let tx =
-                guard.transaction().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
-            ensure_registry_schema_sizes(
-                &tx,
-                *tenant_id,
-                *namespace_id,
-                self.registry_max_schema_bytes(),
-            )?;
-            let rows = query_schema_rows(&tx, *tenant_id, *namespace_id, cursor.as_ref(), limit)?;
-            let records = rows
-                .into_iter()
-                .map(|row| build_schema_record(*tenant_id, *namespace_id, row))
-                .collect::<Result<Vec<_>, _>>()?;
-            tx.commit().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
-            records
-        };
-        drop(guard);
-        let next_token = match records.last() {
-            Some(record) => {
-                let cursor = RegistryCursor {
-                    schema_id: record.schema_id.to_string(),
-                    version: record.version.to_string(),
-                };
-                let token = serde_json::to_string(&cursor).map_err(|err| {
-                    DataShapeRegistryError::Invalid(format!(
-                        "failed to serialize registry cursor: {err}"
-                    ))
-                })?;
-                Some(token)
+        let started = Instant::now();
+        let result = (|| -> Result<DataShapePage, DataShapeRegistryError> {
+            if limit == 0 {
+                return Err(DataShapeRegistryError::Invalid(
+                    "schema list limit must be greater than zero".to_string(),
+                ));
             }
-            None => None,
-        };
-        Ok(DataShapePage {
-            items: records,
-            next_token,
-        })
+            let limit = i64::try_from(limit)
+                .map_err(|_| DataShapeRegistryError::Invalid("limit too large".to_string()))?;
+            let cursor = cursor.map(|value| parse_registry_cursor(&value)).transpose()?;
+            let mut guard = self.connection.lock().map_err(|_| {
+                DataShapeRegistryError::Io("schema registry mutex poisoned".to_string())
+            })?;
+            let records = {
+                let tx = guard
+                    .transaction()
+                    .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+                ensure_registry_schema_sizes(
+                    &tx,
+                    *tenant_id,
+                    *namespace_id,
+                    self.registry_max_schema_bytes(),
+                )?;
+                let rows =
+                    query_schema_rows(&tx, *tenant_id, *namespace_id, cursor.as_ref(), limit)?;
+                let records = rows
+                    .into_iter()
+                    .map(|row| build_schema_record(*tenant_id, *namespace_id, row))
+                    .collect::<Result<Vec<_>, _>>()?;
+                tx.commit().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+                records
+            };
+            drop(guard);
+            let next_token = match records.last() {
+                Some(record) => {
+                    let cursor = RegistryCursor {
+                        schema_id: record.schema_id.to_string(),
+                        version: record.version.to_string(),
+                    };
+                    let token = serde_json::to_string(&cursor).map_err(|err| {
+                        DataShapeRegistryError::Invalid(format!(
+                            "failed to serialize registry cursor: {err}"
+                        ))
+                    })?;
+                    Some(token)
+                }
+                None => None,
+            };
+            Ok(DataShapePage { items: records, next_token })
+        })();
+        self.record_store_op(
+            SqlitePerfOp::List,
+            started.elapsed(),
+            result.as_ref().err().and_then(db_error_message_registry),
+        );
+        result
     }
 
     fn readiness(&self) -> Result<(), DataShapeRegistryError> {
@@ -898,6 +1098,49 @@ impl SqliteRunStateStore {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+enum SqliteDbErrorKind {
+    Busy,
+    Locked,
+    Other,
+}
+
+const fn histogram_bucket_index(duration_ms: u64) -> usize {
+    let mut index = 0usize;
+    while index < PERF_BUCKETS_MS.len() {
+        if duration_ms <= PERF_BUCKETS_MS[index] {
+            return index;
+        }
+        index += 1;
+    }
+    PERF_BUCKETS_MS.len()
+}
+
+fn classify_db_error_message(message: &str) -> SqliteDbErrorKind {
+    let lower = message.to_ascii_lowercase();
+    if lower.contains("busy") {
+        SqliteDbErrorKind::Busy
+    } else if lower.contains("locked") {
+        SqliteDbErrorKind::Locked
+    } else {
+        SqliteDbErrorKind::Other
+    }
+}
+
+fn db_error_message_store(error: &SqliteStoreError) -> Option<&str> {
+    match error {
+        SqliteStoreError::Db(message) => Some(message.as_str()),
+        _ => None,
+    }
+}
+
+fn db_error_message_registry(error: &DataShapeRegistryError) -> Option<&str> {
+    match error {
+        DataShapeRegistryError::Io(message) => Some(message.as_str()),
+        _ => None,
+    }
+}
+
 // ============================================================================
 // SECTION: Helpers
 // ============================================================================
@@ -1190,11 +1433,7 @@ fn fetch_run_state_payload(
                     |row| row.get(0),
                 )
                 .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-            Some(RunStatePayload {
-                bytes,
-                hash_value: hash,
-                hash_algorithm: algorithm,
-            })
+            Some(RunStatePayload { bytes, hash_value: hash, hash_algorithm: algorithm })
         } else {
             None
         };
@@ -1254,11 +1493,7 @@ fn fetch_run_state_payload_version(
                 |row| row.get(0),
             )
             .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-        let payload = RunStatePayload {
-            bytes,
-            hash_value: hash,
-            hash_algorithm: algorithm,
-        };
+        let payload = RunStatePayload { bytes, hash_value: hash, hash_algorithm: algorithm };
         tx.commit().map_err(|err| SqliteStoreError::Db(err.to_string()))?;
         drop(guard);
         Ok(Some(payload))
@@ -1424,11 +1659,7 @@ fn build_signing(
         (Some(key_id), Some(signature))
             if !key_id.trim().is_empty() && !signature.trim().is_empty() =>
         {
-            Some(DataShapeSignature {
-                key_id,
-                signature,
-                algorithm,
-            })
+            Some(DataShapeSignature { key_id, signature, algorithm })
         }
         _ => None,
     }

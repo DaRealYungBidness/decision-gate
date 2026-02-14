@@ -19,3 +19,6 @@ mod helpers;
 
 #[path = "suites/performance.rs"]
 mod performance;
+
+#[path = "suites/perf_sqlite_store.rs"]
+mod perf_sqlite_store;

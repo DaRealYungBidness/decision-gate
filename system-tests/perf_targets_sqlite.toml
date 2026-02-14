@@ -1,0 +1,83 @@
+# system-tests/perf_targets_sqlite.toml
+# ============================================================================
+# Module: SQLite Performance Targets
+# Description: SQLite WAL+FULL throughput/latency contracts for local perf runs.
+# Purpose: Provide deterministic report-only thresholds and workload params for the SQLite track.
+# ============================================================================
+
+[meta]
+version = 1
+runner_class = "local-workstation"
+profile = "release"
+enforcement_mode = "report_only"
+notes = "Phase-1 SQLite perf track runs in report-only mode locally. Recalibrate with scripts/system_tests/perf_calibrate.py --category performance_sqlite."
+
+[tests.perf_sqlite_core_mcp_throughput_release]
+description = "SQLite WAL+FULL scenario start/trigger MCP throughput report."
+workers = 4
+warmup_iterations = 24
+measure_iterations = 192
+sweep_workers = [1, 4, 8, 16]
+payload_profile = "scenario_start+scenario_trigger"
+min_throughput_rps = 30.0
+max_p95_ms = 700
+max_error_rate = 0.0
+journal_mode = "wal"
+sync_mode = "full"
+busy_timeout_ms = 5000
+
+[tests.perf_sqlite_precheck_throughput_release]
+description = "SQLite WAL+FULL precheck MCP throughput report."
+workers = 4
+warmup_iterations = 24
+measure_iterations = 256
+sweep_workers = [1, 4, 8, 16]
+payload_profile = "precheck_boolean_payload"
+min_throughput_rps = 40.0
+max_p95_ms = 600
+max_error_rate = 0.0
+journal_mode = "wal"
+sync_mode = "full"
+busy_timeout_ms = 5000
+
+[tests.perf_sqlite_registry_mixed_throughput_release]
+description = "SQLite WAL+FULL schemas register/list mixed throughput report."
+workers = 4
+warmup_iterations = 16
+measure_iterations = 160
+sweep_workers = [1, 4, 8, 16]
+payload_profile = "schemas_register+schemas_list"
+min_throughput_rps = 20.0
+max_p95_ms = 900
+max_error_rate = 0.0
+journal_mode = "wal"
+sync_mode = "full"
+busy_timeout_ms = 5000
+
+[tests.perf_sqlite_store_run_state_contention_release]
+description = "Direct SQLite run-state save/load contention microbench."
+workers = 8
+warmup_iterations = 24
+measure_iterations = 320
+sweep_workers = [1, 4, 8, 16]
+payload_profile = "store_run_state_save+load"
+min_throughput_rps = 60.0
+max_p95_ms = 500
+max_error_rate = 0.0
+journal_mode = "wal"
+sync_mode = "full"
+busy_timeout_ms = 5000
+
+[tests.perf_sqlite_store_registry_contention_release]
+description = "Direct SQLite schema register/list contention microbench."
+workers = 8
+warmup_iterations = 24
+measure_iterations = 320
+sweep_workers = [1, 4, 8, 16]
+payload_profile = "store_registry_register+list"
+min_throughput_rps = 40.0
+max_p95_ms = 800
+max_error_rate = 0.0
+journal_mode = "wal"
+sync_mode = "full"
+busy_timeout_ms = 5000

@@ -154,6 +154,11 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `perf_core_mcp_throughput_release` | performance | Release-profile throughput + latency SLO gate for scenario start/trigger. |
 | `perf_precheck_throughput_release` | performance | Release-profile throughput + latency SLO gate for precheck workflow. |
 | `perf_registry_mixed_throughput_release` | performance | Release-profile throughput + latency SLO gate for schemas register/list mix. |
+| `perf_sqlite_core_mcp_throughput_release` | performance_sqlite | Release-profile SQLite WAL+FULL scenario start/trigger throughput diagnostics (report-only). |
+| `perf_sqlite_precheck_throughput_release` | performance_sqlite | Release-profile SQLite WAL+FULL precheck throughput diagnostics (report-only). |
+| `perf_sqlite_registry_mixed_throughput_release` | performance_sqlite | Release-profile SQLite WAL+FULL schemas register/list throughput diagnostics (report-only). |
+| `perf_sqlite_store_run_state_contention_release` | performance_sqlite | Direct SQLite run-state save/load contention microbench with latency and DB error counters. |
+| `perf_sqlite_store_registry_contention_release` | performance_sqlite | Direct SQLite registry register/list contention microbench with latency and DB error counters. |
 | `stress_registry_concurrent_writes` | reliability | Concurrent schema registry writes remain deterministic and ordered (not a throughput SLA test). |
 | `stress_schema_list_paging_concurrent_reads` | reliability | Schemas list paging stays deterministic under concurrent reads (not a throughput SLA test). |
 | `stress_precheck_request_storm` | reliability | Precheck storms remain fail-closed and deterministic (not a throughput SLA test). |

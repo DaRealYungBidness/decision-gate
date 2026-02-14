@@ -186,9 +186,10 @@ System-tests are registry-driven. Every test is declared in
 ## Running Tests
 
 ```bash
-python scripts/system_tests/test_runner.py --priority P0
-python scripts/system_tests/test_runner.py --category runpack
-python scripts/system_tests/test_runner.py --category performance
+python3 scripts/system_tests/test_runner.py --priority P0
+python3 scripts/system_tests/test_runner.py --category runpack
+python3 scripts/system_tests/test_runner.py --category performance
+python3 scripts/system_tests/test_runner.py --category performance_sqlite
 ```
 
 ## Environment Variables
@@ -215,12 +216,17 @@ Performance tests also emit:
 - `perf_summary.json` (throughput/latency/error metrics + SLO evaluation)
 - `perf_tool_metrics.json` (per-tool p95 and total-time rankings)
 - `perf_target.json` (resolved threshold/workload contract for the run)
+- `sqlite_config.json` / `sqlite_sweep.json` for SQLite-track configuration + sweep output
+- `sqlite_contention.json` for SQLite store microbench contention counters
 
 ## Performance Operating Model
 
 - Absolute SLO thresholds are defined in `system-tests/perf_targets.toml`.
+- SQLite track thresholds and workload params are defined in
+  `system-tests/perf_targets_sqlite.toml`.
 - Performance runs are release-profile (`cargo test --release`) and are calibrated
   against the local machine baseline.
+- SQLite track runs in phase-1 report-only mode (`enforcement_mode = "report_only"`).
 - `scripts/system_tests/perf_calibrate.py` recalibrates thresholds from repeated runs.
 - `scripts/system_tests/perf_analyze.py` aggregates artifacts to rank bottlenecks.
 - `scripts/system_tests/test_runner.py` enforces `min_executed_tests` (default `1`)

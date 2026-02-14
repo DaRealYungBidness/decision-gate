@@ -104,6 +104,8 @@ preserving category-driven inventory in the registry. Each registry
 
 Performance entries run with release profile and exact fully-qualified test
 selectors to ensure throughput assertions are exercised in production-like mode.
+SQLite durability perf diagnostics are registered separately under
+`performance_sqlite` so in-memory and SQLite tracks can evolve independently.
 
 ---
 
@@ -150,9 +152,15 @@ Performance suites emit additional deterministic artifacts:
 - `perf_summary.json` for throughput/latency/error metrics and SLO evaluation.
 - `perf_tool_metrics.json` for per-tool p95/total-time rankings.
 - `perf_target.json` for resolved workload + threshold contract.
+- `sqlite_config.json` for SQLite journal/sync/busy-timeout contract used by the run.
+- `sqlite_sweep.json` for deterministic concurrency sweep output (`[1,4,8,16]`).
+- `sqlite_contention.json` for direct store microbench contention counters.
 
 Absolute performance thresholds are tracked in `system-tests/perf_targets.toml`
-and calibrated by `scripts/system_tests/perf_calibrate.py`. Post-run bottleneck
+for in-memory gates and `system-tests/perf_targets_sqlite.toml` for the SQLite
+track. SQLite thresholds run in `report_only` mode in phase 1 and are still
+recorded as authoritative contracts for calibration + analysis. Thresholds are
+calibrated by `scripts/system_tests/perf_calibrate.py`. Post-run bottleneck
 attribution is produced by `scripts/system_tests/perf_analyze.py`.
 
 ### Transcript Artifact Surfaces
@@ -178,6 +186,7 @@ passes. Use explicit features or the registry-driven runner.
 - `cargo nextest run -p system-tests --features system-tests`
 - `python scripts/system_tests/test_runner.py --priority P0`
 - `python scripts/system_tests/test_runner.py --category performance`
+- `python scripts/system_tests/test_runner.py --category performance_sqlite`
 
 `cargo nextest` defaults are tuned in `.config/nextest.toml`, including emitting
 failure output at the end of the run for easier triage.
@@ -194,9 +203,14 @@ The MCP HTTP helper applies bounded retries for transient transport send errors
 before failing closed, reducing non-deterministic CI flakes without masking
 server-side JSON-RPC errors.
 
-Performance suites are currently executed locally in release mode
-(`python scripts/system_tests/test_runner.py --category performance`) with
-artifact analysis via `scripts/system_tests/perf_analyze.py`.
+Performance suites are currently executed locally in release mode with split
+tracks:
+
+- `python scripts/system_tests/test_runner.py --category performance`
+- `python scripts/system_tests/test_runner.py --category performance_sqlite`
+
+SQLite track enforcement is report-only in phase 1; artifact analysis for both
+tracks uses `scripts/system_tests/perf_analyze.py`.
 
 ---
 

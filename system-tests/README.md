@@ -112,15 +112,25 @@ with release profile and fail closed on threshold breaches using local-machine
 thresholds.
 
 - `system-tests/perf_targets.toml` is the authoritative SLO source.
+- `system-tests/perf_targets_sqlite.toml` is the authoritative SQLite SLO +
+  workload source (phase-1 report-only mode).
 - `scripts/system_tests/perf_calibrate.py` recomputes thresholds from repeated runs.
-- `scripts/system_tests/perf_analyze.py` ranks bottlenecks from `perf_summary.json`.
+- `scripts/system_tests/perf_analyze.py` ranks bottlenecks from `perf_summary.json`
+  and aggregates `sqlite_contention.json`.
 - `scripts/system_tests/test_runner.py` enforces `min_executed_tests` (default `1`)
   to fail selector mismatches that accidentally execute zero tests.
+
+Performance tracks are intentionally split:
+
+- `performance`: in-memory baseline throughput gates.
+- `performance_sqlite`: SQLite WAL+FULL durability diagnostics (report-only in phase 1).
 
 Run performance tests:
 
 ```bash
-python scripts/system_tests/test_runner.py --category performance
+python3 scripts/system_tests/test_runner.py --category performance
+python3 scripts/system_tests/test_runner.py --category performance_sqlite
+python3 scripts/system_tests/perf_analyze.py --run-root .tmp/system-tests/<run-id>
 ```
 
 ## Registry and Gaps

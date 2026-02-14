@@ -17,6 +17,7 @@ security = { description = "Disclosure and policy enforcement", quick = true }
 contract = { description = "Schema and contract conformance", quick = true }
 operations = { description = "Startup and configuration validation", quick = false }
 performance = { description = "Performance throughput gates", quick = false }
+performance_sqlite = { description = "SQLite durability throughput diagnostics (report-only phase)", quick = false }
 agentic = { description = "Agentic flow harness scenarios", quick = false }
 
 # =============================================================================
@@ -1691,6 +1692,61 @@ description = "Release-profile throughput + latency gate for mixed registry writ
 files = ["system-tests/tests/suites/performance.rs"]
 run_command = "cargo test --release -p system-tests --features system-tests --test performance -- --ignored --exact performance::perf_registry_mixed_throughput_release"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "perf_summary.json", "perf_tool_metrics.json"]
+estimated_runtime_sec = 180
+min_executed_tests = 1
+
+[[tests]]
+name = "perf_sqlite_core_mcp_throughput_release"
+category = "performance_sqlite"
+priority = "P2"
+description = "Release-profile SQLite WAL+FULL throughput report for scenario_start/scenario_trigger workflow."
+files = ["system-tests/tests/suites/performance.rs"]
+run_command = "cargo test --release -p system-tests --features system-tests --test performance -- --ignored --exact performance::perf_sqlite_core_mcp_throughput_release"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "perf_summary.json", "perf_tool_metrics.json", "perf_target.json", "sqlite_config.json", "sqlite_sweep.json"]
+estimated_runtime_sec = 240
+min_executed_tests = 1
+
+[[tests]]
+name = "perf_sqlite_precheck_throughput_release"
+category = "performance_sqlite"
+priority = "P2"
+description = "Release-profile SQLite WAL+FULL throughput report for precheck workflow."
+files = ["system-tests/tests/suites/performance.rs"]
+run_command = "cargo test --release -p system-tests --features system-tests --test performance -- --ignored --exact performance::perf_sqlite_precheck_throughput_release"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "perf_summary.json", "perf_tool_metrics.json", "perf_target.json", "sqlite_config.json", "sqlite_sweep.json"]
+estimated_runtime_sec = 240
+min_executed_tests = 1
+
+[[tests]]
+name = "perf_sqlite_registry_mixed_throughput_release"
+category = "performance_sqlite"
+priority = "P2"
+description = "Release-profile SQLite WAL+FULL throughput report for mixed registry write/read workflow."
+files = ["system-tests/tests/suites/performance.rs"]
+run_command = "cargo test --release -p system-tests --features system-tests --test performance -- --ignored --exact performance::perf_sqlite_registry_mixed_throughput_release"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "perf_summary.json", "perf_tool_metrics.json", "perf_target.json", "sqlite_config.json", "sqlite_sweep.json"]
+estimated_runtime_sec = 240
+min_executed_tests = 1
+
+[[tests]]
+name = "perf_sqlite_store_run_state_contention_release"
+category = "performance_sqlite"
+priority = "P2"
+description = "Release-profile direct SQLite run-state store contention microbench with sweep diagnostics."
+files = ["system-tests/tests/suites/perf_sqlite_store.rs"]
+run_command = "cargo test --release -p system-tests --features system-tests --test performance -- --ignored --exact perf_sqlite_store::perf_sqlite_store_run_state_contention_release"
+artifacts = ["summary.json", "summary.md", "perf_summary.json", "perf_target.json", "sqlite_config.json", "sqlite_contention.json", "sqlite_sweep.json"]
+estimated_runtime_sec = 180
+min_executed_tests = 1
+
+[[tests]]
+name = "perf_sqlite_store_registry_contention_release"
+category = "performance_sqlite"
+priority = "P2"
+description = "Release-profile direct SQLite registry contention microbench with sweep diagnostics."
+files = ["system-tests/tests/suites/perf_sqlite_store.rs"]
+run_command = "cargo test --release -p system-tests --features system-tests --test performance -- --ignored --exact perf_sqlite_store::perf_sqlite_store_registry_contention_release"
+artifacts = ["summary.json", "summary.md", "perf_summary.json", "perf_target.json", "sqlite_config.json", "sqlite_contention.json", "sqlite_sweep.json"]
 estimated_runtime_sec = 180
 min_executed_tests = 1
 

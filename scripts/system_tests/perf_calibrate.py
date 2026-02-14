@@ -53,6 +53,7 @@ def percentile(values: List[float], percentile_value: float) -> float:
 def run_perf_sample(
     workspace_root: Path,
     test_name: str,
+    category: str,
     run_root: Path,
 ) -> Dict[str, Any]:
     """Run a single performance test sample and return perf_summary.json payload."""
@@ -64,7 +65,7 @@ def run_perf_sample(
         "--name",
         test_name,
         "--category",
-        "performance",
+        category,
         "--run-root",
         str(run_root),
     ]
@@ -100,10 +101,14 @@ def calibrate_thresholds(samples: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-def render_perf_targets(meta: Dict[str, Any], tests: Dict[str, Dict[str, Any]]) -> str:
+def render_perf_targets(
+    targets_path: str,
+    meta: Dict[str, Any],
+    tests: Dict[str, Dict[str, Any]],
+) -> str:
     """Render perf targets TOML in deterministic key order."""
     lines = [
-        "# system-tests/perf_targets.toml",
+        f"# {targets_path}",
         "# ============================================================================",
         "# Module: Performance Targets",
         "# Description: Absolute throughput/latency SLOs for system-test perf workflows.",
@@ -114,6 +119,7 @@ def render_perf_targets(meta: Dict[str, Any], tests: Dict[str, Dict[str, Any]]) 
         f'version = {int(meta.get("version", 1))}',
         f'runner_class = "{meta.get("runner_class", "")}"',
         f'profile = "{meta.get("profile", "release")}"',
+        f'enforcement_mode = "{meta.get("enforcement_mode", "fail_closed")}"',
         f'notes = "{meta.get("notes", "")}"',
         "",
     ]
@@ -122,18 +128,27 @@ def render_perf_targets(meta: Dict[str, Any], tests: Dict[str, Dict[str, Any]]) 
         "workers",
         "warmup_iterations",
         "measure_iterations",
+        "sweep_workers",
         "payload_profile",
         "min_throughput_rps",
         "max_p95_ms",
         "max_error_rate",
+        "journal_mode",
+        "sync_mode",
+        "busy_timeout_ms",
     ]
     for test_name in sorted(tests):
         target = tests[test_name]
         lines.append(f"[tests.{test_name}]")
         for field in field_order:
+            if field not in target:
+                continue
             value = target[field]
             if isinstance(value, str):
                 lines.append(f'{field} = "{value}"')
+            elif isinstance(value, list):
+                list_values = ", ".join(str(item) for item in value)
+                lines.append(f"{field} = [{list_values}]")
             elif isinstance(value, float):
                 lines.append(f"{field} = {value:.1f}")
             else:
@@ -147,9 +162,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Calibrate performance thresholds")
     parser.add_argument("--runs", type=int, default=5, help="Samples per perf test")
     parser.add_argument(
+        "--category",
+        default="performance",
+        choices=["performance", "performance_sqlite"],
+        help="Perf category to calibrate",
+    )
+    parser.add_argument(
         "--targets-path",
-        default="system-tests/perf_targets.toml",
-        help="Path to perf targets TOML",
+        help="Path to perf targets TOML (default is category-specific)",
     )
     parser.add_argument(
         "--run-root",
@@ -164,9 +184,17 @@ def main() -> None:
 
     if args.runs <= 0:
         raise ValueError("--runs must be > 0")
+    if args.category not in {"performance", "performance_sqlite"}:
+        raise ValueError("--category must be performance or performance_sqlite")
+
+    default_targets_by_category = {
+        "performance": "system-tests/perf_targets.toml",
+        "performance_sqlite": "system-tests/perf_targets_sqlite.toml",
+    }
 
     workspace_root = Path(__file__).resolve().parents[2]
-    targets_path = workspace_root / args.targets_path
+    targets_rel = args.targets_path or default_targets_by_category[args.category]
+    targets_path = workspace_root / targets_rel
     targets = load_toml(targets_path)
     test_targets = dict(targets.get("tests", {}))
     if not test_targets:
@@ -186,7 +214,7 @@ def main() -> None:
         for run_idx in range(args.runs):
             sample_root = base_run_root / test_name / f"sample_{run_idx + 1:02d}"
             sample_root.mkdir(parents=True, exist_ok=True)
-            sample = run_perf_sample(workspace_root, test_name, sample_root)
+            sample = run_perf_sample(workspace_root, test_name, args.category, sample_root)
             samples.append(sample)
         recommendations[test_name] = calibrate_thresholds(samples)
 
@@ -196,7 +224,7 @@ def main() -> None:
         target["max_p95_ms"] = int(recommendation["max_p95_ms"])
         target["max_error_rate"] = float(recommendation["max_error_rate"])
 
-    rendered = render_perf_targets(dict(targets.get("meta", {})), test_targets)
+    rendered = render_perf_targets(targets_rel, dict(targets.get("meta", {})), test_targets)
     if args.dry_run:
         print(rendered)
         return
