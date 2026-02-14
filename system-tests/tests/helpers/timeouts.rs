@@ -12,7 +12,14 @@
 //! Invariants:
 //! - System-test execution is deterministic and fail-closed.
 //! - Inputs are treated as untrusted unless explicitly mocked.
+//!
 //! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+
+// ============================================================================
+// SECTION: Lint Configuration
+// ============================================================================
+
+#![allow(clippy::panic, reason = "System-test helpers fail fast on invalid timeout config.")]
 
 use std::time::Duration;
 

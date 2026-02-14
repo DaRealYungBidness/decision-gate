@@ -7,11 +7,12 @@
 // ============================================================================
 
 //! ## Overview
-//! End-to-end persistence validation for SQLite store backend.
+//! End-to-end persistence validation for `SQLite` store backend.
 //! Purpose: Ensure runs survive server restarts with durable storage enabled.
 //! Invariants:
 //! - System-test execution is deterministic and fail-closed.
 //! - Inputs are treated as untrusted unless explicitly mocked.
+//!
 //! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use decision_gate_core::RunState;

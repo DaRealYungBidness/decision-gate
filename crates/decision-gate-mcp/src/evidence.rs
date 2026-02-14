@@ -423,6 +423,7 @@ enum ToolContent {
     },
 }
 
+/// Builds a deterministic JSON-RPC request ID for an evidence request.
 fn request_id_for_context(correlation_id: Option<&str>) -> Value {
     if let Some(correlation_id) = correlation_id {
         return Value::String(correlation_id.to_string());

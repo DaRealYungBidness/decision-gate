@@ -271,6 +271,12 @@ struct ServeCommand {
     /// Optional config file path (defaults to decision-gate.toml or env override).
     #[arg(long, value_name = "PATH")]
     config: Option<PathBuf>,
+    /// Override built-in `json` provider root for evidence resolution.
+    #[arg(long, value_name = "DIR")]
+    json_root: Option<PathBuf>,
+    /// Override built-in `json` provider root id used in evidence anchors.
+    #[arg(long, value_name = "ROOT_ID")]
+    json_root_id: Option<String>,
     /// Allow binding HTTP/SSE transports to non-loopback addresses (requires TLS or upstream TLS +
     /// auth).
     #[arg(long, action = ArgAction::SetTrue)]
@@ -1231,9 +1237,7 @@ struct CliError {
 impl CliError {
     /// Constructs a new [`CliError`] from a localized message.
     const fn new(message: String) -> Self {
-        Self {
-            message,
-        }
+        Self { message }
     }
 }
 
@@ -1278,42 +1282,18 @@ async fn run() -> CliResult<ExitCode> {
 
     match command {
         Commands::Serve(command) => command_serve(command).await,
-        Commands::Runpack {
-            command,
-        } => command_runpack(command),
-        Commands::Authoring {
-            command,
-        } => command_authoring(command),
-        Commands::Config {
-            command,
-        } => command_config(command),
-        Commands::Provider {
-            command,
-        } => command_provider(command),
-        Commands::Schema {
-            command,
-        } => command_schema(command).await,
-        Commands::Store {
-            command,
-        } => command_store(command),
-        Commands::Docs {
-            command,
-        } => command_docs(command).await,
-        Commands::Broker {
-            command,
-        } => command_broker(command),
-        Commands::Interop {
-            command,
-        } => command_interop(command).await,
-        Commands::Mcp {
-            command,
-        } => command_mcp(command).await,
-        Commands::Contract {
-            command,
-        } => command_contract(command),
-        Commands::Sdk {
-            command,
-        } => command_sdk(command),
+        Commands::Runpack { command } => command_runpack(command),
+        Commands::Authoring { command } => command_authoring(command),
+        Commands::Config { command } => command_config(command),
+        Commands::Provider { command } => command_provider(command),
+        Commands::Schema { command } => command_schema(command).await,
+        Commands::Store { command } => command_store(command),
+        Commands::Docs { command } => command_docs(command).await,
+        Commands::Broker { command } => command_broker(command),
+        Commands::Interop { command } => command_interop(command).await,
+        Commands::Mcp { command } => command_mcp(command).await,
+        Commands::Contract { command } => command_contract(command),
+        Commands::Sdk { command } => command_sdk(command),
     }
 }
 
@@ -1323,8 +1303,14 @@ async fn run() -> CliResult<ExitCode> {
 
 /// Executes the `serve` command.
 async fn command_serve(command: ServeCommand) -> CliResult<ExitCode> {
-    let config = DecisionGateConfig::load(command.config.as_deref())
+    let mut config = DecisionGateConfig::load(command.config.as_deref())
         .map_err(|err| CliError::new(t!("serve.config.load_failed", error = err)))?;
+    apply_json_root_override(
+        &mut config,
+        command.json_root.as_deref(),
+        command.json_root_id.as_deref(),
+    )
+    .map_err(|err| CliError::new(t!("serve.config.load_failed", error = err)))?;
     let allow_non_loopback = resolve_allow_non_loopback(command.allow_non_loopback)
         .map_err(|err| CliError::new(err.to_string()))?;
     let bind_outcome = enforce_local_only(&config, allow_non_loopback)
@@ -1346,6 +1332,73 @@ async fn command_serve(command: ServeCommand) -> CliResult<ExitCode> {
     })?;
 
     Ok(ExitCode::SUCCESS)
+}
+
+/// Applies CLI overrides to the built-in `json` provider root configuration.
+fn apply_json_root_override(
+    config: &mut DecisionGateConfig,
+    json_root: Option<&Path>,
+    json_root_id: Option<&str>,
+) -> Result<(), String> {
+    let Some(root_path) = json_root else {
+        if json_root_id.is_some() {
+            return Err("--json-root-id requires --json-root".to_string());
+        }
+        return Ok(());
+    };
+    if let Some(root_id_override) = json_root_id {
+        if root_id_override.is_empty() {
+            return Err("--json-root-id must be non-empty".to_string());
+        }
+        if root_id_override.len() > 64 {
+            return Err("--json-root-id must be at most 64 characters".to_string());
+        }
+        if !root_id_override
+            .chars()
+            .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '-' || ch == '_')
+        {
+            return Err(
+                "--json-root-id must use lowercase ASCII letters, digits, '-' or '_'".to_string()
+            );
+        }
+    }
+
+    let canonical_root = fs::canonicalize(root_path)
+        .map_err(|err| format!("failed to resolve --json-root '{}': {err}", root_path.display()))?;
+    if !canonical_root.is_dir() {
+        return Err(format!("--json-root '{}' is not a directory", canonical_root.display()));
+    }
+
+    let root_override = canonical_root.to_string_lossy().into_owned();
+    let mut applied = false;
+    for provider in &mut config.providers {
+        if provider.provider_type != config::ProviderType::Builtin || provider.name != "json" {
+            continue;
+        }
+        let mut table = match provider.config.take() {
+            Some(toml::Value::Table(table)) => table,
+            Some(_) => {
+                return Err("json builtin provider config must be a TOML table".to_string());
+            }
+            None => toml::map::Map::new(),
+        };
+        table.insert("root".to_string(), toml::Value::String(root_override));
+        if let Some(root_id_override) = json_root_id {
+            table.insert("root_id".to_string(), toml::Value::String(root_id_override.to_string()));
+        }
+        provider.config = Some(toml::Value::Table(table));
+        applied = true;
+        break;
+    }
+
+    if !applied {
+        return Err(
+            "configuration does not define built-in provider 'json'; cannot apply --json-root"
+                .to_string(),
+        );
+    }
+
+    Ok(())
 }
 
 /// Emits local-only warnings for the MCP server.
@@ -1487,14 +1540,10 @@ fn command_config_validate(command: &ConfigValidateCommand) -> CliResult<ExitCod
 /// Dispatches provider discovery subcommands.
 fn command_provider(command: ProviderCommand) -> CliResult<ExitCode> {
     match command {
-        ProviderCommand::Contract {
-            command,
-        } => match command {
+        ProviderCommand::Contract { command } => match command {
             ProviderContractCommand::Get(command) => command_provider_contract_get(&command),
         },
-        ProviderCommand::CheckSchema {
-            command,
-        } => match command {
+        ProviderCommand::CheckSchema { command } => match command {
             ProviderCheckSchemaCommand::Get(command) => command_provider_check_schema_get(&command),
         },
         ProviderCommand::List(command) => command_provider_list(&command),
@@ -1581,9 +1630,7 @@ fn command_provider_list(command: &ProviderListCommand) -> CliResult<ExitCode> {
         });
     }
     providers.sort_by(|a, b| a.provider_id.cmp(&b.provider_id));
-    let response = decision_gate_mcp::tools::ProvidersListResponse {
-        providers,
-    };
+    let response = decision_gate_mcp::tools::ProvidersListResponse { providers };
 
     match command.format {
         ProviderListFormat::Json => {
@@ -1697,9 +1744,7 @@ fn command_store_list(command: &StoreListCommand) -> CliResult<ExitCode> {
     let runs = store
         .list_runs(tenant_id, namespace_id)
         .map_err(|err| CliError::new(t!("store.list.failed", error = err)))?;
-    let output = StoreListOutput {
-        runs,
-    };
+    let output = StoreListOutput { runs };
     let text = render_store_list_text(&output);
     emit_structured_output(&output, command.format, &command.output, text)?;
     Ok(ExitCode::SUCCESS)
@@ -1785,10 +1830,7 @@ fn command_store_verify(command: &StoreVerifyCommand) -> CliResult<ExitCode> {
     let algorithm = parse_hash_algorithm_label(&summary.hash_algorithm)?;
     let computed = hash_canonical_json(algorithm, &state)
         .map_err(|err| CliError::new(t!("store.verify.failed", error = err)))?;
-    let stored = HashDigest {
-        algorithm,
-        value: summary.state_hash.clone(),
-    };
+    let stored = HashDigest { algorithm, value: summary.state_hash.clone() };
     let status = if stored.value == computed.value {
         StoreVerifyStatus::Pass
     } else {
@@ -2181,9 +2223,7 @@ fn command_broker_dispatch(command: &BrokerDispatchCommand) -> CliResult<ExitCod
             let mut guard = capture_ref.lock().map_err(|_| {
                 decision_gate_broker::SinkError::DeliveryFailed("capture poisoned".to_string())
             })?;
-            *guard = Some(DispatchCapture {
-                payload: payload.clone(),
-            });
+            *guard = Some(DispatchCapture { payload: payload.clone() });
         }
         Ok(receipt)
     });
@@ -2237,10 +2277,7 @@ impl BrokerResolveInput {
     fn into_parts(self) -> (ContentRef, Option<String>) {
         match self {
             Self::ContentRef(content_ref) => (content_ref, None),
-            Self::WithType {
-                content_ref,
-                content_type,
-            } => (content_ref, content_type),
+            Self::WithType { content_ref, content_type } => (content_ref, content_type),
         }
     }
 }
@@ -2337,11 +2374,7 @@ fn build_broker_sources(
     }
     let http = HttpSource::with_policy(policy)
         .map_err(|err| CliError::new(t!("broker.http.init_failed", error = err)))?;
-    Ok(BrokerSources {
-        file,
-        http,
-        inline: InlineSource::new(),
-    })
+    Ok(BrokerSources { file, http, inline: InlineSource::new() })
 }
 
 /// Resolves the broker source for a URI.
@@ -2377,12 +2410,7 @@ fn resolve_payload_output(
                     actual = digest.value
                 )));
             }
-            return Ok((
-                BrokerPayloadOutput::Json {
-                    value,
-                },
-                Some(content_type.to_string()),
-            ));
+            return Ok((BrokerPayloadOutput::Json { value }, Some(content_type.to_string())));
         }
         let digest = hash_bytes(algorithm, bytes);
         if digest.value != expected.value {
@@ -2393,9 +2421,7 @@ fn resolve_payload_output(
             )));
         }
         return Ok((
-            BrokerPayloadOutput::Bytes {
-                base64: BASE64.encode(bytes),
-            },
+            BrokerPayloadOutput::Bytes { base64: BASE64.encode(bytes) },
             Some(content_type.to_string()),
         ));
     }
@@ -2404,22 +2430,12 @@ fn resolve_payload_output(
         && let Ok(digest) = hash_canonical_json(algorithm, &value)
         && digest.value == expected.value
     {
-        return Ok((
-            BrokerPayloadOutput::Json {
-                value,
-            },
-            Some("application/json".to_string()),
-        ));
+        return Ok((BrokerPayloadOutput::Json { value }, Some("application/json".to_string())));
     }
 
     let digest = hash_bytes(algorithm, bytes);
     if digest.value == expected.value {
-        return Ok((
-            BrokerPayloadOutput::Bytes {
-                base64: BASE64.encode(bytes),
-            },
-            None,
-        ));
+        return Ok((BrokerPayloadOutput::Bytes { base64: BASE64.encode(bytes) }, None));
     }
 
     Err(CliError::new(t!(
@@ -2466,17 +2482,13 @@ fn render_broker_resolve_text(output: &BrokerResolveOutput) -> String {
     buffer.push_str(&t!("broker.resolve.bytes", bytes = output.bytes));
     buffer.push('\n');
     match &output.payload {
-        BrokerPayloadOutput::Json {
-            value,
-        } => {
+        BrokerPayloadOutput::Json { value } => {
             if let Ok(json) = serde_json::to_string_pretty(value) {
                 buffer.push_str(&json);
                 buffer.push('\n');
             }
         }
-        BrokerPayloadOutput::Bytes {
-            base64,
-        } => {
+        BrokerPayloadOutput::Bytes { base64 } => {
             buffer.push_str(base64);
             buffer.push('\n');
         }
@@ -2517,10 +2529,7 @@ fn read_broker_json<T: DeserializeOwned>(path: &Path, kind: &str) -> CliResult<T
             path = path.display(),
             error = err
         )),
-        ReadLimitError::TooLarge {
-            size,
-            limit,
-        } => CliError::new(t!(
+        ReadLimitError::TooLarge { size, limit } => CliError::new(t!(
             "input.read_too_large",
             kind = kind,
             path = path.display(),
@@ -2639,21 +2648,15 @@ async fn command_interop_eval(command: InteropEvalCommand) -> CliResult<ExitCode
 /// Dispatches MCP client subcommands.
 async fn command_mcp(command: McpCommand) -> CliResult<ExitCode> {
     match command {
-        McpCommand::Tools {
-            command,
-        } => match command {
+        McpCommand::Tools { command } => match command {
             McpToolsCommand::List(command) => command_mcp_tools_list(command).await,
             McpToolsCommand::Call(command) => command_mcp_tools_call(command).await,
         },
-        McpCommand::Resources {
-            command,
-        } => match command {
+        McpCommand::Resources { command } => match command {
             McpResourcesCommand::List(command) => command_mcp_resources_list(command).await,
             McpResourcesCommand::Read(command) => command_mcp_resources_read(command).await,
         },
-        McpCommand::Tool {
-            command,
-        } => command_mcp_tool(command).await,
+        McpCommand::Tool { command } => command_mcp_tool(command).await,
     }
 }
 
@@ -3139,15 +3142,10 @@ fn read_bytes_with_limit(path: &Path, max_bytes: usize) -> Result<Vec<u8>, ReadL
     let file = File::open(path).map_err(ReadLimitError::Io)?;
     let metadata = file.metadata().map_err(ReadLimitError::Io)?;
     let size = metadata.len();
-    let limit = u64::try_from(max_bytes).map_err(|_| ReadLimitError::TooLarge {
-        size,
-        limit: max_bytes,
-    })?;
+    let limit = u64::try_from(max_bytes)
+        .map_err(|_| ReadLimitError::TooLarge { size, limit: max_bytes })?;
     if size > limit {
-        return Err(ReadLimitError::TooLarge {
-            size,
-            limit: max_bytes,
-        });
+        return Err(ReadLimitError::TooLarge { size, limit: max_bytes });
     }
 
     let read_limit = limit.saturating_add(1);
@@ -3156,10 +3154,7 @@ fn read_bytes_with_limit(path: &Path, max_bytes: usize) -> Result<Vec<u8>, ReadL
     limited.read_to_end(&mut bytes).map_err(ReadLimitError::Io)?;
     if bytes.len() > max_bytes {
         let actual = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
-        return Err(ReadLimitError::TooLarge {
-            size: actual,
-            limit: max_bytes,
-        });
+        return Err(ReadLimitError::TooLarge { size: actual, limit: max_bytes });
     }
     Ok(bytes)
 }
@@ -3177,10 +3172,7 @@ fn read_export_json<T: DeserializeOwned>(
             path = path.display(),
             error = err
         )),
-        ReadLimitError::TooLarge {
-            size,
-            limit,
-        } => CliError::new(t!(
+        ReadLimitError::TooLarge { size, limit } => CliError::new(t!(
             "input.read_too_large",
             kind = kind,
             path = path.display(),
@@ -3211,10 +3203,7 @@ fn read_interop_json<T: DeserializeOwned>(
             path = path.display(),
             error = err
         )),
-        ReadLimitError::TooLarge {
-            size,
-            limit,
-        } => CliError::new(t!(
+        ReadLimitError::TooLarge { size, limit } => CliError::new(t!(
             "input.read_too_large",
             kind = kind,
             path = path.display(),
@@ -3233,10 +3222,7 @@ fn read_manifest_json<T: DeserializeOwned>(path: &Path, max_bytes: usize) -> Cli
         ReadLimitError::Io(err) => {
             CliError::new(t!("runpack.verify.read_failed", path = path.display(), error = err))
         }
-        ReadLimitError::TooLarge {
-            size,
-            limit,
-        } => CliError::new(t!(
+        ReadLimitError::TooLarge { size, limit } => CliError::new(t!(
             "input.read_too_large",
             kind = t!("runpack.verify.kind.manifest"),
             path = path.display(),
@@ -3496,10 +3482,7 @@ fn read_mcp_tool_input(args: &McpToolInputArgs) -> CliResult<Value> {
                 path = path.display(),
                 error = err
             )),
-            ReadLimitError::TooLarge {
-                size,
-                limit,
-            } => CliError::new(t!(
+            ReadLimitError::TooLarge { size, limit } => CliError::new(t!(
                 "input.read_too_large",
                 kind = "mcp tool input",
                 path = path.display(),
@@ -3615,9 +3598,9 @@ fn load_auth_profiles(path: &Path) -> CliResult<BTreeMap<String, AuthProfileConf
             path = path.display(),
             error = err
         )),
-        ReadLimitError::TooLarge {
-            ..
-        } => CliError::new(t!("mcp.client.auth_config_too_large", path = path.display())),
+        ReadLimitError::TooLarge { .. } => {
+            CliError::new(t!("mcp.client.auth_config_too_large", path = path.display()))
+        }
     })?;
     let content = std::str::from_utf8(&bytes)
         .map_err(|err| CliError::new(t!("mcp.client.auth_config_parse_failed", error = err)))?;
@@ -3653,11 +3636,7 @@ impl ToolSchemaValidator {
         for contract in tool_contracts() {
             contracts.insert(contract.name, contract);
         }
-        Ok(Self {
-            registry,
-            contracts,
-            validators: BTreeMap::new(),
-        })
+        Ok(Self { registry, contracts, validators: BTreeMap::new() })
     }
 
     /// Validates an input payload against the tool schema.
@@ -3748,10 +3727,7 @@ fn read_authoring_input(path: &Path) -> CliResult<String> {
         ReadLimitError::Io(err) => {
             CliError::new(t!("authoring.read_failed", path = path.display(), error = err))
         }
-        ReadLimitError::TooLarge {
-            size,
-            limit,
-        } => CliError::new(t!(
+        ReadLimitError::TooLarge { size, limit } => CliError::new(t!(
             "input.read_too_large",
             kind = t!("authoring.kind.input"),
             path = path.display(),
@@ -3777,54 +3753,34 @@ fn normalize_authoring_input(
 /// Maps authoring errors into localized CLI messages.
 fn map_authoring_error(error: AuthoringError, path: &Path) -> CliError {
     let message = match error {
-        AuthoringError::InputTooLarge {
-            max_bytes,
-            actual_bytes,
-        } => t!(
+        AuthoringError::InputTooLarge { max_bytes, actual_bytes } => t!(
             "authoring.size_limit_exceeded",
             path = path.display(),
             size = actual_bytes,
             limit = max_bytes
         ),
-        AuthoringError::DepthLimitExceeded {
-            max_depth,
-            actual_depth,
-        } => t!(
+        AuthoringError::DepthLimitExceeded { max_depth, actual_depth } => t!(
             "authoring.depth_limit_exceeded",
             path = path.display(),
             depth = actual_depth,
             limit = max_depth
         ),
-        AuthoringError::Parse {
-            format,
-            error,
-        } => {
+        AuthoringError::Parse { format, error } => {
             t!("authoring.parse_failed", format = format, path = path.display(), error = error)
         }
-        AuthoringError::Schema {
-            error,
-        } => {
+        AuthoringError::Schema { error } => {
             t!("authoring.schema_failed", path = path.display(), error = error)
         }
-        AuthoringError::Deserialize {
-            error,
-        } => {
+        AuthoringError::Deserialize { error } => {
             t!("authoring.deserialize_failed", path = path.display(), error = error)
         }
-        AuthoringError::Spec {
-            error,
-        } => {
+        AuthoringError::Spec { error } => {
             t!("authoring.spec_failed", path = path.display(), error = error)
         }
-        AuthoringError::Canonicalization {
-            error,
-        } => {
+        AuthoringError::Canonicalization { error } => {
             t!("authoring.canonicalize_failed", path = path.display(), error = error)
         }
-        AuthoringError::CanonicalTooLarge {
-            max_bytes,
-            actual_bytes,
-        } => t!(
+        AuthoringError::CanonicalTooLarge { max_bytes, actual_bytes } => t!(
             "authoring.canonical_too_large",
             path = path.display(),
             size = actual_bytes,
@@ -3940,10 +3896,7 @@ fn write_canonical_json<T: Serialize>(value: &T, max_bytes: usize) -> CliResult<
             HashError::Canonicalization(error) => {
                 t!("provider.discovery.serialize_failed", error = error)
             }
-            HashError::SizeLimitExceeded {
-                limit,
-                actual,
-            } => t!(
+            HashError::SizeLimitExceeded { limit, actual } => t!(
                 "provider.discovery.serialize_failed",
                 error = format!("response exceeds size limit ({actual} > {limit})")
             ),
@@ -4066,10 +4019,7 @@ fn load_signing_key(path: &Path) -> CliResult<SigningKey> {
             path = path.display(),
             error = err
         )),
-        ReadLimitError::TooLarge {
-            size,
-            limit,
-        } => CliError::new(t!(
+        ReadLimitError::TooLarge { size, limit } => CliError::new(t!(
             "input.read_too_large",
             kind = t!("output.signature.key_kind"),
             path = path.display(),

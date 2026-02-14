@@ -12,6 +12,7 @@
 //! Invariants:
 //! - System-test execution is deterministic and fail-closed.
 //! - Inputs are treated as untrusted unless explicitly mocked.
+//!
 //! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::sync::Arc;
@@ -269,7 +270,7 @@ impl McpHttpClient {
     async fn send_request(&self, request: &JsonRpcRequest) -> Result<JsonRpcResponse, String> {
         let request_value = serde_json::to_value(request)
             .map_err(|err| format!("jsonrpc serialization failed: {err}"))?;
-        for attempt in 1..=MAX_HTTP_SEND_ATTEMPTS {
+        for attempt in 1 ..= MAX_HTTP_SEND_ATTEMPTS {
             let mut http_request = self.client.post(&self.base_url).json(&request_value);
             if let Some(token) = &self.bearer_token {
                 http_request = http_request.bearer_auth(token);

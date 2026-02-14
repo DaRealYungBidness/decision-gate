@@ -194,7 +194,9 @@ fn mcp_provider_client_from_config_uses_stdio_transport() {
         McpTransport::Stdio {
             ..
         } => {}
-        _ => panic!("expected stdio transport"),
+        McpTransport::Http {
+            ..
+        } => panic!("expected stdio transport"),
     }
 }
 
@@ -333,9 +335,10 @@ fn stdio_command() -> Vec<String> {
     vec!["/bin/sh".to_string(), "-c".to_string(), "cat".to_string()]
 }
 
-fn spawn_http_server(
-    status: StatusCode,
-) -> (String, oneshot::Sender<()>, Arc<Mutex<Option<String>>>, std::thread::JoinHandle<()>) {
+type SpawnedHttpServer =
+    (String, oneshot::Sender<()>, Arc<Mutex<Option<String>>>, std::thread::JoinHandle<()>);
+
+fn spawn_http_server(status: StatusCode) -> SpawnedHttpServer {
     let (addr_tx, addr_rx) = std::sync::mpsc::channel();
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
     let received = Arc::new(Mutex::new(None::<String>));
@@ -390,5 +393,5 @@ fn spawn_http_server(
         });
     });
     let addr = addr_rx.recv().expect("addr recv");
-    (format!("http://{}", addr), shutdown_tx, received, join_handle)
+    (format!("http://{addr}"), shutdown_tx, received, join_handle)
 }

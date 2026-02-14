@@ -12,6 +12,7 @@
 //! Invariants:
 //! - System-test execution is deterministic and fail-closed.
 //! - Inputs are treated as untrusted unless explicitly mocked.
+//!
 //! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::fs;
@@ -76,13 +77,12 @@ type = "builtin"
 [[providers]]
 name = "json"
 type = "builtin"
-config = {{ root = "{}", root_id = "cli-transport-root", max_bytes = 1048576, allow_yaml = true }}
+config = {{ root = "{json_root}", root_id = "cli-transport-root", max_bytes = 1048576, allow_yaml = true }}
 
 [[providers]]
 name = "http"
 type = "builtin"
-"#,
-        json_root
+"#
     )
 }
 

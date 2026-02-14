@@ -101,7 +101,7 @@ async fn spawn_namespace_server(
             })
             .await;
     });
-    (format!("http://{}", addr), shutdown_tx)
+    (format!("http://{addr}"), shutdown_tx)
 }
 
 fn authority_with_base(
@@ -135,9 +135,12 @@ async fn headers_include_bearer_and_correlation() {
     let authority = authority_with_base(base_url, Some("token-123".to_string()));
     let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
     authority.ensure_namespace(None, &namespace_id, Some("corr-123")).await.expect("ensure ok");
-    let headers = capture.lock().expect("capture lock");
-    assert_eq!(headers.authorization.as_deref(), Some("Bearer token-123"));
-    assert_eq!(headers.correlation.as_deref(), Some("corr-123"));
+    {
+        let headers = capture.lock().expect("capture lock");
+        assert_eq!(headers.authorization.as_deref(), Some("Bearer token-123"));
+        assert_eq!(headers.correlation.as_deref(), Some("corr-123"));
+        drop(headers);
+    }
     let _ = shutdown_tx.send(());
 }
 

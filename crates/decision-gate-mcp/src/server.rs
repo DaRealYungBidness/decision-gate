@@ -819,6 +819,7 @@ struct ServerState {
     readiness: Arc<ReadinessState>,
 }
 
+/// Health probe response payload.
 #[derive(Serialize)]
 struct HealthResponse {
     /// Response status label for probe endpoints.
@@ -1188,6 +1189,7 @@ enum ToolContent {
     },
 }
 
+/// Parsed request metadata used for metrics and audit reporting.
 #[derive(Debug, Clone, Copy)]
 struct McpRequestInfo {
     /// JSON-RPC method classification.

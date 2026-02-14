@@ -45,9 +45,10 @@ If any requirement is missing or false, the gate denies the release.
 
 ## Evidence Bundle
 
-The release workflow writes a JSON evidence bundle to
-`./evidence/release_evidence.json` (relative to the repo root). This is the
-input to Decision Gate.
+The release workflow writes a JSON evidence bundle to an evidence workspace
+root and evaluates it via a root-relative file path. The default example is
+`./evidence/release_evidence.json` (relative to the repo root), but the root
+can be overridden at runtime with `--json-root`.
 
 Example (shape only):
 
@@ -98,7 +99,9 @@ The release workflow performs the following sequence:
 2. Generates a dependency SBOM (Rust deps only; container SBOM/provenance are
    not yet emitted).
 3. Writes the evidence bundle.
-4. Starts a local MCP server with `configs/presets/ci-release-gate.toml`.
+4. Starts a local MCP server with `configs/presets/ci-release-gate.toml`
+   (optionally adding `--json-root <evidence-root>` and
+   `--json-root-id <root-id>`).
 5. Evaluates the scenario using the evidence bundle.
 6. Exports and verifies a runpack.
 7. Uploads artifacts:

@@ -7,11 +7,12 @@
 // ============================================================================
 
 //! ## Overview
-//! Deterministic fuzz-style coverage for evidence_query inputs.
-//! Purpose: Ensure evidence_query rejects malformed payloads without panicking.
+//! Deterministic fuzz-style coverage for `evidence_query` inputs.
+//! Purpose: Ensure `evidence_query` rejects malformed payloads without panicking.
 //! Invariants:
 //! - System-test execution is deterministic and fail-closed.
 //! - Inputs are treated as untrusted unless explicitly mocked.
+//!
 //! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::time::Duration;

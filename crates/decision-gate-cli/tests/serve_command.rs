@@ -83,3 +83,69 @@ bind = "0.0.0.0:8080"
 
     cleanup(&root);
 }
+
+/// Verifies `--json-root-id` cannot be used without `--json-root`.
+#[test]
+fn cli_serve_rejects_json_root_id_without_json_root() {
+    let root = temp_root("json-root-id");
+    let config_path = root.join("decision-gate.toml");
+
+    let config = r#"
+[server]
+transport = "stdio"
+"#;
+    fs::write(&config_path, config.trim()).expect("write config");
+
+    let output = Command::new(decision_gate_bin())
+        .args([
+            "serve",
+            "--config",
+            config_path.to_string_lossy().as_ref(),
+            "--json-root-id",
+            "arxi-evidence-root",
+        ])
+        .output()
+        .expect("run decision-gate serve");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("--json-root-id requires --json-root"), "unexpected stderr: {stderr}");
+
+    cleanup(&root);
+}
+
+/// Verifies `--json-root` fails closed when no built-in `json` provider exists.
+#[test]
+fn cli_serve_rejects_json_root_without_builtin_json_provider() {
+    let root = temp_root("json-root-missing-provider");
+    let config_path = root.join("decision-gate.toml");
+    let evidence_root = root.join("evidence-root");
+    fs::create_dir_all(&evidence_root).expect("create evidence root");
+
+    let config = r#"
+[server]
+transport = "stdio"
+
+[[providers]]
+name = "env"
+type = "builtin"
+"#;
+    fs::write(&config_path, config.trim()).expect("write config");
+
+    let output = Command::new(decision_gate_bin())
+        .args([
+            "serve",
+            "--config",
+            config_path.to_string_lossy().as_ref(),
+            "--json-root",
+            evidence_root.to_string_lossy().as_ref(),
+        ])
+        .output()
+        .expect("run decision-gate serve");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("built-in provider 'json'"), "unexpected stderr: {stderr}");
+
+    cleanup(&root);
+}

@@ -124,7 +124,7 @@ fn display_group_requirement_failed() -> TestResult {
         passed: 2,
         required: 5,
     };
-    let display = format!("{}", err);
+    let display = format!("{err}");
     ensure(display.contains("passed 2"), "Should contain passed count")?;
     ensure(display.contains("needed 5"), "Should contain required count")?;
     ensure(display.contains("Group requirement failed"), "Should contain variant prefix")?;
@@ -134,10 +134,10 @@ fn display_group_requirement_failed() -> TestResult {
 #[test]
 fn display_or_all_failed() -> TestResult {
     let err = RequirementError::OrAllFailed;
-    let display = format!("{}", err);
+    let display = format!("{err}");
     ensure(
         display == "All alternatives in OR requirement failed",
-        format!("Unexpected display: {}", display),
+        format!("Unexpected display: {display}"),
     )?;
     Ok(())
 }
@@ -145,10 +145,10 @@ fn display_or_all_failed() -> TestResult {
 #[test]
 fn display_not_failed() -> TestResult {
     let err = RequirementError::NotFailed;
-    let display = format!("{}", err);
+    let display = format!("{err}");
     ensure(
         display == "NOT requirement failed: inner requirement was satisfied",
-        format!("Unexpected display: {}", display),
+        format!("Unexpected display: {display}"),
     )?;
     Ok(())
 }
@@ -156,10 +156,10 @@ fn display_not_failed() -> TestResult {
 #[test]
 fn display_subject_not_available() -> TestResult {
     let err = RequirementError::SubjectNotAvailable;
-    let display = format!("{}", err);
+    let display = format!("{err}");
     ensure(
         display == "Subject not available in evaluation context",
-        format!("Unexpected display: {}", display),
+        format!("Unexpected display: {display}"),
     )?;
     Ok(())
 }
@@ -167,10 +167,10 @@ fn display_subject_not_available() -> TestResult {
 #[test]
 fn display_target_not_available() -> TestResult {
     let err = RequirementError::TargetNotAvailable;
-    let display = format!("{}", err);
+    let display = format!("{err}");
     ensure(
         display == "Target not available in evaluation context",
-        format!("Unexpected display: {}", display),
+        format!("Unexpected display: {display}"),
     )?;
     Ok(())
 }
@@ -178,10 +178,10 @@ fn display_target_not_available() -> TestResult {
 #[test]
 fn display_world_state_unavailable() -> TestResult {
     let err = RequirementError::WorldStateUnavailable;
-    let display = format!("{}", err);
+    let display = format!("{err}");
     ensure(
         display == "World state unavailable or inaccessible",
-        format!("Unexpected display: {}", display),
+        format!("Unexpected display: {display}"),
     )?;
     Ok(())
 }
@@ -189,7 +189,7 @@ fn display_world_state_unavailable() -> TestResult {
 #[test]
 fn display_condition_failed() -> TestResult {
     let err = RequirementError::ConditionFailed("Health below 50".to_string());
-    let display = format!("{}", err);
+    let display = format!("{err}");
     ensure(display.contains("Requirement not met"), "Should have prefix")?;
     ensure(display.contains("Health below 50"), "Should contain message")?;
     Ok(())
@@ -198,7 +198,7 @@ fn display_condition_failed() -> TestResult {
 #[test]
 fn display_condition_error() -> TestResult {
     let err = RequirementError::ConditionError("Component missing".to_string());
-    let display = format!("{}", err);
+    let display = format!("{err}");
     ensure(display.contains("Condition evaluation error"), "Should have prefix")?;
     ensure(display.contains("Component missing"), "Should contain message")?;
     Ok(())
@@ -207,7 +207,7 @@ fn display_condition_error() -> TestResult {
 #[test]
 fn display_invalid_structure() -> TestResult {
     let err = RequirementError::InvalidStructure("Empty AND clause".to_string());
-    let display = format!("{}", err);
+    let display = format!("{err}");
     ensure(display.contains("Invalid requirement structure"), "Should have prefix")?;
     ensure(display.contains("Empty AND clause"), "Should contain message")?;
     Ok(())
@@ -219,7 +219,7 @@ fn display_too_deep() -> TestResult {
         max_depth: 100,
         actual_depth: 150,
     };
-    let display = format!("{}", err);
+    let display = format!("{err}");
     ensure(display.contains("150 levels"), "Should contain actual depth")?;
     ensure(display.contains("max 100"), "Should contain max depth")?;
     ensure(display.contains("too deep"), "Should mention depth issue")?;
@@ -229,7 +229,7 @@ fn display_too_deep() -> TestResult {
 #[test]
 fn display_other() -> TestResult {
     let err = RequirementError::Other("Custom error message".to_string());
-    let display = format!("{}", err);
+    let display = format!("{err}");
     ensure(display.contains("Requirement error"), "Should have prefix")?;
     ensure(display.contains("Custom error message"), "Should contain message")?;
     Ok(())
@@ -293,7 +293,7 @@ fn user_message_or_all_failed() -> TestResult {
     let msg = err.user_message();
     ensure(
         msg == "None of the alternative requirements were met",
-        format!("Unexpected message: {}", msg),
+        format!("Unexpected message: {msg}"),
     )?;
     Ok(())
 }
@@ -304,7 +304,7 @@ fn user_message_not_failed() -> TestResult {
     let msg = err.user_message();
     ensure(
         msg == "A condition that should not be true was satisfied",
-        format!("Unexpected message: {}", msg),
+        format!("Unexpected message: {msg}"),
     )?;
     Ok(())
 }
@@ -315,7 +315,7 @@ fn user_message_subject_not_available() -> TestResult {
     let msg = err.user_message();
     ensure(
         msg == "Cannot evaluate requirement: no subject available",
-        format!("Unexpected message: {}", msg),
+        format!("Unexpected message: {msg}"),
     )?;
     Ok(())
 }
@@ -326,7 +326,7 @@ fn user_message_target_not_available() -> TestResult {
     let msg = err.user_message();
     ensure(
         msg == "Cannot evaluate requirement: no target available",
-        format!("Unexpected message: {}", msg),
+        format!("Unexpected message: {msg}"),
     )?;
     Ok(())
 }
@@ -337,7 +337,7 @@ fn user_message_world_state_unavailable() -> TestResult {
     let msg = err.user_message();
     ensure(
         msg == "Cannot evaluate requirement: world state unavailable",
-        format!("Unexpected message: {}", msg),
+        format!("Unexpected message: {msg}"),
     )?;
     Ok(())
 }
@@ -387,7 +387,7 @@ fn user_message_too_deep_generic() -> TestResult {
 fn user_message_other_prefixed() -> TestResult {
     let err = RequirementError::Other("Custom reason".to_string());
     let msg = err.user_message();
-    ensure(msg == "Requirement not met: Custom reason", format!("Unexpected message: {}", msg))?;
+    ensure(msg == "Requirement not met: Custom reason", format!("Unexpected message: {msg}"))?;
     Ok(())
 }
 
@@ -445,7 +445,7 @@ fn too_deep_boundary_values() -> TestResult {
         max_depth: 0,
         actual_depth: 1,
     };
-    let display = format!("{}", err);
+    let display = format!("{err}");
     ensure(display.contains("1 levels"), "Should show actual_depth")?;
     ensure(display.contains("max 0"), "Should show max_depth")?;
 
@@ -454,7 +454,7 @@ fn too_deep_boundary_values() -> TestResult {
         max_depth: 100,
         actual_depth: 100,
     };
-    let display = format!("{}", err);
+    let display = format!("{err}");
     ensure(display.contains("100 levels"), "Should handle equal depths")?;
 
     // Large depths
@@ -462,7 +462,7 @@ fn too_deep_boundary_values() -> TestResult {
         max_depth: usize::MAX,
         actual_depth: usize::MAX,
     };
-    let display = format!("{}", err);
+    let display = format!("{err}");
     ensure(!display.is_empty(), "Should handle usize::MAX")?;
     Ok(())
 }
@@ -641,9 +641,8 @@ fn conversion_from_str() -> TestResult {
 }
 
 #[test]
-fn error_trait_implementation() -> TestResult {
+fn error_trait_implementation() {
     let err = RequirementError::OrAllFailed;
     // Verify it implements std::error::Error
     let _: &dyn std::error::Error = &err;
-    Ok(())
 }

@@ -594,7 +594,7 @@ fn test_runpack_build_and_verify() {
     assert_eq!(report.status, decision_gate_core::runtime::VerificationStatus::Pass);
 }
 
-/// Verifies export-time and offline verification checked_files semantics.
+/// Verifies export-time and offline verification `checked_files` semantics.
 #[test]
 fn runpack_export_and_verify_checked_file_counts_match_contract() {
     let spec = minimal_spec();

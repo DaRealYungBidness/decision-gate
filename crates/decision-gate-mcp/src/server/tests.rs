@@ -628,12 +628,12 @@ fn from_config_tools_call_evidence_query_round_trip() {
     let response = parse_request_sync(&state, &context, &bytes);
     assert_eq!(response.0, StatusCode::OK);
     let result = response.1.result.expect("result");
-    let content = result
+    let content_entry = result
         .get("content")
         .and_then(|value| value.as_array())
         .and_then(|items| items.first())
         .expect("content entry");
-    let json_value = content.get("json").expect("json payload");
+    let json_value = content_entry.get("json").expect("json payload");
     let response: EvidenceQueryResponse =
         serde_json::from_value(json_value.clone()).expect("evidence response");
     assert!(response.result.evidence_hash.is_some());

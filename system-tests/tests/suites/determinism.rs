@@ -7,11 +7,12 @@
 // ============================================================================
 
 //! ## Overview
-//! Determinism and replay coverage for AssetCore fixtures.
+//! Determinism and replay coverage for `AssetCore` fixtures.
 //! Purpose: Ensure identical ASC fixture runs yield identical outcomes/runpacks.
 //! Invariants:
 //! - System-test execution is deterministic and fail-closed.
 //! - Inputs are treated as untrusted unless explicitly mocked.
+//!
 //! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::fs;

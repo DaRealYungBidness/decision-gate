@@ -43,7 +43,11 @@ Dependencies:
 4. Decision outcome drives deploy
 
 Configure the `json` provider with a root that points at your evidence
-workspace, and keep file paths **relative** to that root.
+workspace, and keep file paths **relative** to that root. For runtime
+ergonomics, `decision-gate serve` supports:
+
+- `--json-root <dir>` to override the built-in `json` provider root.
+- `--json-root-id <id>` to override the anchor `root_id` (requires `--json-root`).
 
 **Scenario (minimal, accurate fields):**
 ```json dg-parse dg-level=fast

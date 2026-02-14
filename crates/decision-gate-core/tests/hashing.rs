@@ -412,5 +412,5 @@ fn hash_digest_produces_lowercase_hex() {
     let bytes = [0xAB, 0xCD, 0xEF, 0x12];
     let digest = HashDigest::new(HashAlgorithm::Sha256, &bytes);
     assert_eq!(digest.value, "abcdef12", "Hex must be lowercase");
-    assert!(!digest.value.chars().any(|c| c.is_uppercase()), "No uppercase chars allowed");
+    assert!(!digest.value.chars().any(char::is_uppercase), "No uppercase chars allowed");
 }

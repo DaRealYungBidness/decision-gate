@@ -33,9 +33,11 @@ use std::path::PathBuf;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
+use super::DecisionGateConfig;
 use super::McpClientArgs;
 use super::McpTransportArg;
 use super::ReadLimitError;
+use super::apply_json_root_override;
 use super::load_auth_profiles;
 use super::parse_namespace_id;
 use super::parse_stdio_env;
@@ -57,6 +59,18 @@ fn temp_file(label: &str) -> PathBuf {
 
 fn cleanup(path: &PathBuf) {
     let _ = fs::remove_file(path);
+}
+
+fn temp_dir(label: &str) -> PathBuf {
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).expect("clock drift").as_nanos();
+    let mut path = std::env::temp_dir();
+    path.push(format!("decision-gate-cli-{label}-{nanos}"));
+    fs::create_dir_all(&path).expect("create temp directory");
+    path
+}
+
+fn cleanup_dir(path: &PathBuf) {
+    let _ = fs::remove_dir_all(path);
 }
 
 fn base_mcp_args() -> McpClientArgs {
@@ -99,10 +113,7 @@ fn read_bytes_with_limit_rejects_large_file() {
 
     let err = read_bytes_with_limit(&path, limit).expect_err("expected size limit failure");
     match err {
-        ReadLimitError::TooLarge {
-            size,
-            limit: reported,
-        } => {
+        ReadLimitError::TooLarge { size, limit: reported } => {
             let limit_u64 = u64::try_from(limit).expect("limit fits");
             assert!(size > limit_u64);
             assert_eq!(reported, limit);
@@ -290,4 +301,107 @@ fn auth_config_at_exact_limit_accepted() {
             );
         }
     }
+}
+
+#[test]
+fn apply_json_root_override_requires_root_for_root_id() {
+    let config_text = r#"
+[server]
+transport = "stdio"
+
+[[providers]]
+name = "json"
+type = "builtin"
+config = { root = ".", root_id = "evidence-root", max_bytes = 1048576, allow_yaml = true }
+"#;
+    let mut config: DecisionGateConfig = toml::from_str(config_text).expect("parse config");
+    config.validate().expect("validate config");
+
+    let err = apply_json_root_override(&mut config, None, Some("override-root"))
+        .expect_err("expected override validation error");
+    assert!(err.contains("--json-root-id requires --json-root"));
+}
+
+#[test]
+fn apply_json_root_override_rejects_missing_json_provider() {
+    let root = temp_dir("json-root-missing-provider");
+    let config_text = r#"
+[server]
+transport = "stdio"
+
+[[providers]]
+name = "env"
+type = "builtin"
+"#;
+    let mut config: DecisionGateConfig = toml::from_str(config_text).expect("parse config");
+    config.validate().expect("validate config");
+
+    let err = apply_json_root_override(&mut config, Some(root.as_path()), None)
+        .expect_err("expected missing provider error");
+    assert!(err.contains("built-in provider 'json'"));
+
+    cleanup_dir(&root);
+}
+
+#[test]
+fn apply_json_root_override_updates_builtin_json_root_and_id() {
+    let configured_root = temp_dir("json-root-configured");
+    let override_root = temp_dir("json-root-override");
+    let escaped = configured_root.to_string_lossy().replace('\\', "\\\\");
+    let config_text = format!(
+        r#"
+[server]
+transport = "stdio"
+
+[[providers]]
+name = "json"
+type = "builtin"
+config = {{ root = "{escaped}", root_id = "evidence-root", max_bytes = 1048576, allow_yaml = true }}
+"#
+    );
+    let mut config: DecisionGateConfig = toml::from_str(&config_text).expect("parse config");
+    config.validate().expect("validate config");
+
+    apply_json_root_override(
+        &mut config,
+        Some(override_root.as_path()),
+        Some("arxi-evidence-root"),
+    )
+    .expect("apply override");
+
+    let provider =
+        config.providers.iter().find(|provider| provider.name == "json").expect("json provider");
+    let table =
+        provider.config.as_ref().and_then(toml::Value::as_table).expect("json config table");
+    let actual_root = table.get("root").and_then(toml::Value::as_str).expect("json root string");
+    let actual_root_id =
+        table.get("root_id").and_then(toml::Value::as_str).expect("json root id string");
+    let canonical_override = fs::canonicalize(&override_root).expect("canonical override root");
+    assert_eq!(actual_root, canonical_override.to_string_lossy());
+    assert_eq!(actual_root_id, "arxi-evidence-root");
+
+    cleanup_dir(&configured_root);
+    cleanup_dir(&override_root);
+}
+
+#[test]
+fn apply_json_root_override_rejects_invalid_root_id() {
+    let root = temp_dir("json-root-invalid-id");
+    let config_text = r#"
+[server]
+transport = "stdio"
+
+[[providers]]
+name = "json"
+type = "builtin"
+config = { root = ".", root_id = "evidence-root", max_bytes = 1048576, allow_yaml = true }
+"#;
+    let mut config: DecisionGateConfig = toml::from_str(config_text).expect("parse config");
+    config.validate().expect("validate config");
+
+    let err = apply_json_root_override(&mut config, Some(root.as_path()), Some("INVALID"))
+        .expect_err("expected invalid root id");
+    assert!(err.contains("--json-root-id"));
+
+    cleanup_dir(&root);
 }

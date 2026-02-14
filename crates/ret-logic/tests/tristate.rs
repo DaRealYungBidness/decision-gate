@@ -367,7 +367,7 @@ fn kleene_and_is_commutative() -> TestResult {
         for &b in &values {
             ensure(
                 logic.and(a, b) == logic.and(b, a),
-                format!("AND must be commutative: {:?} AND {:?}", a, b),
+                format!("AND must be commutative: {a:?} AND {b:?}"),
             )?;
         }
     }
@@ -387,7 +387,7 @@ fn kleene_or_is_commutative() -> TestResult {
         for &b in &values {
             ensure(
                 logic.or(a, b) == logic.or(b, a),
-                format!("OR must be commutative: {:?} OR {:?}", a, b),
+                format!("OR must be commutative: {a:?} OR {b:?}"),
             )?;
         }
     }
@@ -558,7 +558,7 @@ fn require_group_min_zero_always_true() -> TestResult {
     for counts in test_cases {
         ensure(
             logic.require_group(0, counts) == TriState::True,
-            format!("min=0 with {:?} should be True", counts),
+            format!("min=0 with {counts:?} should be True"),
         )?;
     }
     Ok(())
@@ -782,7 +782,7 @@ fn require_group_u8_max_boundary() -> TestResult {
     Ok(())
 }
 
-/// GroupCounts::failed() calculation
+/// `GroupCounts::failed()` calculation
 #[test]
 fn group_counts_failed_calculation() -> TestResult {
     let counts = GroupCounts {
