@@ -271,7 +271,7 @@ async fn docs_extra_paths_ingestion_limits() -> Result<(), Box<dyn std::error::E
     let mut config = base_http_config(&bind_max_total);
     config.docs.include_default_docs = false;
     config.docs.max_doc_bytes = 1024;
-    config.docs.max_total_bytes = alpha_doc.trim().len();
+    config.docs.max_total_bytes = alpha_doc.len();
     config.docs.max_docs = 10;
     config.docs.extra_paths =
         vec![alpha_path.display().to_string(), beta_path.display().to_string()];

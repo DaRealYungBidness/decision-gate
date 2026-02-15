@@ -12,7 +12,7 @@ Dependencies:
   - crates/decision-gate-mcp/src/evidence.rs
   - crates/decision-gate-mcp/src/tools.rs
 ============================================================================
-Last Updated: 2026-02-04 (UTC)
+Last Updated: 2026-02-15 (UTC)
 ============================================================================
 -->
 
@@ -125,7 +125,9 @@ Evidence federation combines built-in providers and MCP providers:
 - Evidence results may include **structured error metadata** (`code`, `message`,
   `details`) to support deterministic recovery loops.
 - HTTP evidence providers enforce timeouts, disallow redirects, apply response
-  size limits, and fail closed on truncated bodies (Content-Length mismatch).
+  size limits, fail closed on truncated bodies (Content-Length mismatch), pin
+  DNS resolution per request, and deny private/link-local peers by default
+  unless explicitly opted in.
 
 [F:crates/decision-gate-mcp/src/evidence.rs L138-L210](crates/decision-gate-mcp/src/evidence.rs#L138-L210) [F:crates/decision-gate-mcp/src/evidence.rs L248-L266](crates/decision-gate-mcp/src/evidence.rs#L248-L266) [F:crates/decision-gate-providers/src/http.rs L82-L239](crates/decision-gate-providers/src/http.rs#L82-L239)
 

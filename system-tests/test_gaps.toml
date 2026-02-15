@@ -173,6 +173,15 @@ acceptance_criteria = "System-tests configure provider_discovery denylist and ma
 notes = "Implemented in system-tests/tests/suites/provider_discovery.rs (provider_discovery_denylist_and_size_limits)."
 
 [[gaps]]
+id = "http-provider-dns-rebinding-ssrf"
+title = "HTTP provider DNS rebinding resistance (system-tests)"
+priority = "P0"
+category = "security"
+status = "closed"
+acceptance_criteria = "System-tests verify built-in http provider denies private/link-local peers by default (including hostname resolution paths) and permits them only when allow_private_networks=true."
+notes = "Implemented in system-tests/tests/suites/providers.rs (http_provider_blocks_private_networks_by_default, http_provider_private_network_opt_in_required)."
+
+[[gaps]]
 id = "docs-search-e2e"
 title = "Docs search tool end-to-end coverage (HTTP/SSE)"
 priority = "P1"

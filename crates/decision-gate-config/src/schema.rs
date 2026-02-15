@@ -1300,7 +1300,7 @@ fn provider_config_schema() -> Value {
             "url": {
                 "oneOf": [
                     { "type": "null" },
-                    schema_for_non_empty_string("Provider HTTP URL.")
+                    schema_for_http_url("Provider HTTP URL.")
                 ],
                 "default": null
             },
@@ -1442,7 +1442,7 @@ fn runpack_storage_schema() -> Value {
             "endpoint": {
                 "oneOf": [
                     { "type": "null" },
-                    schema_for_non_empty_string("Optional S3-compatible endpoint.")
+                    schema_for_http_url("Optional S3-compatible endpoint.")
                 ],
                 "default": null
             },
@@ -1499,6 +1499,17 @@ fn schema_for_bearer_token(description: &str) -> Value {
         "type": "string",
         "minLength": 1,
         "maxLength": MAX_AUTH_TOKEN_LENGTH,
+        "pattern": "^[^\\s\\x00-\\x1F\\x7F]+$",
+        "description": description
+    })
+}
+
+/// Schema for an HTTP or HTTPS URL.
+fn schema_for_http_url(description: &str) -> Value {
+    json!({
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^https?://\\S+$",
         "description": description
     })
 }

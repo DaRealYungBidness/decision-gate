@@ -107,6 +107,29 @@ fn read_framed_accepts_payload_at_limit() {
 }
 
 #[test]
+fn read_framed_rejects_oversized_headers() {
+    let oversized = "x".repeat(9_000);
+    let framed = format!("{oversized}\r\n\r\n");
+    let mut reader = BufReader::new(Cursor::new(framed.into_bytes()));
+    let result = read_framed(&mut reader, 1024);
+    assert!(result.is_err());
+}
+
+#[test]
+fn read_framed_rejects_duplicate_content_length_headers() {
+    let payload = br#"{"jsonrpc":"2.0","id":1,"method":"tools/call"}"#;
+    let framed = format!(
+        "Content-Length: {}\r\nContent-Length: {}\r\n\r\n{}",
+        payload.len(),
+        payload.len(),
+        String::from_utf8_lossy(payload)
+    );
+    let mut reader = BufReader::new(Cursor::new(framed.into_bytes()));
+    let result = read_framed(&mut reader, payload.len());
+    assert!(result.is_err());
+}
+
+#[test]
 fn request_id_uses_correlation_id_when_present() {
     let context = EvidenceContext {
         tenant_id: TenantId::from_raw(1).expect("nonzero tenantid"),

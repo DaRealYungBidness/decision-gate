@@ -187,6 +187,24 @@ fn schema_max_length_matches_max_auth_token_length() -> TestResult {
 }
 
 #[test]
+fn schema_bearer_token_pattern_rejects_whitespace_and_controls() -> TestResult {
+    let schema = config_schema();
+    let bearer_token_items_schema = schema_property(
+        &schema,
+        "/properties/server/properties/auth/oneOf/1/properties/bearer_tokens/items",
+    )?;
+    let pattern = bearer_token_items_schema
+        .get("pattern")
+        .and_then(serde_json::Value::as_str)
+        .ok_or("bearer_token items missing pattern")?;
+
+    if pattern != "^[^\\s\\x00-\\x1F\\x7F]+$" {
+        return Err(format!("unexpected bearer token pattern: {pattern}"));
+    }
+    Ok(())
+}
+
+#[test]
 fn schema_max_length_matches_max_auth_subject_length() -> TestResult {
     let schema = config_schema();
 
@@ -252,6 +270,32 @@ fn schema_timeout_minimum_maximum_correct() -> TestResult {
         return Err(format!("request_timeout_ms maximum should be 30000, got {maximum}"));
     }
 
+    Ok(())
+}
+
+#[test]
+fn schema_provider_url_pattern_requires_http_or_https() -> TestResult {
+    let schema = config_schema();
+    let url_schema =
+        schema_property(&schema, "/properties/providers/items/properties/url/oneOf/1/pattern")?;
+    let pattern = url_schema.as_str().ok_or("provider url pattern must be a string")?;
+    if pattern != "^https?://\\S+$" {
+        return Err(format!("unexpected provider url pattern: {pattern}"));
+    }
+    Ok(())
+}
+
+#[test]
+fn schema_runpack_endpoint_pattern_requires_http_or_https() -> TestResult {
+    let schema = config_schema();
+    let endpoint_schema = schema_property(
+        &schema,
+        "/properties/runpack_storage/oneOf/1/properties/endpoint/oneOf/1/pattern",
+    )?;
+    let pattern = endpoint_schema.as_str().ok_or("runpack endpoint pattern must be a string")?;
+    if pattern != "^https?://\\S+$" {
+        return Err(format!("unexpected runpack endpoint pattern: {pattern}"));
+    }
     Ok(())
 }
 

@@ -208,7 +208,7 @@ fn path_with_null_bytes() -> TestResult {
 fn bearer_token_with_sql_injection_payload() -> TestResult {
     let auth = ServerAuthConfig {
         mode: ServerAuthMode::BearerToken,
-        bearer_tokens: vec!["'; DROP TABLE users--".to_string()],
+        bearer_tokens: vec!["';DROP_TABLE_users--".to_string()],
         mtls_subjects: Vec::new(),
         allowed_tools: Vec::new(),
         principals: Vec::new(),
@@ -277,8 +277,7 @@ fn provider_url_with_crlf_injection() -> TestResult {
         timeouts: ProviderTimeoutConfig::default(),
         config: None,
     }];
-    // Should validate (URL parsing will fail at runtime, but config validation passes)
-    config.validate().map_err(|err| err.to_string())?;
+    assert_invalid(config.validate(), "providers.url must not contain whitespace")?;
     Ok(())
 }
 
@@ -291,9 +290,8 @@ fn auth_token_with_null_byte() -> TestResult {
         allowed_tools: Vec::new(),
         principals: Vec::new(),
     };
-    // Null bytes in strings are allowed (not executed as commands)
     let mut config = common::config_with_auth(auth).map_err(|err| err.to_string())?;
-    config.validate().map_err(|err| err.to_string())?;
+    assert_invalid(config.validate(), "auth token must not contain control characters")?;
     Ok(())
 }
 
@@ -387,9 +385,8 @@ fn auth_token_with_control_characters() -> TestResult {
         allowed_tools: Vec::new(),
         principals: Vec::new(),
     };
-    // Control characters are allowed in token values (not whitespace)
     let mut config = common::config_with_auth(auth).map_err(|err| err.to_string())?;
-    config.validate().map_err(|err| err.to_string())?;
+    assert_invalid(config.validate(), "auth token must not contain control characters")?;
     Ok(())
 }
 
@@ -454,7 +451,7 @@ fn field_with_unicode_whitespace_u00a0() -> TestResult {
         principals: Vec::new(),
     };
     let mut config = common::config_with_auth(auth).map_err(|err| err.to_string())?;
-    config.validate().map_err(|err| err.to_string())?;
+    assert_invalid(config.validate(), "auth token must not contain whitespace")?;
     Ok(())
 }
 
@@ -469,7 +466,7 @@ fn field_with_unicode_whitespace_u2000() -> TestResult {
         principals: Vec::new(),
     };
     let mut config = common::config_with_auth(auth).map_err(|err| err.to_string())?;
-    config.validate().map_err(|err| err.to_string())?;
+    assert_invalid(config.validate(), "auth token must not contain whitespace")?;
     Ok(())
 }
 

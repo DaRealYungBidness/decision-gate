@@ -403,6 +403,46 @@ fn sqlite_store_detects_invalid_latest_version() {
 }
 
 #[test]
+fn sqlite_store_detects_latest_version_pointer_mismatch() {
+    let temp = TempDir::new().unwrap();
+    let path = temp.path().join("store.sqlite");
+    let store = store_for(&path, None);
+    let state = sample_state("run-1");
+    store.save(&state).unwrap();
+    store.save(&state).unwrap();
+
+    let conn = Connection::open(&path).unwrap();
+    conn.execute(
+        "UPDATE runs SET latest_version = 1 WHERE run_id = ?1",
+        params![state.run_id.as_str()],
+    )
+    .unwrap();
+
+    let result = store.load(&state.tenant_id, &state.namespace_id, &state.run_id);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(format!("{err:?}").contains("latest_version mismatch"));
+}
+
+#[test]
+fn sqlite_store_detects_missing_run_metadata_with_orphan_versions() {
+    let temp = TempDir::new().unwrap();
+    let path = temp.path().join("store.sqlite");
+    let store = store_for(&path, None);
+    let state = sample_state("run-1");
+    store.save(&state).unwrap();
+
+    let conn = Connection::open(&path).unwrap();
+    conn.execute("PRAGMA foreign_keys = OFF", params![]).unwrap();
+    conn.execute("DELETE FROM runs WHERE run_id = ?1", params![state.run_id.as_str()]).unwrap();
+
+    let result = store.load(&state.tenant_id, &state.namespace_id, &state.run_id);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(format!("{err:?}").contains("missing run metadata"));
+}
+
+#[test]
 fn sqlite_store_rejects_run_id_mismatch() {
     let temp = TempDir::new().unwrap();
     let path = temp.path().join("store.sqlite");

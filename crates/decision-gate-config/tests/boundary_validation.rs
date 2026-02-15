@@ -284,7 +284,9 @@ fn field_unicode_whitespace_u00a0() -> TestResult {
         principals: Vec::new(),
     };
     let mut config = common::config_with_auth(auth).map_err(|err| err.to_string())?;
-    config.validate().map_err(|err| err.to_string())?;
+    if config.validate().is_ok() {
+        return Err("unicode non-breaking-space bearer token should be rejected".to_string());
+    }
     Ok(())
 }
 
@@ -299,7 +301,9 @@ fn field_unicode_whitespace_u2000() -> TestResult {
         principals: Vec::new(),
     };
     let mut config = common::config_with_auth(auth).map_err(|err| err.to_string())?;
-    config.validate().map_err(|err| err.to_string())?;
+    if config.validate().is_ok() {
+        return Err("unicode en-quad bearer token should be rejected".to_string());
+    }
     Ok(())
 }
 
@@ -314,7 +318,9 @@ fn field_tab_vs_space_vs_newline() -> TestResult {
         principals: Vec::new(),
     };
     let mut config1 = common::config_with_auth(auth1).map_err(|err| err.to_string())?;
-    config1.validate().map_err(|err| err.to_string())?;
+    if config1.validate().is_ok() {
+        return Err("tab-bearing bearer token should be rejected".to_string());
+    }
 
     // Space
     let auth2 = ServerAuthConfig {
@@ -325,7 +331,9 @@ fn field_tab_vs_space_vs_newline() -> TestResult {
         principals: Vec::new(),
     };
     let mut config2 = common::config_with_auth(auth2).map_err(|err| err.to_string())?;
-    config2.validate().map_err(|err| err.to_string())?;
+    if config2.validate().is_ok() {
+        return Err("space-bearing bearer token should be rejected".to_string());
+    }
 
     // Newline
     let auth3 = ServerAuthConfig {
@@ -336,7 +344,9 @@ fn field_tab_vs_space_vs_newline() -> TestResult {
         principals: Vec::new(),
     };
     let mut config3 = common::config_with_auth(auth3).map_err(|err| err.to_string())?;
-    config3.validate().map_err(|err| err.to_string())?;
+    if config3.validate().is_ok() {
+        return Err("newline-bearing bearer token should be rejected".to_string());
+    }
 
     Ok(())
 }

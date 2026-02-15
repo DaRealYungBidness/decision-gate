@@ -773,6 +773,7 @@
               {
                 "description": "Provider HTTP URL.",
                 "minLength": 1,
+                "pattern": "^https?://\\S+$",
                 "type": "string"
               }
             ]
@@ -790,6 +791,24 @@
       "additionalProperties": false,
       "description": "Run state store configuration.",
       "properties": {
+        "batch_max_bytes": {
+          "default": 524288,
+          "description": "SQLite writer batch max aggregate bytes.",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "batch_max_ops": {
+          "default": 64,
+          "description": "SQLite writer batch max operation count.",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "batch_max_wait_ms": {
+          "default": 2,
+          "description": "SQLite writer batch max wait window (ms).",
+          "minimum": 1,
+          "type": "integer"
+        },
         "busy_timeout_ms": {
           "default": 5000,
           "description": "SQLite busy timeout (ms).",
@@ -831,6 +850,12 @@
             }
           ]
         },
+        "read_pool_size": {
+          "default": 4,
+          "description": "SQLite read connection pool size.",
+          "minimum": 1,
+          "type": "integer"
+        },
         "sync_mode": {
           "default": "full",
           "description": "SQLite sync mode.",
@@ -848,6 +873,12 @@
             "sqlite"
           ],
           "type": "string"
+        },
+        "writer_queue_capacity": {
+          "default": 1024,
+          "description": "SQLite writer queue capacity.",
+          "minimum": 1,
+          "type": "integer"
         }
       },
       "type": "object"
@@ -900,6 +931,7 @@
                 {
                   "description": "Optional S3-compatible endpoint.",
                   "minLength": 1,
+                  "pattern": "^https?://\\S+$",
                   "type": "string"
                 }
               ]
@@ -1079,6 +1111,24 @@
           },
           "type": "object"
         },
+        "batch_max_bytes": {
+          "default": 524288,
+          "description": "SQLite writer batch max aggregate bytes.",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "batch_max_ops": {
+          "default": 64,
+          "description": "SQLite writer batch max operation count.",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "batch_max_wait_ms": {
+          "default": 2,
+          "description": "SQLite writer batch max wait window (ms).",
+          "minimum": 1,
+          "type": "integer"
+        },
         "busy_timeout_ms": {
           "default": 5000,
           "description": "SQLite busy timeout (ms).",
@@ -1127,6 +1177,12 @@
             }
           ]
         },
+        "read_pool_size": {
+          "default": 4,
+          "description": "SQLite read connection pool size.",
+          "minimum": 1,
+          "type": "integer"
+        },
         "sync_mode": {
           "default": "full",
           "description": "SQLite sync mode.",
@@ -1144,6 +1200,12 @@
             "sqlite"
           ],
           "type": "string"
+        },
+        "writer_queue_capacity": {
+          "default": 1024,
+          "description": "SQLite writer queue capacity.",
+          "minimum": 1,
+          "type": "integer"
         }
       },
       "type": "object"
@@ -1293,6 +1355,7 @@
                     "description": "Bearer token value.",
                     "maxLength": 256,
                     "minLength": 1,
+                    "pattern": "^[^\\s\\x00-\\x1F\\x7F]+$",
                     "type": "string"
                   },
                   "maxItems": 64,

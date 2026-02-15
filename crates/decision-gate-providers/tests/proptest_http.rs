@@ -1,8 +1,15 @@
+// crates/decision-gate-providers/tests/proptest_http.rs
+// ============================================================================
+// Module: HTTP Provider Property-Based Tests
+// Description: Fuzz-like checks for URL parsing and policy enforcement.
+// Purpose: Ensure invalid or disallowed URLs fail closed without panics.
+// ============================================================================
+
 //! HTTP provider property-based tests.
 //!
 //! ## Purpose
-//! These tests exercise URL validation and policy enforcement using randomized inputs.
-//! They are designed to prove fail-closed behavior and panic safety under adversarial
+//! These tests exercise URL validation and policy enforcement using randomized
+//! inputs. They prove fail-closed behavior and panic safety under adversarial
 //! URL strings without relying on network access.
 //!
 //! ## Threat model
@@ -16,12 +23,6 @@
 //! ## What is intentionally out of scope
 //! - TLS handshake behavior (covered by dedicated TLS guardrail tests).
 //! - Network error classification (requires integration fixtures).
-// crates/decision-gate-providers/tests/proptest_http.rs
-// ============================================================================
-// Module: HTTP Provider Property-Based Tests
-// Description: Fuzz-like checks for URL parsing and policy enforcement.
-// Purpose: Ensure invalid or disallowed URLs fail closed without panics.
-// ============================================================================
 
 #![allow(
     clippy::panic,

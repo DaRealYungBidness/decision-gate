@@ -1291,6 +1291,8 @@ dependencies = [
 name = "decision-gate-contract"
 version = "0.1.0"
 dependencies = [
+ "cap-primitives",
+ "cap-std",
  "clap",
  "decision-gate-config",
  "decision-gate-core",

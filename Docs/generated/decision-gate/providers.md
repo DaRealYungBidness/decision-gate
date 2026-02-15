@@ -468,7 +468,8 @@ Issues bounded HTTP GET requests and returns status codes or body hashes.
 
 **Notes**
 
-- Scheme and host allowlists are enforced by configuration.
+- Scheme and host allowlists are enforced with DNS resolution pinning per request.
+- Private/link-local destinations are blocked by default unless explicitly enabled.
 - Responses are size-limited and hashed deterministically.
 
 ### Configuration schema
@@ -476,6 +477,7 @@ Issues bounded HTTP GET requests and returns status codes or body hashes.
 Config fields:
 
 - `allow_http` (optional): Allow cleartext http:// URLs. Default: false.
+- `allow_private_networks` (optional): Allow private/link-local/loopback destination addresses. Default: false.
 - `allowed_hosts` (optional): Optional allowlist of hostnames.
 - `hash_algorithm` (optional): Hash algorithm used for body_hash responses. Default: "sha256".
 - `max_response_bytes` (optional): Maximum response size in bytes. Default: 1048576.
@@ -489,6 +491,11 @@ Config fields:
     "allow_http": {
       "default": false,
       "description": "Allow cleartext http:// URLs.",
+      "type": "boolean"
+    },
+    "allow_private_networks": {
+      "default": false,
+      "description": "Allow private/link-local/loopback destination addresses.",
       "type": "boolean"
     },
     "allowed_hosts": {

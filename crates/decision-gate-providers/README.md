@@ -202,6 +202,7 @@ HTTP health check:
 - **Fail closed**: invalid params or I/O errors yield evidence errors.
 - **Size limits**: enforced on files and HTTP responses.
 - **Scheme restrictions**: HTTP provider blocks cleartext unless `allow_http`.
+- **Credential hygiene**: HTTP provider rejects URLs with embedded credentials.
 - **Deterministic hashing**: evidence is normalized before hashing in core.
 
 See `../../Docs/security/threat_model.md` for system-level assumptions.
@@ -214,6 +215,7 @@ cargo test -p decision-gate-providers
 
 ## References
 
-The Gloom In The Corner. (2019). _Misanthropic_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=czoneUVvbxw
-
-Northern Lights. (2025). _ILTB_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=xq69OPrc1K0
+- `../../Docs/security/threat_model.md`
+- `../../Docs/guides/security_guide.md`
+- `../../Docs/configuration/decision-gate.toml.md`
+- `../decision-gate-core/README.md`

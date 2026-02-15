@@ -363,6 +363,11 @@ async fn sse_bearer_token_required() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "Single end-to-end auth+schema assertion flow keeps related debug endpoint checks \
+              together for auditability."
+)]
 async fn debug_mutation_stats_auth_and_schema() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("debug_mutation_stats_auth_and_schema")?;
     let bind = allocate_bind_addr()?.to_string();

@@ -77,6 +77,36 @@ fn http_source_blocks_loopback_by_default() {
     assert!(matches!(err, SourceError::Policy(_)));
 }
 
+/// Tests http source blocks IPv4-mapped IPv6 loopback by default.
+#[test]
+fn http_source_blocks_ipv4_mapped_loopback_by_default() {
+    let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"payload");
+    let content_ref = ContentRef {
+        uri: "http://[::ffff:127.0.0.1]:65535/data".to_string(),
+        content_hash,
+        encryption: None,
+    };
+
+    let source = HttpSource::new().expect("http source");
+    let err = source.fetch(&content_ref).unwrap_err();
+    assert!(matches!(err, SourceError::Policy(_)));
+}
+
+/// Tests allow private networks permits IPv4-mapped IPv6 loopback requests.
+#[test]
+fn http_source_allow_private_networks_allows_ipv4_mapped_loopback() {
+    let content_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, b"payload");
+    let content_ref = ContentRef {
+        uri: "http://[::ffff:127.0.0.1]:65535/data".to_string(),
+        content_hash,
+        encryption: None,
+    };
+
+    let source = local_source();
+    let err = source.fetch(&content_ref).unwrap_err();
+    assert!(matches!(err, SourceError::Http(_)));
+}
+
 /// Tests http source allowlist blocks unlisted hosts.
 #[test]
 fn http_source_allowlist_blocks_unlisted_hosts() {

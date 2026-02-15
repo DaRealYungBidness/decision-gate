@@ -292,6 +292,46 @@ fn provider_mcp_rejects_insecure_http_without_allow() -> TestResult {
 }
 
 #[test]
+fn provider_mcp_rejects_non_http_url_scheme() -> TestResult {
+    let mut config = common::minimal_config().map_err(|err| err.to_string())?;
+    config.providers = vec![ProviderConfig {
+        name: "external".to_string(),
+        provider_type: ProviderType::Mcp,
+        command: Vec::new(),
+        url: Some("ftp://example.com/mcp".to_string()),
+        allow_insecure_http: false,
+        capabilities_path: Some(PathBuf::from("provider.json")),
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
+        config: None,
+    }];
+    assert_invalid(config.validate(), "providers.url must include http:// or https://")?;
+    Ok(())
+}
+
+#[test]
+fn provider_mcp_rejects_url_without_host() -> TestResult {
+    let mut config = common::minimal_config().map_err(|err| err.to_string())?;
+    config.providers = vec![ProviderConfig {
+        name: "external".to_string(),
+        provider_type: ProviderType::Mcp,
+        command: Vec::new(),
+        url: Some("https://".to_string()),
+        allow_insecure_http: false,
+        capabilities_path: Some(PathBuf::from("provider.json")),
+        auth: None,
+        trust: None,
+        allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
+        config: None,
+    }];
+    assert_invalid(config.validate(), "providers.url must include host")?;
+    Ok(())
+}
+
+#[test]
 fn provider_builtin_rejects_capabilities_path() -> TestResult {
     let mut config = common::minimal_config().map_err(|err| err.to_string())?;
     config.providers = vec![ProviderConfig {
@@ -330,6 +370,53 @@ fn provider_auth_rejects_empty_token() -> TestResult {
         config: None,
     }];
     assert_invalid(config.validate(), "providers.auth.bearer_token must be non-empty")?;
+    Ok(())
+}
+
+#[test]
+fn provider_auth_rejects_whitespace_token() -> TestResult {
+    let mut config = common::minimal_config().map_err(|err| err.to_string())?;
+    config.providers = vec![ProviderConfig {
+        name: "external".to_string(),
+        provider_type: ProviderType::Mcp,
+        command: vec!["./provider".to_string()],
+        url: None,
+        allow_insecure_http: false,
+        capabilities_path: Some(PathBuf::from("provider.json")),
+        auth: Some(ProviderAuthConfig {
+            bearer_token: Some("token with space".to_string()),
+        }),
+        trust: None,
+        allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
+        config: None,
+    }];
+    assert_invalid(config.validate(), "providers.auth.bearer_token must not contain whitespace")?;
+    Ok(())
+}
+
+#[test]
+fn provider_auth_rejects_control_character_token() -> TestResult {
+    let mut config = common::minimal_config().map_err(|err| err.to_string())?;
+    config.providers = vec![ProviderConfig {
+        name: "external".to_string(),
+        provider_type: ProviderType::Mcp,
+        command: vec!["./provider".to_string()],
+        url: None,
+        allow_insecure_http: false,
+        capabilities_path: Some(PathBuf::from("provider.json")),
+        auth: Some(ProviderAuthConfig {
+            bearer_token: Some("token\u{0001}value".to_string()),
+        }),
+        trust: None,
+        allow_raw: false,
+        timeouts: ProviderTimeoutConfig::default(),
+        config: None,
+    }];
+    assert_invalid(
+        config.validate(),
+        "providers.auth.bearer_token must not contain control characters",
+    )?;
     Ok(())
 }
 

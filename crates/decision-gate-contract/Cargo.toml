@@ -18,6 +18,8 @@ name = "decision-gate-contract"
 path = "src/main.rs"
 
 [dependencies]
+cap-primitives = { workspace = true }
+cap-std = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 decision-gate-config = { workspace = true }
 decision-gate-core = { workspace = true }

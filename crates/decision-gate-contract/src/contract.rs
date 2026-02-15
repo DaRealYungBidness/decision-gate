@@ -19,12 +19,18 @@
 // ============================================================================
 
 use std::collections::BTreeSet;
-use std::fs;
+use std::ffi::OsString;
 use std::io::ErrorKind;
+use std::io::Read;
+use std::io::Write;
 use std::path::Component;
 use std::path::Path;
 use std::path::PathBuf;
 
+use cap_primitives::fs::FollowSymlinks;
+use cap_std::ambient_authority;
+use cap_std::fs::Dir;
+use cap_std::fs::OpenOptions;
 use decision_gate_config as config;
 use decision_gate_core::hashing::DEFAULT_HASH_ALGORITHM;
 use decision_gate_core::hashing::HashAlgorithm;
@@ -143,15 +149,12 @@ impl ContractBuilder {
     /// Returns [`ContractError`] when writing fails.
     pub fn write_to(&self, output_dir: &Path) -> Result<ContractManifest, ContractError> {
         let bundle = self.build()?;
-        ensure_output_dir(output_dir)?;
+        let output = open_output_dir(output_dir, true)?;
         for artifact in &bundle.artifacts {
-            write_artifact(output_dir, artifact)?;
+            write_artifact(&output, artifact)?;
         }
-        let manifest_path = output_dir.join("index.json");
-        ensure_no_symlink_components(output_dir, Path::new("index.json"))?;
         let manifest_bytes = serialize_json_pretty(&bundle.manifest)?;
-        fs::write(&manifest_path, &manifest_bytes)
-            .map_err(|err| ContractError::Io(err.to_string()))?;
+        write_artifact_bytes(&output, Path::new("index.json"), &manifest_bytes)?;
         Ok(bundle.manifest)
     }
 
@@ -162,13 +165,11 @@ impl ContractBuilder {
     /// Returns [`ContractError`] when verification fails.
     pub fn verify_output(&self, output_dir: &Path) -> Result<(), ContractError> {
         let bundle = self.build()?;
-        ensure_existing_output_dir(output_dir)?;
+        let output = open_output_dir(output_dir, false)?;
         let expected_files = expected_paths(&bundle);
         for artifact in &bundle.artifacts {
             let relative = validate_relative_path(&artifact.path)?;
-            ensure_no_symlink_components(output_dir, &relative)?;
-            let path = output_dir.join(&relative);
-            let bytes = read_expected_bytes(&path, artifact.bytes.len())?;
+            let bytes = read_expected_bytes(&output, &relative, artifact.bytes.len())?;
             if bytes != artifact.bytes {
                 return Err(ContractError::Generation(format!(
                     "artifact mismatch: {}",
@@ -177,13 +178,12 @@ impl ContractBuilder {
             }
         }
         let manifest_bytes = serialize_json_pretty(&bundle.manifest)?;
-        let manifest_path = output_dir.join("index.json");
-        ensure_no_symlink_components(output_dir, Path::new("index.json"))?;
-        let actual_manifest = read_expected_bytes(&manifest_path, manifest_bytes.len())?;
+        let actual_manifest =
+            read_expected_bytes(&output, Path::new("index.json"), manifest_bytes.len())?;
         if actual_manifest != manifest_bytes {
             return Err(ContractError::Generation(String::from("manifest mismatch: index.json")));
         }
-        let actual_files = collect_output_files(output_dir)?;
+        let actual_files = collect_output_files(&output)?;
         for path in actual_files {
             if !expected_files.contains(&path) {
                 return Err(ContractError::Generation(format!("unexpected artifact: {path}")));
@@ -292,42 +292,213 @@ fn ensure_unique_paths(artifacts: &[ContractArtifact]) -> Result<(), ContractErr
     Ok(())
 }
 
-/// Ensures the output directory exists (creating it if necessary).
-fn ensure_output_dir(output_dir: &Path) -> Result<(), ContractError> {
+/// Opens the output directory as a capability handle.
+///
+/// # Errors
+///
+/// Returns [`ContractError`] when the path is invalid, unsafe, or inaccessible.
+fn open_output_dir(output_dir: &Path, create_missing: bool) -> Result<Dir, ContractError> {
     if output_dir.as_os_str().is_empty() {
         return Err(ContractError::OutputPath(output_dir.to_path_buf()));
     }
-    ensure_no_symlink_ancestors(output_dir)?;
-    if output_dir.exists() {
-        if !output_dir.is_dir() {
-            return Err(ContractError::OutputPath(output_dir.to_path_buf()));
-        }
-        ensure_no_symlink_path(output_dir)?;
-        return Ok(());
+    let normalized = normalize_output_dir(output_dir)?;
+    let (anchor, components) = split_anchor_and_components(&normalized)?;
+    if components.is_empty() {
+        return Err(ContractError::OutputPath(normalized));
     }
-    fs::create_dir_all(output_dir).map_err(|err| ContractError::Io(err.to_string()))?;
-    ensure_no_symlink_path(output_dir)?;
-    Ok(())
+    let mut current = Dir::open_ambient_dir(&anchor, ambient_authority())
+        .map_err(|err| ContractError::Io(err.to_string()))?;
+    for component in components {
+        current = open_or_create_child_dir_nofollow(
+            &current,
+            Path::new(component.as_os_str()),
+            create_missing,
+        )
+        .map_err(|err| map_open_error(&err, output_dir))?;
+    }
+    Ok(current)
 }
 
-/// Ensures the output directory exists and is a directory.
-fn ensure_existing_output_dir(output_dir: &Path) -> Result<(), ContractError> {
-    if !output_dir.is_dir() {
-        return Err(ContractError::OutputPath(output_dir.to_path_buf()));
+/// Normalizes an output directory into an absolute path.
+///
+/// # Errors
+///
+/// Returns [`ContractError`] when the current directory cannot be resolved.
+fn normalize_output_dir(output_dir: &Path) -> Result<PathBuf, ContractError> {
+    if output_dir.is_absolute() {
+        return Ok(output_dir.to_path_buf());
     }
-    ensure_no_symlink_ancestors(output_dir)?;
-    ensure_no_symlink_path(output_dir)?;
-    Ok(())
+    std::env::current_dir()
+        .map(|cwd| cwd.join(output_dir))
+        .map_err(|err| ContractError::Io(err.to_string()))
+}
+
+/// Splits an absolute path into an anchor root and normal child components.
+///
+/// # Errors
+///
+/// Returns [`ContractError`] when the path contains parent traversal components.
+fn split_anchor_and_components(path: &Path) -> Result<(PathBuf, Vec<OsString>), ContractError> {
+    let mut anchor = PathBuf::new();
+    let mut components = Vec::new();
+    for component in path.components() {
+        match component {
+            Component::Prefix(_) | Component::RootDir => anchor.push(component.as_os_str()),
+            Component::CurDir => {}
+            Component::Normal(value) => components.push(value.to_os_string()),
+            Component::ParentDir => return Err(ContractError::OutputPath(path.to_path_buf())),
+        }
+    }
+    if anchor.as_os_str().is_empty() {
+        return Err(ContractError::OutputPath(path.to_path_buf()));
+    }
+    Ok((anchor, components))
+}
+
+/// Opens a child directory without following symlinks.
+fn open_child_dir_nofollow(parent: &Dir, child: &Path) -> std::io::Result<Dir> {
+    let mut options = OpenOptions::new();
+    options.read(true);
+    options._cap_fs_ext_follow(FollowSymlinks::No);
+    let file = parent.open_with(child, &options)?;
+    let metadata = file.metadata()?;
+    if !metadata.is_dir() {
+        return Err(std::io::Error::new(
+            ErrorKind::InvalidInput,
+            "path component is not a directory",
+        ));
+    }
+    Ok(Dir::from_std_file(file.into_std()))
+}
+
+/// Opens or creates a child directory without following symlinks.
+fn open_or_create_child_dir_nofollow(
+    parent: &Dir,
+    child: &Path,
+    create_missing: bool,
+) -> std::io::Result<Dir> {
+    match open_child_dir_nofollow(parent, child) {
+        Ok(dir) => Ok(dir),
+        Err(err) if err.kind() == ErrorKind::NotFound && create_missing => {
+            parent.create_dir(child)?;
+            open_child_dir_nofollow(parent, child)
+        }
+        Err(err) => Err(err),
+    }
+}
+
+/// Maps low-level open errors into contract-level path errors.
+fn map_open_error(err: &std::io::Error, path: &Path) -> ContractError {
+    if matches!(
+        err.kind(),
+        ErrorKind::NotFound
+            | ErrorKind::InvalidInput
+            | ErrorKind::PermissionDenied
+            | ErrorKind::NotADirectory
+            | ErrorKind::Unsupported
+    ) {
+        return ContractError::OutputPath(path.to_path_buf());
+    }
+    #[cfg(unix)]
+    if err.raw_os_error() == Some(40) {
+        return ContractError::OutputPath(path.to_path_buf());
+    }
+    #[cfg(windows)]
+    if matches!(err.raw_os_error(), Some(681) | Some(1920)) {
+        return ContractError::OutputPath(path.to_path_buf());
+    }
+    ContractError::Io(err.to_string())
 }
 
 /// Writes a single artifact to the output directory.
-fn write_artifact(output_dir: &Path, artifact: &ContractArtifact) -> Result<(), ContractError> {
+fn write_artifact(output_dir: &Dir, artifact: &ContractArtifact) -> Result<(), ContractError> {
     let relative = validate_relative_path(&artifact.path)?;
-    ensure_no_symlink_components(output_dir, &relative)?;
-    let target = output_dir.join(&relative);
-    let parent = target.parent().ok_or_else(|| ContractError::OutputPath(target.clone()))?;
-    fs::create_dir_all(parent).map_err(|err| ContractError::Io(err.to_string()))?;
-    fs::write(&target, &artifact.bytes).map_err(|err| ContractError::Io(err.to_string()))
+    write_artifact_bytes(output_dir, &relative, &artifact.bytes)
+}
+
+/// Writes bytes to a relative path using no-follow and atomic rename semantics.
+fn write_artifact_bytes(
+    output_dir: &Dir,
+    relative: &Path,
+    bytes: &[u8],
+) -> Result<(), ContractError> {
+    let (parent_dir, file_name, file_path) = open_parent_dir(output_dir, relative, true)?;
+    write_file_atomic(&parent_dir, Path::new(file_name.as_os_str()), &file_path, bytes)
+}
+
+/// Opens the parent directory for a relative artifact path.
+fn open_parent_dir(
+    output_dir: &Dir,
+    relative: &Path,
+    create_missing: bool,
+) -> Result<(Dir, OsString, PathBuf), ContractError> {
+    let mut current = output_dir.try_clone().map_err(|err| ContractError::Io(err.to_string()))?;
+    let mut parent = PathBuf::new();
+    let mut components = relative.components().peekable();
+    while let Some(component) = components.next() {
+        let Component::Normal(name) = component else {
+            return Err(ContractError::OutputPath(relative.to_path_buf()));
+        };
+        if components.peek().is_none() {
+            let file_name = name.to_os_string();
+            let file_path = if parent.as_os_str().is_empty() {
+                PathBuf::from(&file_name)
+            } else {
+                parent.join(&file_name)
+            };
+            return Ok((current, file_name, file_path));
+        }
+        parent.push(name);
+        current = open_or_create_child_dir_nofollow(&current, Path::new(name), create_missing)
+            .map_err(|err| map_open_error(&err, relative))?;
+    }
+    Err(ContractError::OutputPath(relative.to_path_buf()))
+}
+
+/// Writes file bytes using a temporary sibling and atomic rename.
+fn write_file_atomic(
+    parent: &Dir,
+    file_name: &Path,
+    file_path: &Path,
+    bytes: &[u8],
+) -> Result<(), ContractError> {
+    for attempt in 0 .. 64_u32 {
+        let temp_name = temp_file_name(file_name, attempt)?;
+        let mut options = OpenOptions::new();
+        options.write(true).create_new(true);
+        options._cap_fs_ext_follow(FollowSymlinks::No);
+        match parent.open_with(&temp_name, &options) {
+            Ok(mut temp_file) => {
+                if let Err(err) = temp_file.write_all(bytes) {
+                    let _ = parent.remove_file(&temp_name);
+                    return Err(ContractError::Io(err.to_string()));
+                }
+                if let Err(err) = temp_file.sync_all() {
+                    let _ = parent.remove_file(&temp_name);
+                    return Err(ContractError::Io(err.to_string()));
+                }
+                if let Err(err) = parent.rename(&temp_name, parent, file_name) {
+                    let _ = parent.remove_file(&temp_name);
+                    return Err(ContractError::Io(err.to_string()));
+                }
+                return Ok(());
+            }
+            Err(err) if err.kind() == ErrorKind::AlreadyExists => {}
+            Err(err) => return Err(map_open_error(&err, file_path)),
+        }
+    }
+    Err(ContractError::Generation("unable to allocate temporary output file".to_string()))
+}
+
+/// Builds a deterministic temporary file name for atomic writes.
+fn temp_file_name(file_name: &Path, attempt: u32) -> Result<PathBuf, ContractError> {
+    let Some(base_name) = file_name.file_name() else {
+        return Err(ContractError::OutputPath(file_name.to_path_buf()));
+    };
+    let mut temp = OsString::from(".tmp-");
+    temp.push(base_name);
+    temp.push(format!(".{}.{}", std::process::id(), attempt));
+    Ok(PathBuf::from(temp))
 }
 
 /// Validates that the artifact path is relative and safe.
@@ -349,65 +520,35 @@ fn validate_relative_path(path: &str) -> Result<PathBuf, ContractError> {
     Ok(candidate)
 }
 
-/// Ensures no existing ancestor component is a symlink.
-fn ensure_no_symlink_ancestors(path: &Path) -> Result<(), ContractError> {
-    for ancestor in path.ancestors() {
-        if ancestor.as_os_str().is_empty() {
-            continue;
-        }
-        match fs::symlink_metadata(ancestor) {
-            Ok(metadata) => {
-                if metadata.file_type().is_symlink() {
-                    return Err(ContractError::OutputPath(ancestor.to_path_buf()));
-                }
-            }
-            Err(err) if err.kind() == ErrorKind::NotFound => {}
-            Err(err) => return Err(ContractError::Io(err.to_string())),
-        }
-    }
-    Ok(())
-}
-
-/// Ensures a path is not a symlink.
-fn ensure_no_symlink_path(path: &Path) -> Result<(), ContractError> {
-    let metadata = fs::symlink_metadata(path).map_err(|err| ContractError::Io(err.to_string()))?;
-    if metadata.file_type().is_symlink() {
-        return Err(ContractError::OutputPath(path.to_path_buf()));
-    }
-    Ok(())
-}
-
-/// Ensures no existing component under the root is a symlink.
-fn ensure_no_symlink_components(root: &Path, relative: &Path) -> Result<(), ContractError> {
-    let mut current = root.to_path_buf();
-    for component in relative.components() {
-        current.push(component);
-        match fs::symlink_metadata(&current) {
-            Ok(metadata) => {
-                if metadata.file_type().is_symlink() {
-                    return Err(ContractError::OutputPath(current.clone()));
-                }
-            }
-            Err(err) if err.kind() == ErrorKind::NotFound => {}
-            Err(err) => return Err(ContractError::Io(err.to_string())),
-        }
-    }
-    Ok(())
-}
-
 /// Reads a file and verifies its length matches the expected size.
-fn read_expected_bytes(path: &Path, expected_len: usize) -> Result<Vec<u8>, ContractError> {
+fn read_expected_bytes(
+    output_dir: &Dir,
+    relative: &Path,
+    expected_len: usize,
+) -> Result<Vec<u8>, ContractError> {
+    let (parent_dir, file_name, file_path) = open_parent_dir(output_dir, relative, false)?;
+    let mut options = OpenOptions::new();
+    options.read(true);
+    options._cap_fs_ext_follow(FollowSymlinks::No);
+    let mut file = parent_dir
+        .open_with(Path::new(file_name.as_os_str()), &options)
+        .map_err(|err| map_open_error(&err, &file_path))?;
+    let metadata = file.metadata().map_err(|err| ContractError::Io(err.to_string()))?;
+    if !metadata.is_file() {
+        return Err(ContractError::OutputPath(file_path));
+    }
     let expected_len = u64::try_from(expected_len).map_err(|_| {
         ContractError::Generation(String::from("expected length exceeds addressable size"))
     })?;
-    let metadata = fs::metadata(path).map_err(|err| ContractError::Io(err.to_string()))?;
     if metadata.len() != expected_len {
         return Err(ContractError::Generation(format!(
             "artifact size mismatch: {}",
-            path.display()
+            relative.display()
         )));
     }
-    fs::read(path).map_err(|err| ContractError::Io(err.to_string()))
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes).map_err(|err| ContractError::Io(err.to_string()))?;
+    Ok(bytes)
 }
 
 /// Collects the expected output paths for verification.
@@ -421,35 +562,37 @@ fn expected_paths(bundle: &ContractBundle) -> BTreeSet<String> {
 }
 
 /// Recursively collects file paths under the output directory.
-fn collect_output_files(output_dir: &Path) -> Result<BTreeSet<String>, ContractError> {
+fn collect_output_files(output_dir: &Dir) -> Result<BTreeSet<String>, ContractError> {
     let mut files = BTreeSet::new();
-    collect_files_recursive(output_dir, output_dir, &mut files)?;
+    collect_files_recursive(output_dir, Path::new(""), &mut files)?;
     Ok(files)
 }
 
 /// Recursively collects file paths relative to the root directory.
 fn collect_files_recursive(
-    root: &Path,
-    current: &Path,
+    current: &Dir,
+    prefix: &Path,
     files: &mut BTreeSet<String>,
 ) -> Result<(), ContractError> {
-    let entries = fs::read_dir(current).map_err(|err| ContractError::Io(err.to_string()))?;
+    let entries = current.entries().map_err(|err| ContractError::Io(err.to_string()))?;
     for entry in entries {
         let entry = entry.map_err(|err| ContractError::Io(err.to_string()))?;
-        let path = entry.path();
-        let metadata =
-            fs::symlink_metadata(&path).map_err(|err| ContractError::Io(err.to_string()))?;
-        if metadata.file_type().is_symlink() {
-            return Err(ContractError::OutputPath(path));
+        let file_name = entry.file_name();
+        let relative = if prefix.as_os_str().is_empty() {
+            PathBuf::from(&file_name)
+        } else {
+            prefix.join(&file_name)
+        };
+        let file_type = entry.file_type().map_err(|err| ContractError::Io(err.to_string()))?;
+        if file_type.is_symlink() {
+            return Err(ContractError::OutputPath(relative));
         }
-        if metadata.is_dir() {
-            collect_files_recursive(root, &path, files)?;
-        } else if metadata.is_file() {
-            let relative =
-                path.strip_prefix(root).map_err(|_| ContractError::OutputPath(path.clone()))?;
-            let text = relative
-                .to_str()
-                .ok_or_else(|| ContractError::OutputPath(relative.to_path_buf()))?;
+        if file_type.is_dir() {
+            let directory = entry.open_dir().map_err(|err| ContractError::Io(err.to_string()))?;
+            collect_files_recursive(&directory, &relative, files)?;
+        } else if file_type.is_file() {
+            let text =
+                relative.to_str().ok_or_else(|| ContractError::OutputPath(relative.clone()))?;
             let normalized = text.replace('\\', "/");
             files.insert(normalized);
         }

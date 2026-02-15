@@ -78,7 +78,7 @@ config = { root = "./evidence", root_id = "evidence-root", max_bytes = 1048576, 
 [[providers]]
 name = "http"
 type = "builtin"
-config = { allow_http = false, timeout_ms = 5000, max_response_bytes = 1048576, allowed_hosts = ["api.example.com"], user_agent = "decision-gate/0.1", hash_algorithm = "sha256" }
+config = { allow_http = false, timeout_ms = 5000, max_response_bytes = 1048576, allowed_hosts = ["api.example.com"], allow_private_networks = false, user_agent = "decision-gate/0.1", hash_algorithm = "sha256" }
 "#,
     )
 }

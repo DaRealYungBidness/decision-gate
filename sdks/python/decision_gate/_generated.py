@@ -88,12 +88,14 @@ TOOL_NOTES: Mapping[str, Sequence[str]] = {
     ],
     "scenario_submit": [
         "Payload is hashed and stored as a submission record.",
+        "Payload is persisted in run state/runpack logs; do not send raw secrets.",
         "Does not advance the run by itself.",
         "Use for artifacts the model or operator supplies.",
     ],
     "scenario_trigger": [
         "Trigger time is supplied by the caller; no wall-clock reads.",
         "Records the trigger event and resulting decision.",
+        "Payload is persisted in run state/runpack logs; do not send raw secrets.",
         "Use for time-based or external system triggers.",
     ],
     "evidence_query": [
@@ -104,6 +106,7 @@ TOOL_NOTES: Mapping[str, Sequence[str]] = {
     "runpack_export": [
         "Writes manifest and logs to output_dir; generated_at is recorded in the manifest.",
         "include_verification adds a verification report artifact.",
+        "Export-time report.checked_files excludes verifier_report.json; offline runpack_verify checked_files includes it (+1 for the same runpack).",
         "Use after runs complete or for audit snapshots.",
     ],
     "runpack_verify": [
@@ -5474,6 +5477,7 @@ EvidenceQuery_INPUT_SCHEMA = _json.loads(r"""
       },
       "required": [
         "tenant_id",
+        "namespace_id",
         "run_id",
         "scenario_id",
         "stage_id",
@@ -8447,6 +8451,7 @@ class GeneratedDecisionGateClient:
 
         Notes:
         - Payload is hashed and stored as a submission record.
+        - Payload is persisted in run state/runpack logs; do not send raw secrets.
         - Does not advance the run by itself.
         - Use for artifacts the model or operator supplies.
 
@@ -8509,6 +8514,7 @@ class GeneratedDecisionGateClient:
         Notes:
         - Trigger time is supplied by the caller; no wall-clock reads.
         - Records the trigger event and resulting decision.
+        - Payload is persisted in run state/runpack logs; do not send raw secrets.
         - Use for time-based or external system triggers.
 
         Examples:
@@ -8620,6 +8626,7 @@ class GeneratedDecisionGateClient:
         Notes:
         - Writes manifest and logs to output_dir; generated_at is recorded in the manifest.
         - include_verification adds a verification report artifact.
+        - Export-time report.checked_files excludes verifier_report.json; offline runpack_verify checked_files includes it (+1 for the same runpack).
         - Use after runs complete or for audit snapshots.
 
         Examples:

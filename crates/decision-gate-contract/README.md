@@ -100,8 +100,8 @@ cargo test -p decision-gate-mcp --test contract_schema_e2e
 
 ## References
 
-Zélie. (2025). _JE NE SERAI JAMAIS_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=77FsRoi3yqU
+Zelie. (2025). _JE NE SERAI JAMAIS_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=77FsRoi3yqU
 
-Kyo. (2003). _Dernière danse_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=aU_TQcyGkvY
+Kyo. (2003). _Derniere danse_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=aU_TQcyGkvY
 
 Jasmina Oder. (2025). _SAG NICHT DU LIEBST MICH_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=AMwnlAhkFX4

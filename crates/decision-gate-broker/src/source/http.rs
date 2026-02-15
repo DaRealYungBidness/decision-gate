@@ -249,6 +249,10 @@ fn dedupe_ips(ips: &mut Vec<IpAddr>) {
 }
 
 /// Returns true if the IP is private, link-local, loopback, or unspecified.
+#[allow(
+    clippy::option_if_let_else,
+    reason = "Option::map_or is not const-callable on current toolchain."
+)]
 const fn is_private_or_link_local(ip: &IpAddr) -> bool {
     match ip {
         IpAddr::V4(addr) => {
@@ -260,7 +264,18 @@ const fn is_private_or_link_local(ip: &IpAddr) -> bool {
                 || addr.is_broadcast()
         }
         IpAddr::V6(addr) => {
-            addr.is_loopback()
+            let mapped_private = if let Some(mapped) = addr.to_ipv4_mapped() {
+                mapped.is_private()
+                    || mapped.is_loopback()
+                    || mapped.is_link_local()
+                    || mapped.is_unspecified()
+                    || mapped.is_multicast()
+                    || mapped.is_broadcast()
+            } else {
+                false
+            };
+            mapped_private
+                || addr.is_loopback()
                 || addr.is_unique_local()
                 || addr.is_unicast_link_local()
                 || addr.is_unspecified()

@@ -96,6 +96,49 @@ fn read_framed_errors_on_invalid_length() {
 }
 
 #[test]
+fn read_framed_rejects_duplicate_content_length_header() {
+    let data = b"Content-Length: 1\r\nContent-Length: 1\r\n\r\nx".to_vec();
+    let mut reader = BufReader::new(Cursor::new(data));
+    let err = read_framed(&mut reader).expect_err("duplicate content length");
+    assert!(matches!(err, McpClientError::Protocol(_)));
+}
+
+#[test]
+fn read_framed_rejects_oversized_header_line() {
+    let long_header = "a".repeat(1_200);
+    let payload = format!("{long_header}\r\nContent-Length: 1\r\n\r\nx");
+    let mut reader = BufReader::new(Cursor::new(payload.into_bytes()));
+    let err = read_framed(&mut reader).expect_err("oversized header line");
+    assert!(matches!(err, McpClientError::Protocol(_)));
+}
+
+#[test]
+fn read_framed_rejects_too_many_headers() {
+    let mut payload = String::new();
+    for _ in 0 .. 80 {
+        payload.push_str("X-Test: 1\r\n");
+    }
+    payload.push_str("Content-Length: 1\r\n\r\nx");
+    let mut reader = BufReader::new(Cursor::new(payload.into_bytes()));
+    let err = read_framed(&mut reader).expect_err("too many headers");
+    assert!(matches!(err, McpClientError::Protocol(_)));
+}
+
+#[test]
+fn read_framed_rejects_oversized_header_block() {
+    let mut payload = String::new();
+    for _ in 0 .. 50 {
+        payload.push_str("X-Test: ");
+        payload.push_str(&"a".repeat(170));
+        payload.push_str("\r\n");
+    }
+    payload.push_str("Content-Length: 1\r\n\r\nx");
+    let mut reader = BufReader::new(Cursor::new(payload.into_bytes()));
+    let err = read_framed(&mut reader).expect_err("oversized headers");
+    assert!(matches!(err, McpClientError::Protocol(_)));
+}
+
+#[test]
 fn stdio_config_env_pairs_path() {
     let path = PathBuf::from("decision-gate.toml");
     let (key, value) = stdio_config_env(&path);

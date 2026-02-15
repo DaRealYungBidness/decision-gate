@@ -1,8 +1,15 @@
+// crates/decision-gate-providers/tests/proptest_json.rs
+// ============================================================================
+// Module: JSON Provider Property-Based Tests
+// Description: Fuzz-like checks for path and JSONPath handling.
+// Purpose: Ensure provider fails closed without panics on adversarial inputs.
+// ============================================================================
+
 //! JSON provider property-based tests.
 //!
 //! ## Purpose
-//! These tests fuzz file paths and `JSONPath` expressions to ensure the provider
-//! fails closed and never panics on adversarial inputs.
+//! These tests fuzz file paths and `JSONPath` expressions to ensure the
+//! provider fails closed and never panics on adversarial inputs.
 //!
 //! ## Threat model
 //! - TM-FILE-001 (path traversal): hostile paths must be rejected or sanitized.
@@ -15,12 +22,6 @@
 //! ## What is intentionally out of scope
 //! - Specific path traversal vectors (covered by unit tests).
 //! - YAML parsing edge cases (covered by `json_provider.rs` tests).
-// crates/decision-gate-providers/tests/proptest_json.rs
-// ============================================================================
-// Module: JSON Provider Property-Based Tests
-// Description: Fuzz-like checks for path and JSONPath handling.
-// Purpose: Ensure provider fails closed without panics on adversarial inputs.
-// ============================================================================
 
 #![allow(
     clippy::panic,

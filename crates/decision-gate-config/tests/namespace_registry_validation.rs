@@ -103,6 +103,37 @@ fn assetcore_authority_rejects_out_of_range_timeouts() -> TestResult {
 }
 
 #[test]
+fn assetcore_authority_rejects_non_http_url_scheme() -> TestResult {
+    let mut config = common::minimal_config().map_err(|err| err.to_string())?;
+    config.namespace.authority.mode = NamespaceAuthorityMode::AssetcoreHttp;
+    config.namespace.authority.assetcore = Some(AssetCoreNamespaceAuthorityConfig {
+        base_url: "ftp://assetcore.example.com".to_string(),
+        auth_token: None,
+        connect_timeout_ms: 500,
+        request_timeout_ms: 1_000,
+    });
+    assert_invalid(
+        config.validate(),
+        "namespace.authority.assetcore.base_url must include http:// or https://",
+    )?;
+    Ok(())
+}
+
+#[test]
+fn assetcore_authority_rejects_base_url_without_host() -> TestResult {
+    let mut config = common::minimal_config().map_err(|err| err.to_string())?;
+    config.namespace.authority.mode = NamespaceAuthorityMode::AssetcoreHttp;
+    config.namespace.authority.assetcore = Some(AssetCoreNamespaceAuthorityConfig {
+        base_url: "https://".to_string(),
+        auth_token: None,
+        connect_timeout_ms: 500,
+        request_timeout_ms: 1_000,
+    });
+    assert_invalid(config.validate(), "namespace.authority.assetcore.base_url must include host")?;
+    Ok(())
+}
+
+#[test]
 fn schema_registry_memory_rejects_path() -> TestResult {
     let mut config = common::minimal_config().map_err(|err| err.to_string())?;
     config.schema_registry.registry_type = SchemaRegistryType::Memory;

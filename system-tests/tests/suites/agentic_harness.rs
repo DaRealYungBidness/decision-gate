@@ -738,6 +738,7 @@ fn http_provider_config() -> TomlValue {
         "allowed_hosts".to_string(),
         TomlValue::Array(vec![TomlValue::String("127.0.0.1".to_string())]),
     );
+    table.insert("allow_private_networks".to_string(), TomlValue::Boolean(true));
     table.insert("timeout_ms".to_string(), TomlValue::Integer(2000));
     table.insert("max_response_bytes".to_string(), TomlValue::Integer(1024 * 1024));
     table.insert("hash_algorithm".to_string(), TomlValue::String("sha256".to_string()));

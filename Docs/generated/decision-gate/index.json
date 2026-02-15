@@ -12,7 +12,7 @@
       "content_type": "application/toml",
       "digest": {
         "algorithm": "sha256",
-        "value": "14b4fcf5aad9d27517e4226d09433cfd50d2b42d924fc9cc319831e85a38130c"
+        "value": "0afc9f3891fb9d121dfe873c2312eacaea0c6e24b7770f7defbd9e1688964d6c"
       },
       "path": "examples/decision-gate.toml"
     },
@@ -44,7 +44,7 @@
       "content_type": "text/markdown",
       "digest": {
         "algorithm": "sha256",
-        "value": "9a559af3018caef81bd9b7523fa525acfc41905a36eb4bfdc6d5ada755d8f4b0"
+        "value": "b385349c1eefa7a768c0be6a3c756b40ae75b705429b30debc4a51a4cfab6832"
       },
       "path": "glossary.md"
     },
@@ -52,7 +52,7 @@
       "content_type": "application/json",
       "digest": {
         "algorithm": "sha256",
-        "value": "765591fbeac470bf8fbf72324414d2951e5b5e6c901949b46b50bef8a8afe903"
+        "value": "d1bacd4c755409f69ee30de0c084e1f8e1b275e62009d045888dae59e7a9c875"
       },
       "path": "providers.json"
     },
@@ -60,7 +60,7 @@
       "content_type": "text/markdown",
       "digest": {
         "algorithm": "sha256",
-        "value": "b09f3a52dfec70ffbba85db1f8109b0053aee3ff554f5496fedb3ac77a790b99"
+        "value": "a92d2ce742185746035bc659f2645e39191e421970e06a595440ef6c5e02c162"
       },
       "path": "providers.md"
     },
@@ -68,7 +68,7 @@
       "content_type": "application/json",
       "digest": {
         "algorithm": "sha256",
-        "value": "e124282948ed0a86b9c665df028e2c6b3f9b6796822b4f10d9234c049466aae2"
+        "value": "6ad16a6ee2be8c2d7d7b8424672a89bfaa8302e1c4415b49af3921eb43e9a341"
       },
       "path": "schemas/config.schema.json"
     },
@@ -84,7 +84,7 @@
       "content_type": "application/json",
       "digest": {
         "algorithm": "sha256",
-        "value": "d03814e1b346072e64b5456992fd1bb00947d1f5df4670cbe84c69fb2b7ad012"
+        "value": "2cde91db80d2e37d0d7f4d5138f18f93be90da1e24e9ebd35511a9323fccdb6c"
       },
       "path": "tooling.json"
     },
@@ -92,7 +92,7 @@
       "content_type": "text/markdown",
       "digest": {
         "algorithm": "sha256",
-        "value": "1b740df752d4bf76be30d2fa2a9630f203fb327f5fccefa1da9c19af7f49cf38"
+        "value": "6995a2c2b34889858b6260656eaeccf296ed1ecddf3db3a8c5ba979fb091e571"
       },
       "path": "tooling.md"
     },
@@ -100,7 +100,7 @@
       "content_type": "application/json",
       "digest": {
         "algorithm": "sha256",
-        "value": "58c0886f82d702e0e88bf98afd17271054fd6a544dbb4a4cf4555ab3bd69286c"
+        "value": "a11c36b477209a0d2983ac64c32cb22031a1aa7f5ae4520b8141c8e10841f5bf"
       },
       "path": "tooltips.json"
     }

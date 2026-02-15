@@ -116,8 +116,8 @@ pub fn config_docs_markdown() -> Result<String, DocsError> {
     );
     out.push_str(
         "- `http`:\n  - `allow_http` (bool)\n  - `timeout_ms` (integer)\n  - `max_response_bytes` \
-         (integer)\n  - `allowed_hosts` (array)\n  - `user_agent` (string)\n  - `hash_algorithm` \
-         (string)\n",
+         (integer)\n  - `allowed_hosts` (array)\n  - `allow_private_networks` (bool)\n  - \
+         `user_agent` (string)\n  - `hash_algorithm` (string)\n",
     );
 
     Ok(out)

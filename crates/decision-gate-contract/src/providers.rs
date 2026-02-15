@@ -400,7 +400,12 @@ fn http_provider_contract() -> ProviderContract {
             },
         ],
         notes: vec![
-            String::from("Scheme and host allowlists are enforced by configuration."),
+            String::from(
+                "Scheme and host allowlists are enforced with DNS resolution pinning per request.",
+            ),
+            String::from(
+                "Private/link-local destinations are blocked by default unless explicitly enabled.",
+            ),
             String::from("Responses are size-limited and hashed deterministically."),
         ],
     }
@@ -855,6 +860,11 @@ fn http_config_schema() -> Value {
                 "type": "array",
                 "items": { "type": "string" },
                 "description": "Optional allowlist of hostnames."
+            },
+            "allow_private_networks": {
+                "type": "boolean",
+                "description": "Allow private/link-local/loopback destination addresses.",
+                "default": false
             },
             "user_agent": {
                 "type": "string",

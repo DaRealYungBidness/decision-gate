@@ -320,13 +320,8 @@ impl ObjectStoreConfig {
             return Err(ConfigError::Invalid("runpack_storage.bucket must be set".to_string()));
         }
         if let Some(endpoint) = &self.endpoint {
-            let trimmed = endpoint.trim();
-            if !(trimmed.starts_with("https://") || trimmed.starts_with("http://")) {
-                return Err(ConfigError::Invalid(
-                    "runpack_storage.endpoint must include http:// or https://".to_string(),
-                ));
-            }
-            if trimmed.starts_with("http://") && !self.allow_http {
+            validate_http_or_https_url("runpack_storage.endpoint", endpoint)?;
+            if endpoint.starts_with("http://") && !self.allow_http {
                 return Err(ConfigError::Invalid(
                     "runpack_storage.endpoint uses http:// without allow_http".to_string(),
                 ));
@@ -875,17 +870,7 @@ impl ServerAuthConfig {
             return Err(ConfigError::Invalid("too many auth tokens".to_string()));
         }
         for token in &self.bearer_tokens {
-            if token.trim().is_empty() {
-                return Err(ConfigError::Invalid("auth token must be non-empty".to_string()));
-            }
-            if token.len() > MAX_AUTH_TOKEN_LENGTH {
-                return Err(ConfigError::Invalid("auth token too long".to_string()));
-            }
-            if token.trim() != token {
-                return Err(ConfigError::Invalid(
-                    "auth token must not contain whitespace".to_string(),
-                ));
-            }
+            validate_bearer_token("auth token", token, Some(MAX_AUTH_TOKEN_LENGTH))?;
         }
         if self.mtls_subjects.len() > MAX_AUTH_TOKENS {
             return Err(ConfigError::Invalid("too many mTLS subjects".to_string()));
@@ -1137,11 +1122,7 @@ impl AssetCoreNamespaceAuthorityConfig {
     ///
     /// Returns [`ConfigError`] when the Asset Core settings are invalid.
     fn validate(&self) -> Result<(), ConfigError> {
-        if self.base_url.trim().is_empty() {
-            return Err(ConfigError::Invalid(
-                "namespace.authority.assetcore.base_url is required".to_string(),
-            ));
-        }
+        validate_http_or_https_url("namespace.authority.assetcore.base_url", &self.base_url)?;
         if let Some(token) = &self.auth_token
             && token.trim().is_empty()
         {
@@ -2065,13 +2046,13 @@ impl ProviderConfig {
                         "mcp provider requires capabilities_path".to_string(),
                     ));
                 }
-                if let Some(url) = &self.url
-                    && url.starts_with("http://")
-                    && !self.allow_insecure_http
-                {
-                    return Err(ConfigError::Invalid(
-                        "insecure http requires allow_insecure_http".to_string(),
-                    ));
+                if let Some(url) = &self.url {
+                    validate_http_or_https_url("providers.url", url)?;
+                    if url.starts_with("http://") && !self.allow_insecure_http {
+                        return Err(ConfigError::Invalid(
+                            "insecure http requires allow_insecure_http".to_string(),
+                        ));
+                    }
                 }
                 Ok(())
             }
@@ -2117,12 +2098,8 @@ pub struct ProviderAuthConfig {
 impl ProviderAuthConfig {
     /// Validates provider auth configuration.
     fn validate(&self) -> Result<(), ConfigError> {
-        if let Some(token) = &self.bearer_token
-            && token.trim().is_empty()
-        {
-            return Err(ConfigError::Invalid(
-                "providers.auth.bearer_token must be non-empty".to_string(),
-            ));
+        if let Some(token) = &self.bearer_token {
+            validate_bearer_token("providers.auth.bearer_token", token, None)?;
         }
         Ok(())
     }
@@ -2233,6 +2210,59 @@ fn validate_path_string(field: &str, value: &str) -> Result<(), ConfigError> {
         if component_value.len() > MAX_PATH_COMPONENT_LENGTH {
             return Err(ConfigError::Invalid(format!("{field} path component too long")));
         }
+    }
+    Ok(())
+}
+
+/// Validates a bearer token for emptiness and unsafe characters.
+fn validate_bearer_token(
+    field: &str,
+    value: &str,
+    max_length: Option<usize>,
+) -> Result<(), ConfigError> {
+    if value.trim().is_empty() {
+        return Err(ConfigError::Invalid(format!("{field} must be non-empty")));
+    }
+    if max_length.is_some_and(|max| value.len() > max) {
+        return Err(ConfigError::Invalid(format!("{field} too long")));
+    }
+    if value.chars().any(char::is_whitespace) {
+        return Err(ConfigError::Invalid(format!("{field} must not contain whitespace",)));
+    }
+    if value.chars().any(char::is_control) {
+        return Err(ConfigError::Invalid(format!("{field} must not contain control characters",)));
+    }
+    Ok(())
+}
+
+/// Validates an HTTP(S) endpoint-like URL.
+fn validate_http_or_https_url(field: &str, value: &str) -> Result<(), ConfigError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(ConfigError::Invalid(format!("{field} must be non-empty")));
+    }
+    if trimmed != value {
+        return Err(ConfigError::Invalid(format!("{field} must be trimmed")));
+    }
+    if trimmed.chars().any(char::is_whitespace) {
+        return Err(ConfigError::Invalid(format!("{field} must not contain whitespace",)));
+    }
+    if trimmed.chars().any(char::is_control) {
+        return Err(ConfigError::Invalid(format!("{field} must not contain control characters",)));
+    }
+    let after_scheme = if let Some(rest) = trimmed.strip_prefix("https://") {
+        rest
+    } else if let Some(rest) = trimmed.strip_prefix("http://") {
+        rest
+    } else {
+        return Err(ConfigError::Invalid(format!("{field} must include http:// or https://",)));
+    };
+    let host = after_scheme.split(['/', '?', '#']).next().unwrap_or_default();
+    if host.is_empty() {
+        return Err(ConfigError::Invalid(format!("{field} must include host")));
+    }
+    if host.contains('\\') {
+        return Err(ConfigError::Invalid(format!("{field} host contains invalid characters",)));
     }
     Ok(())
 }

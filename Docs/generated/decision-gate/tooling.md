@@ -442,6 +442,7 @@ Submit external artifacts into run state for audit and later evaluation.
 ### Notes
 
 - Payload is hashed and stored as a submission record.
+- Payload is persisted in run state/runpack logs; do not send raw secrets.
 - Does not advance the run by itself.
 - Use for artifacts the model or operator supplies.
 
@@ -519,6 +520,7 @@ Submit a trigger event (scheduler/external) and evaluate the run.
 
 - Trigger time is supplied by the caller; no wall-clock reads.
 - Records the trigger event and resulting decision.
+- Payload is persisted in run state/runpack logs; do not send raw secrets.
 - Use for time-based or external system triggers.
 
 ### Example
@@ -664,6 +666,7 @@ Export deterministic runpack artifacts for offline verification.
 
 - Writes manifest and logs to output_dir; generated_at is recorded in the manifest.
 - include_verification adds a verification report artifact.
+- Export-time report.checked_files excludes verifier_report.json; offline runpack_verify checked_files includes it (+1 for the same runpack).
 - Use after runs complete or for audit snapshots.
 
 ### Example

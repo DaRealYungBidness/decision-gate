@@ -141,6 +141,7 @@ fn http_provider_config(
     timeout_ms: u64,
     max_response_bytes: usize,
     allowed_hosts: Option<Vec<String>>,
+    allow_private_networks: bool,
 ) -> Result<TomlValue, std::io::Error> {
     let mut table = Table::new();
     table.insert("allow_http".to_string(), TomlValue::Boolean(allow_http));
@@ -156,6 +157,7 @@ fn http_provider_config(
         let list = hosts.into_iter().map(TomlValue::String).collect();
         table.insert("allowed_hosts".to_string(), TomlValue::Array(list));
     }
+    table.insert("allow_private_networks".to_string(), TomlValue::Boolean(allow_private_networks));
     table.insert("user_agent".to_string(), TomlValue::String("dg-test".to_string()));
     table.insert("hash_algorithm".to_string(), TomlValue::String("sha256".to_string()));
     Ok(TomlValue::Table(table))
@@ -1158,7 +1160,8 @@ async fn http_provider_enforces_allowlist() -> Result<(), Box<dyn std::error::Er
     let mut config = base_http_config(&bind);
     enable_raw_evidence(&mut config);
 
-    let http_config = http_provider_config(true, 5_000, 1024, Some(vec!["127.0.0.1".to_string()]))?;
+    let http_config =
+        http_provider_config(true, 5_000, 1024, Some(vec!["127.0.0.1".to_string()]), true)?;
     set_provider_config(&mut config, "http", http_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -1196,13 +1199,112 @@ async fn http_provider_enforces_allowlist() -> Result<(), Box<dyn std::error::Er
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn http_provider_blocks_private_networks_by_default() -> Result<(), Box<dyn std::error::Error>>
+{
+    let mut reporter = TestReporter::new("http_provider_blocks_private_networks_by_default")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let mut config = base_http_config(&bind);
+    enable_raw_evidence(&mut config);
+
+    let http_config =
+        http_provider_config(true, 5_000, 1024, Some(vec!["localhost".to_string()]), false)?;
+    set_provider_config(&mut config, "http", http_config)?;
+
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(Duration::from_secs(5))?;
+    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+
+    let fixture = ScenarioFixture::time_after("http-private-default", "run-1", 0);
+    let request = EvidenceQueryRequest {
+        query: EvidenceQuery {
+            provider_id: ProviderId::new("http"),
+            check_id: "status".to_string(),
+            params: Some(json!({ "url": "http://localhost:1/ok" })),
+        },
+        context: fixture.evidence_context("http-trigger", Timestamp::Logical(1)),
+    };
+    let input = serde_json::to_value(&request)?;
+    let response: EvidenceQueryResponse = client.call_tool_typed("evidence_query", input).await?;
+    let error = response.result.error.ok_or("missing error metadata")?;
+    if !error.message.contains("private or link-local") {
+        return Err(format!("expected private network denial, got {}", error.message).into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["http provider blocks private networks by default".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+        ],
+    )?;
+    drop(reporter);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn http_provider_private_network_opt_in_required() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("http_provider_private_network_opt_in_required")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let mut config = base_http_config(&bind);
+    enable_raw_evidence(&mut config);
+
+    let http_config =
+        http_provider_config(true, 5_000, 1024, Some(vec!["localhost".to_string()]), true)?;
+    set_provider_config(&mut config, "http", http_config)?;
+
+    let server = spawn_mcp_server(config).await?;
+    let client = server.client(Duration::from_secs(5))?;
+    wait_for_server_ready(&client, Duration::from_secs(5)).await?;
+
+    let http_server = spawn_http_test_server().await?;
+    let url = http_server.url("/ok").replace("127.0.0.1", "localhost");
+    let fixture = ScenarioFixture::time_after("http-private-opt-in", "run-1", 0);
+    let request = EvidenceQueryRequest {
+        query: EvidenceQuery {
+            provider_id: ProviderId::new("http"),
+            check_id: "status".to_string(),
+            params: Some(json!({ "url": url })),
+        },
+        context: fixture.evidence_context("http-trigger", Timestamp::Logical(1)),
+    };
+    let input = serde_json::to_value(&request)?;
+    let response: EvidenceQueryResponse = client.call_tool_typed("evidence_query", input).await?;
+    if response.result.error.is_some() {
+        return Err("unexpected error when private-network opt-in enabled".into());
+    }
+    let Some(decision_gate_core::EvidenceValue::Json(value)) = response.result.value else {
+        return Err("missing status value".into());
+    };
+    let status = value.as_u64().ok_or("invalid status code type")?;
+    if status != 200 {
+        return Err(format!("expected status 200, got {status}").into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &client.transcript())?;
+    reporter.finish(
+        "pass",
+        vec!["http provider allows private networks only with explicit opt-in".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+        ],
+    )?;
+    drop(reporter);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn http_provider_redirect_not_followed() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("http_provider_redirect_not_followed")?;
     let bind = allocate_bind_addr()?.to_string();
     let mut config = base_http_config(&bind);
     enable_raw_evidence(&mut config);
 
-    let http_config = http_provider_config(true, 5_000, 1024, None)?;
+    let http_config = http_provider_config(true, 5_000, 1024, None, true)?;
     set_provider_config(&mut config, "http", http_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -1253,7 +1355,7 @@ async fn http_provider_body_hash_matches() -> Result<(), Box<dyn std::error::Err
     let mut config = base_http_config(&bind);
     enable_raw_evidence(&mut config);
 
-    let http_config = http_provider_config(true, 5_000, 1024, None)?;
+    let http_config = http_provider_config(true, 5_000, 1024, None, true)?;
     set_provider_config(&mut config, "http", http_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -1307,7 +1409,7 @@ async fn http_provider_response_size_limit_enforced() -> Result<(), Box<dyn std:
     let mut config = base_http_config(&bind);
     enable_raw_evidence(&mut config);
 
-    let http_config = http_provider_config(true, 5_000, 8, None)?;
+    let http_config = http_provider_config(true, 5_000, 8, None, true)?;
     set_provider_config(&mut config, "http", http_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -1352,7 +1454,7 @@ async fn http_provider_timeout_enforced() -> Result<(), Box<dyn std::error::Erro
     let mut config = base_http_config(&bind);
     enable_raw_evidence(&mut config);
 
-    let http_config = http_provider_config(true, 10, 1024, None)?;
+    let http_config = http_provider_config(true, 10, 1024, None, true)?;
     set_provider_config(&mut config, "http", http_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -1400,7 +1502,7 @@ async fn http_provider_slow_loris_fails_closed() -> Result<(), Box<dyn std::erro
     let mut config = base_http_config(&bind);
     enable_raw_evidence(&mut config);
 
-    let http_config = http_provider_config(true, 25, 1024, None)?;
+    let http_config = http_provider_config(true, 25, 1024, None, true)?;
     set_provider_config(&mut config, "http", http_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -1448,7 +1550,7 @@ async fn http_provider_truncated_response_fails_closed() -> Result<(), Box<dyn s
     let mut config = base_http_config(&bind);
     enable_raw_evidence(&mut config);
 
-    let http_config = http_provider_config(true, 5_000, 1024, None)?;
+    let http_config = http_provider_config(true, 5_000, 1024, None, true)?;
     set_provider_config(&mut config, "http", http_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -1493,7 +1595,7 @@ async fn http_provider_redirect_loop_not_followed() -> Result<(), Box<dyn std::e
     let mut config = base_http_config(&bind);
     enable_raw_evidence(&mut config);
 
-    let http_config = http_provider_config(true, 5_000, 1024, None)?;
+    let http_config = http_provider_config(true, 5_000, 1024, None, true)?;
     set_provider_config(&mut config, "http", http_config)?;
 
     let server = spawn_mcp_server(config).await?;
@@ -1544,7 +1646,7 @@ async fn http_provider_tls_failure_fails_closed() -> Result<(), Box<dyn std::err
     let mut config = base_http_config(&bind);
     enable_raw_evidence(&mut config);
 
-    let http_config = http_provider_config(true, 5_000, 1024, None)?;
+    let http_config = http_provider_config(true, 5_000, 1024, None, true)?;
     set_provider_config(&mut config, "http", http_config)?;
 
     let server = spawn_mcp_server(config).await?;

@@ -15,6 +15,18 @@
 //! - SLO failures fail closed and emit auditable artifacts.
 //!
 //! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::expect_used,
+    clippy::future_not_send,
+    clippy::needless_pass_by_value,
+    clippy::needless_range_loop,
+    clippy::significant_drop_tightening,
+    clippy::similar_names,
+    clippy::too_many_arguments,
+    reason = "Performance harness code favors explicit unit-paired metrics and deterministic \
+              workload wiring over pedantic style lints."
+)]
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -1544,7 +1556,7 @@ fn build_tool_latency_ranking(tools: &BTreeMap<String, ToolMetrics>) -> ToolLate
 fn should_enforce_slo() -> bool {
     !matches!(
         std::env::var(PERF_SKIP_SLO_ASSERTS_ENV).ok().as_deref(),
-        Some("1") | Some("true") | Some("TRUE") | Some("yes") | Some("YES")
+        Some("1" | "true" | "TRUE" | "yes" | "YES")
     )
 }
 
@@ -1620,7 +1632,7 @@ fn finalize_perf_report(
     }
     if !slo_enforced {
         if target_meta_enforces_slo(&context.target_meta) {
-            notes.push(format!("SLO assertions skipped via {}", PERF_SKIP_SLO_ASSERTS_ENV));
+            notes.push(format!("SLO assertions skipped via {PERF_SKIP_SLO_ASSERTS_ENV}"));
         } else {
             notes.push(
                 "SLO assertions disabled by target meta enforcement_mode=report_only".to_string(),

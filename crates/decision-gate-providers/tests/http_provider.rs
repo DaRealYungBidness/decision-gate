@@ -2,7 +2,7 @@
 // ============================================================================
 // Module: HTTP Provider Tests
 // Description: Comprehensive tests for HTTP endpoint evidence provider.
-// Purpose: Validate HTTPS enforcement, host allowlist, size limits, and SSRF prevention.
+// Purpose: Validate URL policy enforcement and bounded HTTP evidence collection.
 // Dependencies: decision-gate-providers, decision-gate-core, tiny_http
 // ============================================================================
 
@@ -11,10 +11,10 @@
 //! - Happy path: Status and `body_hash` checks
 //! - Boundary enforcement: HTTPS-only, host allowlist, response size limits
 //! - Error handling: Invalid URLs, connection failures, unsupported schemes
-//! - Adversarial: SSRF prevention (internal IP blocking)
+//! - Adversarial: credential-bearing URL rejection
 //!
 //! Security posture: Network is adversary-controlled. HTTPS is required by
-//! default, and host allowlists prevent SSRF attacks.
+//! default, and host allowlists constrain outbound destinations.
 //! See: `Docs/security/threat_model.md` - TM-HTTP-001
 
 #![allow(
@@ -61,6 +61,7 @@ fn local_provider() -> HttpProvider {
     HttpProvider::new(HttpProviderConfig {
         allow_http: true,
         allowed_hosts: Some(allowed_hosts),
+        allow_private_networks: true,
         timeout_ms: 5000,
         ..HttpProviderConfig::default()
     })
@@ -358,6 +359,22 @@ fn http_file_scheme_rejected() {
     assert!(format!("{err:?}").contains("unsupported url scheme"));
 }
 
+/// Tests that credential-bearing URLs are rejected.
+#[test]
+fn http_url_with_credentials_rejected() {
+    let provider = local_provider();
+
+    let query = EvidenceQuery {
+        provider_id: ProviderId::new("http"),
+        check_id: "status".to_string(),
+        params: Some(json!({"url": "http://user:pass@127.0.0.1:1/"})),
+    };
+    let result = provider.query(&query, &sample_context());
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(format!("{err:?}").contains("credentials"));
+}
+
 // ============================================================================
 // SECTION: Boundary Enforcement - Host Allowlist
 // ============================================================================
@@ -430,6 +447,7 @@ fn http_no_allowlist_allows_all() {
     let provider = HttpProvider::new(HttpProviderConfig {
         allow_http: true,
         allowed_hosts: None, // No restriction
+        allow_private_networks: true,
         ..HttpProviderConfig::default()
     })
     .unwrap();
@@ -442,6 +460,52 @@ fn http_no_allowlist_allows_all() {
     let result = provider.query(&query, &sample_context());
     assert!(result.is_ok());
 
+    handle.join().unwrap();
+}
+
+/// Tests that private/link-local peers are blocked by default.
+#[test]
+fn http_private_networks_blocked_by_default() {
+    let mut allowed_hosts = BTreeSet::new();
+    allowed_hosts.insert("localhost".to_string());
+    let provider = HttpProvider::new(HttpProviderConfig {
+        allow_http: true,
+        allowed_hosts: Some(allowed_hosts),
+        ..HttpProviderConfig::default()
+    })
+    .unwrap();
+    let query = EvidenceQuery {
+        provider_id: ProviderId::new("http"),
+        check_id: "status".to_string(),
+        params: Some(json!({"url": "http://localhost:1/"})),
+    };
+    let result = provider.query(&query, &sample_context());
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(format!("{err:?}").contains("private or link-local"));
+}
+
+/// Tests that private-network requests require explicit opt-in.
+#[test]
+fn http_private_networks_allowed_with_opt_in() {
+    let (url, handle) = spawn_server("ok", 200);
+    let request_url = url.replace("127.0.0.1", "localhost");
+    let mut allowed_hosts = BTreeSet::new();
+    allowed_hosts.insert("localhost".to_string());
+    let provider = HttpProvider::new(HttpProviderConfig {
+        allow_http: true,
+        allowed_hosts: Some(allowed_hosts),
+        allow_private_networks: true,
+        ..HttpProviderConfig::default()
+    })
+    .unwrap();
+    let query = EvidenceQuery {
+        provider_id: ProviderId::new("http"),
+        check_id: "status".to_string(),
+        params: Some(json!({"url": request_url})),
+    };
+    let result = provider.query(&query, &sample_context());
+    assert!(result.is_ok());
     handle.join().unwrap();
 }
 
@@ -462,6 +526,7 @@ fn http_response_exceeds_size_limit_rejected() {
     let provider = HttpProvider::new(HttpProviderConfig {
         allow_http: true,
         allowed_hosts: Some(allowed_hosts),
+        allow_private_networks: true,
         max_response_bytes: 100, // Small limit
         ..HttpProviderConfig::default()
     })

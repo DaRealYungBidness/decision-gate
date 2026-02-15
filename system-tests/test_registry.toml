@@ -52,7 +52,7 @@ description = "Verify committed v1 runpack fixtures with the current verifier."
 files = ["system-tests/tests/suites/runpack.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test runpack -- --exact runpack::runpack_backcompat_v1_fixture_verifies"
 artifacts = ["summary.json", "summary.md"]
-estimated_runtime_sec = 5
+estimated_runtime_sec = 60
 
 [[tests]]
 name = "golden_runpack_cross_os"
@@ -316,7 +316,7 @@ description = "HTTP health endpoints respond with ok/ready JSON."
 files = ["system-tests/tests/suites/operations.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact operations::http_health_endpoints_ok"
 artifacts = ["summary.json", "summary.md"]
-estimated_runtime_sec = 5
+estimated_runtime_sec = 60
 
 [[tests]]
 name = "http_readiness_fails_when_store_unavailable"
@@ -396,7 +396,7 @@ description = "HTTP JSON-RPC transport handles tools/list and tools/call."
 files = ["system-tests/tests/suites/mcp_transport.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test mcp_transport -- --exact mcp_transport::http_transport_end_to_end"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
-estimated_runtime_sec = 8
+estimated_runtime_sec = 60
 
 [[tests]]
 name = "smoke_schema_register_precheck"
@@ -406,7 +406,7 @@ description = "Register a schema and precheck asserted payloads."
 files = ["system-tests/tests/suites/smoke.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test smoke -- --exact smoke::smoke_schema_register_precheck"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
-estimated_runtime_sec = 10
+estimated_runtime_sec = 60
 
 [[tests]]
 name = "smoke_schema_registry_max_entries_enforced"
@@ -625,6 +625,26 @@ priority = "P1"
 description = "HTTP provider enforces host allowlist."
 files = ["system-tests/tests/suites/providers.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::http_provider_enforces_allowlist"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "http_provider_blocks_private_networks_by_default"
+category = "providers"
+priority = "P0"
+description = "HTTP provider blocks private/link-local targets by default."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::http_provider_blocks_private_networks_by_default"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "http_provider_private_network_opt_in_required"
+category = "providers"
+priority = "P0"
+description = "HTTP provider only allows private targets when allow_private_networks is true."
+files = ["system-tests/tests/suites/providers.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test providers -- --exact providers::http_provider_private_network_opt_in_required"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
@@ -1217,7 +1237,7 @@ description = "Dev-permissive mode is rejected with AssetCore namespace authorit
 files = ["system-tests/tests/suites/config_validation.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test security -- --exact config_validation::dev_permissive_assetcore_rejected"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
-estimated_runtime_sec = 5
+estimated_runtime_sec = 60
 
 [[tests]]
 name = "registry_security_audit_events"
@@ -1307,7 +1327,7 @@ description = "CLI config validate honors DECISION_GATE_CONFIG environment overr
 files = ["system-tests/tests/suites/cli_workflows.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact cli_workflows::cli_config_env_override"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "cli.config.env.stdout.log", "cli.config.env.stderr.log"]
-estimated_runtime_sec = 5
+estimated_runtime_sec = 60
 
 [[tests]]
 name = "agentic_flow_harness_deterministic"
@@ -1327,7 +1347,7 @@ description = "CLI serve rejects non-loopback bind without explicit allow flag."
 files = ["system-tests/tests/suites/cli_workflows.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact cli_workflows::cli_rejects_non_loopback_bind"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "cli.non_loopback.stdout.log", "cli.non_loopback.stderr.log"]
-estimated_runtime_sec = 5
+estimated_runtime_sec = 60
 
 [[tests]]
 name = "cli_size_limits_enforced"
@@ -1337,7 +1357,7 @@ description = "CLI rejects oversized inputs and enforces output size limits."
 files = ["system-tests/tests/suites/cli_limits.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact cli_limits::cli_size_limits_enforced"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
-estimated_runtime_sec = 8
+estimated_runtime_sec = 60
 
 [[tests]]
 name = "provider_template_python"
@@ -1511,7 +1531,7 @@ description = "SDK generator CLI generate/check workflows succeed and detect dri
 files = ["system-tests/tests/suites/sdk_gen_cli.rs", "Docs/generated/decision-gate/tooling.json"]
 run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact sdk_gen_cli::sdk_gen_cli_generate_and_check"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "sdk_gen.generate.stdout.log", "sdk_gen.generate.stderr.log", "sdk_gen.check.stdout.log", "sdk_gen.check.stderr.log", "sdk_gen.drift.stdout.log", "sdk_gen.drift.stderr.log", "sdk_gen.invalid.stdout.log", "sdk_gen.invalid.stderr.log"]
-estimated_runtime_sec = 10
+estimated_runtime_sec = 60
 
 [[tests]]
 name = "contract_cli_generate_and_check"
@@ -1521,6 +1541,16 @@ description = "Contract CLI generate/check workflows succeed and detect drift."
 files = ["system-tests/tests/suites/contract_cli.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact contract_cli::contract_cli_generate_and_check"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "contract.generate.stdout.log", "contract.generate.stderr.log", "contract.check.stdout.log", "contract.check.stderr.log", "contract.drift.stdout.log", "contract.drift.stderr.log"]
+estimated_runtime_sec = 8
+
+[[tests]]
+name = "contract_cli_rejects_symlinked_out_dir"
+category = "operations"
+priority = "P1"
+description = "Contract CLI fails closed when --out points to a symlinked directory."
+files = ["system-tests/tests/suites/contract_cli.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact contract_cli::contract_cli_rejects_symlinked_out_dir"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "contract.symlink.stdout.log", "contract.symlink.stderr.log"]
 estimated_runtime_sec = 8
 
 [[tests]]
@@ -1591,7 +1621,7 @@ description = "CLI emits Catalan output and machine-translation disclaimer."
 files = ["system-tests/tests/suites/cli_workflows.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test operations -- --exact cli_workflows::cli_i18n_catalan_disclaimer"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json", "cli.i18n.stdout.log", "cli.i18n.stderr.log"]
-estimated_runtime_sec = 5
+estimated_runtime_sec = 60
 
 [[tests]]
 name = "sse_transport_bearer_rejects_missing_token"

@@ -738,6 +738,12 @@ const TOOLTIP_PAIRS: &[(&str, &str)] = &[
          are permitted. Prevents SSRF: queries to unapproved hosts fail with a security error. \
          Required for http providers in production.",
     ),
+    (
+        "allow_private_networks",
+        "Per-provider HTTP setting controlling private/link-local destination access. Defaults to \
+         false (deny private, loopback, and link-local peers). Enable only for explicit internal \
+         endpoints after host allowlists are in place.",
+    ),
     // ============================================================================
     // SECTION: SECURITY & TRUST
     // ============================================================================

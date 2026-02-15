@@ -1894,7 +1894,15 @@ fn evidence_context_schema() -> Value {
     });
     object_schema(
         &properties,
-        &["tenant_id", "run_id", "scenario_id", "stage_id", "trigger_id", "trigger_time"],
+        &[
+            "tenant_id",
+            "namespace_id",
+            "run_id",
+            "scenario_id",
+            "stage_id",
+            "trigger_id",
+            "trigger_time",
+        ],
     )
 }
 

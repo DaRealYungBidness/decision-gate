@@ -570,17 +570,16 @@ where
     ) -> Result<Vec<EvidenceRecord>, ControlPlaneError> {
         let mut evidence_records = Vec::with_capacity(condition_specs.len());
         for spec in condition_specs {
-            let mut result =
-                evidence.get(&spec.condition_id).cloned().unwrap_or_else(|| EvidenceResult {
-                    value: None,
-                    lane: TrustLane::Asserted,
-                    error: None,
-                    evidence_hash: None,
-                    evidence_ref: None,
-                    evidence_anchor: None,
-                    signature: None,
-                    content_type: None,
-                });
+            let mut result = evidence.get(&spec.condition_id).cloned().unwrap_or(EvidenceResult {
+                value: None,
+                lane: TrustLane::Asserted,
+                error: None,
+                evidence_hash: None,
+                evidence_ref: None,
+                evidence_anchor: None,
+                signature: None,
+                content_type: None,
+            });
             if result.error.is_some() {
                 result.value = None;
                 result.evidence_hash = None;

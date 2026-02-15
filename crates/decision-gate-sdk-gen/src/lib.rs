@@ -317,8 +317,8 @@ fn render_python(tools: &[ToolContract]) -> Result<String, SdkGenError> {
         let pascal = pascal_case(tool.name.as_str());
         let input_type = format!("{pascal}Request");
         let output_type = format!("{pascal}Response");
-        render_python_typed_dict(&mut out, &input_type, &tool.input_schema);
-        render_python_typed_dict(&mut out, &output_type, &tool.output_schema);
+        render_python_typed_dict(&mut out, &input_type, &tool.input_schema)?;
+        render_python_typed_dict(&mut out, &output_type, &tool.output_schema)?;
         render_python_schema_constant(&mut out, &pascal, "INPUT_SCHEMA", &tool.input_schema)?;
         render_python_schema_constant(&mut out, &pascal, "OUTPUT_SCHEMA", &tool.output_schema)?;
     }
@@ -374,7 +374,11 @@ fn render_python(tools: &[ToolContract]) -> Result<String, SdkGenError> {
 }
 
 /// Renders a `TypedDict` for a JSON object schema.
-fn render_python_typed_dict(out: &mut String, name: &str, schema: &Value) {
+fn render_python_typed_dict(
+    out: &mut String,
+    name: &str,
+    schema: &Value,
+) -> Result<(), SdkGenError> {
     out.push_str("class ");
     out.push_str(name);
     out.push_str("(TypedDict):\n");
@@ -385,6 +389,7 @@ fn render_python_typed_dict(out: &mut String, name: &str, schema: &Value) {
     match object_properties(schema) {
         Some(properties) if !properties.is_empty() => {
             for property in properties {
+                validate_python_identifier(&property.name, name)?;
                 if let Some(comment) = schema_doc(&property.schema) {
                     for line in wrap_doc(&comment, 88) {
                         out.push_str("    #: ");
@@ -410,6 +415,7 @@ fn render_python_typed_dict(out: &mut String, name: &str, schema: &Value) {
         }
     }
     out.push('\n');
+    Ok(())
 }
 
 /// Renders a Python constant holding the JSON schema.
@@ -554,7 +560,7 @@ fn render_typescript_interface(out: &mut String, name: &str, schema: &Value) {
                     }
                 }
                 out.push_str("  ");
-                out.push_str(&property.name);
+                out.push_str(&typescript_property_key(&property.name));
                 if !property.required {
                     out.push('?');
                 }
@@ -1331,6 +1337,42 @@ fn python_string_literal(value: &str) -> String {
 /// Renders a JSON string as a TypeScript string literal.
 fn typescript_string_literal(value: &str) -> String {
     python_string_literal(value)
+}
+
+/// Renders a property key for TypeScript object type declarations.
+fn typescript_property_key(value: &str) -> String {
+    typescript_string_literal(value)
+}
+
+/// Validates that a string is a legal Python identifier and not a keyword.
+fn validate_python_identifier(identifier: &str, typed_dict: &str) -> Result<(), SdkGenError> {
+    if is_python_identifier(identifier) && !is_python_keyword(identifier) {
+        return Ok(());
+    }
+    Err(SdkGenError::Tooling(format!(
+        "schema property '{identifier}' in {typed_dict} is not a valid Python identifier"
+    )))
+}
+
+/// Returns true when the value is a syntactically valid Python identifier.
+fn is_python_identifier(value: &str) -> bool {
+    let mut chars = value.chars();
+    match chars.next() {
+        Some(ch) if ch == '_' || ch.is_ascii_alphabetic() => {}
+        _ => return false,
+    }
+    chars.all(|ch| ch == '_' || ch.is_ascii_alphanumeric())
+}
+
+/// Returns true when the value matches a reserved Python keyword.
+fn is_python_keyword(value: &str) -> bool {
+    const KEYWORDS: &[&str] = &[
+        "False", "None", "True", "and", "as", "assert", "async", "await", "break", "class",
+        "continue", "def", "del", "elif", "else", "except", "finally", "for", "from", "global",
+        "if", "import", "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return",
+        "try", "while", "with", "yield", "match", "case",
+    ];
+    KEYWORDS.contains(&value)
 }
 
 /// Returns true if a JSON value can be represented as a literal in SDK types.

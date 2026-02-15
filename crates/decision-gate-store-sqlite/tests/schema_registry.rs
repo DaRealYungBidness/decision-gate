@@ -158,8 +158,7 @@ fn insert_oversized_record(fixture: &SqliteFixture, schema_id: &str) -> DataShap
                 record.schema_id.as_str(),
                 record.version.as_str(),
                 schema_bytes,
-                i64::try_from(MAX_SCHEMA_BYTES + 1)
-                    .expect("oversized schema length should fit i64"),
+                i64::try_from(schema_bytes.len()).expect("oversized schema length should fit i64"),
                 hash.value,
                 hash_algorithm,
                 record.description.as_deref(),
@@ -835,6 +834,58 @@ fn sqlite_registry_rejects_oversized_schema_on_list() {
 }
 
 #[test]
+fn sqlite_registry_rejects_schema_size_metadata_mismatch_on_get() {
+    let fixture = sqlite_fixture();
+    let store = &fixture.store;
+    let record = sample_record("schema-metadata-get", "v1");
+    store.register(record.clone()).unwrap();
+
+    let connection = rusqlite::Connection::open(&fixture.path).unwrap();
+    connection
+        .execute(
+            "UPDATE data_shapes SET schema_size_bytes = 1 WHERE tenant_id = ?1 AND namespace_id = \
+             ?2 AND schema_id = ?3 AND version = ?4",
+            rusqlite::params![
+                record.tenant_id.to_string(),
+                record.namespace_id.to_string(),
+                record.schema_id.as_str(),
+                record.version.as_str()
+            ],
+        )
+        .unwrap();
+
+    let err = store
+        .get(&record.tenant_id, &record.namespace_id, &record.schema_id, &record.version)
+        .unwrap_err();
+    assert!(err.to_string().contains("metadata mismatch"));
+}
+
+#[test]
+fn sqlite_registry_rejects_schema_size_metadata_mismatch_on_list() {
+    let fixture = sqlite_fixture();
+    let store = &fixture.store;
+    let record = sample_record("schema-metadata-list", "v1");
+    store.register(record.clone()).unwrap();
+
+    let connection = rusqlite::Connection::open(&fixture.path).unwrap();
+    connection
+        .execute(
+            "UPDATE data_shapes SET schema_size_bytes = 1 WHERE tenant_id = ?1 AND namespace_id = \
+             ?2 AND schema_id = ?3 AND version = ?4",
+            rusqlite::params![
+                record.tenant_id.to_string(),
+                record.namespace_id.to_string(),
+                record.schema_id.as_str(),
+                record.version.as_str()
+            ],
+        )
+        .unwrap();
+
+    let err = store.list(&record.tenant_id, &record.namespace_id, None, 10).unwrap_err();
+    assert!(err.to_string().contains("metadata mismatch"));
+}
+
+#[test]
 fn sqlite_registry_enforces_max_schema_bytes() {
     let fixture = sqlite_fixture_with_limits(Some(128), None);
     let payload = "x".repeat(256);
@@ -865,4 +916,25 @@ fn sqlite_registry_enforces_max_entries() {
     let record = sample_record("schema-2", "v1");
     let err = store.register(record).unwrap_err();
     assert!(err.to_string().contains("entry limit exceeded"));
+}
+
+#[test]
+fn sqlite_registry_rejects_tampered_entry_counter() {
+    let fixture = sqlite_fixture_with_limits(None, Some(10));
+    let store = &fixture.store;
+    let first = sample_record("schema-counter-1", "v1");
+    store.register(first.clone()).unwrap();
+
+    let connection = rusqlite::Connection::open(&fixture.path).unwrap();
+    connection
+        .execute(
+            "UPDATE registry_namespace_counters SET entry_count = 0 WHERE tenant_id = ?1 AND \
+             namespace_id = ?2",
+            rusqlite::params![first.tenant_id.to_string(), first.namespace_id.to_string()],
+        )
+        .unwrap();
+
+    let second = sample_record("schema-counter-2", "v1");
+    let err = store.register(second).unwrap_err();
+    assert!(err.to_string().contains("counter mismatch"));
 }

@@ -246,6 +246,7 @@
                 },
                 "required": [
                   "tenant_id",
+                  "namespace_id",
                   "run_id",
                   "scenario_id",
                   "stage_id",

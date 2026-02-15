@@ -1,10 +1,10 @@
 // crates/decision-gate-providers/tests/json_provider_path_unit.rs
 // ============================================================================
 // Module: JSON Provider Path Traversal Unit Tests
-// Description: Tests for path normalization, symlink resolution, and JSONPath injection
-// Purpose: Ensure JSON provider prevents path traversal and injection attacks
-// Threat Models: TM-FILE-001 (path traversal), TM-FILE-002 (symlink escape), TM-JSON-001 (JSONPath
-// injection) ============================================================================
+// Description: Tests for path normalization, symlink resolution, and JSONPath injection.
+// Purpose: Ensure JSON provider prevents path traversal and injection attacks.
+// Dependencies: decision-gate-providers, decision-gate-core, tempfile, serde_json
+// ============================================================================
 
 //! ## Overview
 //! Comprehensive tests for JSON provider security:

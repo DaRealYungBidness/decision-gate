@@ -507,6 +507,11 @@
           "description": "Allow cleartext http:// URLs.",
           "type": "boolean"
         },
+        "allow_private_networks": {
+          "default": false,
+          "description": "Allow private/link-local/loopback destination addresses.",
+          "type": "boolean"
+        },
         "allowed_hosts": {
           "description": "Optional allowlist of hostnames.",
           "items": {
@@ -545,7 +550,8 @@
     "description": "Issues bounded HTTP GET requests and returns status codes or body hashes.",
     "name": "HTTP Provider",
     "notes": [
-      "Scheme and host allowlists are enforced by configuration.",
+      "Scheme and host allowlists are enforced with DNS resolution pinning per request.",
+      "Private/link-local destinations are blocked by default unless explicitly enabled.",
       "Responses are size-limited and hashed deterministically."
     ],
     "provider_id": "http",

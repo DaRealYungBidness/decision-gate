@@ -30,6 +30,8 @@
 // SECTION: Imports
 // ============================================================================
 
+use std::collections::BTreeSet;
+
 use jsonschema::Draft;
 use jsonschema::Registry;
 use jsonschema::Validator;
@@ -38,6 +40,7 @@ use serde_json::Value;
 use super::tool_contracts;
 use super::tool_examples;
 use crate::schemas;
+use crate::types::ToolName;
 
 // ============================================================================
 // SECTION: Fixtures
@@ -82,4 +85,32 @@ fn tool_examples_match_tool_schemas() {
             );
         }
     }
+}
+
+#[test]
+fn evidence_query_context_schema_requires_namespace_id() {
+    let contracts = tool_contracts();
+    let Some(contract) =
+        contracts.into_iter().find(|contract| contract.name == ToolName::EvidenceQuery)
+    else {
+        panic!("evidence_query contract missing");
+    };
+    let required = contract
+        .input_schema
+        .get("properties")
+        .and_then(|value| value.get("context"))
+        .and_then(|value| value.get("required"))
+        .and_then(Value::as_array)
+        .expect("evidence_query context.required missing");
+    let required: BTreeSet<&str> = required.iter().filter_map(Value::as_str).collect();
+    let expected = BTreeSet::from([
+        "tenant_id",
+        "namespace_id",
+        "run_id",
+        "scenario_id",
+        "stage_id",
+        "trigger_id",
+        "trigger_time",
+    ]);
+    assert_eq!(required, expected, "evidence_query context required fields drifted");
 }

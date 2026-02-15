@@ -14,7 +14,7 @@
 //! - Network error classification
 //!
 //! These tests complement the existing integration tests in `http_provider.rs` which cover
-//! happy paths, SSRF prevention, and host allowlist enforcement.
+//! happy paths, scheme restrictions, and host allowlist enforcement.
 //!
 //! ## Security Posture
 //! Assumes adversarial network: servers may send malformed headers, lie about content length,
@@ -68,6 +68,7 @@ fn local_provider() -> HttpProvider {
     HttpProvider::new(HttpProviderConfig {
         allow_http: true,
         allowed_hosts: Some(allowed_hosts),
+        allow_private_networks: true,
         timeout_ms: 5000,
         ..HttpProviderConfig::default()
     })
@@ -81,6 +82,7 @@ fn timeout_provider(timeout_ms: u64) -> HttpProvider {
     HttpProvider::new(HttpProviderConfig {
         allow_http: true,
         allowed_hosts: Some(allowed_hosts),
+        allow_private_networks: true,
         timeout_ms,
         ..HttpProviderConfig::default()
     })
@@ -94,6 +96,7 @@ fn size_limited_provider(max_bytes: usize) -> HttpProvider {
     HttpProvider::new(HttpProviderConfig {
         allow_http: true,
         allowed_hosts: Some(allowed_hosts),
+        allow_private_networks: true,
         max_response_bytes: max_bytes,
         ..HttpProviderConfig::default()
     })
@@ -186,9 +189,7 @@ fn http_content_length_zero_with_nonempty_body() {
     let result = provider.query(&query, &sample_context());
     handle.join().unwrap();
 
-    // The provider should handle this gracefully (either empty hash or error)
-    // Key requirement: no panic, no resource exhaustion
-    assert!(result.is_ok() || result.is_err(), "Must handle Content-Length:0 safely");
+    assert!(result.is_ok(), "Content-Length:0 response should remain valid");
 }
 
 /// TM-HTTP-003: Tests that Content-Length exceeding `max_response_bytes` is rejected early.
@@ -241,25 +242,9 @@ fn http_content_length_exceeds_max_response_bytes() {
 /// Context: Adversarial server sends invalid Content-Length to confuse parser.
 #[test]
 fn http_content_length_malformed_negative() {
-    let server = Server::http("127.0.0.1:0").unwrap();
-    let addr = server.server_addr().to_ip().unwrap();
+    let response = b"HTTP/1.1 200 OK\r\nContent-Length: -100\r\n\r\nbody".to_vec();
+    let (addr, handle) = raw_http_response_server(response);
     let url = format!("http://{addr}");
-
-    let handle = thread::spawn(move || {
-        if let Ok(request) = server.recv() {
-            // Try to send negative Content-Length (may be rejected by tiny_http)
-            // The client (reqwest) should also reject this
-            if let Ok(header) = Header::from_bytes(&b"Content-Length"[..], &b"-100"[..]) {
-                let mut response = Response::from_string("body");
-                response.add_header(header);
-                let _ = request.respond(response);
-            } else {
-                // tiny_http rejects invalid header, send valid response
-                let response = Response::from_string("body");
-                let _ = request.respond(response);
-            }
-        }
-    });
 
     let provider = local_provider();
     let query = EvidenceQuery {
@@ -271,9 +256,7 @@ fn http_content_length_malformed_negative() {
     let result = provider.query(&query, &sample_context());
     handle.join().unwrap();
 
-    // Either succeeds (server sent valid response) or fails (client rejected malformed header)
-    // Key: no panic or resource exhaustion
-    assert!(result.is_ok() || result.is_err(), "Must handle malformed Content-Length safely");
+    assert!(result.is_err(), "Malformed Content-Length should be rejected");
 }
 
 /// TM-HTTP-003: Tests Content-Length with non-numeric value.
@@ -281,23 +264,9 @@ fn http_content_length_malformed_negative() {
 /// Context: Malicious server sends Content-Length: "abc" or other garbage.
 #[test]
 fn http_content_length_non_numeric() {
-    let server = Server::http("127.0.0.1:0").unwrap();
-    let addr = server.server_addr().to_ip().unwrap();
+    let response = b"HTTP/1.1 200 OK\r\nContent-Length: invalid\r\n\r\nbody".to_vec();
+    let (addr, handle) = raw_http_response_server(response);
     let url = format!("http://{addr}");
-
-    let handle = thread::spawn(move || {
-        if let Ok(request) = server.recv() {
-            // Try invalid Content-Length (may be rejected by tiny_http)
-            if let Ok(header) = Header::from_bytes(&b"Content-Length"[..], &b"invalid"[..]) {
-                let mut response = Response::from_string("body");
-                response.add_header(header);
-                let _ = request.respond(response);
-            } else {
-                let response = Response::from_string("body");
-                let _ = request.respond(response);
-            }
-        }
-    });
 
     let provider = local_provider();
     let query = EvidenceQuery {
@@ -309,8 +278,7 @@ fn http_content_length_non_numeric() {
     let result = provider.query(&query, &sample_context());
     handle.join().unwrap();
 
-    // Must not panic
-    assert!(result.is_ok() || result.is_err(), "Must handle non-numeric Content-Length safely");
+    assert!(result.is_err(), "Non-numeric Content-Length should be rejected");
 }
 
 /// TM-HTTP-003: Tests Content-Length with integer overflow value.
@@ -318,24 +286,10 @@ fn http_content_length_non_numeric() {
 /// Context: Malicious server sends Content-Length > `u64::MAX` to cause overflow.
 #[test]
 fn http_content_length_overflow() {
-    let server = Server::http("127.0.0.1:0").unwrap();
-    let addr = server.server_addr().to_ip().unwrap();
+    let response =
+        b"HTTP/1.1 200 OK\r\nContent-Length: 99999999999999999999999999999\r\n\r\nbody".to_vec();
+    let (addr, handle) = raw_http_response_server(response);
     let url = format!("http://{addr}");
-
-    let handle = thread::spawn(move || {
-        if let Ok(request) = server.recv() {
-            // Send huge Content-Length (bigger than u64::MAX)
-            let huge_value = "99999999999999999999999999999";
-            if let Ok(header) = Header::from_bytes(&b"Content-Length"[..], huge_value.as_bytes()) {
-                let mut response = Response::from_string("body");
-                response.add_header(header);
-                let _ = request.respond(response);
-            } else {
-                let response = Response::from_string("body");
-                let _ = request.respond(response);
-            }
-        }
-    });
 
     let provider = local_provider();
     let query = EvidenceQuery {
@@ -347,8 +301,7 @@ fn http_content_length_overflow() {
     let result = provider.query(&query, &sample_context());
     handle.join().unwrap();
 
-    // Must handle gracefully (likely rejected by client parser)
-    assert!(result.is_ok() || result.is_err(), "Must handle overflow Content-Length safely");
+    assert!(result.is_err(), "Overflow Content-Length should be rejected");
 }
 
 /// TM-HTTP-003: Tests multiple Content-Length headers (RFC 7230 violation).
@@ -357,25 +310,10 @@ fn http_content_length_overflow() {
 /// with different values MUST be rejected.
 #[test]
 fn http_multiple_content_length_headers() {
-    let server = Server::http("127.0.0.1:0").unwrap();
-    let addr = server.server_addr().to_ip().unwrap();
+    let response =
+        b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\nContent-Length: 5\r\n\r\nbody!".to_vec();
+    let (addr, handle) = raw_http_response_server(response);
     let url = format!("http://{addr}");
-
-    let handle = thread::spawn(move || {
-        if let Ok(request) = server.recv() {
-            // tiny_http may not support multiple headers with same name
-            // Most HTTP clients will either take first, last, or reject
-            let mut response = Response::from_string("body");
-
-            // Try to add multiple Content-Length headers
-            if let Ok(h1) = Header::from_bytes(&b"Content-Length"[..], &b"4"[..]) {
-                response.add_header(h1);
-            }
-            // tiny_http will likely overwrite or reject the second header
-
-            let _ = request.respond(response);
-        }
-    });
 
     let provider = local_provider();
     let query = EvidenceQuery {
@@ -387,12 +325,7 @@ fn http_multiple_content_length_headers() {
     let result = provider.query(&query, &sample_context());
     handle.join().unwrap();
 
-    // HTTP client should handle this (likely takes first or rejects)
-    // Key: no panic or unexpected behavior
-    assert!(
-        result.is_ok() || result.is_err(),
-        "Must handle multiple Content-Length headers safely"
-    );
+    assert!(result.is_err(), "Ambiguous Content-Length headers should be rejected");
 }
 
 // ============================================================================
@@ -552,6 +485,78 @@ fn http_host_allowlist_enforced() {
     assert!(err.contains("host not allowed"));
 }
 
+/// TM-HTTP-001: Tests private literal loopback IP is blocked by default.
+#[test]
+fn http_private_literal_rejected_by_default() {
+    let mut allowed_hosts = BTreeSet::new();
+    allowed_hosts.insert("127.0.0.1".to_string());
+    let provider = HttpProvider::new(HttpProviderConfig {
+        allow_http: true,
+        allowed_hosts: Some(allowed_hosts),
+        ..HttpProviderConfig::default()
+    })
+    .unwrap();
+    let query = EvidenceQuery {
+        provider_id: ProviderId::new("http"),
+        check_id: "status".to_string(),
+        params: Some(json!({"url": "http://127.0.0.1:1"})),
+    };
+    let result = provider.query(&query, &sample_context());
+    assert!(result.is_err());
+    let err = format!("{:?}", result.unwrap_err());
+    assert!(err.contains("private or link-local"), "{err}");
+}
+
+/// TM-HTTP-001: Tests IPv4-mapped IPv6 loopback is blocked by default.
+#[test]
+fn http_ipv4_mapped_loopback_rejected_by_default() {
+    let provider = HttpProvider::new(HttpProviderConfig {
+        allow_http: true,
+        allowed_hosts: None,
+        ..HttpProviderConfig::default()
+    })
+    .unwrap();
+    let query = EvidenceQuery {
+        provider_id: ProviderId::new("http"),
+        check_id: "status".to_string(),
+        params: Some(json!({"url": "http://[::ffff:127.0.0.1]:1"})),
+    };
+    let result = provider.query(&query, &sample_context());
+    assert!(result.is_err());
+    let err = format!("{:?}", result.unwrap_err());
+    assert!(err.contains("private or link-local"), "{err}");
+}
+
+/// TM-HTTP-001: Tests localhost access succeeds with explicit private-network opt-in.
+#[test]
+fn http_localhost_allowed_with_private_network_opt_in() {
+    let server = Server::http("127.0.0.1:0").unwrap();
+    let addr = server.server_addr().to_ip().unwrap();
+    let handle = thread::spawn(move || {
+        if let Ok(request) = server.recv() {
+            let response = Response::empty(204);
+            let _ = request.respond(response);
+        }
+    });
+    let mut allowed_hosts = BTreeSet::new();
+    allowed_hosts.insert("localhost".to_string());
+    let provider = HttpProvider::new(HttpProviderConfig {
+        allow_http: true,
+        allowed_hosts: Some(allowed_hosts),
+        allow_private_networks: true,
+        ..HttpProviderConfig::default()
+    })
+    .unwrap();
+    let query = EvidenceQuery {
+        provider_id: ProviderId::new("http"),
+        check_id: "status".to_string(),
+        params: Some(json!({"url": format!("http://localhost:{}/", addr.port())})),
+    };
+    let result = provider.query(&query, &sample_context());
+    assert!(result.is_ok());
+    handle.join().unwrap();
+}
+
 /// TM-HTTP-003: Tests truncated body detection when Content-Length exceeds actual bytes.
 #[test]
 fn http_truncated_body_detected() {
@@ -646,10 +651,7 @@ fn http_read_timeout_during_body() {
     let result = provider.query(&query, &sample_context());
     handle.join().unwrap();
 
-    // With normal server, should succeed (body sent quickly)
-    // Note: True slow-loris testing requires custom server that can stream slowly
-    // This is a limitation of unit testing - may need integration test infrastructure
-    assert!(result.is_ok() || result.is_err(), "Must handle read timeout");
+    assert!(result.is_ok(), "Fast in-memory body should succeed");
 }
 
 /// TM-HTTP-003: Tests timeout exactly at boundary (off-by-one).

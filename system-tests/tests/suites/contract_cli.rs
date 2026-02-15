@@ -16,6 +16,7 @@
 //! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
 use std::fs;
+use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
@@ -35,6 +36,20 @@ fn run_contract(binary: &Path, cwd: &Path, args: &[&str]) -> Result<std::process
         .current_dir(cwd)
         .output()
         .map_err(|err| format!("run decision-gate-contract failed: {err}"))
+}
+
+#[cfg(unix)]
+fn create_dir_symlink(src: &Path, dst: &Path) -> io::Result<()> {
+    std::os::unix::fs::symlink(src, dst)
+}
+
+#[cfg(windows)]
+fn create_dir_symlink(src: &Path, dst: &Path) -> io::Result<()> {
+    std::os::windows::fs::symlink_dir(src, dst)
+}
+
+fn symlink_error_is_skip(err: &io::Error) -> bool {
+    matches!(err.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::Unsupported)
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -126,6 +141,74 @@ async fn contract_cli_generate_and_check() -> Result<(), Box<dyn std::error::Err
             "contract.check.stderr.log".to_string(),
             "contract.drift.stdout.log".to_string(),
             "contract.drift.stderr.log".to_string(),
+        ],
+    )?;
+    drop(reporter);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn contract_cli_rejects_symlinked_out_dir() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("contract_cli_rejects_symlinked_out_dir")?;
+    let Some(binary) = contract_binary() else {
+        reporter.finish(
+            "skip",
+            vec!["decision-gate-contract binary unavailable".to_string()],
+            vec!["summary.json".to_string(), "summary.md".to_string()],
+        )?;
+        drop(reporter);
+        return Ok(());
+    };
+
+    let temp_dir = TempDir::new()?;
+    let docs_dir = temp_dir.path().join("Docs/configuration");
+    fs::create_dir_all(&docs_dir)?;
+    let output_dir = temp_dir.path().join("contract_out_real");
+    fs::create_dir_all(&output_dir)?;
+    let symlink_out = temp_dir.path().join("contract_out_link");
+    if let Err(err) = create_dir_symlink(&output_dir, &symlink_out) {
+        if symlink_error_is_skip(&err) {
+            reporter.finish(
+                "skip",
+                vec!["symlink creation unavailable on this environment".to_string()],
+                vec!["summary.json".to_string(), "summary.md".to_string()],
+            )?;
+            drop(reporter);
+            return Ok(());
+        }
+        return Err(err.into());
+    }
+
+    let generate = run_contract(
+        &binary,
+        temp_dir.path(),
+        &["generate", "--out", symlink_out.to_str().unwrap_or_default()],
+    )?;
+    reporter
+        .artifacts()
+        .write_text("contract.symlink.stdout.log", &String::from_utf8_lossy(&generate.stdout))?;
+    reporter
+        .artifacts()
+        .write_text("contract.symlink.stderr.log", &String::from_utf8_lossy(&generate.stderr))?;
+
+    if generate.status.success() {
+        return Err("contract generate should fail on symlinked output dir".into());
+    }
+    let stderr = String::from_utf8_lossy(&generate.stderr);
+    if !stderr.contains("invalid output path") {
+        return Err(format!("expected invalid output path error, got: {stderr}").into());
+    }
+
+    reporter.artifacts().write_json("tool_transcript.json", &Vec::<serde_json::Value>::new())?;
+    reporter.finish(
+        "pass",
+        vec!["contract CLI rejects symlinked output directories".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+            "contract.symlink.stdout.log".to_string(),
+            "contract.symlink.stderr.log".to_string(),
         ],
     )?;
     drop(reporter);

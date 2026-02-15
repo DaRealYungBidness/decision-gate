@@ -73,12 +73,14 @@ export const TOOL_NOTES: Record<string, string[]> = {
   ],
   "scenario_submit": [
     "Payload is hashed and stored as a submission record.",
+    "Payload is persisted in run state/runpack logs; do not send raw secrets.",
     "Does not advance the run by itself.",
     "Use for artifacts the model or operator supplies.",
   ],
   "scenario_trigger": [
     "Trigger time is supplied by the caller; no wall-clock reads.",
     "Records the trigger event and resulting decision.",
+    "Payload is persisted in run state/runpack logs; do not send raw secrets.",
     "Use for time-based or external system triggers.",
   ],
   "evidence_query": [
@@ -89,6 +91,7 @@ export const TOOL_NOTES: Record<string, string[]> = {
   "runpack_export": [
     "Writes manifest and logs to output_dir; generated_at is recorded in the manifest.",
     "include_verification adds a verification report artifact.",
+    "Export-time report.checked_files excludes verifier_report.json; offline runpack_verify checked_files includes it (+1 for the same runpack).",
     "Use after runs complete or for audit snapshots.",
   ],
   "runpack_verify": [
@@ -139,13 +142,13 @@ export const TOOL_NOTES: Record<string, string[]> = {
 
 export interface ScenarioDefineRequest {
   /** Scenario specification to register. */
-  spec: JsonValue;
+  "spec": JsonValue;
 }
 
 export interface ScenarioDefineResponse {
   /** Scenario identifier. */
-  scenario_id: string;
-  spec_hash: Record<string, JsonValue>;
+  "scenario_id": string;
+  "spec_hash": Record<string, JsonValue>;
 }
 
 export const ScenarioDefine_INPUT_SCHEMA = {
@@ -201,37 +204,37 @@ export const ScenarioDefine_OUTPUT_SCHEMA = {
 
 export interface ScenarioStartRequest {
   /** Issue entry packets immediately. */
-  issue_entry_packets: boolean;
+  "issue_entry_packets": boolean;
   /** Run configuration and dispatch targets. */
-  run_config: Record<string, JsonValue>;
+  "run_config": Record<string, JsonValue>;
   /** Scenario identifier. */
-  scenario_id: string;
+  "scenario_id": string;
   /** Caller-supplied run start timestamp. */
-  started_at: Record<string, JsonValue>;
+  "started_at": Record<string, JsonValue>;
 }
 
 export interface ScenarioStartResponse {
   /** Current stage identifier. */
-  current_stage_id: string;
-  decisions: Array<Record<string, JsonValue>>;
-  dispatch_targets: Array<Record<string, JsonValue>>;
-  gate_evals: Array<Record<string, JsonValue>>;
+  "current_stage_id": string;
+  "decisions": Array<Record<string, JsonValue>>;
+  "dispatch_targets": Array<Record<string, JsonValue>>;
+  "gate_evals": Array<Record<string, JsonValue>>;
   /** Namespace identifier. Constraints: Minimum: 1. */
-  namespace_id: number;
-  packets: Array<Record<string, JsonValue>>;
+  "namespace_id": number;
+  "packets": Array<Record<string, JsonValue>>;
   /** Run identifier. */
-  run_id: string;
+  "run_id": string;
   /** Scenario identifier. */
-  scenario_id: string;
-  spec_hash: Record<string, JsonValue>;
-  stage_entered_at: Record<string, JsonValue>;
+  "scenario_id": string;
+  "spec_hash": Record<string, JsonValue>;
+  "stage_entered_at": Record<string, JsonValue>;
   /** Constraints: Allowed values: "active", "completed", "failed". */
-  status: "active" | "completed" | "failed";
-  submissions: Array<Record<string, JsonValue>>;
+  "status": "active" | "completed" | "failed";
+  "submissions": Array<Record<string, JsonValue>>;
   /** Tenant identifier. Constraints: Minimum: 1. */
-  tenant_id: number;
-  tool_calls: Array<Record<string, JsonValue>>;
-  triggers: Array<Record<string, JsonValue>>;
+  "tenant_id": number;
+  "tool_calls": Array<Record<string, JsonValue>>;
+  "triggers": Array<Record<string, JsonValue>>;
 }
 
 export const ScenarioStart_INPUT_SCHEMA = {
@@ -2260,25 +2263,25 @@ export const ScenarioStart_OUTPUT_SCHEMA = {
 
 export interface ScenarioStatusRequest {
   /** Status request payload. */
-  request: Record<string, JsonValue>;
+  "request": Record<string, JsonValue>;
   /** Scenario identifier. */
-  scenario_id: string;
+  "scenario_id": string;
 }
 
 export interface ScenarioStatusResponse {
   /** Current stage identifier. */
-  current_stage_id: string;
-  issued_packet_ids: Array<string>;
-  last_decision: Record<string, JsonValue> | null;
+  "current_stage_id": string;
+  "issued_packet_ids": Array<string>;
+  "last_decision": Record<string, JsonValue> | null;
   /** Namespace identifier. Constraints: Minimum: 1. */
-  namespace_id?: number;
+  "namespace_id"?: number;
   /** Run identifier. */
-  run_id: string;
-  safe_summary: Record<string, JsonValue> | null;
+  "run_id": string;
+  "safe_summary": Record<string, JsonValue> | null;
   /** Scenario identifier. */
-  scenario_id: string;
+  "scenario_id": string;
   /** Constraints: Allowed values: "active", "completed", "failed". */
-  status: "active" | "completed" | "failed";
+  "status": "active" | "completed" | "failed";
 }
 
 export const ScenarioStatus_INPUT_SCHEMA = {
@@ -2691,19 +2694,19 @@ export const ScenarioStatus_OUTPUT_SCHEMA = {
 
 export interface ScenarioNextRequest {
   /** Optional feedback level override for scenario_next. */
-  feedback?: "summary" | "trace" | "evidence" | null;
+  "feedback"?: "summary" | "trace" | "evidence" | null;
   /** Next request payload from an agent. */
-  request: Record<string, JsonValue>;
+  "request": Record<string, JsonValue>;
   /** Scenario identifier. */
-  scenario_id: string;
+  "scenario_id": string;
 }
 
 export interface ScenarioNextResponse {
-  decision: Record<string, JsonValue>;
-  feedback?: Record<string, JsonValue> | null;
-  packets: Array<Record<string, JsonValue>>;
+  "decision": Record<string, JsonValue>;
+  "feedback"?: Record<string, JsonValue> | null;
+  "packets": Array<Record<string, JsonValue>>;
   /** Constraints: Allowed values: "active", "completed", "failed". */
-  status: "active" | "completed" | "failed";
+  "status": "active" | "completed" | "failed";
 }
 
 export const ScenarioNext_INPUT_SCHEMA = {
@@ -3968,13 +3971,13 @@ export const ScenarioNext_OUTPUT_SCHEMA = {
 
 export interface ScenarioSubmitRequest {
   /** Submission payload and metadata. */
-  request: Record<string, JsonValue>;
+  "request": Record<string, JsonValue>;
   /** Scenario identifier. */
-  scenario_id: string;
+  "scenario_id": string;
 }
 
 export interface ScenarioSubmitResponse {
-  record: Record<string, JsonValue>;
+  "record": Record<string, JsonValue>;
 }
 
 export const ScenarioSubmit_INPUT_SCHEMA = {
@@ -4402,16 +4405,16 @@ export const ScenarioSubmit_OUTPUT_SCHEMA = {
 
 export interface ScenarioTriggerRequest {
   /** Scenario identifier. */
-  scenario_id: string;
+  "scenario_id": string;
   /** Trigger event payload. */
-  trigger: Record<string, JsonValue>;
+  "trigger": Record<string, JsonValue>;
 }
 
 export interface ScenarioTriggerResponse {
-  decision: Record<string, JsonValue>;
-  packets: Array<Record<string, JsonValue>>;
+  "decision": Record<string, JsonValue>;
+  "packets": Array<Record<string, JsonValue>>;
   /** Constraints: Allowed values: "active", "completed", "failed". */
-  status: "active" | "completed" | "failed";
+  "status": "active" | "completed" | "failed";
 }
 
 export const ScenarioTrigger_INPUT_SCHEMA = {
@@ -5340,13 +5343,13 @@ export const ScenarioTrigger_OUTPUT_SCHEMA = {
 
 export interface EvidenceQueryRequest {
   /** Evidence context used for evaluation. */
-  context: Record<string, JsonValue>;
+  "context": Record<string, JsonValue>;
   /** Evidence query payload. */
-  query: Record<string, JsonValue>;
+  "query": Record<string, JsonValue>;
 }
 
 export interface EvidenceQueryResponse {
-  result: Record<string, JsonValue>;
+  "result": Record<string, JsonValue>;
 }
 
 export const EvidenceQuery_INPUT_SCHEMA = {
@@ -5434,6 +5437,7 @@ export const EvidenceQuery_INPUT_SCHEMA = {
       },
       "required": [
         "tenant_id",
+        "namespace_id",
         "run_id",
         "scenario_id",
         "stage_id",
@@ -5734,28 +5738,28 @@ export const EvidenceQuery_OUTPUT_SCHEMA = {
 
 export interface RunpackExportRequest {
   /** Timestamp recorded in the manifest. */
-  generated_at: Record<string, JsonValue>;
+  "generated_at": Record<string, JsonValue>;
   /** Generate a verification report artifact. */
-  include_verification: boolean;
+  "include_verification": boolean;
   /** Optional override for the manifest file name. */
-  manifest_name?: null | string;
+  "manifest_name"?: null | string;
   /** Namespace identifier. Constraints: Minimum: 1. */
-  namespace_id: number;
+  "namespace_id": number;
   /** Optional output directory (required for filesystem export). */
-  output_dir?: null | string;
+  "output_dir"?: null | string;
   /** Run identifier. */
-  run_id: string;
+  "run_id": string;
   /** Scenario identifier. */
-  scenario_id: string;
+  "scenario_id": string;
   /** Tenant identifier. Constraints: Minimum: 1. */
-  tenant_id: number;
+  "tenant_id": number;
 }
 
 export interface RunpackExportResponse {
-  manifest: Record<string, JsonValue>;
-  report: Record<string, JsonValue> | null;
+  "manifest": Record<string, JsonValue>;
+  "report": Record<string, JsonValue> | null;
   /** Optional storage URI for managed runpack storage backends. */
-  storage_uri?: null | string;
+  "storage_uri"?: null | string;
 }
 
 export const RunpackExport_INPUT_SCHEMA = {
@@ -6190,15 +6194,15 @@ export const RunpackExport_OUTPUT_SCHEMA = {
 
 export interface RunpackVerifyRequest {
   /** Manifest path relative to runpack root. */
-  manifest_path: string;
+  "manifest_path": string;
   /** Runpack root directory. */
-  runpack_dir: string;
+  "runpack_dir": string;
 }
 
 export interface RunpackVerifyResponse {
-  report: Record<string, JsonValue>;
+  "report": Record<string, JsonValue>;
   /** Runpack verification status. Constraints: Allowed values: "pass", "fail". */
-  status: "pass" | "fail";
+  "status": "pass" | "fail";
 }
 
 export const RunpackVerify_INPUT_SCHEMA = {
@@ -6276,7 +6280,7 @@ export interface ProvidersListRequest {
 }
 
 export interface ProvidersListResponse {
-  providers: Array<Record<string, JsonValue>>;
+  "providers": Array<Record<string, JsonValue>>;
 }
 
 export const ProvidersList_INPUT_SCHEMA = {
@@ -6333,18 +6337,18 @@ export const ProvidersList_OUTPUT_SCHEMA = {
 
 export interface ProviderContractGetRequest {
   /** Provider identifier. */
-  provider_id: string;
+  "provider_id": string;
 }
 
 export interface ProviderContractGetResponse {
-  contract: Record<string, JsonValue>;
-  contract_hash: Record<string, JsonValue>;
+  "contract": Record<string, JsonValue>;
+  "contract_hash": Record<string, JsonValue>;
   /** Provider identifier. */
-  provider_id: string;
+  "provider_id": string;
   /** Contract source origin. Constraints: Allowed values: "builtin", "file". */
-  source: "builtin" | "file";
+  "source": "builtin" | "file";
   /** Optional contract version label. */
-  version: null | string;
+  "version": null | string;
 }
 
 export const ProviderContractGet_INPUT_SCHEMA = {
@@ -6619,33 +6623,33 @@ export const ProviderContractGet_OUTPUT_SCHEMA = {
 
 export interface ProviderCheckSchemaGetRequest {
   /** Provider check identifier. */
-  check_id: string;
+  "check_id": string;
   /** Provider identifier. */
-  provider_id: string;
+  "provider_id": string;
 }
 
 export interface ProviderCheckSchemaGetResponse {
   /** Comparator allow-list for this check. */
-  allowed_comparators: Array<"equals" | "not_equals" | "greater_than" | "greater_than_or_equal" | "less_than" | "less_than_or_equal" | "lex_greater_than" | "lex_greater_than_or_equal" | "lex_less_than" | "lex_less_than_or_equal" | "contains" | "in_set" | "deep_equals" | "deep_not_equals" | "exists" | "not_exists">;
+  "allowed_comparators": Array<"equals" | "not_equals" | "greater_than" | "greater_than_or_equal" | "less_than" | "less_than_or_equal" | "lex_greater_than" | "lex_greater_than_or_equal" | "lex_less_than" | "lex_less_than_or_equal" | "contains" | "in_set" | "deep_equals" | "deep_not_equals" | "exists" | "not_exists">;
   /** Anchor types emitted by this check. */
-  anchor_types: Array<string>;
+  "anchor_types": Array<string>;
   /** Check identifier. */
-  check_id: string;
+  "check_id": string;
   /** Content types for check output. */
-  content_types: Array<string>;
-  contract_hash: Record<string, JsonValue>;
+  "content_types": Array<string>;
+  "contract_hash": Record<string, JsonValue>;
   /** Determinism classification for provider checks. Constraints: Allowed values: "deterministic", */
   /** "time_dependent", "external". */
-  determinism: "deterministic" | "time_dependent" | "external";
-  examples: Array<Record<string, JsonValue>>;
+  "determinism": "deterministic" | "time_dependent" | "external";
+  "examples": Array<Record<string, JsonValue>>;
   /** Whether params are required for this check. */
-  params_required: boolean;
+  "params_required": boolean;
   /** JSON schema for check params. */
-  params_schema: Array<JsonValue> | Record<string, JsonValue> | boolean | null | number | string;
+  "params_schema": Array<JsonValue> | Record<string, JsonValue> | boolean | null | number | string;
   /** Provider identifier. */
-  provider_id: string;
+  "provider_id": string;
   /** JSON schema for check result value. */
-  result_schema: Array<JsonValue> | Record<string, JsonValue> | boolean | null | number | string;
+  "result_schema": Array<JsonValue> | Record<string, JsonValue> | boolean | null | number | string;
 }
 
 export const ProviderCheckSchemaGet_INPUT_SCHEMA = {
@@ -6833,11 +6837,11 @@ export const ProviderCheckSchemaGet_OUTPUT_SCHEMA = {
 } as const;
 
 export interface SchemasRegisterRequest {
-  record: Record<string, JsonValue>;
+  "record": Record<string, JsonValue>;
 }
 
 export interface SchemasRegisterResponse {
-  record: Record<string, JsonValue>;
+  "record": Record<string, JsonValue>;
 }
 
 export const SchemasRegister_INPUT_SCHEMA = {
@@ -7107,18 +7111,18 @@ export const SchemasRegister_OUTPUT_SCHEMA = {
 } as const;
 
 export interface SchemasListRequest {
-  cursor?: null | string;
+  "cursor"?: null | string;
   /** Maximum number of records to return. Constraints: Minimum: 1; Maximum: 1000. */
-  limit?: number;
+  "limit"?: number;
   /** Namespace identifier. Constraints: Minimum: 1. */
-  namespace_id: number;
+  "namespace_id": number;
   /** Tenant identifier. Constraints: Minimum: 1. */
-  tenant_id: number;
+  "tenant_id": number;
 }
 
 export interface SchemasListResponse {
-  items: Array<Record<string, JsonValue>>;
-  next_token: null | string;
+  "items": Array<Record<string, JsonValue>>;
+  "next_token": null | string;
 }
 
 export const SchemasList_INPUT_SCHEMA = {
@@ -7310,17 +7314,17 @@ export const SchemasList_OUTPUT_SCHEMA = {
 
 export interface SchemasGetRequest {
   /** Namespace identifier. Constraints: Minimum: 1. */
-  namespace_id: number;
+  "namespace_id": number;
   /** Data shape identifier. */
-  schema_id: string;
+  "schema_id": string;
   /** Tenant identifier. Constraints: Minimum: 1. */
-  tenant_id: number;
+  "tenant_id": number;
   /** Data shape version identifier. */
-  version: string;
+  "version": string;
 }
 
 export interface SchemasGetResponse {
-  record: Record<string, JsonValue>;
+  "record": Record<string, JsonValue>;
 }
 
 export const SchemasGet_INPUT_SCHEMA = {
@@ -7489,18 +7493,18 @@ export const SchemasGet_OUTPUT_SCHEMA = {
 } as const;
 
 export interface ScenariosListRequest {
-  cursor?: null | string;
+  "cursor"?: null | string;
   /** Maximum number of records to return. Constraints: Minimum: 1; Maximum: 1000. */
-  limit?: number;
+  "limit"?: number;
   /** Namespace identifier. Constraints: Minimum: 1. */
-  namespace_id: number;
+  "namespace_id": number;
   /** Tenant identifier. Constraints: Minimum: 1. */
-  tenant_id: number;
+  "tenant_id": number;
 }
 
 export interface ScenariosListResponse {
-  items: Array<Record<string, JsonValue>>;
-  next_token: null | string;
+  "items": Array<Record<string, JsonValue>>;
+  "next_token": null | string;
 }
 
 export const ScenariosList_INPUT_SCHEMA = {
@@ -7609,21 +7613,21 @@ export const ScenariosList_OUTPUT_SCHEMA = {
 } as const;
 
 export interface PrecheckRequest {
-  data_shape: Record<string, JsonValue>;
+  "data_shape": Record<string, JsonValue>;
   /** Namespace identifier. Constraints: Minimum: 1. */
-  namespace_id: number;
+  "namespace_id": number;
   /** Asserted data payload. */
-  payload: Array<JsonValue> | Record<string, JsonValue> | boolean | null | number | string;
-  scenario_id?: null | string;
-  spec?: JsonValue;
-  stage_id?: null | string;
+  "payload": Array<JsonValue> | Record<string, JsonValue> | boolean | null | number | string;
+  "scenario_id"?: null | string;
+  "spec"?: JsonValue;
+  "stage_id"?: null | string;
   /** Tenant identifier. Constraints: Minimum: 1. */
-  tenant_id: number;
+  "tenant_id": number;
 }
 
 export interface PrecheckResponse {
-  decision: Record<string, JsonValue>;
-  gate_evaluations: Array<Record<string, JsonValue>>;
+  "decision": Record<string, JsonValue>;
+  "gate_evaluations": Array<Record<string, JsonValue>>;
 }
 
 export const Precheck_INPUT_SCHEMA = {
@@ -7914,16 +7918,16 @@ export const Precheck_OUTPUT_SCHEMA = {
 export interface DecisionGateDocsSearchRequest {
   /** Maximum number of sections to return (default 3, hard cap 10). Constraints: Minimum: 1; Maximum: */
   /** 10. */
-  max_sections?: number;
+  "max_sections"?: number;
   /** Search query for documentation sections. */
-  query: string;
+  "query": string;
 }
 
 export interface DecisionGateDocsSearchResponse {
-  docs_covered: Array<Record<string, JsonValue>>;
-  sections: Array<Record<string, JsonValue>>;
+  "docs_covered": Array<Record<string, JsonValue>>;
+  "sections": Array<Record<string, JsonValue>>;
   /** Role-aware follow-up prompts. */
-  suggested_followups: Array<string>;
+  "suggested_followups": Array<string>;
 }
 
 export const DecisionGateDocsSearch_INPUT_SCHEMA = {
@@ -8380,6 +8384,7 @@ export abstract class GeneratedDecisionGateClient {
    *
    * Notes:
    * - Payload is hashed and stored as a submission record.
+   * - Payload is persisted in run state/runpack logs; do not send raw secrets.
    * - Does not advance the run by itself.
    * - Use for artifacts the model or operator supplies.
    *
@@ -8447,6 +8452,7 @@ export abstract class GeneratedDecisionGateClient {
    * Notes:
    * - Trigger time is supplied by the caller; no wall-clock reads.
    * - Records the trigger event and resulting decision.
+   * - Payload is persisted in run state/runpack logs; do not send raw secrets.
    * - Use for time-based or external system triggers.
    *
    * Examples:
@@ -8568,6 +8574,7 @@ export abstract class GeneratedDecisionGateClient {
    * Notes:
    * - Writes manifest and logs to output_dir; generated_at is recorded in the manifest.
    * - include_verification adds a verification report artifact.
+   * - Export-time report.checked_files excludes verifier_report.json; offline runpack_verify checked_files includes it (+1 for the same runpack).
    * - Use after runs complete or for audit snapshots.
    *
    * Examples:

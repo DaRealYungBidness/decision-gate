@@ -13,7 +13,7 @@ Dependencies:
   - system-tests/test_registry.toml
   - system-tests/test_gaps.toml
 ============================================================================
-Last Updated: 2026-02-14 (UTC)
+Last Updated: 2026-02-15 (UTC)
 ============================================================================
 -->
 
@@ -58,6 +58,10 @@ Unix serialization differences).
 
 Operational posture coverage includes HTTP liveness/readiness probes to ensure
 containerized deployments advertise correct health semantics.
+
+Security posture coverage now includes built-in HTTP provider private-network
+deny-by-default assertions (hostname resolution paths) and contract CLI
+symlinked-output rejection checks.
 
 ---
 

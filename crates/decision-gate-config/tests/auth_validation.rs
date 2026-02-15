@@ -142,7 +142,7 @@ fn auth_bearer_token_with_internal_whitespace() -> TestResult {
         principals: Vec::new(),
     };
     let mut config = common::config_with_auth(auth).map_err(|err| err.to_string())?;
-    config.validate().map_err(|err| err.to_string())?;
+    assert_invalid(config.validate(), "auth token must not contain whitespace")?;
     Ok(())
 }
 
@@ -156,7 +156,7 @@ fn auth_bearer_token_with_newline() -> TestResult {
         principals: Vec::new(),
     };
     let mut config = common::config_with_auth(auth).map_err(|err| err.to_string())?;
-    config.validate().map_err(|err| err.to_string())?;
+    assert_invalid(config.validate(), "auth token must not contain whitespace")?;
     Ok(())
 }
 
@@ -170,7 +170,7 @@ fn auth_bearer_token_with_tab() -> TestResult {
         principals: Vec::new(),
     };
     let mut config = common::config_with_auth(auth).map_err(|err| err.to_string())?;
-    config.validate().map_err(|err| err.to_string())?;
+    assert_invalid(config.validate(), "auth token must not contain whitespace")?;
     Ok(())
 }
 

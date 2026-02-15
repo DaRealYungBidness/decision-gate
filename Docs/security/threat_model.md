@@ -163,8 +163,9 @@ Decision Gate is composed of:
   serialized requirement inputs capped at 1 MiB with default max depth 32;
   plan execution stack depth capped at 64 frames; constant pools capped at
   65,536 entries.
-- HTTP/SSE and stdio request body limits; provider-specific response size
-  limits and timeouts.
+- HTTP/SSE request body limits, stdio framing header limits (8 KiB cumulative),
+  fail-closed duplicate `Content-Length` rejection, provider-specific response
+  size limits, and provider timeouts.
 - Inflight request caps and optional rate limiting for MCP tool calls.
 - MCP tool calls require explicit authn/authz (local-only by default; bearer or
   mTLS subject allowlists when configured) with audit logging.
@@ -208,7 +209,9 @@ Decision Gate is composed of:
 - Malicious or faulty providers: trust lanes, optional signature verification,
   anchor policy enforcement, and canonical evidence hashing.
 - External MCP providers: response size limits, timeouts, and correlation ID
-  sanitization; treat as untrusted processes or remote services.
+  sanitization. Stdio framing headers are size-capped and duplicate
+  `Content-Length` headers are rejected before payload parsing; treat providers
+  as untrusted processes or remote services.
 
 ### Disclosure and Data Exposure
 
@@ -234,8 +237,8 @@ Decision Gate is composed of:
   verification, content type checks, size limits, no redirects (HTTP), and
   optional root path enforcement (file).
 - Built-in providers: allowlists/denylists and size limits for `env`, root
-  restrictions and size limits for `json`, and host allowlists + https-only
-  defaults for `http`.
+  restrictions and size limits for `json`, and host allowlists + DNS-pinned
+  peer validation + private/link-local deny-by-default for `http`.
 
 ### Availability and Resource Exhaustion
 
@@ -283,10 +286,14 @@ Decision Gate is composed of:
   `crates/decision-gate-mcp/src/auth.rs`, `crates/decision-gate-config/src/config.rs`.
 - Request limits (max body, inflight, rate limiting) and transport handling:
   `crates/decision-gate-mcp/src/server.rs`, `crates/decision-gate-config/src/config.rs`.
+- Stdio framing header size enforcement for server and provider transports:
+  `crates/decision-gate-mcp/src/server.rs`, `crates/decision-gate-mcp/src/evidence.rs`.
 - Correlation ID sanitization:
   `crates/decision-gate-mcp/src/correlation.rs`.
 - Tool visibility, docs gating, evidence redaction, and precheck handling:
   `crates/decision-gate-mcp/src/tools.rs`.
+- Deterministic docs ingestion with bounded extra-doc budgets:
+  `crates/decision-gate-mcp/src/docs.rs`.
 - Audit event payloads:
   `crates/decision-gate-mcp/src/audit.rs`.
 - Tenant authz and usage meter seams:
@@ -319,6 +326,9 @@ Decision Gate is composed of:
   `crates/decision-gate-config/src/config.rs`.
 - Canonical tool and schema contracts:
   `crates/decision-gate-contract/src/tooling.rs`, `crates/decision-gate-contract/src/schemas.rs`.
+- Contract output generation and verification with descriptor-relative no-follow
+  file operations:
+  `crates/decision-gate-contract/src/contract.rs`.
 - CLI authoring/runpack tooling:
   `crates/decision-gate-cli/src/main.rs`.
 
@@ -371,3 +381,19 @@ Decision Gate is composed of:
   auth semantics and fails closed for unauthorized callers.
 - Added end-to-end auth/schema coverage for debug mutation diagnostics to keep
   the contract auditable and deterministic under security regression.
+
+## Threat Model Delta (2026-02-15)
+
+- Added explicit coverage for CLI stdio MCP framing header limits and
+  duplicate `Content-Length` rejection in hostile transport scenarios.
+- Added MCP server and external provider framing-header caps (8 KiB cumulative)
+  to close pre-parse resource exhaustion paths.
+- Added fail-closed duplicate `Content-Length` rejection for MCP stdio framing
+  in both server and external-provider transport adapters.
+- Added deterministic, bounded docs ingestion references for `docs.extra_paths`
+  to reduce traversal nondeterminism and startup amplification risk.
+- Added built-in HTTP provider DNS resolution pinning and default private /
+  link-local destination denial to close hostname-only SSRF bypass paths.
+- Added descriptor-relative no-follow file operations and atomic sibling-temp
+  writes for contract artifact generation/verification to reduce TOCTOU risk
+  under concurrent local filesystem mutation.

@@ -91,11 +91,11 @@ let store = SqliteRunStateStore::new(SqliteStoreConfig {
     max_versions: Some(1000),
     schema_registry_max_schema_bytes: None,
     schema_registry_max_entries: None,
-writer_queue_capacity: 1_024,
-batch_max_ops: 64,
-batch_max_bytes: 512 * 1024,
-batch_max_wait_ms: 2,
-read_pool_size: 4,
+    writer_queue_capacity: 1_024,
+    batch_max_ops: 64,
+    batch_max_bytes: 512 * 1024,
+    batch_max_wait_ms: 2,
+    read_pool_size: 4,
 })?;
 ```
 
@@ -119,8 +119,6 @@ cargo test -p decision-gate-store-sqlite
 
 ## References
 
-Currents. (2025). _It Only Gets Darker_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=SfpVmH5jzd4
-
-As I Lay Dying. (2019). _My Own Grave_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=Q0wbyQRRQJA
-
-Art of Dying. (2011). _Get Thru This_ [Audio recording]. YouTube. https://www.youtube.com/watch?v=F4aaxJCqumQ
+- [Docs/security/threat_model.md](../../Docs/security/threat_model.md)
+- [Docs/guides/security_guide.md](../../Docs/guides/security_guide.md)
+- [crates/decision-gate-core/README.md](../decision-gate-core/README.md)

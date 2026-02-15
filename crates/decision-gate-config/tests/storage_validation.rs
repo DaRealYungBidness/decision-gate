@@ -107,3 +107,51 @@ fn runpack_storage_rejects_prefix_traversal() -> TestResult {
     assert_invalid(config.validate(), "runpack_storage.prefix must be relative without traversal")?;
     Ok(())
 }
+
+#[test]
+fn runpack_storage_rejects_endpoint_without_host() -> TestResult {
+    let mut config = common::minimal_config().map_err(|err| err.to_string())?;
+    config.runpack_storage = Some(RunpackStorageConfig::ObjectStore(ObjectStoreConfig {
+        provider: ObjectStoreProvider::S3,
+        bucket: "runpacks".to_string(),
+        region: None,
+        endpoint: Some("https://".to_string()),
+        prefix: None,
+        force_path_style: false,
+        allow_http: false,
+    }));
+    assert_invalid(config.validate(), "runpack_storage.endpoint must include host")?;
+    Ok(())
+}
+
+#[test]
+fn runpack_storage_rejects_endpoint_with_whitespace() -> TestResult {
+    let mut config = common::minimal_config().map_err(|err| err.to_string())?;
+    config.runpack_storage = Some(RunpackStorageConfig::ObjectStore(ObjectStoreConfig {
+        provider: ObjectStoreProvider::S3,
+        bucket: "runpacks".to_string(),
+        region: None,
+        endpoint: Some("https://example.com/path with spaces".to_string()),
+        prefix: None,
+        force_path_style: false,
+        allow_http: false,
+    }));
+    assert_invalid(config.validate(), "runpack_storage.endpoint must not contain whitespace")?;
+    Ok(())
+}
+
+#[test]
+fn runpack_storage_rejects_endpoint_with_unsupported_scheme() -> TestResult {
+    let mut config = common::minimal_config().map_err(|err| err.to_string())?;
+    config.runpack_storage = Some(RunpackStorageConfig::ObjectStore(ObjectStoreConfig {
+        provider: ObjectStoreProvider::S3,
+        bucket: "runpacks".to_string(),
+        region: None,
+        endpoint: Some("ftp://example.com".to_string()),
+        prefix: None,
+        force_path_style: false,
+        allow_http: false,
+    }));
+    assert_invalid(config.validate(), "runpack_storage.endpoint must include http:// or https://")?;
+    Ok(())
+}

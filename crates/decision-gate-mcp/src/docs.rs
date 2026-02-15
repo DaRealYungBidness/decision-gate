@@ -291,7 +291,9 @@ impl DocsCatalog {
             ));
         }
 
-        let extra_docs = load_extra_docs(config, &mut warnings)?;
+        let remaining_docs = config.max_docs.saturating_sub(docs.len());
+        let remaining_bytes = config.max_total_bytes.saturating_sub(total_bytes);
+        let extra_docs = load_extra_docs(config, &mut warnings, remaining_docs, remaining_bytes)?;
         for doc in extra_docs {
             if docs.len() >= config.max_docs {
                 warnings.push("docs catalog max_docs reached; skipping extra doc".to_string());
@@ -511,24 +513,49 @@ fn default_docs() -> Vec<DocEntry> {
 fn load_extra_docs(
     config: &DocsConfig,
     warnings: &mut Vec<String>,
+    max_docs: usize,
+    max_total_bytes: usize,
 ) -> Result<Vec<DocEntry>, DocsCatalogError> {
-    if config.extra_paths.is_empty() {
+    if config.extra_paths.is_empty() || max_docs == 0 || max_total_bytes == 0 {
         return Ok(Vec::new());
     }
     let mut docs = Vec::new();
     let mut seen_ids: HashSet<String> = HashSet::new();
+    let mut visited_dirs: HashSet<PathBuf> = HashSet::new();
+    let mut budget = IngestionBudget::new(max_docs, max_total_bytes);
     let max_doc_bytes = config.max_doc_bytes;
 
     for entry in &config.extra_paths {
-        let path = PathBuf::from(entry);
-        if !path.exists() {
-            return Err(DocsCatalogError::Io(format!(
-                "docs.extra_paths missing: {}",
-                path.display()
-            )));
+        if budget.docs_full() {
+            warnings.push("docs catalog max_docs reached; skipping extra doc".to_string());
+            break;
         }
-        if path.is_dir() {
-            collect_markdown_files(&path, &mut docs, &mut seen_ids, warnings, max_doc_bytes)?;
+        if budget.bytes_full() {
+            warnings.push("docs catalog max_total_bytes reached; skipping extra doc".to_string());
+            break;
+        }
+        let path = PathBuf::from(entry);
+        let metadata = fs::symlink_metadata(&path).map_err(|err| {
+            if err.kind() == std::io::ErrorKind::NotFound {
+                DocsCatalogError::Io(format!("docs.extra_paths missing: {}", path.display()))
+            } else {
+                DocsCatalogError::Io(err.to_string())
+            }
+        })?;
+        if metadata.file_type().is_symlink() {
+            warnings.push(format!("docs.extra_paths ignoring symlink: {}", path.display()));
+            continue;
+        }
+        if metadata.is_dir() {
+            collect_markdown_files(
+                &path,
+                &mut docs,
+                &mut seen_ids,
+                &mut visited_dirs,
+                warnings,
+                max_doc_bytes,
+                &mut budget,
+            )?;
         } else {
             if !is_markdown_file(&path) {
                 warnings.push(format!(
@@ -537,7 +564,9 @@ fn load_extra_docs(
                 ));
                 continue;
             }
-            if let Some(doc) = load_markdown_file(&path, &mut seen_ids, warnings, max_doc_bytes)? {
+            if let Some(doc) =
+                load_markdown_file(&path, &mut seen_ids, warnings, max_doc_bytes, &mut budget)?
+            {
                 docs.push(doc);
             }
         }
@@ -546,25 +575,105 @@ fn load_extra_docs(
     Ok(docs)
 }
 
+/// Bounded ingestion budget for extra documentation loading.
+struct IngestionBudget {
+    /// Maximum number of extra docs allowed in this ingestion pass.
+    max_docs: usize,
+    /// Maximum cumulative bytes allowed for extra docs in this ingestion pass.
+    max_total_bytes: usize,
+    /// Number of docs accepted so far.
+    loaded_docs: usize,
+    /// Total bytes accepted so far.
+    loaded_bytes: usize,
+}
+
+impl IngestionBudget {
+    /// Creates a new ingestion budget from doc and byte limits.
+    const fn new(max_docs: usize, max_total_bytes: usize) -> Self {
+        Self {
+            max_docs,
+            max_total_bytes,
+            loaded_docs: 0,
+            loaded_bytes: 0,
+        }
+    }
+
+    /// Returns true when the document-count budget is exhausted.
+    const fn docs_full(&self) -> bool {
+        self.loaded_docs >= self.max_docs
+    }
+
+    /// Returns true when the byte budget is exhausted.
+    const fn bytes_full(&self) -> bool {
+        self.loaded_bytes >= self.max_total_bytes
+    }
+
+    /// Returns true when a candidate document can fit within the remaining budget.
+    const fn can_fit(&self, bytes: usize) -> bool {
+        !self.docs_full() && self.loaded_bytes.saturating_add(bytes) <= self.max_total_bytes
+    }
+
+    /// Accounts for an accepted document and its byte size.
+    const fn account_doc(&mut self, bytes: usize) {
+        self.loaded_docs = self.loaded_docs.saturating_add(1);
+        self.loaded_bytes = self.loaded_bytes.saturating_add(bytes);
+    }
+}
+
 /// Recursively collects Markdown files from a directory.
 fn collect_markdown_files(
     dir: &Path,
     docs: &mut Vec<DocEntry>,
     seen_ids: &mut HashSet<String>,
+    visited_dirs: &mut HashSet<PathBuf>,
     warnings: &mut Vec<String>,
     max_doc_bytes: usize,
+    budget: &mut IngestionBudget,
 ) -> Result<(), DocsCatalogError> {
+    let canonical = dir.canonicalize().map_err(|err| DocsCatalogError::Io(err.to_string()))?;
+    if !visited_dirs.insert(canonical) {
+        return Ok(());
+    }
+
+    let mut entries = Vec::new();
     for entry in fs::read_dir(dir).map_err(|err| DocsCatalogError::Io(err.to_string()))? {
         let entry = entry.map_err(|err| DocsCatalogError::Io(err.to_string()))?;
-        let path = entry.path();
-        if path.is_dir() {
-            collect_markdown_files(&path, docs, seen_ids, warnings, max_doc_bytes)?;
+        let file_type = entry.file_type().map_err(|err| DocsCatalogError::Io(err.to_string()))?;
+        entries.push((entry.path(), file_type));
+    }
+    entries.sort_by(|(left, _), (right, _)| left.cmp(right));
+
+    for (path, file_type) in entries {
+        if budget.docs_full() {
+            warnings.push("docs catalog max_docs reached; skipping extra doc".to_string());
+            break;
+        }
+        if budget.bytes_full() {
+            warnings.push("docs catalog max_total_bytes reached; skipping extra doc".to_string());
+            break;
+        }
+
+        if file_type.is_symlink() {
+            warnings.push(format!("docs.extra_paths ignoring symlink: {}", path.display()));
             continue;
         }
-        if !is_markdown_file(&path) {
+
+        if file_type.is_dir() {
+            collect_markdown_files(
+                &path,
+                docs,
+                seen_ids,
+                visited_dirs,
+                warnings,
+                max_doc_bytes,
+                budget,
+            )?;
             continue;
         }
-        if let Some(doc) = load_markdown_file(&path, seen_ids, warnings, max_doc_bytes)? {
+        if !file_type.is_file() || !is_markdown_file(&path) {
+            continue;
+        }
+        if let Some(doc) = load_markdown_file(&path, seen_ids, warnings, max_doc_bytes, budget)? {
             docs.push(doc);
         }
     }
@@ -577,8 +686,23 @@ fn load_markdown_file(
     seen_ids: &mut HashSet<String>,
     warnings: &mut Vec<String>,
     max_doc_bytes: usize,
+    budget: &mut IngestionBudget,
 ) -> Result<Option<DocEntry>, DocsCatalogError> {
-    let metadata = fs::metadata(path).map_err(|err| DocsCatalogError::Io(err.to_string()))?;
+    if budget.docs_full() {
+        warnings.push("docs catalog max_docs reached; skipping extra doc".to_string());
+        return Ok(None);
+    }
+    if budget.bytes_full() {
+        warnings.push("docs catalog max_total_bytes reached; skipping extra doc".to_string());
+        return Ok(None);
+    }
+
+    let metadata =
+        fs::symlink_metadata(path).map_err(|err| DocsCatalogError::Io(err.to_string()))?;
+    if metadata.file_type().is_symlink() {
+        warnings.push(format!("docs.extra_paths ignoring symlink: {}", path.display()));
+        return Ok(None);
+    }
     if !metadata.is_file() {
         warnings.push(format!("docs.extra_paths ignoring non-regular file: {}", path.display()));
         return Ok(None);
@@ -587,6 +711,11 @@ fn load_markdown_file(
     if file_bytes > max_doc_bytes {
         let id = normalize_doc_id(path);
         warnings.push(format!("docs entry '{id}' exceeds max_doc_bytes; skipping"));
+        return Ok(None);
+    }
+    if !budget.can_fit(file_bytes) {
+        let id = normalize_doc_id(path);
+        warnings.push(format!("docs entry '{id}' exceeds max_total_bytes; skipping"));
         return Ok(None);
     }
     let contents = fs::read_to_string(path).map_err(|err| DocsCatalogError::Io(err.to_string()))?;
@@ -600,6 +729,11 @@ fn load_markdown_file(
         warnings.push(format!("docs entry '{id}' exceeds max_doc_bytes; skipping"));
         return Ok(None);
     }
+    if !budget.can_fit(contents.len()) {
+        let id = normalize_doc_id(path);
+        warnings.push(format!("docs entry '{id}' exceeds max_total_bytes; skipping"));
+        return Ok(None);
+    }
     let (title, body) = extract_title_and_body(trimmed, path);
     let mut id = normalize_doc_id(path);
     if seen_ids.contains(&id) {
@@ -610,6 +744,7 @@ fn load_markdown_file(
         id = format!("{id}_{suffix}");
     }
     seen_ids.insert(id.clone());
+    budget.account_doc(contents.len());
     Ok(Some(DocEntry {
         id: id.clone(),
         title,
@@ -1026,7 +1161,7 @@ mod tests {
     }
 
     // ============================================================================
-    // SECTION: DocsCatalog::from_config() Tests (18 tests)
+    // SECTION: DocsCatalog::from_config() Tests (20 tests)
     // ============================================================================
 
     #[test]
@@ -1292,6 +1427,59 @@ mod tests {
 
         let catalog = DocsCatalog::from_config(&config).expect("should load");
         assert_eq!(catalog.docs().len(), 15, "should have 13 defaults + 2 extras");
+    }
+
+    #[test]
+    fn docs_catalog_from_config_directory_ingestion_is_deterministic() {
+        use std::fs;
+
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().expect("create temp dir");
+        let dir_a = temp_dir.path().join("a");
+        let dir_b = temp_dir.path().join("b");
+        fs::create_dir(&dir_a).expect("create dir a");
+        fs::create_dir(&dir_b).expect("create dir b");
+        fs::write(dir_a.join("guide.md"), "# A Guide\nContent").expect("write a guide");
+        fs::write(dir_b.join("guide.md"), "# B Guide\nContent").expect("write b guide");
+
+        let config = DocsConfig {
+            include_default_docs: false,
+            extra_paths: vec![temp_dir.path().to_string_lossy().to_string()],
+            ..DocsConfig::default()
+        };
+
+        let catalog = DocsCatalog::from_config(&config).expect("should load");
+        assert_eq!(catalog.docs().len(), 2, "should load both docs");
+        assert_eq!(catalog.docs()[0].id, "guide", "first duplicate keeps base id");
+        assert_eq!(catalog.docs()[1].id, "guide_2", "second duplicate uses deterministic suffix");
+        assert_eq!(catalog.docs()[0].title, "A Guide", "lexicographic traversal is stable");
+        assert_eq!(catalog.docs()[1].title, "B Guide", "lexicographic traversal is stable");
+    }
+
+    #[test]
+    fn docs_catalog_from_config_enforces_extra_doc_total_budget() {
+        use std::fs;
+
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().expect("create temp dir");
+        fs::write(temp_dir.path().join("a.md"), "# A\n1234567890").expect("write a");
+        fs::write(temp_dir.path().join("b.md"), "# B\n1234567890").expect("write b");
+
+        let config = DocsConfig {
+            include_default_docs: false,
+            max_total_bytes: 20,
+            extra_paths: vec![temp_dir.path().to_string_lossy().to_string()],
+            ..DocsConfig::default()
+        };
+
+        let catalog = DocsCatalog::from_config(&config).expect("should load");
+        assert_eq!(catalog.docs().len(), 1, "budget should allow only one doc");
+        assert!(
+            catalog.warnings().iter().any(|warning| warning.contains("max_total_bytes")),
+            "should warn when total doc budget is exceeded"
+        );
     }
 
     #[test]

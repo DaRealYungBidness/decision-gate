@@ -111,6 +111,11 @@
       "title": "allow_logical"
     },
     {
+      "description": "Per-provider HTTP setting controlling private/link-local destination access. Defaults to false (deny private, loopback, and link-local peers). Enable only for explicit internal endpoints after host allowlists are in place.",
+      "term": "allow_private_networks",
+      "title": "allow_private_networks"
+    },
+    {
       "description": "Per-provider setting allowing raw evidence disclosure. Requires allow_raw_values to be true globally. Set on providers whose evidence is safe to expose (e.g., timestamps, health status). Omit for sensitive providers (secrets, credentials).",
       "term": "allow_raw",
       "title": "allow_raw"

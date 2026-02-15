@@ -85,6 +85,7 @@ fn http_tls_rejects_self_signed_cert() {
     allowed_hosts.insert("localhost".to_string());
     let provider = HttpProvider::new(HttpProviderConfig {
         allowed_hosts: Some(allowed_hosts),
+        allow_private_networks: true,
         timeout_ms: 2_000,
         ..HttpProviderConfig::default()
     })

@@ -407,6 +407,11 @@ Run state persistence settings.
 | `journal_mode` | "wal" \| "delete" | wal | SQLite journal mode. |
 | `sync_mode` | "full" \| "normal" | full | SQLite sync mode. |
 | `max_versions` | integer | null | Optional max versions retained per run. |
+| `writer_queue_capacity` | integer | 1024 | SQLite writer queue capacity. |
+| `batch_max_ops` | integer | 64 | SQLite writer batch max operation count. |
+| `batch_max_bytes` | integer | 524288 | SQLite writer batch max aggregate bytes. |
+| `batch_max_wait_ms` | integer | 2 | SQLite writer batch max wait window (ms). |
+| `read_pool_size` | integer | 4 | SQLite read connection pool size. |
 
 SQLite example:
 
@@ -418,6 +423,11 @@ journal_mode = "wal"
 sync_mode = "full"
 busy_timeout_ms = 5000
 max_versions = 1000
+writer_queue_capacity = 1024
+batch_max_ops = 64
+batch_max_bytes = 524288
+batch_max_wait_ms = 2
+read_pool_size = 4
 ```
 
 ### [schema_registry]
@@ -433,6 +443,11 @@ Schema registry persistence and limits.
 | `sync_mode` | "full" \| "normal" | full | SQLite sync mode. |
 | `max_schema_bytes` | integer | 1048576 | Maximum schema payload size in bytes. |
 | `max_entries` | integer | null | Optional max schemas per tenant + namespace. |
+| `writer_queue_capacity` | integer | 1024 | SQLite writer queue capacity. |
+| `batch_max_ops` | integer | 64 | SQLite writer batch max operation count. |
+| `batch_max_bytes` | integer | 524288 | SQLite writer batch max aggregate bytes. |
+| `batch_max_wait_ms` | integer | 2 | SQLite writer batch max wait window (ms). |
+| `read_pool_size` | integer | 4 | SQLite read connection pool size. |
 | `acl` | table | { mode = "builtin" } | Schema registry ACL configuration. |
 
 ### [schema_registry.acl]
@@ -589,5 +604,6 @@ Built-in providers accept optional `config` blocks:
   - `timeout_ms` (integer)
   - `max_response_bytes` (integer)
   - `allowed_hosts` (array)
+  - `allow_private_networks` (bool)
   - `user_agent` (string)
   - `hash_algorithm` (string)

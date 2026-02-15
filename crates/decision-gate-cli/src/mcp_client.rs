@@ -17,7 +17,6 @@
 // SECTION: Imports
 // ============================================================================
 
-use std::io::BufRead;
 use std::io::BufReader;
 use std::io::Read;
 use std::io::Write;
@@ -51,6 +50,12 @@ use thiserror::Error;
 
 /// Maximum MCP response body size accepted by the CLI.
 pub const MAX_MCP_RESPONSE_BYTES: usize = decision_gate_core::runtime::MAX_RUNPACK_ARTIFACT_BYTES;
+/// Maximum total stdio header bytes accepted before body parsing.
+const MAX_STDIO_HEADER_BYTES: usize = 8 * 1024;
+/// Maximum number of stdio header lines accepted before body parsing.
+const MAX_STDIO_HEADER_LINES: usize = 64;
+/// Maximum size of a single stdio header line.
+const MAX_STDIO_HEADER_LINE_BYTES: usize = 1024;
 
 // ============================================================================
 // SECTION: Types
@@ -693,24 +698,39 @@ impl Drop for StdioMcpClient {
 /// length exceeds limits, or I/O fails.
 pub fn read_framed(reader: &mut BufReader<impl Read>) -> Result<Vec<u8>, McpClientError> {
     let mut content_length: Option<u64> = None;
-    let mut line = String::new();
+    let mut line = Vec::new();
+    let mut remaining_header_bytes = MAX_STDIO_HEADER_BYTES;
+    let mut header_lines = 0usize;
     loop {
-        line.clear();
-        let bytes = reader
-            .read_line(&mut line)
-            .map_err(|err| McpClientError::Transport(format!("stdio read failed: {err}")))?;
+        header_lines = header_lines.saturating_add(1);
+        if header_lines > MAX_STDIO_HEADER_LINES {
+            return Err(McpClientError::Protocol("stdio header count exceeds limit".to_string()));
+        }
+        let bytes = read_header_line(
+            reader,
+            &mut line,
+            &mut remaining_header_bytes,
+            MAX_STDIO_HEADER_LINE_BYTES,
+        )?;
         if bytes == 0 {
             return Err(McpClientError::Transport("stdio closed".to_string()));
         }
-        if line.trim().is_empty() {
+        if line == b"\n" || line == b"\r\n" {
             break;
         }
+        let line = std::str::from_utf8(&line).map_err(|_| {
+            McpClientError::Protocol("stdio header was not valid utf-8".to_string())
+        })?;
         if let Some(value) = line.strip_prefix("Content-Length:") {
             let parsed = value
                 .trim()
                 .parse::<u64>()
                 .map_err(|_| McpClientError::Protocol("invalid content length".to_string()))?;
-            content_length = Some(parsed);
+            if content_length.replace(parsed).is_some() {
+                return Err(McpClientError::Protocol(
+                    "duplicate content length header".to_string(),
+                ));
+            }
         }
     }
     let len = content_length.ok_or_else(|| {
@@ -732,6 +752,42 @@ pub fn read_framed(reader: &mut BufReader<impl Read>) -> Result<Vec<u8>, McpClie
         .read_exact(&mut buf)
         .map_err(|err| McpClientError::Transport(format!("stdio read failed: {err}")))?;
     Ok(buf)
+}
+
+/// Reads one stdio header line while enforcing strict resource limits.
+fn read_header_line(
+    reader: &mut BufReader<impl Read>,
+    line: &mut Vec<u8>,
+    remaining_header_bytes: &mut usize,
+    max_line_bytes: usize,
+) -> Result<usize, McpClientError> {
+    line.clear();
+    loop {
+        if *remaining_header_bytes == 0 {
+            return Err(McpClientError::Protocol("stdio headers exceed size limit".to_string()));
+        }
+        let mut byte = [0u8; 1];
+        let bytes_read = reader
+            .read(&mut byte)
+            .map_err(|err| McpClientError::Transport(format!("stdio read failed: {err}")))?;
+        if bytes_read == 0 {
+            return if line.is_empty() {
+                Ok(0)
+            } else {
+                Err(McpClientError::Transport("stdio closed".to_string()))
+            };
+        }
+        *remaining_header_bytes -= bytes_read;
+        line.push(byte[0]);
+        if line.len() > max_line_bytes {
+            return Err(McpClientError::Protocol(
+                "stdio header line exceeds size limit".to_string(),
+            ));
+        }
+        if byte[0] == b'\n' {
+            return Ok(line.len());
+        }
+    }
 }
 
 /// Writes a stdio-framed JSON-RPC message.

@@ -1065,7 +1065,12 @@ impl DataShapeRegistry for SqliteRunStateStore {
             let Some(row) = row else {
                 return Ok(None);
             };
-            let record = build_schema_record(*tenant_id, *namespace_id, row)?;
+            let record = build_schema_record(
+                *tenant_id,
+                *namespace_id,
+                row,
+                self.registry_max_schema_bytes(),
+            )?;
             Ok(Some(record))
         })();
         self.record_store_op(
@@ -1114,7 +1119,14 @@ impl DataShapeRegistry for SqliteRunStateStore {
                     query_schema_rows(&tx, *tenant_id, *namespace_id, cursor.as_ref(), limit)?;
                 let records = rows
                     .into_iter()
-                    .map(|row| build_schema_record(*tenant_id, *namespace_id, row))
+                    .map(|row| {
+                        build_schema_record(
+                            *tenant_id,
+                            *namespace_id,
+                            row,
+                            self.registry_max_schema_bytes(),
+                        )
+                    })
                     .collect::<Result<Vec<_>, _>>()?;
                 tx.commit().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
                 records
@@ -1757,11 +1769,13 @@ fn execute_writer_batch(
             SqliteWriterPayload::Save {
                 request,
                 response,
-            } => batch.push(BatchCommand::Save {
-                request,
-                response,
-                result: None,
-            }),
+            } => {
+                batch.push(BatchCommand::Save {
+                    request,
+                    response,
+                    result: None,
+                });
+            }
             SqliteWriterPayload::Register {
                 request,
                 response,
@@ -1774,10 +1788,12 @@ fn execute_writer_batch(
             }
             SqliteWriterPayload::Readiness {
                 response,
-            } => batch.push(BatchCommand::Readiness {
-                response,
-                result: None,
-            }),
+            } => {
+                batch.push(BatchCommand::Readiness {
+                    response,
+                    result: None,
+                });
+            }
         }
     }
 
@@ -2182,6 +2198,9 @@ fn apply_pragmas(
         .execute_batch(&format!("PRAGMA synchronous = {};", config.sync_mode.pragma_value()))
         .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
     connection
+        .execute_batch("PRAGMA trusted_schema = OFF;")
+        .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+    connection
         .busy_timeout(std::time::Duration::from_millis(config.busy_timeout_ms))
         .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
     Ok(())
@@ -2190,115 +2209,15 @@ fn apply_pragmas(
 /// Initializes the `SQLite` schema or validates existing version.
 fn initialize_schema(connection: &mut Connection) -> Result<(), SqliteStoreError> {
     let tx = connection.transaction().map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-    tx.execute_batch("CREATE TABLE IF NOT EXISTS store_meta (version INTEGER NOT NULL);")
-        .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+    create_store_meta_table(&tx)?;
     let version: Option<i64> = tx
         .query_row("SELECT version FROM store_meta LIMIT 1", params![], |row| row.get(0))
         .optional()
         .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
     match version {
-        None => {
-            tx.execute("INSERT INTO store_meta (version) VALUES (?1)", params![SCHEMA_VERSION])
-                .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-            tx.execute_batch(
-                "CREATE TABLE IF NOT EXISTS runs (
-                    tenant_id TEXT NOT NULL,
-                    namespace_id TEXT NOT NULL,
-                    run_id TEXT NOT NULL,
-                    latest_version INTEGER NOT NULL,
-                    PRIMARY KEY (tenant_id, namespace_id, run_id)
-                );
-                CREATE TABLE IF NOT EXISTS run_state_versions (
-                    tenant_id TEXT NOT NULL,
-                    namespace_id TEXT NOT NULL,
-                    run_id TEXT NOT NULL,
-                    version INTEGER NOT NULL,
-                    state_json BLOB NOT NULL,
-                    state_hash TEXT NOT NULL,
-                    hash_algorithm TEXT NOT NULL,
-                    saved_at INTEGER NOT NULL,
-                    PRIMARY KEY (tenant_id, namespace_id, run_id, version),
-                    FOREIGN KEY (tenant_id, namespace_id, run_id)
-                        REFERENCES runs(tenant_id, namespace_id, run_id) ON DELETE CASCADE
-                );
-                CREATE INDEX IF NOT EXISTS idx_run_state_versions_run_id
-                    ON run_state_versions (tenant_id, namespace_id, run_id);
-                CREATE TABLE IF NOT EXISTS data_shapes (
-                    tenant_id TEXT NOT NULL,
-                    namespace_id TEXT NOT NULL,
-                    schema_id TEXT NOT NULL,
-                    version TEXT NOT NULL,
-                    schema_json BLOB NOT NULL,
-                    schema_size_bytes INTEGER NOT NULL,
-                    schema_hash TEXT NOT NULL,
-                    hash_algorithm TEXT NOT NULL,
-                    description TEXT,
-                    signing_key_id TEXT,
-                    signing_signature TEXT,
-                    signing_algorithm TEXT,
-                    created_at_json TEXT NOT NULL,
-                    PRIMARY KEY (tenant_id, namespace_id, schema_id, version)
-                );
-                CREATE INDEX IF NOT EXISTS idx_data_shapes_namespace
-                    ON data_shapes (tenant_id, namespace_id, schema_id, version);
-                CREATE INDEX IF NOT EXISTS idx_data_shapes_size
-                    ON data_shapes (tenant_id, namespace_id, schema_size_bytes);
-                CREATE TABLE IF NOT EXISTS registry_namespace_counters (
-                    tenant_id TEXT NOT NULL,
-                    namespace_id TEXT NOT NULL,
-                    entry_count INTEGER NOT NULL,
-                    PRIMARY KEY (tenant_id, namespace_id)
-                );",
-            )
-            .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-        }
-        Some(3) => {
-            tx.execute_batch(
-                "ALTER TABLE data_shapes ADD COLUMN signing_key_id TEXT;
-                 ALTER TABLE data_shapes ADD COLUMN signing_signature TEXT;
-                 ALTER TABLE data_shapes ADD COLUMN signing_algorithm TEXT;
-                 ALTER TABLE data_shapes ADD COLUMN schema_size_bytes INTEGER NOT NULL DEFAULT 0;
-                 UPDATE data_shapes SET schema_size_bytes = length(schema_json);
-                 CREATE INDEX IF NOT EXISTS idx_data_shapes_size
-                     ON data_shapes (tenant_id, namespace_id, schema_size_bytes);
-                 CREATE TABLE IF NOT EXISTS registry_namespace_counters (
-                     tenant_id TEXT NOT NULL,
-                     namespace_id TEXT NOT NULL,
-                     entry_count INTEGER NOT NULL,
-                     PRIMARY KEY (tenant_id, namespace_id)
-                 );
-                 INSERT OR REPLACE INTO registry_namespace_counters (tenant_id, namespace_id, \
-                 entry_count)
-                 SELECT tenant_id, namespace_id, COUNT(1)
-                 FROM data_shapes
-                 GROUP BY tenant_id, namespace_id;",
-            )
-            .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-            tx.execute("UPDATE store_meta SET version = ?1", params![SCHEMA_VERSION])
-                .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-        }
-        Some(4) => {
-            tx.execute_batch(
-                "ALTER TABLE data_shapes ADD COLUMN schema_size_bytes INTEGER NOT NULL DEFAULT 0;
-                 UPDATE data_shapes SET schema_size_bytes = length(schema_json);
-                 CREATE INDEX IF NOT EXISTS idx_data_shapes_size
-                     ON data_shapes (tenant_id, namespace_id, schema_size_bytes);
-                 CREATE TABLE IF NOT EXISTS registry_namespace_counters (
-                     tenant_id TEXT NOT NULL,
-                     namespace_id TEXT NOT NULL,
-                     entry_count INTEGER NOT NULL,
-                     PRIMARY KEY (tenant_id, namespace_id)
-                 );
-                 INSERT OR REPLACE INTO registry_namespace_counters (tenant_id, namespace_id, \
-                 entry_count)
-                 SELECT tenant_id, namespace_id, COUNT(1)
-                 FROM data_shapes
-                 GROUP BY tenant_id, namespace_id;",
-            )
-            .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-            tx.execute("UPDATE store_meta SET version = ?1", params![SCHEMA_VERSION])
-                .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-        }
+        None => initialize_fresh_schema(&tx)?,
+        Some(3) => upgrade_schema_from_v3(&tx)?,
+        Some(4) => upgrade_schema_from_v4(&tx)?,
         Some(value) if value == SCHEMA_VERSION => {}
         Some(value) => {
             return Err(SqliteStoreError::VersionMismatch(format!(
@@ -2307,6 +2226,120 @@ fn initialize_schema(connection: &mut Connection) -> Result<(), SqliteStoreError
         }
     }
     tx.commit().map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+    Ok(())
+}
+
+/// Creates the schema metadata table if it does not already exist.
+fn create_store_meta_table(tx: &rusqlite::Transaction<'_>) -> Result<(), SqliteStoreError> {
+    tx.execute_batch("CREATE TABLE IF NOT EXISTS store_meta (version INTEGER NOT NULL);")
+        .map_err(|err| SqliteStoreError::Db(err.to_string()))
+}
+
+/// Initializes a fresh v5 schema from scratch.
+fn initialize_fresh_schema(tx: &rusqlite::Transaction<'_>) -> Result<(), SqliteStoreError> {
+    tx.execute("INSERT INTO store_meta (version) VALUES (?1)", params![SCHEMA_VERSION])
+        .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+    tx.execute_batch(
+        "CREATE TABLE IF NOT EXISTS runs (
+            tenant_id TEXT NOT NULL,
+            namespace_id TEXT NOT NULL,
+            run_id TEXT NOT NULL,
+            latest_version INTEGER NOT NULL,
+            PRIMARY KEY (tenant_id, namespace_id, run_id)
+        );
+        CREATE TABLE IF NOT EXISTS run_state_versions (
+            tenant_id TEXT NOT NULL,
+            namespace_id TEXT NOT NULL,
+            run_id TEXT NOT NULL,
+            version INTEGER NOT NULL,
+            state_json BLOB NOT NULL,
+            state_hash TEXT NOT NULL,
+            hash_algorithm TEXT NOT NULL,
+            saved_at INTEGER NOT NULL,
+            PRIMARY KEY (tenant_id, namespace_id, run_id, version),
+            FOREIGN KEY (tenant_id, namespace_id, run_id)
+                REFERENCES runs(tenant_id, namespace_id, run_id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_run_state_versions_run_id
+            ON run_state_versions (tenant_id, namespace_id, run_id);
+        CREATE TABLE IF NOT EXISTS data_shapes (
+            tenant_id TEXT NOT NULL,
+            namespace_id TEXT NOT NULL,
+            schema_id TEXT NOT NULL,
+            version TEXT NOT NULL,
+            schema_json BLOB NOT NULL,
+            schema_size_bytes INTEGER NOT NULL,
+            schema_hash TEXT NOT NULL,
+            hash_algorithm TEXT NOT NULL,
+            description TEXT,
+            signing_key_id TEXT,
+            signing_signature TEXT,
+            signing_algorithm TEXT,
+            created_at_json TEXT NOT NULL,
+            PRIMARY KEY (tenant_id, namespace_id, schema_id, version)
+        );
+        CREATE INDEX IF NOT EXISTS idx_data_shapes_namespace
+            ON data_shapes (tenant_id, namespace_id, schema_id, version);
+        CREATE INDEX IF NOT EXISTS idx_data_shapes_size
+            ON data_shapes (tenant_id, namespace_id, schema_size_bytes);
+        CREATE TABLE IF NOT EXISTS registry_namespace_counters (
+            tenant_id TEXT NOT NULL,
+            namespace_id TEXT NOT NULL,
+            entry_count INTEGER NOT NULL,
+            PRIMARY KEY (tenant_id, namespace_id)
+        );",
+    )
+    .map_err(|err| SqliteStoreError::Db(err.to_string()))
+}
+
+/// Upgrades an existing v3 schema to v5.
+fn upgrade_schema_from_v3(tx: &rusqlite::Transaction<'_>) -> Result<(), SqliteStoreError> {
+    tx.execute_batch(
+        "ALTER TABLE data_shapes ADD COLUMN signing_key_id TEXT;
+         ALTER TABLE data_shapes ADD COLUMN signing_signature TEXT;
+         ALTER TABLE data_shapes ADD COLUMN signing_algorithm TEXT;
+         ALTER TABLE data_shapes ADD COLUMN schema_size_bytes INTEGER NOT NULL DEFAULT 0;
+         UPDATE data_shapes SET schema_size_bytes = length(schema_json);
+         CREATE INDEX IF NOT EXISTS idx_data_shapes_size
+             ON data_shapes (tenant_id, namespace_id, schema_size_bytes);
+         CREATE TABLE IF NOT EXISTS registry_namespace_counters (
+             tenant_id TEXT NOT NULL,
+             namespace_id TEXT NOT NULL,
+             entry_count INTEGER NOT NULL,
+             PRIMARY KEY (tenant_id, namespace_id)
+         );
+         INSERT OR REPLACE INTO registry_namespace_counters (tenant_id, namespace_id, entry_count)
+         SELECT tenant_id, namespace_id, COUNT(1)
+         FROM data_shapes
+         GROUP BY tenant_id, namespace_id;",
+    )
+    .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+    tx.execute("UPDATE store_meta SET version = ?1", params![SCHEMA_VERSION])
+        .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+    Ok(())
+}
+
+/// Upgrades an existing v4 schema to v5.
+fn upgrade_schema_from_v4(tx: &rusqlite::Transaction<'_>) -> Result<(), SqliteStoreError> {
+    tx.execute_batch(
+        "ALTER TABLE data_shapes ADD COLUMN schema_size_bytes INTEGER NOT NULL DEFAULT 0;
+         UPDATE data_shapes SET schema_size_bytes = length(schema_json);
+         CREATE INDEX IF NOT EXISTS idx_data_shapes_size
+             ON data_shapes (tenant_id, namespace_id, schema_size_bytes);
+         CREATE TABLE IF NOT EXISTS registry_namespace_counters (
+             tenant_id TEXT NOT NULL,
+             namespace_id TEXT NOT NULL,
+             entry_count INTEGER NOT NULL,
+             PRIMARY KEY (tenant_id, namespace_id)
+         );
+         INSERT OR REPLACE INTO registry_namespace_counters (tenant_id, namespace_id, entry_count)
+         SELECT tenant_id, namespace_id, COUNT(1)
+         FROM data_shapes
+         GROUP BY tenant_id, namespace_id;",
+    )
+    .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+    tx.execute("UPDATE store_meta SET version = ?1", params![SCHEMA_VERSION])
+        .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
     Ok(())
 }
 
@@ -2373,6 +2406,65 @@ struct RunStatePayload {
     hash_algorithm: String,
 }
 
+/// Resolves the authoritative latest version for a run and detects metadata tampering.
+fn resolve_latest_run_state_version(
+    tx: &rusqlite::Transaction<'_>,
+    tenant_id: TenantId,
+    namespace_id: NamespaceId,
+    run_id: &RunId,
+) -> Result<Option<i64>, SqliteStoreError> {
+    let latest_from_runs: Option<i64> = tx
+        .query_row(
+            "SELECT latest_version FROM runs WHERE tenant_id = ?1 AND namespace_id = ?2 AND \
+             run_id = ?3",
+            params![tenant_id.to_string(), namespace_id.to_string(), run_id.as_str()],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+    let latest_from_versions: Option<i64> = tx
+        .query_row(
+            "SELECT MAX(version) FROM run_state_versions WHERE tenant_id = ?1 AND namespace_id = \
+             ?2 AND run_id = ?3",
+            params![tenant_id.to_string(), namespace_id.to_string(), run_id.as_str()],
+            |row| row.get(0),
+        )
+        .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+    match (latest_from_runs, latest_from_versions) {
+        (None, None) => Ok(None),
+        (Some(_), None) => Err(SqliteStoreError::Corrupt(format!(
+            "missing run versions for run {}",
+            run_id.as_str()
+        ))),
+        (None, Some(_)) => Err(SqliteStoreError::Corrupt(format!(
+            "missing run metadata for run {}",
+            run_id.as_str()
+        ))),
+        (Some(pointer), Some(actual_latest)) => {
+            if pointer < 1 {
+                return Err(SqliteStoreError::Corrupt(format!(
+                    "invalid latest_version for run {}",
+                    run_id.as_str()
+                )));
+            }
+            if actual_latest < 1 {
+                return Err(SqliteStoreError::Corrupt(format!(
+                    "invalid max version for run {}",
+                    run_id.as_str()
+                )));
+            }
+            if pointer != actual_latest {
+                return Err(SqliteStoreError::Corrupt(format!(
+                    "latest_version mismatch for run {} (pointer={pointer}, \
+                     actual={actual_latest})",
+                    run_id.as_str()
+                )));
+            }
+            Ok(Some(pointer))
+        }
+    }
+}
+
 /// Fetches the latest run state payload for the provided run identifiers.
 fn fetch_run_state_payload(
     connection: &Mutex<Connection>,
@@ -2384,27 +2476,8 @@ fn fetch_run_state_payload(
         connection.lock().map_err(|_| SqliteStoreError::Db("mutex poisoned".to_string()))?;
     let payload = {
         let tx = guard.transaction().map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-        let latest_version: Option<i64> = tx
-            .query_row(
-                "SELECT latest_version FROM runs WHERE tenant_id = ?1 AND namespace_id = ?2 AND \
-                 run_id = ?3",
-                params![tenant_id.to_string(), namespace_id.to_string(), run_id.as_str()],
-                |row| row.get(0),
-            )
-            .optional()
-            .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-        let latest_version = match latest_version {
-            None => None,
-            Some(value) => {
-                if value < 1 {
-                    return Err(SqliteStoreError::Corrupt(format!(
-                        "invalid latest_version for run {}",
-                        run_id.as_str()
-                    )));
-                }
-                Some(value)
-            }
-        };
+        let latest_version =
+            resolve_latest_run_state_version(&tx, tenant_id, namespace_id, run_id)?;
         let payload = if let Some(latest_version) = latest_version {
             let metadata = tx
                 .query_row(
@@ -2584,6 +2657,20 @@ fn schema_length_to_usize(length: i64) -> Result<usize, DataShapeRegistryError> 
         .map_err(|_| DataShapeRegistryError::Invalid("schema length is invalid".to_string()))
 }
 
+/// Validates persisted schema length metadata against actual payload size.
+fn validate_schema_length_metadata(
+    stored_length: i64,
+    actual_length: i64,
+    max_schema_bytes: usize,
+) -> Result<(), DataShapeRegistryError> {
+    let stored_length = schema_length_to_usize(stored_length)?;
+    let actual_length = schema_length_to_usize(actual_length)?;
+    if stored_length != actual_length {
+        return Err(DataShapeRegistryError::Invalid("schema size metadata mismatch".to_string()));
+    }
+    ensure_schema_bytes_within_limit(actual_length, max_schema_bytes)
+}
+
 /// Checks for oversized schema payloads in the registry.
 fn ensure_registry_schema_sizes(
     tx: &rusqlite::Transaction<'_>,
@@ -2594,18 +2681,25 @@ fn ensure_registry_schema_sizes(
     let max_schema_bytes_i64 = i64::try_from(max_schema_bytes).map_err(|_| {
         DataShapeRegistryError::Invalid("schema size limit exceeds platform limits".to_string())
     })?;
-    let oversized: Option<i64> = tx
+    let invalid_row: Option<(i64, i64)> = tx
         .query_row(
-            "SELECT schema_size_bytes FROM data_shapes WHERE tenant_id = ?1 AND namespace_id = ?2 \
-             AND schema_size_bytes > ?3 LIMIT 1",
+            "SELECT schema_size_bytes, length(schema_json) FROM data_shapes WHERE tenant_id = ?1 \
+             AND namespace_id = ?2 AND (
+                 schema_size_bytes < 0
+                 OR schema_size_bytes != length(schema_json)
+                 OR length(schema_json) > ?3
+             ) LIMIT 1",
             params![tenant_id.to_string(), namespace_id.to_string(), max_schema_bytes_i64],
-            |row| row.get(0),
+            |row| {
+                let stored_length: i64 = row.get(0)?;
+                let actual_length: i64 = row.get(1)?;
+                Ok((stored_length, actual_length))
+            },
         )
         .optional()
         .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
-    if let Some(length) = oversized {
-        let length_usize = schema_length_to_usize(length)?;
-        ensure_schema_bytes_within_limit(length_usize, max_schema_bytes)?;
+    if let Some((stored_length, actual_length)) = invalid_row {
+        validate_schema_length_metadata(stored_length, actual_length, max_schema_bytes)?;
     }
     Ok(())
 }
@@ -2620,7 +2714,7 @@ fn ensure_registry_entry_limit(
     let max_entries_i64 = i64::try_from(max_entries).map_err(|_| {
         DataShapeRegistryError::Invalid("schema entry limit exceeds platform limits".to_string())
     })?;
-    let count = tx
+    let counter_value = tx
         .query_row(
             "SELECT entry_count FROM registry_namespace_counters WHERE tenant_id = ?1 AND \
              namespace_id = ?2",
@@ -2629,10 +2723,27 @@ fn ensure_registry_entry_limit(
         )
         .optional()
         .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
-    let count = count.unwrap_or(0);
-    if count >= max_entries_i64 {
+    let observed_count: i64 = tx
+        .query_row(
+            "SELECT COUNT(1) FROM data_shapes WHERE tenant_id = ?1 AND namespace_id = ?2",
+            params![tenant_id.to_string(), namespace_id.to_string()],
+            |row| row.get(0),
+        )
+        .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+    let counter_value = counter_value.unwrap_or(0);
+    if counter_value < 0 {
+        return Err(DataShapeRegistryError::Invalid(
+            "schema registry counter is invalid".to_string(),
+        ));
+    }
+    if counter_value != observed_count {
+        return Err(DataShapeRegistryError::Invalid(
+            "schema registry counter mismatch".to_string(),
+        ));
+    }
+    if observed_count >= max_entries_i64 {
         return Err(DataShapeRegistryError::Invalid(format!(
-            "schema registry entry limit exceeded: {count} entries (max {max_entries})"
+            "schema registry entry limit exceeded: {observed_count} entries (max {max_entries})"
         )));
     }
     Ok(())
@@ -2713,25 +2824,28 @@ fn query_schema_row_by_id(
     version: &DataShapeVersion,
     max_schema_bytes: usize,
 ) -> Result<Option<SchemaRow>, DataShapeRegistryError> {
-    let length: Option<i64> = tx
+    let metadata: Option<(i64, i64)> = tx
         .query_row(
-            "SELECT schema_size_bytes FROM data_shapes WHERE tenant_id = ?1 AND namespace_id = ?2 \
-             AND schema_id = ?3 AND version = ?4",
+            "SELECT schema_size_bytes, length(schema_json) FROM data_shapes WHERE tenant_id = ?1 \
+             AND namespace_id = ?2 AND schema_id = ?3 AND version = ?4",
             params![
                 tenant_id.to_string(),
                 namespace_id.to_string(),
                 schema_id.as_str(),
                 version.as_str()
             ],
-            |row| row.get(0),
+            |row| {
+                let stored_length: i64 = row.get(0)?;
+                let actual_length: i64 = row.get(1)?;
+                Ok((stored_length, actual_length))
+            },
         )
         .optional()
         .map_err(|err| map_registry_error(&err))?;
-    let Some(length) = length else {
+    let Some((stored_length, actual_length)) = metadata else {
         return Ok(None);
     };
-    let length_usize = schema_length_to_usize(length)?;
-    ensure_schema_bytes_within_limit(length_usize, max_schema_bytes)?;
+    validate_schema_length_metadata(stored_length, actual_length, max_schema_bytes)?;
     tx.query_row(
         "SELECT schema_id, version, schema_json, schema_hash, hash_algorithm, description, \
          signing_key_id, signing_signature, signing_algorithm, created_at_json FROM data_shapes \
@@ -2803,6 +2917,7 @@ fn build_schema_record(
     tenant_id: TenantId,
     namespace_id: NamespaceId,
     row: SchemaRow,
+    max_schema_bytes: usize,
 ) -> Result<DataShapeRecord, DataShapeRegistryError> {
     let SchemaRow {
         schema_id,
@@ -2816,6 +2931,7 @@ fn build_schema_record(
         signing_algorithm,
         created_at_json,
     } = row;
+    ensure_schema_bytes_within_limit(schema_json.len(), max_schema_bytes)?;
     let algorithm = parse_hash_algorithm(&hash_algorithm)
         .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
     let expected = hash_bytes(algorithm, &schema_json);

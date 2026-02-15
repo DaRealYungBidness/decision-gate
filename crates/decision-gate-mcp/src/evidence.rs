@@ -67,6 +67,8 @@ use crate::correlation::sanitize_client_correlation_id;
 
 /// Maximum size of MCP provider responses (bytes).
 const MAX_MCP_PROVIDER_RESPONSE_BYTES: usize = 1024 * 1024;
+/// Maximum cumulative size of MCP framing headers (bytes).
+const MAX_MCP_PROVIDER_HEADER_BYTES: usize = 8 * 1024;
 /// JSON-RPC request id counter for MCP provider calls.
 static JSON_RPC_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 
@@ -509,6 +511,7 @@ fn read_framed(
 ) -> Result<Vec<u8>, EvidenceError> {
     let mut content_length: Option<usize> = None;
     let mut line = String::new();
+    let mut header_bytes = 0usize;
     loop {
         line.clear();
         let bytes = reader
@@ -516,6 +519,12 @@ fn read_framed(
             .map_err(|_| EvidenceError::Provider("mcp read failed".to_string()))?;
         if bytes == 0 {
             return Err(EvidenceError::Provider("mcp connection closed".to_string()));
+        }
+        header_bytes = header_bytes
+            .checked_add(bytes)
+            .ok_or_else(|| EvidenceError::Provider("mcp framing header too large".to_string()))?;
+        if header_bytes > MAX_MCP_PROVIDER_HEADER_BYTES {
+            return Err(EvidenceError::Provider("mcp framing header too large".to_string()));
         }
         if line.trim().is_empty() {
             break;
@@ -525,7 +534,9 @@ fn read_framed(
             let parsed = trimmed
                 .parse::<usize>()
                 .map_err(|_| EvidenceError::Provider("invalid content length".to_string()))?;
-            content_length = Some(parsed);
+            if content_length.replace(parsed).is_some() {
+                return Err(EvidenceError::Provider("duplicate content length header".to_string()));
+            }
         }
     }
     let len = content_length

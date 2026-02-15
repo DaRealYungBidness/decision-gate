@@ -90,6 +90,10 @@ Permits http:// (non-TLS) URLs for MCP providers globally. Disable in production
 
 Permits logical timestamps in time checks instead of requiring real unix_millis. Enable for testing and simulation where deterministic time control is needed. Disable in production for real-time constraints.
 
+## `allow_private_networks`
+
+Per-provider HTTP setting controlling private/link-local destination access. Defaults to false (deny private, loopback, and link-local peers). Enable only for explicit internal endpoints after host allowlists are in place.
+
 ## `allow_raw`
 
 Per-provider setting allowing raw evidence disclosure. Requires allow_raw_values to be true globally. Set on providers whose evidence is safe to expose (e.g., timestamps, health status). Omit for sensitive providers (secrets, credentials).

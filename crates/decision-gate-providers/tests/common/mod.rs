@@ -164,7 +164,11 @@ pub fn invalid_url_schemes() -> Vec<&'static str> {
     ]
 }
 
-/// Returns SSRF attack vectors targeting internal/private networks.
+/// Returns URL vectors commonly used in SSRF probing.
+///
+/// Use these inputs when validating scheme/allowlist policy behavior. In this
+/// crate, rejection is policy-dependent rather than an unconditional
+/// private-address denylist.
 ///
 /// Threat model: TM-HTTP-001 - Server-side request forgery via HTTP provider.
 #[must_use]
@@ -192,7 +196,7 @@ pub fn ssrf_vectors() -> Vec<&'static str> {
         // Decimal/octal IP encoding
         "http://2130706433/", // 127.0.0.1 in decimal
         "http://0177.0.0.1/", // 127.0.0.1 in octal
-        // URL with credentials (should be rejected)
+        // URL with credentials
         "http://user:pass@example.com/",
     ]
 }
