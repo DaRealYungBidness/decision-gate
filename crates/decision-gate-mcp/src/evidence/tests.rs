@@ -66,6 +66,7 @@ use ed25519_dalek::Signer;
 use serde_json::json;
 use tokio::sync::oneshot;
 
+use super::MAX_MCP_PROVIDER_HEADER_BYTES;
 use super::McpProviderClient;
 use super::McpTransport;
 use super::ProviderTrust;
@@ -112,6 +113,39 @@ fn read_framed_rejects_oversized_headers() {
     let framed = format!("{oversized}\r\n\r\n");
     let mut reader = BufReader::new(Cursor::new(framed.into_bytes()));
     let result = read_framed(&mut reader, 1024);
+    assert!(result.is_err());
+}
+
+#[test]
+fn read_framed_accepts_header_bytes_exactly_at_limit() {
+    let payload = b"x";
+    let content_length_line = format!("Content-Length: {}\r\n", payload.len());
+    let fixed_bytes = content_length_line.len() + "X-Pad: ".len() + 2 + 2;
+    let pad_len = MAX_MCP_PROVIDER_HEADER_BYTES.saturating_sub(fixed_bytes);
+    let padded_header = format!("{content_length_line}X-Pad: {}\r\n\r\n", "x".repeat(pad_len));
+    assert_eq!(padded_header.len(), MAX_MCP_PROVIDER_HEADER_BYTES);
+
+    let mut framed = padded_header.into_bytes();
+    framed.extend_from_slice(payload);
+    let mut reader = BufReader::new(Cursor::new(framed));
+    let result = read_framed(&mut reader, payload.len());
+    assert!(result.is_ok());
+    assert_eq!(result.expect("payload read"), payload);
+}
+
+#[test]
+fn read_framed_rejects_header_bytes_one_over_limit() {
+    let payload = b"x";
+    let content_length_line = format!("Content-Length: {}\r\n", payload.len());
+    let fixed_bytes = content_length_line.len() + "X-Pad: ".len() + 2 + 2;
+    let pad_len = MAX_MCP_PROVIDER_HEADER_BYTES.saturating_sub(fixed_bytes).saturating_add(1);
+    let padded_header = format!("{content_length_line}X-Pad: {}\r\n\r\n", "x".repeat(pad_len));
+    assert_eq!(padded_header.len(), MAX_MCP_PROVIDER_HEADER_BYTES + 1);
+
+    let mut framed = padded_header.into_bytes();
+    framed.extend_from_slice(payload);
+    let mut reader = BufReader::new(Cursor::new(framed));
+    let result = read_framed(&mut reader, payload.len());
     assert!(result.is_err());
 }
 

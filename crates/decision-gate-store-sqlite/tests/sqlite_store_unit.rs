@@ -36,6 +36,7 @@ use std::sync::Arc;
 use std::thread;
 
 use decision_gate_core::AdvanceTo;
+use decision_gate_core::DataShapeRegistry;
 use decision_gate_core::NamespaceId;
 use decision_gate_core::RunId;
 use decision_gate_core::RunState;
@@ -128,6 +129,24 @@ const fn config_for_path(path: PathBuf, max_versions: Option<u64>) -> SqliteStor
 
 fn store_for(path: &Path, max_versions: Option<u64>) -> SqliteRunStateStore {
     SqliteRunStateStore::new(config_for_path(path.to_path_buf(), max_versions)).expect("store init")
+}
+
+fn assert_runtime_limit_rejected(
+    configure: impl FnOnce(&mut SqliteStoreConfig),
+    expected_fragment: &str,
+) {
+    let temp = TempDir::new().unwrap();
+    let path = temp.path().join("store.sqlite");
+    let mut config = config_for_path(path, None);
+    configure(&mut config);
+    let err = match SqliteRunStateStore::new(config) {
+        Ok(_) => panic!("runtime limit should be rejected"),
+        Err(err) => err,
+    };
+    assert!(
+        matches!(err, SqliteStoreError::Invalid(ref message) if message.contains(expected_fragment)),
+        "expected invalid runtime limit error containing `{expected_fragment}`, got: {err:?}"
+    );
 }
 
 fn store_bytes_for_message_len(message_len: usize) -> usize {
@@ -320,6 +339,110 @@ fn sqlite_store_upgrades_schema_from_v3() {
         )
         .unwrap();
     assert_eq!(counters_table_count, 1, "registry counters table should exist");
+}
+
+#[test]
+fn sqlite_store_upgrades_schema_from_v4() {
+    let temp = TempDir::new().unwrap();
+    let path = temp.path().join("store.sqlite");
+    let conn = Connection::open(&path).unwrap();
+    conn.execute_batch(
+        "CREATE TABLE store_meta (version INTEGER NOT NULL);
+         INSERT INTO store_meta (version) VALUES (4);
+         CREATE TABLE runs (
+             tenant_id TEXT NOT NULL,
+             namespace_id TEXT NOT NULL,
+             run_id TEXT NOT NULL,
+             latest_version INTEGER NOT NULL,
+             PRIMARY KEY (tenant_id, namespace_id, run_id)
+         );
+         CREATE TABLE run_state_versions (
+             tenant_id TEXT NOT NULL,
+             namespace_id TEXT NOT NULL,
+             run_id TEXT NOT NULL,
+             version INTEGER NOT NULL,
+             state_json BLOB NOT NULL,
+             state_hash TEXT NOT NULL,
+             hash_algorithm TEXT NOT NULL,
+             saved_at INTEGER NOT NULL,
+             PRIMARY KEY (tenant_id, namespace_id, run_id, version),
+             FOREIGN KEY (tenant_id, namespace_id, run_id)
+                 REFERENCES runs(tenant_id, namespace_id, run_id) ON DELETE CASCADE
+         );
+         CREATE TABLE data_shapes (
+             tenant_id TEXT NOT NULL,
+             namespace_id TEXT NOT NULL,
+             schema_id TEXT NOT NULL,
+             version TEXT NOT NULL,
+             schema_json BLOB NOT NULL,
+             schema_hash TEXT NOT NULL,
+             hash_algorithm TEXT NOT NULL,
+             description TEXT,
+             signing_key_id TEXT,
+             signing_signature TEXT,
+             signing_algorithm TEXT,
+             created_at_json TEXT NOT NULL,
+             PRIMARY KEY (tenant_id, namespace_id, schema_id, version)
+         );
+         INSERT INTO data_shapes (
+             tenant_id,
+             namespace_id,
+             schema_id,
+             version,
+             schema_json,
+             schema_hash,
+             hash_algorithm,
+             description,
+             signing_key_id,
+             signing_signature,
+             signing_algorithm,
+             created_at_json
+         ) VALUES
+         ('1', '1', 'schema-a', 'v1', X'7B7D', 'abc', 'sha256', NULL, NULL, NULL, NULL, '\"0\"'),
+         ('1', '1', 'schema-b', 'v1', X'7B7D', 'def', 'sha256', NULL, NULL, NULL, NULL, '\"0\"');",
+    )
+    .unwrap();
+
+    let config = config_for_path(path.clone(), None);
+    SqliteRunStateStore::new(config).expect("upgrade should succeed");
+
+    let conn = Connection::open(&path).unwrap();
+    let version: i64 = conn
+        .query_row("SELECT version FROM store_meta LIMIT 1", params![], |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 5, "schema version should be upgraded to 5");
+
+    let schema_size_column_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('data_shapes') WHERE name = \
+             'schema_size_bytes'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(schema_size_column_count, 1, "schema_size_bytes column should be added");
+
+    let schema_size_mismatch_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM data_shapes WHERE schema_size_bytes != length(schema_json)",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        schema_size_mismatch_count, 0,
+        "schema size should be backfilled from payload length"
+    );
+
+    let namespace_entry_count: i64 = conn
+        .query_row(
+            "SELECT entry_count FROM registry_namespace_counters WHERE tenant_id = '1' AND \
+             namespace_id = '1'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(namespace_entry_count, 2, "counter table should be backfilled from v4 rows");
 }
 
 // ============================================================================
@@ -617,6 +740,39 @@ fn sqlite_store_accepts_state_just_under_limit() {
 // ============================================================================
 
 #[test]
+fn sqlite_store_readiness_reports_ok_for_store_and_registry() {
+    let temp = TempDir::new().unwrap();
+    let path = temp.path().join("store.sqlite");
+    let store = store_for(&path, None);
+
+    RunStateStore::readiness(&store).expect("store readiness should succeed");
+    DataShapeRegistry::readiness(&store).expect("registry readiness should succeed");
+}
+
+#[test]
+fn sqlite_store_load_version_happy_path() {
+    let temp = TempDir::new().unwrap();
+    let path = temp.path().join("store.sqlite");
+    let store = store_for(&path, None);
+
+    let mut state = sample_state("run-1");
+    store.save(&state).unwrap();
+    state.current_stage_id = StageId::new("stage-2");
+    state.stage_entered_at = Timestamp::Logical(2);
+    store.save(&state).unwrap();
+    state.current_stage_id = StageId::new("stage-3");
+    state.stage_entered_at = Timestamp::Logical(3);
+    store.save(&state).unwrap();
+
+    let loaded = store
+        .load_version(state.tenant_id, state.namespace_id, &state.run_id, 2)
+        .expect("load_version should succeed")
+        .expect("version 2 should exist");
+    assert_eq!(loaded.current_stage_id.as_str(), "stage-2");
+    assert_eq!(loaded.stage_entered_at, Timestamp::Logical(2));
+}
+
+#[test]
 fn sqlite_store_enforces_max_versions() {
     let temp = TempDir::new().unwrap();
     let path = temp.path().join("store.sqlite");
@@ -647,6 +803,52 @@ fn sqlite_store_rejects_zero_max_versions() {
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert!(format!("{err:?}").contains("max_versions"));
+}
+
+#[test]
+fn sqlite_store_prune_versions_deletes_old_versions_and_preserves_latest() {
+    let temp = TempDir::new().unwrap();
+    let path = temp.path().join("store.sqlite");
+    let store = store_for(&path, None);
+
+    let mut state = sample_state("run-prune");
+    for idx in 1 ..= 4 {
+        state.current_stage_id = StageId::new(format!("stage-{idx}"));
+        state.stage_entered_at = Timestamp::Logical(idx);
+        store.save(&state).unwrap();
+    }
+
+    let deleted =
+        store.prune_versions(state.tenant_id, state.namespace_id, &state.run_id, 2).unwrap();
+    assert_eq!(deleted, 2, "expected oldest two versions to be pruned");
+
+    let versions =
+        store.list_run_versions(state.tenant_id, state.namespace_id, &state.run_id).unwrap();
+    assert_eq!(versions.len(), 2);
+    assert_eq!(versions[0].version, 4);
+    assert_eq!(versions[1].version, 3);
+
+    let latest = store
+        .load(&state.tenant_id, &state.namespace_id, &state.run_id)
+        .expect("load should succeed")
+        .expect("run should exist");
+    assert_eq!(latest.current_stage_id.as_str(), "stage-4");
+}
+
+#[test]
+fn sqlite_store_prune_versions_rejects_keep_zero() {
+    let temp = TempDir::new().unwrap();
+    let path = temp.path().join("store.sqlite");
+    let store = store_for(&path, None);
+    let state = sample_state("run-prune");
+    store.save(&state).unwrap();
+
+    let err = store
+        .prune_versions(state.tenant_id, state.namespace_id, &state.run_id, 0)
+        .expect_err("keep=0 should fail");
+    assert!(
+        matches!(err, SqliteStoreError::Invalid(message) if message.contains("keep must be >= 1"))
+    );
 }
 
 #[test]
@@ -785,6 +987,38 @@ fn sqlite_store_supports_concurrent_writes() {
 
     let runs = store.list_runs(None, None).unwrap();
     assert_eq!(runs.len(), 4);
+}
+
+// ============================================================================
+// SECTION: Runtime Limits
+// ============================================================================
+
+#[test]
+fn sqlite_store_rejects_zero_writer_queue_capacity() {
+    assert_runtime_limit_rejected(
+        |config| config.writer_queue_capacity = 0,
+        "writer_queue_capacity",
+    );
+}
+
+#[test]
+fn sqlite_store_rejects_zero_batch_max_ops() {
+    assert_runtime_limit_rejected(|config| config.batch_max_ops = 0, "batch_max_ops");
+}
+
+#[test]
+fn sqlite_store_rejects_zero_batch_max_bytes() {
+    assert_runtime_limit_rejected(|config| config.batch_max_bytes = 0, "batch_max_bytes");
+}
+
+#[test]
+fn sqlite_store_rejects_zero_batch_max_wait_ms() {
+    assert_runtime_limit_rejected(|config| config.batch_max_wait_ms = 0, "batch_max_wait_ms");
+}
+
+#[test]
+fn sqlite_store_rejects_zero_read_pool_size() {
+    assert_runtime_limit_rejected(|config| config.read_pool_size = 0, "read_pool_size");
 }
 
 // ============================================================================

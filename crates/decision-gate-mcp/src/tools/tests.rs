@@ -55,6 +55,8 @@ use decision_gate_core::GateSpec;
 use decision_gate_core::InMemoryDataShapeRegistry;
 use decision_gate_core::InMemoryRunStateStore;
 use decision_gate_core::NamespaceId;
+use decision_gate_core::NextRequest;
+use decision_gate_core::PacketPayload;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::RunId;
@@ -67,11 +69,15 @@ use decision_gate_core::SharedRunStateStore;
 use decision_gate_core::SpecVersion;
 use decision_gate_core::StageId;
 use decision_gate_core::StageSpec;
+use decision_gate_core::StatusRequest;
 use decision_gate_core::StoreError;
+use decision_gate_core::SubmitRequest;
 use decision_gate_core::TenantId;
 use decision_gate_core::TimeoutPolicy;
 use decision_gate_core::Timestamp;
 use decision_gate_core::ToolName;
+use decision_gate_core::TriggerEvent;
+use decision_gate_core::TriggerKind;
 use ret_logic::Requirement;
 use serde_json::Value;
 use serde_json::json;
@@ -1687,6 +1693,121 @@ fn run_mutation_coordinator_same_key_waits_and_updates_stats() {
         assert_eq!(final_stats.lock_wait_histogram.iter().sum::<u64>(), 2);
         assert_eq!(final_stats.queue_depth_histogram.iter().sum::<u64>(), 2);
     });
+}
+
+#[test]
+fn run_mutation_key_from_all_request_types_is_consistent_for_same_run() {
+    let scenario_id = ScenarioId::new("scenario-key");
+    let run_id = RunId::new("run-key");
+    let tenant_id = TenantId::from_raw(42).expect("nonzero tenantid");
+    let namespace_id = NamespaceId::from_raw(7).expect("nonzero namespaceid");
+    let run_config = RunConfig {
+        tenant_id,
+        namespace_id,
+        run_id: run_id.clone(),
+        scenario_id: scenario_id.clone(),
+        dispatch_targets: Vec::new(),
+        policy_tags: Vec::new(),
+    };
+    let start_request = ScenarioStartRequest {
+        scenario_id: scenario_id.clone(),
+        run_config,
+        started_at: Timestamp::Logical(1),
+        issue_entry_packets: false,
+    };
+    let status_request = ScenarioStatusRequest {
+        scenario_id: scenario_id.clone(),
+        request: StatusRequest {
+            run_id: run_id.clone(),
+            tenant_id,
+            namespace_id,
+            requested_at: Timestamp::Logical(2),
+            correlation_id: None,
+        },
+    };
+    let next_request = ScenarioNextRequest {
+        scenario_id: scenario_id.clone(),
+        request: NextRequest {
+            run_id: run_id.clone(),
+            tenant_id,
+            namespace_id,
+            trigger_id: decision_gate_core::TriggerId::new("trigger-key"),
+            agent_id: "agent-key".to_string(),
+            time: Timestamp::Logical(3),
+            correlation_id: None,
+        },
+        feedback: None,
+    };
+    let submit_request = ScenarioSubmitRequest {
+        scenario_id: scenario_id.clone(),
+        request: SubmitRequest {
+            run_id: run_id.clone(),
+            tenant_id,
+            namespace_id,
+            submission_id: "submission-key".to_string(),
+            payload: PacketPayload::Json {
+                value: json!({
+                    "ok": true
+                }),
+            },
+            content_type: "application/json".to_string(),
+            submitted_at: Timestamp::Logical(4),
+            correlation_id: None,
+        },
+    };
+    let trigger_request = ScenarioTriggerRequest {
+        scenario_id,
+        trigger: TriggerEvent {
+            trigger_id: decision_gate_core::TriggerId::new("trigger-key"),
+            tenant_id,
+            namespace_id,
+            run_id: run_id.clone(),
+            kind: TriggerKind::ExternalEvent,
+            time: Timestamp::Logical(5),
+            source_id: "test".to_string(),
+            payload: None,
+            correlation_id: None,
+        },
+    };
+
+    let key_start = RunMutationKey::from_start(&start_request);
+    let key_status = RunMutationKey::from_status(&status_request);
+    let key_next = RunMutationKey::from_next(&next_request);
+    let key_submit = RunMutationKey::from_submit(&submit_request);
+    let key_trigger = RunMutationKey::from_trigger(&trigger_request);
+
+    assert_eq!(key_start, key_status);
+    assert_eq!(key_start, key_next);
+    assert_eq!(key_start, key_submit);
+    assert_eq!(key_start, key_trigger);
+    assert_eq!(key_start.map_key(), key_status.map_key());
+    assert_eq!(key_start.map_key(), key_next.map_key());
+    assert_eq!(key_start.map_key(), key_submit.map_key());
+    assert_eq!(key_start.map_key(), key_trigger.map_key());
+}
+
+#[test]
+fn mutation_coordinator_snapshot_percentiles_empty_histograms_return_zero() {
+    let coordinator = RunMutationCoordinator::default();
+    let snapshot = coordinator.snapshot();
+    assert_eq!(snapshot.lock_acquisitions, 0);
+    assert_eq!(snapshot.active_holders, 0);
+    assert_eq!(snapshot.pending_waiters, 0);
+    assert_eq!(snapshot.lock_wait_p50_us, 0);
+    assert_eq!(snapshot.lock_wait_p95_us, 0);
+    assert_eq!(snapshot.queue_depth_p50, 0);
+    assert_eq!(snapshot.queue_depth_p95, 0);
+    assert!(snapshot.lock_wait_histogram.iter().all(|count| *count == 0));
+    assert!(snapshot.queue_depth_histogram.iter().all(|count| *count == 0));
+}
+
+#[test]
+fn histogram_percentile_rejects_out_of_range_percentiles() {
+    let bounds = [10_u64, 20, 30];
+    let counts = [1_u64, 2, 3, 0];
+    assert_eq!(histogram_percentile(&bounds, &counts, 0), 0);
+    assert_eq!(histogram_percentile(&bounds, &counts, 101), 0);
+    assert_eq!(histogram_percentile(&bounds, &counts, 50), 20);
 }
 
 #[test]

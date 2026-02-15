@@ -740,7 +740,9 @@ impl SqliteRunStateStore {
                 .map_err(|_| SqliteStoreError::Io("sqlite read mutex poisoned".to_string()))?;
             let wait_us = u64::try_from(wait_started.elapsed().as_micros()).unwrap_or(u64::MAX);
             self.record_read_wait(wait_us);
-            guard.execute("SELECT 1", []).map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+            guard
+                .query_row("SELECT 1", [], |_row| Ok(()))
+                .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
         }
         self.writer_gateway.submit_readiness()
     }
@@ -1838,8 +1840,7 @@ fn execute_writer_batch(
                 result, ..
             } => {
                 let command_result = tx
-                    .execute("SELECT 1", [])
-                    .map(|_| ())
+                    .query_row("SELECT 1", [], |_row| Ok(()))
                     .map_err(|err| SqliteStoreError::Db(err.to_string()));
                 if let Err(err) = &command_result
                     && is_fatal_store_error(err)

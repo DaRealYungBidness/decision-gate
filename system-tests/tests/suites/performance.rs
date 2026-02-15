@@ -1668,6 +1668,10 @@ mod tests {
     use std::time::Duration;
 
     use super::CallSample;
+    use super::distribute_iterations;
+    use super::percentile_u64;
+    use super::sqlite_store_mode_from_target;
+    use super::sqlite_sync_mode_from_target;
     use super::summarize_samples;
 
     #[test]
@@ -1719,5 +1723,49 @@ mod tests {
         assert_eq!(metrics.measurement_window_ms, 1_250);
         assert_eq!(metrics.measurement_window_us / 1_000, metrics.measurement_window_ms);
         assert!((metrics.throughput_rps - 2.4).abs() < 0.000_001);
+    }
+
+    #[test]
+    fn sqlite_mode_and_sync_helpers_parse_case_insensitive_values() {
+        assert!(matches!(
+            sqlite_store_mode_from_target("WAL"),
+            Ok(decision_gate_store_sqlite::SqliteStoreMode::Wal)
+        ));
+        assert!(matches!(
+            sqlite_store_mode_from_target("delete"),
+            Ok(decision_gate_store_sqlite::SqliteStoreMode::Delete)
+        ));
+        assert!(matches!(
+            sqlite_sync_mode_from_target("FULL"),
+            Ok(decision_gate_store_sqlite::SqliteSyncMode::Full)
+        ));
+        assert!(matches!(
+            sqlite_sync_mode_from_target("normal"),
+            Ok(decision_gate_store_sqlite::SqliteSyncMode::Normal)
+        ));
+    }
+
+    #[test]
+    fn sqlite_mode_and_sync_helpers_reject_unknown_values() {
+        assert!(sqlite_store_mode_from_target("truncate").is_err());
+        assert!(sqlite_sync_mode_from_target("off").is_err());
+    }
+
+    #[test]
+    fn distribute_iterations_balances_and_rejects_zero_workers() {
+        let distribution = distribute_iterations(10, 3).expect("distribution");
+        assert_eq!(distribution, vec![4, 3, 3]);
+        assert_eq!(distribution.iter().sum::<usize>(), 10);
+        assert!(distribute_iterations(1, 0).is_err());
+    }
+
+    #[test]
+    fn percentile_u64_validates_bounds_and_returns_expected_ranks() {
+        let values = vec![40_u64, 10, 30, 20];
+        assert_eq!(percentile_u64(&values, 50).expect("p50"), 20);
+        assert_eq!(percentile_u64(&values, 95).expect("p95"), 40);
+        assert!(percentile_u64(&values, 0).is_err());
+        assert!(percentile_u64(&values, 101).is_err());
+        assert!(percentile_u64(&[], 50).is_err());
     }
 }

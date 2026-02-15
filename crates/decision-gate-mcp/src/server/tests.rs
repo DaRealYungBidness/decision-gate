@@ -52,6 +52,7 @@ use axum::http::header::AUTHORIZATION;
 use axum::http::header::CONTENT_TYPE;
 use axum::http::header::WWW_AUTHENTICATE;
 use axum::response::IntoResponse;
+use decision_gate_core::DataShapeRegistry;
 use decision_gate_core::EvidenceContext;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::InMemoryDataShapeRegistry;
@@ -59,6 +60,7 @@ use decision_gate_core::InMemoryRunStateStore;
 use decision_gate_core::NamespaceId;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunId;
+use decision_gate_core::RunStateStore;
 use decision_gate_core::ScenarioId;
 use decision_gate_core::SharedDataShapeRegistry;
 use decision_gate_core::SharedRunStateStore;
@@ -75,6 +77,8 @@ use super::ReadinessState;
 use super::ServerState;
 use super::build_provider_transports;
 use super::build_response_headers;
+use super::build_run_state_store;
+use super::build_schema_registry;
 use super::build_schema_registry_limits;
 use super::build_server_state;
 use super::handle_health;
@@ -100,7 +104,9 @@ use crate::config::ProviderTimeoutConfig;
 use crate::config::ProviderType;
 use crate::config::RateLimitConfig;
 use crate::config::RunStateStoreConfig;
+use crate::config::RunStateStoreType;
 use crate::config::SchemaRegistryConfig;
+use crate::config::SchemaRegistryType;
 use crate::config::ServerAuthConfig;
 use crate::config::ServerAuthMode;
 use crate::config::ServerConfig;
@@ -108,6 +114,8 @@ use crate::config::ServerToolsConfig;
 use crate::config::ServerTransport;
 use crate::config::TrustConfig;
 use crate::config::ValidationConfig;
+use crate::correlation::CLIENT_CORRELATION_HEADER;
+use crate::correlation::SERVER_CORRELATION_HEADER;
 use crate::docs::DocsCatalog;
 use crate::docs::RESOURCE_URI_PREFIX;
 use crate::evidence::FederatedEvidenceProvider;
@@ -815,6 +823,68 @@ fn mutation_stats_requires_auth_in_bearer_mode() {
             HeaderMap::new(),
         ));
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[test]
+fn mutation_stats_rejects_invalid_correlation_header() {
+    let state = Arc::new(sample_server_state());
+    let mut headers = HeaderMap::new();
+    let invalid_correlation = "a".repeat(256);
+    headers.insert(
+        CLIENT_CORRELATION_HEADER,
+        HeaderValue::from_str(&invalid_correlation).expect("header value"),
+    );
+
+    let response =
+        tokio::runtime::Runtime::new().expect("runtime").block_on(handle_mutation_stats(
+            State(state),
+            ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 4321))),
+            headers,
+        ));
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert!(
+        response.headers().contains_key(SERVER_CORRELATION_HEADER),
+        "invalid correlation response should include server correlation header"
+    );
+    assert!(
+        !response.headers().contains_key(CLIENT_CORRELATION_HEADER),
+        "rejected client correlation id should not be echoed back"
+    );
+    let body = parse_json_body_sync(response);
+    let error = body.get("error").and_then(serde_json::Value::as_object).expect("error object");
+    assert_eq!(error.get("code").and_then(serde_json::Value::as_i64), Some(-32073));
+}
+
+#[test]
+fn build_run_state_store_with_custom_sqlite_batch_settings_succeeds() {
+    let temp = tempfile::tempdir().expect("temp dir");
+    let mut config = sample_config();
+    config.run_state_store.store_type = RunStateStoreType::Sqlite;
+    config.run_state_store.path = Some(temp.path().join("run_state.sqlite"));
+    config.run_state_store.writer_queue_capacity = 8;
+    config.run_state_store.batch_max_ops = 5;
+    config.run_state_store.batch_max_bytes = 4 * 1024;
+    config.run_state_store.batch_max_wait_ms = 3;
+    config.run_state_store.read_pool_size = 2;
+
+    let store = build_run_state_store(&config).expect("build run state store");
+    store.readiness().expect("run state store readiness");
+}
+
+#[test]
+fn build_schema_registry_with_custom_sqlite_batch_settings_succeeds() {
+    let temp = tempfile::tempdir().expect("temp dir");
+    let mut config = sample_config();
+    config.schema_registry.registry_type = SchemaRegistryType::Sqlite;
+    config.schema_registry.path = Some(temp.path().join("registry.sqlite"));
+    config.schema_registry.writer_queue_capacity = 9;
+    config.schema_registry.batch_max_ops = 6;
+    config.schema_registry.batch_max_bytes = 8 * 1024;
+    config.schema_registry.batch_max_wait_ms = 4;
+    config.schema_registry.read_pool_size = 3;
+
+    let registry = build_schema_registry(&config).expect("build schema registry");
+    registry.readiness().expect("schema registry readiness");
 }
 
 #[test]
