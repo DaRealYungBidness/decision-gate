@@ -774,6 +774,15 @@ pub(crate) fn catalog_for(locale: Locale) -> &'static HashMap<&'static str, &'st
     }
 }
 
+/// Returns raw catalog entries for the requested locale.
+#[cfg(test)]
+pub(crate) const fn catalog_entries_for(locale: Locale) -> &'static [(&'static str, &'static str)] {
+    match locale {
+        Locale::En => CATALOG_EN,
+        Locale::Ca => CATALOG_CA,
+    }
+}
+
 // ============================================================================
 // SECTION: Translation
 // ============================================================================

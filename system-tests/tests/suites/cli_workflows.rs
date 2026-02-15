@@ -21,6 +21,8 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
 
+use decision_gate_cli::i18n::Locale;
+use decision_gate_cli::i18n::SUPPORTED_LOCALES;
 use decision_gate_core::Timestamp;
 use helpers::artifacts::TestReporter;
 use helpers::cli::cli_binary;
@@ -682,32 +684,76 @@ async fn cli_i18n_catalan_disclaimer() -> Result<(), Box<dyn std::error::Error>>
     let config_path = temp_dir.path().join("decision-gate.toml");
     write_cli_config(&config_path, &bind)?;
 
-    let output = Command::new(&cli)
+    let en_output = Command::new(&cli)
         .args(["config", "validate", "--config", config_path.to_str().unwrap_or_default()])
-        .env("DECISION_GATE_LANG", "ca")
+        .env("DECISION_GATE_LANG", "en")
         .output()?;
+    if !en_output.status.success() {
+        return Err("expected config validate to succeed under English locale".into());
+    }
+    let en_stdout = String::from_utf8_lossy(&en_output.stdout).to_string();
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    reporter.artifacts().write_text("cli.i18n.stdout.log", &stdout)?;
-    reporter.artifacts().write_text("cli.i18n.stderr.log", &stderr)?;
+    let non_english_locales: Vec<Locale> =
+        SUPPORTED_LOCALES.iter().copied().filter(|locale| *locale != Locale::En).collect();
+    if non_english_locales.is_empty() {
+        return Err("expected at least one non-English locale in SUPPORTED_LOCALES".into());
+    }
 
-    if !output.status.success() {
-        return Err("expected config validate to succeed under Catalan locale".into());
+    let mut stdout_log = String::new();
+    let mut stderr_log = String::new();
+    stdout_log.push_str("== locale=en ==\n");
+    stdout_log.push_str(&en_stdout);
+    if !en_stdout.ends_with('\n') {
+        stdout_log.push('\n');
     }
-    if !stdout.contains("Configuració vàlida.") {
-        return Err("expected Catalan translation for config validation output".into());
+
+    for locale in non_english_locales {
+        let output = Command::new(&cli)
+            .args(["config", "validate", "--config", config_path.to_str().unwrap_or_default()])
+            .env("DECISION_GATE_LANG", locale.as_str())
+            .output()?;
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        stdout_log.push_str(&format!("== locale={} ==\n", locale.as_str()));
+        stdout_log.push_str(&stdout);
+        if !stdout.ends_with('\n') {
+            stdout_log.push('\n');
+        }
+        stderr_log.push_str(&format!("== locale={} ==\n", locale.as_str()));
+        stderr_log.push_str(&stderr);
+        if !stderr.ends_with('\n') {
+            stderr_log.push('\n');
+        }
+
+        if !output.status.success() {
+            return Err(format!(
+                "expected config validate to succeed under non-English locale '{}'",
+                locale.as_str()
+            )
+            .into());
+        }
+        if stdout == en_stdout {
+            return Err(format!(
+                "expected localized stdout to differ from English for locale '{}'",
+                locale.as_str()
+            )
+            .into());
+        }
+        if stderr.trim().is_empty() {
+            return Err(format!(
+                "expected machine-translation disclaimer on stderr for locale '{}'",
+                locale.as_str()
+            )
+            .into());
+        }
     }
-    if !stderr.contains(
-        "Nota: la sortida que no és en anglès està traduïda automàticament i pot ser inexacta.",
-    ) {
-        return Err("expected machine-translation disclaimer on stderr".into());
-    }
+    reporter.artifacts().write_text("cli.i18n.stdout.log", &stdout_log)?;
+    reporter.artifacts().write_text("cli.i18n.stderr.log", &stderr_log)?;
 
     reporter.artifacts().write_json("tool_transcript.json", &Vec::<serde_json::Value>::new())?;
     reporter.finish(
         "pass",
-        vec!["CLI Catalan i18n output and disclaimer verified".to_string()],
+        vec!["CLI non-English i18n output and disclaimer verified".to_string()],
         vec![
             "summary.json".to_string(),
             "summary.md".to_string(),

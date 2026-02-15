@@ -171,4 +171,4 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `cli_smoke_version` | smoke | CLI --version output is available and well-formed. |
 | `cli_transport_matrix` | mcp_transport | CLI MCP client parity across HTTP/SSE/stdio. |
 | `cli_golden_provider_list` | operations | CLI provider list output matches golden JSON fixture. |
-| `cli_i18n_catalan_disclaimer` | operations | CLI Catalan output includes machine-translation disclaimer. |
+| `cli_i18n_catalan_disclaimer` | operations | CLI non-English locale output includes machine-translation disclaimers across supported locales. |

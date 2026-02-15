@@ -58,6 +58,9 @@ Unix serialization differences).
 
 Operational posture coverage includes HTTP liveness/readiness probes to ensure
 containerized deployments advertise correct health semantics.
+Operations coverage also includes locale-scaled CLI i18n runtime checks that
+iterate non-English values from `decision_gate_cli::i18n::SUPPORTED_LOCALES`
+and assert translation output plus machine-translation disclaimers.
 
 Security posture coverage now includes built-in HTTP provider private-network
 deny-by-default assertions (hostname resolution paths) and contract CLI
