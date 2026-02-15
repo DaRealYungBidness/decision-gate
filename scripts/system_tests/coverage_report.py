@@ -213,11 +213,13 @@ Each system-test emits at least:
 Runpack tests also emit `runpack/` with exported artifacts.
 
 Performance tests also emit:
-- `perf_summary.json` (throughput/latency/error metrics + SLO evaluation)
+- `perf_summary.json` (throughput/latency/error metrics + SLO evaluation, including measured-window elapsed fields)
 - `perf_tool_metrics.json` (per-tool p95 and total-time rankings)
 - `perf_target.json` (resolved threshold/workload contract for the run)
 - `sqlite_config.json` / `sqlite_sweep.json` for SQLite-track configuration + sweep output
 - `sqlite_contention.json` for SQLite store microbench contention counters
+- `writer_diagnostics.json` for SQLite writer queue and batch diagnostics
+- `mutation_diagnostics.json` for MCP per-run mutation coordinator diagnostics
 
 ## Performance Operating Model
 

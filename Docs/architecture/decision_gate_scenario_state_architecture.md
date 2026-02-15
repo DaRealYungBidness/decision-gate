@@ -14,7 +14,7 @@ Dependencies:
   - crates/decision-gate-config/src/config.rs
   - crates/decision-gate-store-sqlite/src/store.rs
 ============================================================================
-Last Updated: 2026-02-06 (UTC)
+Last Updated: 2026-02-14 (UTC)
 ============================================================================
 -->
 
@@ -93,6 +93,31 @@ Subsequent tools operate on the cached runtime and persisted run state:
 
 [F:crates/decision-gate-mcp/src/tools.rs L816-L977](crates/decision-gate-mcp/src/tools.rs#L816-L977)
 
+### Mutation Ordering and Overload Semantics
+
+For run-state mutating MCP tools, ordering is enforced per run key
+(`tenant_id`, `namespace_id`, `run_id`) by an in-router mutation coordinator:
+
+- `scenario_start`
+- `scenario_status`
+- `scenario_next`
+- `scenario_submit`
+- `scenario_trigger`
+
+This intentionally removes global cross-run serialization in the MCP layer while
+preserving deterministic same-run ordering.
+[F:crates/decision-gate-mcp/src/tools.rs L812-L991](crates/decision-gate-mcp/src/tools.rs#L812-L991) [F:crates/decision-gate-mcp/src/tools.rs L2161-L2360](crates/decision-gate-mcp/src/tools.rs#L2161-L2360)
+
+Control-plane/store overloads map to retryable MCP rate-limit errors
+(`ToolError::RateLimited`) rather than generic internal failures.
+[F:crates/decision-gate-mcp/src/tools.rs L3579-L3701](crates/decision-gate-mcp/src/tools.rs#L3579-L3701) [F:crates/decision-gate-core/src/interfaces/mod.rs L252-L329](crates/decision-gate-core/src/interfaces/mod.rs#L252-L329)
+
+Per-run mutation coordinator diagnostics are exposed via
+`GET /debug/mutation_stats` for operational triage, but the endpoint uses the
+same auth model as HTTP/SSE MCP calls and fails closed (`401`/`403`) when the
+caller is unauthenticated or unauthorized.
+[F:crates/decision-gate-mcp/src/server.rs L812-L851](crates/decision-gate-mcp/src/server.rs#L812-L851)
+
 `scenario_submit.payload` and `scenario_trigger.payload` are persisted in run
 state logs and exported into runpack artifacts by design. Integrations must
 treat these payload channels as audit-visible and avoid sending raw secrets.
@@ -144,11 +169,17 @@ The SQLite store provides durable snapshots:
 - Each save stores canonical JSON plus a hash.
 - Loads verify hash integrity and key consistency.
 - Versions are tracked per run, with optional retention pruning.
+- Mutations (`save` + `register`) enqueue into a bounded deterministic writer
+  runtime and are acknowledged only after durable transaction commit.
+- Writer runtime drains micro-batches (`batch_max_ops`, `batch_max_bytes`,
+  `batch_max_wait_ms`) and executes one durable transaction per batch.
+- Read paths use a separate read-connection pool (`read_pool_size`) under WAL,
+  reducing read/write interference while preserving fail-closed semantics.
 
 [F:crates/decision-gate-store-sqlite/src/store.rs L540-L640](crates/decision-gate-store-sqlite/src/store.rs#L540-L640)
 
-Store configuration supports WAL mode, sync mode, busy timeout, and retention
-limits.
+Store configuration supports WAL mode, sync mode, busy timeout, retention
+limits, writer queue controls, batch limits, and read-pool sizing.
 [F:crates/decision-gate-store-sqlite/src/store.rs L135-L156](crates/decision-gate-store-sqlite/src/store.rs#L135-L156)
 
 ### MCP Configuration

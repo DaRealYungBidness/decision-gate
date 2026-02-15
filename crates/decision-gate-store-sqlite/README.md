@@ -91,6 +91,11 @@ let store = SqliteRunStateStore::new(SqliteStoreConfig {
     max_versions: Some(1000),
     schema_registry_max_schema_bytes: None,
     schema_registry_max_entries: None,
+writer_queue_capacity: 1_024,
+batch_max_ops: 64,
+batch_max_bytes: 512 * 1024,
+batch_max_wait_ms: 2,
+read_pool_size: 4,
 })?;
 ```
 

@@ -373,6 +373,11 @@ fn memory_store_rejects_path() -> TestResult {
         journal_mode: SqliteStoreMode::Wal,
         sync_mode: SqliteSyncMode::Full,
         max_versions: None,
+        writer_queue_capacity: 1_024,
+        batch_max_ops: 64,
+        batch_max_bytes: 512 * 1024,
+        batch_max_wait_ms: 2,
+        read_pool_size: 4,
     };
     assert_invalid(config.validate(), "memory run_state_store must not set path")?;
     Ok(())
@@ -388,6 +393,11 @@ fn sqlite_store_requires_path() -> TestResult {
         journal_mode: SqliteStoreMode::Wal,
         sync_mode: SqliteSyncMode::Full,
         max_versions: None,
+        writer_queue_capacity: 1_024,
+        batch_max_ops: 64,
+        batch_max_bytes: 512 * 1024,
+        batch_max_wait_ms: 2,
+        read_pool_size: 4,
     };
     assert_invalid(config.validate(), "sqlite run_state_store requires path")?;
     Ok(())

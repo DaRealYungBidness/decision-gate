@@ -136,6 +136,11 @@ def render_perf_targets(
         "journal_mode",
         "sync_mode",
         "busy_timeout_ms",
+        "writer_queue_capacity",
+        "batch_max_ops",
+        "batch_max_bytes",
+        "batch_max_wait_ms",
+        "read_pool_size",
     ]
     for test_name in sorted(tests):
         target = tests[test_name]

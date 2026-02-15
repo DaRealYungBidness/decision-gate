@@ -51,6 +51,7 @@ use helpers::mcp_client::McpHttpClient;
 use helpers::mcp_client::TranscriptEntry;
 use helpers::readiness::wait_for_server_ready;
 use helpers::scenarios::ScenarioFixture;
+use reqwest::Client;
 use ret_logic::TriState;
 use serde::Deserialize;
 use serde::Serialize;
@@ -105,6 +106,18 @@ struct PerfTarget {
     sync_mode: String,
     #[serde(default = "default_sqlite_busy_timeout_ms")]
     busy_timeout_ms: u64,
+    #[serde(default = "default_sqlite_writer_queue_capacity")]
+    writer_queue_capacity: usize,
+    #[serde(default = "default_sqlite_batch_max_ops")]
+    batch_max_ops: usize,
+    #[serde(default = "default_sqlite_batch_max_bytes")]
+    batch_max_bytes: usize,
+    #[serde(default = "default_sqlite_batch_max_wait_ms")]
+    batch_max_wait_ms: u64,
+    #[serde(default = "default_sqlite_read_pool_size")]
+    read_pool_size: usize,
+    #[serde(default = "default_registry_health_max_adjacent_p95_ratio")]
+    registry_health_max_adjacent_p95_ratio: f64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -124,9 +137,14 @@ struct AggregateMetrics {
     total_calls: usize,
     successful_calls: usize,
     failed_calls: usize,
+    measurement_window_us: u64,
+    measurement_window_ms: u64,
+    total_duration_us: u64,
     total_duration_ms: u64,
     throughput_rps: f64,
     error_rate: f64,
+    p50_latency_us: u64,
+    p95_latency_us: u64,
     p50_latency_ms: u64,
     p95_latency_ms: u64,
     latency_histogram: LatencyHistogram,
@@ -137,8 +155,11 @@ struct ToolMetrics {
     tool: String,
     calls: usize,
     failed_calls: usize,
+    total_duration_us: u64,
     total_duration_ms: u64,
     throughput_rps: f64,
+    p50_latency_us: u64,
+    p95_latency_us: u64,
     p50_latency_ms: u64,
     p95_latency_ms: u64,
     latency_histogram: LatencyHistogram,
@@ -178,6 +199,7 @@ struct PerfSummary {
 #[derive(Debug, Clone)]
 struct CallSample {
     tool: String,
+    duration_us: u64,
     duration_ms: u64,
     success: bool,
 }
@@ -213,6 +235,11 @@ struct SqliteConfigReport {
     journal_mode: String,
     sync_mode: String,
     busy_timeout_ms: u64,
+    writer_queue_capacity: usize,
+    batch_max_ops: usize,
+    batch_max_bytes: usize,
+    batch_max_wait_ms: u64,
+    read_pool_size: usize,
 }
 
 struct SqlitePerfContext {
@@ -229,6 +256,24 @@ struct SweepResult {
     throughput_rps: f64,
     p95_latency_ms: u64,
     error_rate: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct SweepTierDetail {
+    workers: usize,
+    warmup_iterations: usize,
+    measure_iterations: usize,
+    metrics: AggregateMetrics,
+    tools: BTreeMap<String, ToolMetrics>,
+    mutation_diagnostics: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct RegistrySweepHealthReport {
+    monotonic_throughput: bool,
+    max_adjacent_p95_ratio: f64,
+    error_rate_zero: bool,
+    findings: Vec<String>,
 }
 
 fn default_enforcement_mode() -> String {
@@ -249,6 +294,30 @@ fn default_sqlite_sync_mode() -> String {
 
 const fn default_sqlite_busy_timeout_ms() -> u64 {
     5_000
+}
+
+const fn default_sqlite_writer_queue_capacity() -> usize {
+    1_024
+}
+
+const fn default_sqlite_batch_max_ops() -> usize {
+    64
+}
+
+const fn default_sqlite_batch_max_bytes() -> usize {
+    512 * 1024
+}
+
+const fn default_sqlite_batch_max_wait_ms() -> u64 {
+    2
+}
+
+const fn default_sqlite_read_pool_size() -> usize {
+    4
+}
+
+const fn default_registry_health_max_adjacent_p95_ratio() -> f64 {
+    2.5
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -331,7 +400,7 @@ async fn perf_sqlite_core_mcp_throughput_release() -> Result<(), Box<dyn std::er
         "gate",
     )
     .await?;
-    let sweep = run_core_sweep(
+    let (sweep, sweep_detailed) = run_core_sweep(
         &context.client,
         scenario_id,
         fixture,
@@ -340,13 +409,21 @@ async fn perf_sqlite_core_mcp_throughput_release() -> Result<(), Box<dyn std::er
         &context.target.sweep_workers,
     )
     .await?;
+    let mutation_diagnostics = fetch_mutation_diagnostics(&context.client).await?;
     context.reporter.artifacts().write_json("sqlite_sweep.json", &sweep)?;
+    context.reporter.artifacts().write_json("sqlite_sweep_detailed.json", &sweep_detailed)?;
+    context.reporter.artifacts().write_json("mutation_diagnostics.json", &mutation_diagnostics)?;
     finalize_perf_report(
         &mut context,
         SQLITE_CORE_TARGET_KEY,
         samples,
         elapsed,
-        &["sqlite_config.json", "sqlite_sweep.json"],
+        &[
+            "sqlite_config.json",
+            "sqlite_sweep.json",
+            "sqlite_sweep_detailed.json",
+            "mutation_diagnostics.json",
+        ],
     )?;
     Ok(())
 }
@@ -373,7 +450,7 @@ async fn perf_sqlite_precheck_throughput_release() -> Result<(), Box<dyn std::er
         context.target.measure_iterations,
     )
     .await?;
-    let sweep = run_precheck_sweep(
+    let (sweep, sweep_detailed) = run_precheck_sweep(
         &context.client,
         fixture.tenant_id,
         fixture.namespace_id,
@@ -384,13 +461,21 @@ async fn perf_sqlite_precheck_throughput_release() -> Result<(), Box<dyn std::er
         &context.target.sweep_workers,
     )
     .await?;
+    let mutation_diagnostics = fetch_mutation_diagnostics(&context.client).await?;
     context.reporter.artifacts().write_json("sqlite_sweep.json", &sweep)?;
+    context.reporter.artifacts().write_json("sqlite_sweep_detailed.json", &sweep_detailed)?;
+    context.reporter.artifacts().write_json("mutation_diagnostics.json", &mutation_diagnostics)?;
     finalize_perf_report(
         &mut context,
         SQLITE_PRECHECK_TARGET_KEY,
         samples,
         elapsed,
-        &["sqlite_config.json", "sqlite_sweep.json"],
+        &[
+            "sqlite_config.json",
+            "sqlite_sweep.json",
+            "sqlite_sweep_detailed.json",
+            "mutation_diagnostics.json",
+        ],
     )?;
     Ok(())
 }
@@ -410,7 +495,7 @@ async fn perf_sqlite_registry_mixed_throughput_release() -> Result<(), Box<dyn s
         "gate",
     )
     .await?;
-    let sweep = run_registry_sweep(
+    let (sweep, sweep_detailed) = run_registry_sweep(
         &context.client,
         fixture.tenant_id,
         fixture.namespace_id,
@@ -419,13 +504,27 @@ async fn perf_sqlite_registry_mixed_throughput_release() -> Result<(), Box<dyn s
         &context.target.sweep_workers,
     )
     .await?;
+    let mutation_diagnostics = fetch_mutation_diagnostics(&context.client).await?;
+    let registry_health = evaluate_registry_sweep_health(
+        &sweep,
+        context.target.registry_health_max_adjacent_p95_ratio,
+    );
     context.reporter.artifacts().write_json("sqlite_sweep.json", &sweep)?;
+    context.reporter.artifacts().write_json("sqlite_sweep_detailed.json", &sweep_detailed)?;
+    context.reporter.artifacts().write_json("registry_health.json", &registry_health)?;
+    context.reporter.artifacts().write_json("mutation_diagnostics.json", &mutation_diagnostics)?;
     finalize_perf_report(
         &mut context,
         SQLITE_REGISTRY_TARGET_KEY,
         samples,
         elapsed,
-        &["sqlite_config.json", "sqlite_sweep.json"],
+        &[
+            "sqlite_config.json",
+            "sqlite_sweep.json",
+            "sqlite_sweep_detailed.json",
+            "registry_health.json",
+            "mutation_diagnostics.json",
+        ],
     )?;
     Ok(())
 }
@@ -473,7 +572,13 @@ async fn init_perf_context_with_targets(
     let client = server.client(Duration::from_secs(20))?;
     wait_for_server_ready(&client, Duration::from_secs(20)).await?;
     reporter.artifacts().write_json("perf_target.json", &target)?;
-    Ok(PerfContext { target_meta: target_file_data.meta, target, client, reporter, sqlite_context })
+    Ok(PerfContext {
+        target_meta: target_file_data.meta,
+        target,
+        client,
+        reporter,
+        sqlite_context,
+    })
 }
 
 fn load_perf_targets(target_file: &str) -> Result<PerfTargetsFile, Box<dyn std::error::Error>> {
@@ -489,12 +594,31 @@ fn perf_targets_path(target_file: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(target_file)
 }
 
+async fn fetch_mutation_diagnostics(client: &McpHttpClient) -> Result<Value, String> {
+    let debug_url = format!("{}/debug/mutation_stats", client.base_url().trim_end_matches("/rpc"));
+    let response = Client::new()
+        .get(&debug_url)
+        .send()
+        .await
+        .map_err(|err| format!("mutation diagnostics request failed: {err}"))?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(format!("mutation diagnostics returned non-success status: {status}"));
+    }
+    response
+        .json::<Value>()
+        .await
+        .map_err(|err| format!("mutation diagnostics parse failed: {err}"))
+}
+
 async fn define_fixture_scenario(
     client: &McpHttpClient,
     mut fixture: ScenarioFixture,
 ) -> Result<decision_gate_core::ScenarioId, String> {
     fixture.spec.default_tenant_id = Some(fixture.tenant_id);
-    let define_request = ScenarioDefineRequest { spec: fixture.spec };
+    let define_request = ScenarioDefineRequest {
+        spec: fixture.spec,
+    };
     let define_input = serde_json::to_value(&define_request)
         .map_err(|err| format!("serialize scenario_define: {err}"))?;
     let define_output: ScenarioDefineResponse = client
@@ -529,7 +653,9 @@ fn perf_schema_record(
 }
 
 async fn register_schema(client: &McpHttpClient, record: DataShapeRecord) -> Result<(), String> {
-    let request = SchemasRegisterRequest { record };
+    let request = SchemasRegisterRequest {
+        record,
+    };
     let input = serde_json::to_value(&request)
         .map_err(|err| format!("serialize schemas_register: {err}"))?;
     let _: Value = client
@@ -575,12 +701,22 @@ fn configure_sqlite_backend(
         journal_mode,
         sync_mode,
         max_versions: None,
+        writer_queue_capacity: target.writer_queue_capacity,
+        batch_max_ops: target.batch_max_ops,
+        batch_max_bytes: target.batch_max_bytes,
+        batch_max_wait_ms: target.batch_max_wait_ms,
+        read_pool_size: target.read_pool_size,
     };
     config.schema_registry.registry_type = SchemaRegistryType::Sqlite;
     config.schema_registry.path = Some(registry_path.clone());
     config.schema_registry.busy_timeout_ms = target.busy_timeout_ms;
     config.schema_registry.journal_mode = journal_mode;
     config.schema_registry.sync_mode = sync_mode;
+    config.schema_registry.writer_queue_capacity = target.writer_queue_capacity;
+    config.schema_registry.batch_max_ops = target.batch_max_ops;
+    config.schema_registry.batch_max_bytes = target.batch_max_bytes;
+    config.schema_registry.batch_max_wait_ms = target.batch_max_wait_ms;
+    config.schema_registry.read_pool_size = target.read_pool_size;
     Ok(SqlitePerfContext {
         _temp_dir: temp_dir,
         config: SqliteConfigReport {
@@ -589,6 +725,11 @@ fn configure_sqlite_backend(
             journal_mode: target.journal_mode.clone(),
             sync_mode: target.sync_mode.clone(),
             busy_timeout_ms: target.busy_timeout_ms,
+            writer_queue_capacity: target.writer_queue_capacity,
+            batch_max_ops: target.batch_max_ops,
+            batch_max_bytes: target.batch_max_bytes,
+            batch_max_wait_ms: target.batch_max_wait_ms,
+            read_pool_size: target.read_pool_size,
         },
     })
 }
@@ -604,32 +745,55 @@ async fn run_core_workload(
 ) -> Result<(Vec<CallSample>, Duration), String> {
     let warmup_distribution = distribute_iterations(warmup_iterations, workers)?;
     let measure_distribution = distribute_iterations(measure_iterations, workers)?;
-    let started = Instant::now();
-    let mut joins = JoinSet::new();
-    let workload_label = workload_label.to_string();
-    for worker_idx in 0..workers {
+    let mut warmup_joins = JoinSet::new();
+    let warmup_label = format!("{workload_label}-warmup");
+    for worker_idx in 0 .. workers {
         let client = client.clone();
         let scenario_id = scenario_id.clone();
         let fixture = fixture.clone();
-        let workload_label = workload_label.clone();
-        let warmup = warmup_distribution[worker_idx];
-        let measured = measure_distribution[worker_idx];
-        joins.spawn(async move {
+        let label = warmup_label.clone();
+        let iterations = warmup_distribution[worker_idx];
+        warmup_joins.spawn(async move {
             run_core_worker(
                 &client,
                 scenario_id,
                 fixture,
                 worker_idx,
                 workers,
-                warmup,
-                measured,
-                &workload_label,
+                iterations,
+                &label,
+                false,
             )
             .await
         });
     }
-    let samples = gather_worker_samples(&mut joins).await?;
-    Ok((samples, started.elapsed()))
+    let _ = gather_worker_samples(&mut warmup_joins).await?;
+
+    let measured_started = Instant::now();
+    let mut measured_joins = JoinSet::new();
+    let measured_label = format!("{workload_label}-measured");
+    for worker_idx in 0 .. workers {
+        let client = client.clone();
+        let scenario_id = scenario_id.clone();
+        let fixture = fixture.clone();
+        let label = measured_label.clone();
+        let iterations = measure_distribution[worker_idx];
+        measured_joins.spawn(async move {
+            run_core_worker(
+                &client,
+                scenario_id,
+                fixture,
+                worker_idx,
+                workers,
+                iterations,
+                &label,
+                true,
+            )
+            .await
+        });
+    }
+    let samples = gather_worker_samples(&mut measured_joins).await?;
+    Ok((samples, measured_started.elapsed()))
 }
 
 async fn run_precheck_workload(
@@ -644,15 +808,13 @@ async fn run_precheck_workload(
 ) -> Result<(Vec<CallSample>, Duration), String> {
     let warmup_distribution = distribute_iterations(warmup_iterations, workers)?;
     let measure_distribution = distribute_iterations(measure_iterations, workers)?;
-    let started = Instant::now();
-    let mut joins = JoinSet::new();
-    for worker_idx in 0..workers {
+    let mut warmup_joins = JoinSet::new();
+    for worker_idx in 0 .. workers {
         let client = client.clone();
         let scenario_id = scenario_id.clone();
         let schema_record = schema_record.clone();
-        let warmup = warmup_distribution[worker_idx];
-        let measured = measure_distribution[worker_idx];
-        joins.spawn(async move {
+        let iterations = warmup_distribution[worker_idx];
+        warmup_joins.spawn(async move {
             run_precheck_worker(
                 &client,
                 tenant_id,
@@ -660,14 +822,39 @@ async fn run_precheck_workload(
                 scenario_id,
                 schema_record,
                 worker_idx,
-                warmup,
-                measured,
+                iterations,
+                false,
+                "warmup",
             )
             .await
         });
     }
-    let samples = gather_worker_samples(&mut joins).await?;
-    Ok((samples, started.elapsed()))
+    let _ = gather_worker_samples(&mut warmup_joins).await?;
+
+    let measured_started = Instant::now();
+    let mut measured_joins = JoinSet::new();
+    for worker_idx in 0 .. workers {
+        let client = client.clone();
+        let scenario_id = scenario_id.clone();
+        let schema_record = schema_record.clone();
+        let iterations = measure_distribution[worker_idx];
+        measured_joins.spawn(async move {
+            run_precheck_worker(
+                &client,
+                tenant_id,
+                namespace_id,
+                scenario_id,
+                schema_record,
+                worker_idx,
+                iterations,
+                true,
+                "measured",
+            )
+            .await
+        });
+    }
+    let samples = gather_worker_samples(&mut measured_joins).await?;
+    Ok((samples, measured_started.elapsed()))
 }
 
 async fn run_registry_workload(
@@ -681,29 +868,49 @@ async fn run_registry_workload(
 ) -> Result<(Vec<CallSample>, Duration), String> {
     let warmup_distribution = distribute_iterations(warmup_iterations, workers)?;
     let measure_distribution = distribute_iterations(measure_iterations, workers)?;
-    let started = Instant::now();
-    let mut joins = JoinSet::new();
-    let workload_label = workload_label.to_string();
-    for worker_idx in 0..workers {
+    let mut warmup_joins = JoinSet::new();
+    let warmup_label = format!("{workload_label}-warmup");
+    for worker_idx in 0 .. workers {
         let client = client.clone();
-        let workload_label = workload_label.clone();
-        let warmup = warmup_distribution[worker_idx];
-        let measured = measure_distribution[worker_idx];
-        joins.spawn(async move {
+        let label = warmup_label.clone();
+        let iterations = warmup_distribution[worker_idx];
+        warmup_joins.spawn(async move {
             run_registry_worker(
                 &client,
                 tenant_id,
                 namespace_id,
                 worker_idx,
-                warmup,
-                measured,
-                &workload_label,
+                iterations,
+                false,
+                &label,
             )
             .await
         });
     }
-    let samples = gather_worker_samples(&mut joins).await?;
-    Ok((samples, started.elapsed()))
+    let _ = gather_worker_samples(&mut warmup_joins).await?;
+
+    let measured_started = Instant::now();
+    let mut measured_joins = JoinSet::new();
+    let measured_label = format!("{workload_label}-measured");
+    for worker_idx in 0 .. workers {
+        let client = client.clone();
+        let label = measured_label.clone();
+        let iterations = measure_distribution[worker_idx];
+        measured_joins.spawn(async move {
+            run_registry_worker(
+                &client,
+                tenant_id,
+                namespace_id,
+                worker_idx,
+                iterations,
+                true,
+                &label,
+            )
+            .await
+        });
+    }
+    let samples = gather_worker_samples(&mut measured_joins).await?;
+    Ok((samples, measured_started.elapsed()))
 }
 
 async fn run_core_sweep(
@@ -713,8 +920,9 @@ async fn run_core_sweep(
     warmup_iterations: usize,
     measure_iterations: usize,
     workers: &[usize],
-) -> Result<Vec<SweepResult>, String> {
+) -> Result<(Vec<SweepResult>, Vec<SweepTierDetail>), String> {
     let mut output = Vec::new();
+    let mut detailed = Vec::new();
     for worker_count in workers {
         let (samples, elapsed) = run_core_workload(
             client,
@@ -727,6 +935,8 @@ async fn run_core_sweep(
         )
         .await?;
         let aggregate = summarize_samples(&samples, elapsed)?;
+        let tools = build_tool_metrics(&samples, elapsed)?;
+        let mutation_diagnostics = fetch_mutation_diagnostics(client).await.ok();
         output.push(SweepResult {
             workers: *worker_count,
             warmup_iterations,
@@ -736,8 +946,16 @@ async fn run_core_sweep(
             p95_latency_ms: aggregate.p95_latency_ms,
             error_rate: aggregate.error_rate,
         });
+        detailed.push(SweepTierDetail {
+            workers: *worker_count,
+            warmup_iterations,
+            measure_iterations,
+            metrics: aggregate,
+            tools,
+            mutation_diagnostics,
+        });
     }
-    Ok(output)
+    Ok((output, detailed))
 }
 
 async fn run_precheck_sweep(
@@ -749,8 +967,9 @@ async fn run_precheck_sweep(
     warmup_iterations: usize,
     measure_iterations: usize,
     workers: &[usize],
-) -> Result<Vec<SweepResult>, String> {
+) -> Result<(Vec<SweepResult>, Vec<SweepTierDetail>), String> {
     let mut output = Vec::new();
+    let mut detailed = Vec::new();
     for worker_count in workers {
         let (samples, elapsed) = run_precheck_workload(
             client,
@@ -764,6 +983,8 @@ async fn run_precheck_sweep(
         )
         .await?;
         let aggregate = summarize_samples(&samples, elapsed)?;
+        let tools = build_tool_metrics(&samples, elapsed)?;
+        let mutation_diagnostics = fetch_mutation_diagnostics(client).await.ok();
         output.push(SweepResult {
             workers: *worker_count,
             warmup_iterations,
@@ -773,8 +994,16 @@ async fn run_precheck_sweep(
             p95_latency_ms: aggregate.p95_latency_ms,
             error_rate: aggregate.error_rate,
         });
+        detailed.push(SweepTierDetail {
+            workers: *worker_count,
+            warmup_iterations,
+            measure_iterations,
+            metrics: aggregate,
+            tools,
+            mutation_diagnostics,
+        });
     }
-    Ok(output)
+    Ok((output, detailed))
 }
 
 async fn run_registry_sweep(
@@ -784,8 +1013,9 @@ async fn run_registry_sweep(
     warmup_iterations: usize,
     measure_iterations: usize,
     workers: &[usize],
-) -> Result<Vec<SweepResult>, String> {
+) -> Result<(Vec<SweepResult>, Vec<SweepTierDetail>), String> {
     let mut output = Vec::new();
+    let mut detailed = Vec::new();
     for worker_count in workers {
         let (samples, elapsed) = run_registry_workload(
             client,
@@ -798,6 +1028,8 @@ async fn run_registry_sweep(
         )
         .await?;
         let aggregate = summarize_samples(&samples, elapsed)?;
+        let tools = build_tool_metrics(&samples, elapsed)?;
+        let mutation_diagnostics = fetch_mutation_diagnostics(client).await.ok();
         output.push(SweepResult {
             workers: *worker_count,
             warmup_iterations,
@@ -807,8 +1039,63 @@ async fn run_registry_sweep(
             p95_latency_ms: aggregate.p95_latency_ms,
             error_rate: aggregate.error_rate,
         });
+        detailed.push(SweepTierDetail {
+            workers: *worker_count,
+            warmup_iterations,
+            measure_iterations,
+            metrics: aggregate,
+            tools,
+            mutation_diagnostics,
+        });
     }
-    Ok(output)
+    Ok((output, detailed))
+}
+
+fn evaluate_registry_sweep_health(
+    sweep: &[SweepResult],
+    max_adjacent_p95_ratio: f64,
+) -> RegistrySweepHealthReport {
+    let mut findings = Vec::new();
+    let mut monotonic_throughput = true;
+    let mut max_ratio = 0.0_f64;
+    let mut error_rate_zero = true;
+    for window in sweep.windows(2) {
+        let previous = &window[0];
+        let current = &window[1];
+        if current.throughput_rps + f64::EPSILON < previous.throughput_rps {
+            monotonic_throughput = false;
+            findings.push(format!(
+                "throughput dropped from workers={} ({:.3} rps) to workers={} ({:.3} rps)",
+                previous.workers, previous.throughput_rps, current.workers, current.throughput_rps
+            ));
+        }
+        let baseline = (previous.p95_latency_ms as f64).max(1.0);
+        let ratio = current.p95_latency_ms as f64 / baseline;
+        if ratio > max_ratio {
+            max_ratio = ratio;
+        }
+        if ratio > max_adjacent_p95_ratio {
+            findings.push(format!(
+                "p95 inflation ratio {:.3} exceeds threshold {:.3} between workers {} -> {}",
+                ratio, max_adjacent_p95_ratio, previous.workers, current.workers
+            ));
+        }
+    }
+    for tier in sweep {
+        if tier.error_rate > 0.0 {
+            error_rate_zero = false;
+            findings.push(format!(
+                "non-zero error rate at workers={}: {:.6}",
+                tier.workers, tier.error_rate
+            ));
+        }
+    }
+    RegistrySweepHealthReport {
+        monotonic_throughput,
+        max_adjacent_p95_ratio: max_ratio,
+        error_rate_zero,
+        findings,
+    }
 }
 
 async fn run_core_worker(
@@ -817,14 +1104,13 @@ async fn run_core_worker(
     fixture: ScenarioFixture,
     worker_idx: usize,
     workers: usize,
-    warmup: usize,
-    measured: usize,
+    iterations: usize,
     workload_label: &str,
+    record_samples: bool,
 ) -> Result<Vec<CallSample>, String> {
     let workers_u64 = u64::try_from(workers).map_err(|_| "workers overflow".to_string())?;
     let mut samples = Vec::new();
-    let total = warmup.saturating_add(measured);
-    for local_idx in 0..total {
+    for local_idx in 0 .. iterations {
         let seq_local =
             u64::try_from(local_idx).map_err(|_| "worker iteration overflow".to_string())?;
         let global_seq = seq_local.saturating_mul(workers_u64).saturating_add(1);
@@ -847,9 +1133,8 @@ async fn run_core_worker(
         };
         let start_input = serde_json::to_value(&start_request)
             .map_err(|err| format!("serialize scenario_start: {err}"))?;
-        let start_measured = local_idx >= warmup;
         let _: decision_gate_core::RunState =
-            timed_tool_call(client, "scenario_start", start_input, start_measured, &mut samples)
+            timed_tool_call(client, "scenario_start", start_input, record_samples, &mut samples)
                 .await?;
 
         let trigger_request = ScenarioTriggerRequest {
@@ -874,7 +1159,7 @@ async fn run_core_worker(
             client,
             "scenario_trigger",
             trigger_input,
-            start_measured,
+            record_samples,
             &mut samples,
         )
         .await?;
@@ -889,12 +1174,12 @@ async fn run_precheck_worker(
     scenario_id: decision_gate_core::ScenarioId,
     schema_record: DataShapeRecord,
     worker_idx: usize,
-    warmup: usize,
-    measured: usize,
+    iterations: usize,
+    record_samples: bool,
+    phase_label: &str,
 ) -> Result<Vec<CallSample>, String> {
     let mut samples = Vec::new();
-    let total = warmup.saturating_add(measured);
-    for local_idx in 0..total {
+    for local_idx in 0 .. iterations {
         let request = PrecheckToolRequest {
             tenant_id,
             namespace_id,
@@ -908,16 +1193,18 @@ async fn run_precheck_worker(
             payload: json!({
                 "after": true,
                 "worker": format!("{worker_idx:02}"),
+                "phase": phase_label,
                 "iteration": format!("{local_idx:05}")
             }),
         };
         let input =
             serde_json::to_value(&request).map_err(|err| format!("serialize precheck: {err}"))?;
-        let is_measured = local_idx >= warmup;
         let response: PrecheckToolResponse =
-            timed_tool_call(client, "precheck", input, is_measured, &mut samples).await?;
+            timed_tool_call(client, "precheck", input, record_samples, &mut samples).await?;
         match response.decision {
-            DecisionOutcome::Complete { .. } => {}
+            DecisionOutcome::Complete {
+                ..
+            } => {}
             other => return Err(format!("unexpected precheck decision: {other:?}")),
         }
         if response.gate_evaluations.is_empty() {
@@ -935,33 +1222,43 @@ async fn run_registry_worker(
     tenant_id: decision_gate_core::TenantId,
     namespace_id: decision_gate_core::NamespaceId,
     worker_idx: usize,
-    warmup: usize,
-    measured: usize,
+    iterations: usize,
+    record_samples: bool,
     workload_label: &str,
 ) -> Result<Vec<CallSample>, String> {
     let mut samples = Vec::new();
-    let total = warmup.saturating_add(measured);
-    for local_idx in 0..total {
+    for local_idx in 0 .. iterations {
         let record = perf_schema_record(
             tenant_id,
             namespace_id,
             &format!("perf-registry-{workload_label}-{worker_idx:02}-{local_idx:05}"),
             "v1",
         );
-        let register_request = SchemasRegisterRequest { record };
+        let register_request = SchemasRegisterRequest {
+            record,
+        };
         let register_input = serde_json::to_value(&register_request)
             .map_err(|err| format!("serialize schemas_register: {err}"))?;
-        let is_measured = local_idx >= warmup;
-        let _: Value =
-            timed_tool_call(client, "schemas_register", register_input, is_measured, &mut samples)
-                .await?;
+        let _: Value = timed_tool_call(
+            client,
+            "schemas_register",
+            register_input,
+            record_samples,
+            &mut samples,
+        )
+        .await?;
 
-        let list_request =
-            SchemasListRequest { tenant_id, namespace_id, cursor: None, limit: Some(25) };
+        let list_request = SchemasListRequest {
+            tenant_id,
+            namespace_id,
+            cursor: None,
+            limit: Some(25),
+        };
         let list_input = serde_json::to_value(&list_request)
             .map_err(|err| format!("serialize schemas_list: {err}"))?;
         let response: SchemasListResponse =
-            timed_tool_call(client, "schemas_list", list_input, is_measured, &mut samples).await?;
+            timed_tool_call(client, "schemas_list", list_input, record_samples, &mut samples)
+                .await?;
         if response.items.is_empty() {
             return Err("schemas_list returned empty response during mixed workload".to_string());
         }
@@ -992,9 +1289,12 @@ async fn timed_tool_call<T: for<'de> serde::Deserialize<'de>>(
     let started = Instant::now();
     let response = client.call_tool_typed(tool_name, arguments).await;
     if measured {
-        let duration_ms = duration_to_ms_u64(started.elapsed())?;
+        let elapsed = started.elapsed();
+        let duration_us = duration_to_us_u64(elapsed)?;
+        let duration_ms = duration_us / 1_000;
         samples.push(CallSample {
             tool: tool_name.to_string(),
+            duration_us,
             duration_ms,
             success: response.is_ok(),
         });
@@ -1002,8 +1302,8 @@ async fn timed_tool_call<T: for<'de> serde::Deserialize<'de>>(
     response
 }
 
-fn duration_to_ms_u64(duration: Duration) -> Result<u64, String> {
-    u64::try_from(duration.as_millis()).map_err(|_| "duration milliseconds overflow".to_string())
+fn duration_to_us_u64(duration: Duration) -> Result<u64, String> {
+    u64::try_from(duration.as_micros()).map_err(|_| "duration microseconds overflow".to_string())
 }
 
 fn distribute_iterations(total: usize, workers: usize) -> Result<Vec<usize>, String> {
@@ -1013,7 +1313,7 @@ fn distribute_iterations(total: usize, workers: usize) -> Result<Vec<usize>, Str
     let base = total / workers;
     let remainder = total % workers;
     let mut distribution = vec![base; workers];
-    for idx in 0..remainder {
+    for idx in 0 .. remainder {
         if let Some(item) = distribution.get_mut(idx) {
             *item = item.saturating_add(1);
         }
@@ -1046,10 +1346,13 @@ fn build_histogram(latencies: &[u64]) -> LatencyHistogram {
             count: counts.get(idx).copied().unwrap_or(0),
         });
     }
-    LatencyHistogram { buckets, overflow_count }
+    LatencyHistogram {
+        buckets,
+        overflow_count,
+    }
 }
 
-fn percentile_ms(latencies: &[u64], percentile: u32) -> Result<u64, String> {
+fn percentile_u64(latencies: &[u64], percentile: u32) -> Result<u64, String> {
     if latencies.is_empty() {
         return Err("no latency samples available for percentile calculation".to_string());
     }
@@ -1078,11 +1381,15 @@ fn summarize_samples(
     }
     let failed_calls = samples.iter().filter(|sample| !sample.success).count();
     let successful_calls = total_calls.saturating_sub(failed_calls);
-    let total_duration_ms =
-        samples.iter().fold(0u64, |acc, sample| acc.saturating_add(sample.duration_ms));
-    let latencies: Vec<u64> = samples.iter().map(|sample| sample.duration_ms).collect();
-    let p50_latency_ms = percentile_ms(&latencies, 50)?;
-    let p95_latency_ms = percentile_ms(&latencies, 95)?;
+    let total_duration_us =
+        samples.iter().fold(0u64, |acc, sample| acc.saturating_add(sample.duration_us));
+    let total_duration_ms = total_duration_us / 1_000;
+    let latencies_us: Vec<u64> = samples.iter().map(|sample| sample.duration_us).collect();
+    let latencies_ms: Vec<u64> = samples.iter().map(|sample| sample.duration_ms).collect();
+    let p50_latency_us = percentile_u64(&latencies_us, 50)?;
+    let p95_latency_us = percentile_u64(&latencies_us, 95)?;
+    let p50_latency_ms = p50_latency_us / 1_000;
+    let p95_latency_ms = p95_latency_us / 1_000;
     let total_calls_u64 =
         u64::try_from(total_calls).map_err(|_| "total calls overflow".to_string())?;
     let failed_calls_u64 =
@@ -1093,16 +1400,23 @@ fn summarize_samples(
         .map_err(|_| "failed calls too large for f64 conversion".to_string())?;
     let throughput_rps = f64::from(total_calls_u32) / elapsed.as_secs_f64().max(0.000_001);
     let error_rate = f64::from(failed_calls_u32) / f64::from(total_calls_u32);
+    let measurement_window_us = duration_to_us_u64(elapsed)?;
+    let measurement_window_ms = measurement_window_us / 1_000;
     Ok(AggregateMetrics {
         total_calls,
         successful_calls,
         failed_calls,
+        measurement_window_us,
+        measurement_window_ms,
+        total_duration_us,
         total_duration_ms,
         throughput_rps,
         error_rate,
+        p50_latency_us,
+        p95_latency_us,
         p50_latency_ms,
         p95_latency_ms,
-        latency_histogram: build_histogram(&latencies),
+        latency_histogram: build_histogram(&latencies_ms),
     })
 }
 
@@ -1118,24 +1432,31 @@ fn build_tool_metrics(
     for (tool, entries) in by_tool {
         let calls = entries.len();
         let failed_calls = entries.iter().filter(|entry| !entry.success).count();
-        let latencies: Vec<u64> = entries.iter().map(|entry| entry.duration_ms).collect();
-        let total_duration_ms =
-            entries.iter().fold(0u64, |acc, entry| acc.saturating_add(entry.duration_ms));
+        let latencies_us: Vec<u64> = entries.iter().map(|entry| entry.duration_us).collect();
+        let latencies_ms: Vec<u64> = entries.iter().map(|entry| entry.duration_ms).collect();
+        let total_duration_us =
+            entries.iter().fold(0u64, |acc, entry| acc.saturating_add(entry.duration_us));
+        let total_duration_ms = total_duration_us / 1_000;
         let calls_u64 = u64::try_from(calls).map_err(|_| "tool calls overflow".to_string())?;
         let calls_u32 = u32::try_from(calls_u64)
             .map_err(|_| "tool calls too large for f64 conversion".to_string())?;
         let throughput_rps = f64::from(calls_u32) / elapsed.as_secs_f64().max(0.000_001);
+        let p50_latency_us = percentile_u64(&latencies_us, 50)?;
+        let p95_latency_us = percentile_u64(&latencies_us, 95)?;
         output.insert(
             tool.clone(),
             ToolMetrics {
                 tool,
                 calls,
                 failed_calls,
+                total_duration_us,
                 total_duration_ms,
                 throughput_rps,
-                p50_latency_ms: percentile_ms(&latencies, 50)?,
-                p95_latency_ms: percentile_ms(&latencies, 95)?,
-                latency_histogram: build_histogram(&latencies),
+                p50_latency_us,
+                p95_latency_us,
+                p50_latency_ms: p50_latency_us / 1_000,
+                p95_latency_ms: p95_latency_us / 1_000,
+                latency_histogram: build_histogram(&latencies_ms),
             },
         );
     }
@@ -1214,7 +1535,10 @@ fn build_tool_latency_ranking(tools: &BTreeMap<String, ToolMetrics>) -> ToolLate
             .then_with(|| right.total_duration_ms.cmp(&left.total_duration_ms))
     });
     reports.sort_by(|left, right| right.total_duration_ms.cmp(&left.total_duration_ms));
-    ToolLatencyRanking { by_p95_desc, by_total_duration_desc: reports }
+    ToolLatencyRanking {
+        by_p95_desc,
+        by_total_duration_desc: reports,
+    }
 }
 
 fn should_enforce_slo() -> bool {
@@ -1284,6 +1608,15 @@ fn finalize_perf_report(
             sqlite_context.config.sync_mode,
             sqlite_context.config.busy_timeout_ms
         ));
+        notes.push(format!(
+            "sqlite writer queue_capacity={} batch_max_ops={} batch_max_bytes={} \
+             batch_max_wait_ms={} read_pool_size={}",
+            sqlite_context.config.writer_queue_capacity,
+            sqlite_context.config.batch_max_ops,
+            sqlite_context.config.batch_max_bytes,
+            sqlite_context.config.batch_max_wait_ms,
+            sqlite_context.config.read_pool_size
+        ));
     }
     if !slo_enforced {
         if target_meta_enforces_slo(&context.target_meta) {
@@ -1316,4 +1649,63 @@ fn finalize_perf_report(
         return Err(format!("SLO violations: {}", violations.join("; ")).into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::CallSample;
+    use super::summarize_samples;
+
+    #[test]
+    fn summarize_samples_uses_elapsed_measurement_window_for_throughput() {
+        let samples = vec![
+            CallSample {
+                tool: "scenario_start".to_string(),
+                duration_us: 400_000,
+                duration_ms: 400,
+                success: true,
+            },
+            CallSample {
+                tool: "scenario_trigger".to_string(),
+                duration_us: 400_000,
+                duration_ms: 400,
+                success: true,
+            },
+        ];
+        let metrics = summarize_samples(&samples, Duration::from_secs(2)).expect("summarize");
+        assert!((metrics.throughput_rps - 1.0).abs() < 0.000_001);
+        assert_eq!(metrics.total_duration_us, 800_000);
+        assert_eq!(metrics.measurement_window_us, 2_000_000);
+    }
+
+    #[test]
+    fn summarize_samples_emits_measurement_window_fields() {
+        let samples = vec![
+            CallSample {
+                tool: "schemas_register".to_string(),
+                duration_us: 120_000,
+                duration_ms: 120,
+                success: true,
+            },
+            CallSample {
+                tool: "schemas_register".to_string(),
+                duration_us: 130_000,
+                duration_ms: 130,
+                success: true,
+            },
+            CallSample {
+                tool: "schemas_list".to_string(),
+                duration_us: 110_000,
+                duration_ms: 110,
+                success: true,
+            },
+        ];
+        let metrics = summarize_samples(&samples, Duration::from_millis(1_250)).expect("summarize");
+        assert_eq!(metrics.measurement_window_us, 1_250_000);
+        assert_eq!(metrics.measurement_window_ms, 1_250);
+        assert_eq!(metrics.measurement_window_us / 1_000, metrics.measurement_window_ms);
+        assert!((metrics.throughput_rps - 2.4).abs() < 0.000_001);
+    }
 }

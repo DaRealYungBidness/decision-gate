@@ -28,10 +28,12 @@
 
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::time::Instant;
 
 use decision_gate_contract::ToolName;
 pub use decision_gate_contract::tooling::ToolDefinition;
@@ -73,6 +75,7 @@ use decision_gate_core::ScenarioSpec;
 use decision_gate_core::SharedDataShapeRegistry;
 use decision_gate_core::SharedRunStateStore;
 use decision_gate_core::StageId;
+use decision_gate_core::StoreError;
 use decision_gate_core::TenantId;
 use decision_gate_core::Timestamp;
 use decision_gate_core::TriggerEvent;
@@ -102,6 +105,8 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
 use thiserror::Error;
+use tokio::sync::Mutex as AsyncMutex;
+use tokio::sync::OwnedMutexGuard;
 
 use crate::audit::McpAuditSink;
 use crate::audit::PrecheckAuditEvent;
@@ -304,6 +309,8 @@ pub struct ToolRouter {
     default_namespace_tenants: BTreeSet<TenantId>,
     /// Namespace authority for integrated deployments.
     namespace_authority: Arc<dyn NamespaceAuthority>,
+    /// Deterministic per-run mutation coordinator.
+    run_mutation_coordinator: Arc<RunMutationCoordinator>,
 }
 
 /// Configuration inputs for building a tool router.
@@ -569,6 +576,7 @@ impl ToolRouter {
             allow_default_namespace: config.allow_default_namespace,
             default_namespace_tenants: config.default_namespace_tenants,
             namespace_authority: config.namespace_authority,
+            run_mutation_coordinator: Arc::new(RunMutationCoordinator::default()),
         }
     }
 
@@ -660,6 +668,22 @@ impl ToolRouter {
     #[must_use]
     pub const fn docs_catalog(&self) -> &DocsCatalog {
         &self.docs_catalog
+    }
+
+    /// Returns current per-run mutation coordinator diagnostics.
+    #[must_use]
+    pub fn mutation_execution_stats(&self) -> MutationExecutionStats {
+        self.run_mutation_coordinator.snapshot()
+    }
+
+    /// Authorizes access to debug surfaces using the same auth model as MCP calls.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ToolError`] when the caller is unauthenticated or unauthorized.
+    pub async fn authorize_debug_request(&self, context: &RequestContext) -> Result<(), ToolError> {
+        let _auth = self.authorize(context, AuthAction::ListTools).await?;
+        Ok(())
     }
 
     /// Handles a tool call by name with JSON payload.
@@ -794,6 +818,8 @@ impl ToolRouter {
         let router = self.clone();
         let context = context.clone();
         let context_for_start = context.clone();
+        let mutation_key = RunMutationKey::from_start(&request);
+        let _mutation_permit = self.run_mutation_coordinator.acquire(&mutation_key).await;
         let response =
             tokio::task::spawn_blocking(move || router.start_run(&context_for_start, request))
                 .await
@@ -842,6 +868,8 @@ impl ToolRouter {
         let router = self.clone();
         let context = context.clone();
         let context_for_status = context.clone();
+        let mutation_key = RunMutationKey::from_status(&request);
+        let _mutation_permit = self.run_mutation_coordinator.acquire(&mutation_key).await;
         let response =
             tokio::task::spawn_blocking(move || router.status(&context_for_status, &request))
                 .await
@@ -886,6 +914,8 @@ impl ToolRouter {
         let context_for_next = context.clone();
         let request_for_next = request.clone();
         let auth_ctx_for_next = auth_ctx.clone();
+        let mutation_key = RunMutationKey::from_next(&request);
+        let _mutation_permit = self.run_mutation_coordinator.acquire(&mutation_key).await;
         let response = tokio::task::spawn_blocking(move || {
             router.next(&context_for_next, &auth_ctx_for_next, &request_for_next)
         })
@@ -924,6 +954,8 @@ impl ToolRouter {
         let router = self.clone();
         let context = context.clone();
         let context_for_submit = context.clone();
+        let mutation_key = RunMutationKey::from_submit(&request);
+        let _mutation_permit = self.run_mutation_coordinator.acquire(&mutation_key).await;
         let response =
             tokio::task::spawn_blocking(move || router.submit(&context_for_submit, &request))
                 .await
@@ -967,6 +999,8 @@ impl ToolRouter {
         let context = context.clone();
         let context_for_trigger = context.clone();
         let request_for_trigger = request.clone();
+        let mutation_key = RunMutationKey::from_trigger(&request);
+        let _mutation_permit = self.run_mutation_coordinator.acquire(&mutation_key).await;
         let response = tokio::task::spawn_blocking(move || {
             router.trigger(&context_for_trigger, &request_for_trigger)
         })
@@ -2131,6 +2165,255 @@ enum ControlPlaneWrapper {
     Borrowed(Arc<ScenarioRuntime>),
 }
 
+/// Lock-wait histogram upper bounds in microseconds.
+const RUN_MUTATION_WAIT_BUCKETS_US: [u64; 10] =
+    [100, 250, 500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000];
+/// Queue-depth histogram upper bounds for pending waiters.
+const RUN_MUTATION_QUEUE_BUCKETS: [u64; 10] = [0, 1, 2, 4, 8, 16, 32, 64, 128, 256];
+
+/// Composite key that identifies a run-specific mutation lane.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct RunMutationKey {
+    /// Tenant component of the run key.
+    tenant: TenantId,
+    /// Namespace component of the run key.
+    namespace: NamespaceId,
+    /// Run-id component of the run key.
+    run: RunId,
+}
+
+impl RunMutationKey {
+    /// Builds a run key from `scenario_start`.
+    fn from_start(request: &ScenarioStartRequest) -> Self {
+        Self {
+            tenant: request.run_config.tenant_id,
+            namespace: request.run_config.namespace_id,
+            run: request.run_config.run_id.clone(),
+        }
+    }
+
+    /// Builds a run key from `scenario_status`.
+    fn from_status(request: &ScenarioStatusRequest) -> Self {
+        Self {
+            tenant: request.request.tenant_id,
+            namespace: request.request.namespace_id,
+            run: request.request.run_id.clone(),
+        }
+    }
+
+    /// Builds a run key from `scenario_next`.
+    fn from_next(request: &ScenarioNextRequest) -> Self {
+        Self {
+            tenant: request.request.tenant_id,
+            namespace: request.request.namespace_id,
+            run: request.request.run_id.clone(),
+        }
+    }
+
+    /// Builds a run key from `scenario_submit`.
+    fn from_submit(request: &ScenarioSubmitRequest) -> Self {
+        Self {
+            tenant: request.request.tenant_id,
+            namespace: request.request.namespace_id,
+            run: request.request.run_id.clone(),
+        }
+    }
+
+    /// Builds a run key from `scenario_trigger`.
+    fn from_trigger(request: &ScenarioTriggerRequest) -> Self {
+        Self {
+            tenant: request.trigger.tenant_id,
+            namespace: request.trigger.namespace_id,
+            run: request.trigger.run_id.clone(),
+        }
+    }
+
+    /// Encodes the key for lock-map indexing.
+    fn map_key(&self) -> String {
+        format!("{}/{}/{}", self.tenant, self.namespace, self.run.as_str())
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+/// Captures high-level wait and queueing diagnostics for run mutation coordination.
+pub struct MutationExecutionStats {
+    /// Total number of lock acquisitions completed by the coordinator.
+    pub lock_acquisitions: u64,
+    /// Number of run-key locks currently held.
+    pub active_holders: u64,
+    /// Number of requests currently waiting to acquire a run-key lock.
+    pub pending_waiters: u64,
+    /// Approximate p50 lock wait in microseconds.
+    pub lock_wait_p50_us: u64,
+    /// Approximate p95 lock wait in microseconds.
+    pub lock_wait_p95_us: u64,
+    /// Approximate p50 queue depth at acquisition time.
+    pub queue_depth_p50: u64,
+    /// Approximate p95 queue depth at acquisition time.
+    pub queue_depth_p95: u64,
+    /// Upper bounds (microseconds) for lock wait histogram buckets.
+    pub lock_wait_buckets_us: Vec<u64>,
+    /// Counts aligned with `lock_wait_buckets_us` plus overflow bucket.
+    pub lock_wait_histogram: Vec<u64>,
+    /// Upper bounds for queue depth histogram buckets.
+    pub queue_depth_buckets: Vec<u64>,
+    /// Counts aligned with `queue_depth_buckets` plus overflow bucket.
+    pub queue_depth_histogram: Vec<u64>,
+}
+
+/// Per-run async lock coordinator that serializes same-run mutations.
+struct RunMutationCoordinator {
+    /// Lock map keyed by run identity.
+    locks: Arc<Mutex<HashMap<String, Arc<AsyncMutex<()>>>>>,
+    /// Shared stats for diagnostics snapshots.
+    stats: Arc<Mutex<RunMutationStats>>,
+}
+
+/// Mutable counters/histograms for mutation coordination.
+#[derive(Default)]
+struct RunMutationStats {
+    /// Completed lock acquisitions.
+    lock_acquisitions: u64,
+    /// Wait-time histogram counts.
+    lock_wait_histogram: [u64; RUN_MUTATION_WAIT_BUCKETS_US.len() + 1],
+    /// Queue-depth histogram counts.
+    queue_depth_histogram: [u64; RUN_MUTATION_QUEUE_BUCKETS.len() + 1],
+    /// Number of currently held locks.
+    active_holders: u64,
+    /// Number of currently pending waiters.
+    pending_waiters: u64,
+}
+
+/// RAII permit that decrements active-holder count when dropped.
+struct RunMutationPermit {
+    /// Shared stats reference.
+    stats: Arc<Mutex<RunMutationStats>>,
+    /// Underlying async lock guard.
+    _guard: OwnedMutexGuard<()>,
+}
+
+impl Drop for RunMutationPermit {
+    fn drop(&mut self) {
+        let Ok(mut stats) = self.stats.lock() else {
+            return;
+        };
+        stats.active_holders = stats.active_holders.saturating_sub(1);
+    }
+}
+
+impl Default for RunMutationCoordinator {
+    fn default() -> Self {
+        Self {
+            locks: Arc::new(Mutex::new(HashMap::new())),
+            stats: Arc::new(Mutex::new(RunMutationStats::default())),
+        }
+    }
+}
+
+impl RunMutationCoordinator {
+    /// Acquires the per-run lock and records wait/queue diagnostics.
+    async fn acquire(&self, key: &RunMutationKey) -> RunMutationPermit {
+        let run_lock = {
+            let mut guard = self.locks.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            guard.entry(key.map_key()).or_insert_with(|| Arc::new(AsyncMutex::new(()))).clone()
+        };
+
+        let wait_started = Instant::now();
+        {
+            let mut stats = self.stats.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            stats.pending_waiters = stats.pending_waiters.saturating_add(1);
+            let queue_depth_bucket =
+                histogram_bucket_index(&RUN_MUTATION_QUEUE_BUCKETS, stats.pending_waiters);
+            if let Some(slot) = stats.queue_depth_histogram.get_mut(queue_depth_bucket) {
+                *slot = slot.saturating_add(1);
+            }
+        }
+
+        let guard = run_lock.lock_owned().await;
+        let wait_us = u64::try_from(wait_started.elapsed().as_micros()).unwrap_or(u64::MAX);
+        {
+            let mut stats = self.stats.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            stats.pending_waiters = stats.pending_waiters.saturating_sub(1);
+            stats.active_holders = stats.active_holders.saturating_add(1);
+            stats.lock_acquisitions = stats.lock_acquisitions.saturating_add(1);
+            let wait_bucket = histogram_bucket_index(&RUN_MUTATION_WAIT_BUCKETS_US, wait_us);
+            if let Some(slot) = stats.lock_wait_histogram.get_mut(wait_bucket) {
+                *slot = slot.saturating_add(1);
+            }
+        }
+
+        RunMutationPermit {
+            stats: Arc::clone(&self.stats),
+            _guard: guard,
+        }
+    }
+
+    /// Returns a point-in-time copy of mutation coordination diagnostics.
+    fn snapshot(&self) -> MutationExecutionStats {
+        let stats = self.stats.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        MutationExecutionStats {
+            lock_acquisitions: stats.lock_acquisitions,
+            active_holders: stats.active_holders,
+            pending_waiters: stats.pending_waiters,
+            lock_wait_p50_us: histogram_percentile(
+                &RUN_MUTATION_WAIT_BUCKETS_US,
+                &stats.lock_wait_histogram,
+                50,
+            ),
+            lock_wait_p95_us: histogram_percentile(
+                &RUN_MUTATION_WAIT_BUCKETS_US,
+                &stats.lock_wait_histogram,
+                95,
+            ),
+            queue_depth_p50: histogram_percentile(
+                &RUN_MUTATION_QUEUE_BUCKETS,
+                &stats.queue_depth_histogram,
+                50,
+            ),
+            queue_depth_p95: histogram_percentile(
+                &RUN_MUTATION_QUEUE_BUCKETS,
+                &stats.queue_depth_histogram,
+                95,
+            ),
+            lock_wait_buckets_us: RUN_MUTATION_WAIT_BUCKETS_US.to_vec(),
+            lock_wait_histogram: stats.lock_wait_histogram.to_vec(),
+            queue_depth_buckets: RUN_MUTATION_QUEUE_BUCKETS.to_vec(),
+            queue_depth_histogram: stats.queue_depth_histogram.to_vec(),
+        }
+    }
+}
+
+/// Returns histogram bucket index for `value` against sorted bounds.
+fn histogram_bucket_index(bounds: &[u64], value: u64) -> usize {
+    for (idx, upper_bound) in bounds.iter().enumerate() {
+        if value <= *upper_bound {
+            return idx;
+        }
+    }
+    bounds.len()
+}
+
+/// Computes approximate percentile from bounded histogram counts.
+fn histogram_percentile(bounds: &[u64], counts: &[u64], percentile: u32) -> u64 {
+    if percentile == 0 || percentile > 100 || counts.is_empty() {
+        return 0;
+    }
+    let total = counts.iter().fold(0_u64, |acc, count| acc.saturating_add(*count));
+    if total == 0 {
+        return 0;
+    }
+    let rank =
+        total.saturating_mul(u64::from(percentile)).saturating_add(99).saturating_div(100).max(1);
+    let mut seen = 0_u64;
+    for (idx, count) in counts.iter().enumerate() {
+        seen = seen.saturating_add(*count);
+        if seen >= rank {
+            return bounds.get(idx).copied().unwrap_or_else(|| bounds.last().copied().unwrap_or(0));
+        }
+    }
+    bounds.last().copied().unwrap_or(0)
+}
+
 // ============================================================================
 // SECTION: Tool Implementations
 // ============================================================================
@@ -2174,7 +2457,7 @@ impl ToolRouter {
                 ..ControlPlaneConfig::default()
             },
         )
-        .map_err(ToolError::ControlPlane)?;
+        .map_err(map_control_plane_error)?;
 
         let spec_hash = request
             .spec
@@ -2213,7 +2496,7 @@ impl ToolRouter {
         let state = runtime
             .control
             .start_run(request.run_config, request.started_at, request.issue_entry_packets)
-            .map_err(ToolError::ControlPlane)?;
+            .map_err(map_control_plane_error)?;
         Ok(state)
     }
 
@@ -2225,7 +2508,7 @@ impl ToolRouter {
     ) -> Result<ScenarioStatus, ToolError> {
         let runtime = self.runtime_for(&request.scenario_id)?;
         let status =
-            runtime.control.scenario_status(&request.request).map_err(ToolError::ControlPlane)?;
+            runtime.control.scenario_status(&request.request).map_err(map_control_plane_error)?;
         Ok(status)
     }
 
@@ -2238,7 +2521,7 @@ impl ToolRouter {
     ) -> Result<ScenarioNextResponse, ToolError> {
         let runtime = self.runtime_for(&request.scenario_id)?;
         let result =
-            runtime.control.scenario_next(&request.request).map_err(ToolError::ControlPlane)?;
+            runtime.control.scenario_next(&request.request).map_err(map_control_plane_error)?;
         let feedback = self.build_scenario_next_feedback(
             context,
             auth_ctx,
@@ -2386,7 +2669,7 @@ impl ToolRouter {
                 ControlPlaneError::SubmissionConflict(submission_id) => {
                     ToolError::Conflict(format!("submission_id conflict: {submission_id}"))
                 }
-                _ => ToolError::ControlPlane(err),
+                _ => map_control_plane_error(err),
             })?;
         Ok(result)
     }
@@ -2398,7 +2681,7 @@ impl ToolRouter {
         request: &ScenarioTriggerRequest,
     ) -> Result<TriggerResult, ToolError> {
         let runtime = self.runtime_for(&request.scenario_id)?;
-        let result = runtime.control.trigger(&request.trigger).map_err(ToolError::ControlPlane)?;
+        let result = runtime.control.trigger(&request.trigger).map_err(map_control_plane_error)?;
         Ok(result)
     }
 
@@ -3324,6 +3607,20 @@ fn ensure_evidence_hash(result: &mut EvidenceResult) -> Result<(), ToolError> {
     Ok(())
 }
 
+/// Maps control-plane failures into public tool error semantics.
+fn map_control_plane_error(error: ControlPlaneError) -> ToolError {
+    match error {
+        ControlPlaneError::Store(StoreError::Overloaded {
+            message,
+            retry_after_ms,
+        }) => ToolError::RateLimited {
+            message,
+            retry_after_ms,
+        },
+        other => ToolError::ControlPlane(other),
+    }
+}
+
 /// Maps namespace authority errors into tool errors.
 fn map_namespace_error(error: NamespaceAuthorityError) -> ToolError {
     match error {
@@ -3426,6 +3723,13 @@ impl From<DataShapeRegistryError> for ToolError {
             DataShapeRegistryError::Invalid(message) => Self::InvalidParams(message),
             DataShapeRegistryError::Conflict(message) => Self::Conflict(message),
             DataShapeRegistryError::Access(message) => Self::Unauthorized(message),
+            DataShapeRegistryError::Overloaded {
+                message,
+                retry_after_ms,
+            } => Self::RateLimited {
+                message,
+                retry_after_ms,
+            },
         }
     }
 }

@@ -20,6 +20,7 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `http_tool_allowlist_enforced` | security | Tool allowlist denies unauthorized MCP calls. |
 | `http_mtls_subject_required` | security | mTLS subject required for MCP tool calls. |
 | `sse_bearer_token_required` | security | SSE transport enforces bearer auth. |
+| `debug_mutation_stats_auth_and_schema` | security | Debug mutation stats endpoint is auth-protected and schema-stable. |
 | `http_rate_limit_enforced` | operations | Rate limiting rejects excess HTTP requests. |
 | `http_tls_handshake_success` | operations | TLS handshake succeeds with test CA. |
 | `http_mtls_client_cert_required` | security | mTLS client certs required when configured. |
@@ -154,11 +155,11 @@ Purpose: Provide a quick scan of system-test coverage and priorities.
 | `perf_core_mcp_throughput_release` | performance | Release-profile throughput + latency SLO gate for scenario start/trigger. |
 | `perf_precheck_throughput_release` | performance | Release-profile throughput + latency SLO gate for precheck workflow. |
 | `perf_registry_mixed_throughput_release` | performance | Release-profile throughput + latency SLO gate for schemas register/list mix. |
-| `perf_sqlite_core_mcp_throughput_release` | performance_sqlite | Release-profile SQLite WAL+FULL scenario start/trigger throughput diagnostics (report-only). |
-| `perf_sqlite_precheck_throughput_release` | performance_sqlite | Release-profile SQLite WAL+FULL precheck throughput diagnostics (report-only). |
-| `perf_sqlite_registry_mixed_throughput_release` | performance_sqlite | Release-profile SQLite WAL+FULL schemas register/list throughput diagnostics (report-only). |
-| `perf_sqlite_store_run_state_contention_release` | performance_sqlite | Direct SQLite run-state save/load contention microbench with latency and DB error counters. |
-| `perf_sqlite_store_registry_contention_release` | performance_sqlite | Direct SQLite registry register/list contention microbench with latency and DB error counters. |
+| `perf_sqlite_core_mcp_throughput_release` | performance_sqlite | Release-profile SQLite WAL+FULL scenario start/trigger throughput diagnostics (report-only) with MCP mutation coordinator diagnostics. |
+| `perf_sqlite_precheck_throughput_release` | performance_sqlite | Release-profile SQLite WAL+FULL precheck throughput diagnostics (report-only) with measured-window throughput accounting. |
+| `perf_sqlite_registry_mixed_throughput_release` | performance_sqlite | Release-profile SQLite WAL+FULL schemas register/list throughput diagnostics (report-only) with MCP mutation coordinator diagnostics. |
+| `perf_sqlite_store_run_state_contention_release` | performance_sqlite | Direct SQLite run-state save/load contention microbench with latency, DB error, and writer batch/queue diagnostics. |
+| `perf_sqlite_store_registry_contention_release` | performance_sqlite | Direct SQLite registry register/list contention microbench with latency, DB error, and writer batch/queue diagnostics. |
 | `stress_registry_concurrent_writes` | reliability | Concurrent schema registry writes remain deterministic and ordered (not a throughput SLA test). |
 | `stress_schema_list_paging_concurrent_reads` | reliability | Schemas list paging stays deterministic under concurrent reads (not a throughput SLA test). |
 | `stress_precheck_request_storm` | reliability | Precheck storms remain fail-closed and deterministic (not a throughput SLA test). |

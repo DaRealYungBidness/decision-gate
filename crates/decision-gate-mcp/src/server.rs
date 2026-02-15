@@ -422,6 +422,11 @@ fn build_run_state_store(
                 max_versions: config.run_state_store.max_versions,
                 schema_registry_max_schema_bytes: None,
                 schema_registry_max_entries: None,
+                writer_queue_capacity: config.run_state_store.writer_queue_capacity,
+                batch_max_ops: config.run_state_store.batch_max_ops,
+                batch_max_bytes: config.run_state_store.batch_max_bytes,
+                batch_max_wait_ms: config.run_state_store.batch_max_wait_ms,
+                read_pool_size: config.run_state_store.read_pool_size,
             };
             let store = SqliteRunStateStore::new(sqlite_config)
                 .map_err(|err| McpServerError::Init(err.to_string()))?;
@@ -465,6 +470,11 @@ fn build_schema_registry(
                 max_versions: None,
                 schema_registry_max_schema_bytes: Some(config.schema_registry.max_schema_bytes),
                 schema_registry_max_entries: max_entries,
+                writer_queue_capacity: config.schema_registry.writer_queue_capacity,
+                batch_max_ops: config.schema_registry.batch_max_ops,
+                batch_max_bytes: config.schema_registry.batch_max_bytes,
+                batch_max_wait_ms: config.schema_registry.batch_max_wait_ms,
+                read_pool_size: config.schema_registry.read_pool_size,
             };
             let store = SqliteRunStateStore::new(sqlite_config)
                 .map_err(|err| McpServerError::Init(err.to_string()))?;
@@ -718,6 +728,7 @@ async fn serve_http(
         .route("/rpc", post(handle_http))
         .route("/healthz", get(handle_health))
         .route("/readyz", get(handle_ready))
+        .route("/debug/mutation_stats", get(handle_mutation_stats))
         .layer(DefaultBodyLimit::max(config.server.max_body_bytes))
         .with_state(state);
     if let Some(tls) = &config.server.tls {
@@ -764,6 +775,7 @@ async fn serve_sse(
         .route("/rpc", post(handle_sse))
         .route("/healthz", get(handle_health))
         .route("/readyz", get(handle_ready))
+        .route("/debug/mutation_stats", get(handle_mutation_stats))
         .layer(DefaultBodyLimit::max(config.server.max_body_bytes))
         .with_state(state);
     if let Some(tls) = &config.server.tls {
@@ -794,6 +806,50 @@ async fn handle_ready(State(state): State<Arc<ServerState>>) -> impl IntoRespons
     } else {
         (StatusCode::SERVICE_UNAVAILABLE, axum::Json(HealthResponse::not_ready()))
     }
+}
+
+/// Diagnostic endpoint for per-run mutation coordination stats.
+async fn handle_mutation_stats(
+    State(state): State<Arc<ServerState>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+) -> axum::response::Response {
+    let server_correlation_id = state.correlation.issue();
+    let unsafe_client_correlation_id = match extract_correlation_header(&headers) {
+        Ok(value) => value,
+        Err(reason) => {
+            let context = http_request_context(
+                ServerTransport::Http,
+                peer,
+                &headers,
+                None,
+                server_correlation_id,
+            );
+            return respond_with_correlation_headers(
+                &state,
+                &context,
+                invalid_correlation_response(&reason),
+            );
+        }
+    };
+    let context = http_request_context(
+        ServerTransport::Http,
+        peer,
+        &headers,
+        unsafe_client_correlation_id,
+        server_correlation_id,
+    );
+    if let Err(error) = state.router.authorize_debug_request(&context).await {
+        return respond_with_correlation_headers(
+            &state,
+            &context,
+            jsonrpc_error(Value::Null, error),
+        );
+    }
+    let mut response =
+        (StatusCode::OK, axum::Json(state.router.mutation_execution_stats())).into_response();
+    response.headers_mut().extend(build_correlation_headers(&context));
+    response
 }
 
 /// Shared server state for HTTP/SSE handlers.

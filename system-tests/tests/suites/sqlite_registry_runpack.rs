@@ -54,6 +54,11 @@ async fn sqlite_registry_and_runpack_persist_across_restart()
         journal_mode: decision_gate_store_sqlite::SqliteStoreMode::Wal,
         sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
         max_versions: None,
+        writer_queue_capacity: 1_024,
+        batch_max_ops: 64,
+        batch_max_bytes: 512 * 1024,
+        batch_max_wait_ms: 2,
+        read_pool_size: 4,
     };
     config.schema_registry.registry_type = SchemaRegistryType::Sqlite;
     config.schema_registry.path = Some(registry_path.clone());

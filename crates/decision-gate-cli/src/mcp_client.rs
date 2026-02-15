@@ -283,7 +283,10 @@ impl McpClient {
             McpTransport::Sse => McpTransportClient::Sse(HttpMcpClient::new(config)?),
             McpTransport::Stdio => McpTransportClient::Stdio(StdioMcpClient::spawn(config)?),
         };
-        Ok(Self { transport, next_id: 1 })
+        Ok(Self {
+            transport,
+            next_id: 1,
+        })
     }
 
     #[cfg(test)]
@@ -345,7 +348,9 @@ impl McpClient {
             .content
             .into_iter()
             .map(|item| match item {
-                ToolContent::Json { json } => json,
+                ToolContent::Json {
+                    json,
+                } => json,
             })
             .next()
             .ok_or_else(|| {
@@ -405,7 +410,12 @@ impl McpClient {
             .next_id
             .checked_add(1)
             .ok_or_else(|| McpClientError::Protocol("json-rpc request id overflow".to_string()))?;
-        let request = JsonRpcRequest { jsonrpc: "2.0", id, method, params };
+        let request = JsonRpcRequest {
+            jsonrpc: "2.0",
+            id,
+            method,
+            params,
+        };
         match &mut self.transport {
             McpTransportClient::Http(client) => client.send_request(&request, false).await,
             McpTransportClient::Sse(client) => client.send_request(&request, true).await,
@@ -534,11 +544,16 @@ async fn read_response_body_with_limit(
     while let Some(chunk) =
         response.chunk().await.map_err(|err| McpClientError::Transport(err.to_string()))?
     {
-        let next_total = total
-            .checked_add(chunk.len())
-            .ok_or(McpClientError::ResponseTooLarge { actual: usize::MAX, limit })?;
+        let next_total =
+            total.checked_add(chunk.len()).ok_or(McpClientError::ResponseTooLarge {
+                actual: usize::MAX,
+                limit,
+            })?;
         if next_total > limit {
-            return Err(McpClientError::ResponseTooLarge { actual: next_total, limit });
+            return Err(McpClientError::ResponseTooLarge {
+                actual: next_total,
+                limit,
+            });
         }
         body.extend_from_slice(&chunk);
         total = next_total;
@@ -704,7 +719,10 @@ pub fn read_framed(reader: &mut BufReader<impl Read>) -> Result<Vec<u8>, McpClie
     let limit = u64::try_from(MAX_MCP_RESPONSE_BYTES).unwrap_or(u64::MAX);
     if len > limit {
         let actual = usize::try_from(len).unwrap_or(usize::MAX);
-        return Err(McpClientError::ResponseTooLarge { actual, limit: MAX_MCP_RESPONSE_BYTES });
+        return Err(McpClientError::ResponseTooLarge {
+            actual,
+            limit: MAX_MCP_RESPONSE_BYTES,
+        });
     }
     let len = usize::try_from(len).map_err(|_| {
         McpClientError::Protocol("content length exceeds addressable size".to_string())

@@ -34,11 +34,20 @@ use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::path::Path;
 use std::sync::Arc;
+use std::sync::Condvar;
 use std::sync::Mutex;
+use std::time::Duration;
+use std::time::Instant;
 
 use decision_gate_core::AdvanceTo;
 use decision_gate_core::Comparator;
 use decision_gate_core::ConditionSpec;
+use decision_gate_core::DataShapeId;
+use decision_gate_core::DataShapePage;
+use decision_gate_core::DataShapeRecord;
+use decision_gate_core::DataShapeRegistry;
+use decision_gate_core::DataShapeRegistryError;
+use decision_gate_core::DataShapeVersion;
 use decision_gate_core::DispatchTarget;
 use decision_gate_core::EvidenceQuery;
 use decision_gate_core::GateId;
@@ -49,6 +58,8 @@ use decision_gate_core::NamespaceId;
 use decision_gate_core::ProviderId;
 use decision_gate_core::RunConfig;
 use decision_gate_core::RunId;
+use decision_gate_core::RunState;
+use decision_gate_core::RunStateStore;
 use decision_gate_core::ScenarioId;
 use decision_gate_core::ScenarioSpec;
 use decision_gate_core::SharedDataShapeRegistry;
@@ -56,6 +67,7 @@ use decision_gate_core::SharedRunStateStore;
 use decision_gate_core::SpecVersion;
 use decision_gate_core::StageId;
 use decision_gate_core::StageSpec;
+use decision_gate_core::StoreError;
 use decision_gate_core::TenantId;
 use decision_gate_core::TimeoutPolicy;
 use decision_gate_core::Timestamp;
@@ -346,6 +358,153 @@ impl ToolVisibilityResolver for StubToolVisibilityResolver {
     }
 }
 
+#[derive(Default)]
+struct BlockingSaveState {
+    blocked: bool,
+    released: bool,
+}
+
+#[derive(Clone)]
+struct BlockingRunStateStore {
+    inner: InMemoryRunStateStore,
+    blocked_run_id: String,
+    block_state: Arc<(Mutex<BlockingSaveState>, Condvar)>,
+}
+
+impl BlockingRunStateStore {
+    fn new(blocked_run_id: &str) -> Self {
+        Self {
+            inner: InMemoryRunStateStore::new(),
+            blocked_run_id: blocked_run_id.to_string(),
+            block_state: Arc::new((Mutex::new(BlockingSaveState::default()), Condvar::new())),
+        }
+    }
+
+    fn wait_until_blocked(&self, timeout: Duration) -> bool {
+        let (lock, cv) = &*self.block_state;
+        let deadline = Instant::now() + timeout;
+        let mut guard = lock.lock().expect("blocking run state mutex");
+        while !guard.blocked {
+            let now = Instant::now();
+            if now >= deadline {
+                return false;
+            }
+            let wait_for = deadline.saturating_duration_since(now);
+            let (next_guard, wait_result) =
+                cv.wait_timeout(guard, wait_for).expect("blocking run state wait");
+            guard = next_guard;
+            if wait_result.timed_out() && !guard.blocked {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn release_block(&self) {
+        let (lock, cv) = &*self.block_state;
+        {
+            let mut guard = lock.lock().expect("blocking run state mutex");
+            guard.released = true;
+        }
+        cv.notify_all();
+    }
+}
+
+impl RunStateStore for BlockingRunStateStore {
+    fn load(
+        &self,
+        tenant_id: &TenantId,
+        namespace_id: &NamespaceId,
+        run_id: &RunId,
+    ) -> Result<Option<RunState>, StoreError> {
+        self.inner.load(tenant_id, namespace_id, run_id)
+    }
+
+    fn save(&self, state: &RunState) -> Result<(), StoreError> {
+        if state.run_id.as_str() == self.blocked_run_id {
+            let (lock, cv) = &*self.block_state;
+            let mut guard = lock.lock().expect("blocking run state mutex");
+            if !guard.released {
+                guard.blocked = true;
+                cv.notify_all();
+                while !guard.released {
+                    guard = cv.wait(guard).expect("blocking run state wait");
+                }
+                drop(guard);
+            }
+        }
+        self.inner.save(state)
+    }
+
+    fn readiness(&self) -> Result<(), StoreError> {
+        Ok(())
+    }
+}
+
+struct OverloadedRunStateStore {
+    message: String,
+    retry_after_ms: Option<u64>,
+}
+
+impl RunStateStore for OverloadedRunStateStore {
+    fn load(
+        &self,
+        _tenant_id: &TenantId,
+        _namespace_id: &NamespaceId,
+        _run_id: &RunId,
+    ) -> Result<Option<RunState>, StoreError> {
+        Ok(None)
+    }
+
+    fn save(&self, _state: &RunState) -> Result<(), StoreError> {
+        Err(StoreError::Overloaded {
+            message: self.message.clone(),
+            retry_after_ms: self.retry_after_ms,
+        })
+    }
+
+    fn readiness(&self) -> Result<(), StoreError> {
+        Ok(())
+    }
+}
+
+struct OverloadedRegistry {
+    message: String,
+    retry_after_ms: Option<u64>,
+}
+
+impl DataShapeRegistry for OverloadedRegistry {
+    fn register(&self, _record: DataShapeRecord) -> Result<(), DataShapeRegistryError> {
+        Err(DataShapeRegistryError::Overloaded {
+            message: self.message.clone(),
+            retry_after_ms: self.retry_after_ms,
+        })
+    }
+
+    fn get(
+        &self,
+        _tenant_id: &TenantId,
+        _namespace_id: &NamespaceId,
+        _schema_id: &DataShapeId,
+        _version: &DataShapeVersion,
+    ) -> Result<Option<DataShapeRecord>, DataShapeRegistryError> {
+        Ok(None)
+    }
+
+    fn list(
+        &self,
+        _tenant_id: &TenantId,
+        _namespace_id: &NamespaceId,
+        _cursor: Option<String>,
+        _limit: usize,
+    ) -> Result<DataShapePage, DataShapeRegistryError> {
+        Ok(DataShapePage {
+            items: Vec::new(),
+            next_token: None,
+        })
+    }
+}
+
 fn sample_config() -> DecisionGateConfig {
     DecisionGateConfig {
         server: ServerConfig {
@@ -452,17 +611,40 @@ fn router_with_config_and_backends(
 }
 
 fn router_with_overrides(
-    mut config: DecisionGateConfig,
+    config: DecisionGateConfig,
     runpack_storage: Option<Arc<dyn RunpackStorage>>,
     object_store: Option<Arc<ObjectStoreRunpackBackend>>,
     docs_provider: Option<Arc<dyn DocsProvider>>,
     tool_visibility_resolver: Option<Arc<dyn ToolVisibilityResolver>>,
 ) -> ToolRouter {
+    router_with_store_registry_overrides(
+        config,
+        runpack_storage,
+        object_store,
+        docs_provider,
+        tool_visibility_resolver,
+        None,
+        None,
+    )
+}
+
+fn router_with_store_registry_overrides(
+    mut config: DecisionGateConfig,
+    runpack_storage: Option<Arc<dyn RunpackStorage>>,
+    object_store: Option<Arc<ObjectStoreRunpackBackend>>,
+    docs_provider: Option<Arc<dyn DocsProvider>>,
+    tool_visibility_resolver: Option<Arc<dyn ToolVisibilityResolver>>,
+    store: Option<SharedRunStateStore>,
+    schema_registry: Option<SharedDataShapeRegistry>,
+) -> ToolRouter {
     config.validate().expect("config");
     let evidence = FederatedEvidenceProvider::from_config(&config).expect("evidence");
     let capabilities = CapabilityRegistry::from_config(&config).expect("capabilities");
-    let store = SharedRunStateStore::from_store(InMemoryRunStateStore::new());
-    let schema_registry = SharedDataShapeRegistry::from_registry(InMemoryDataShapeRegistry::new());
+    let store =
+        store.unwrap_or_else(|| SharedRunStateStore::from_store(InMemoryRunStateStore::new()));
+    let schema_registry = schema_registry.unwrap_or_else(|| {
+        SharedDataShapeRegistry::from_registry(InMemoryDataShapeRegistry::new())
+    });
     let provider_transports = config
         .providers
         .iter()
@@ -566,6 +748,48 @@ fn setup_router_with_run(
         )
         .expect("start run");
     (router, spec, run_config)
+}
+
+fn scenario_start_payload(
+    spec: &ScenarioSpec,
+    tenant_id: TenantId,
+    namespace_id: NamespaceId,
+    run_id: &str,
+) -> Value {
+    serde_json::to_value(ScenarioStartRequest {
+        scenario_id: spec.scenario_id.clone(),
+        run_config: RunConfig {
+            tenant_id,
+            namespace_id,
+            run_id: RunId::new(run_id),
+            scenario_id: spec.scenario_id.clone(),
+            dispatch_targets: Vec::new(),
+            policy_tags: Vec::new(),
+        },
+        started_at: Timestamp::Logical(1),
+        issue_entry_packets: false,
+    })
+    .expect("scenario start payload")
+}
+
+fn schemas_register_payload(tenant_id: TenantId, namespace_id: NamespaceId) -> Value {
+    serde_json::to_value(SchemasRegisterRequest {
+        record: DataShapeRecord {
+            tenant_id,
+            namespace_id,
+            schema_id: DataShapeId::new("schema-a"),
+            version: DataShapeVersion::new("v1"),
+            schema: json!({
+                "type": "object",
+                "properties": { "ok": { "type": "boolean" } },
+                "required": ["ok"],
+            }),
+            description: Some("test schema".to_string()),
+            created_at: Timestamp::Logical(1),
+            signing: None,
+        },
+    })
+    .expect("schemas register payload")
 }
 
 #[test]
@@ -1254,4 +1478,284 @@ fn tool_visibility_resolver_overrides_config_denylist() {
         tools.iter().any(|tool| tool.name == ToolName::ScenarioDefine),
         "custom resolver should override config denylist",
     );
+}
+
+#[test]
+fn control_plane_store_overload_maps_to_rate_limited() {
+    let error = ControlPlaneError::Store(StoreError::Overloaded {
+        message: "sqlite queue full".to_string(),
+        retry_after_ms: Some(5),
+    });
+    let mapped = map_control_plane_error(error);
+    assert!(matches!(
+        mapped,
+        ToolError::RateLimited {
+            message,
+            retry_after_ms: Some(5)
+        } if message == "sqlite queue full"
+    ));
+}
+
+#[test]
+fn registry_overload_maps_to_rate_limited() {
+    let mapped: ToolError = DataShapeRegistryError::Overloaded {
+        message: "registry queue full".to_string(),
+        retry_after_ms: Some(3),
+    }
+    .into();
+    assert!(matches!(
+        mapped,
+        ToolError::RateLimited {
+            message,
+            retry_after_ms: Some(3)
+        } if message == "registry queue full"
+    ));
+}
+
+// ============================================================================
+// SECTION: Mutation Coordination + Overload Regression Tests
+// ============================================================================
+
+#[test]
+fn scenario_start_distinct_runs_do_not_block_each_other() {
+    let config = sample_config();
+    let blocked_store = BlockingRunStateStore::new("run-a");
+    let router = router_with_store_registry_overrides(
+        config,
+        None,
+        None,
+        None,
+        None,
+        Some(SharedRunStateStore::new(Arc::new(blocked_store.clone()))),
+        None,
+    );
+    let spec = sample_spec();
+    router
+        .define_scenario(
+            &RequestContext::stdio(),
+            ScenarioDefineRequest {
+                spec: spec.clone(),
+            },
+        )
+        .expect("define scenario");
+    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
+    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+    let blocked_run_payload = scenario_start_payload(&spec, tenant_id, namespace_id, "run-a");
+    let independent_run_payload = scenario_start_payload(&spec, tenant_id, namespace_id, "run-b");
+
+    tokio::runtime::Runtime::new().expect("runtime").block_on(async move {
+        let router_for_a = router.clone();
+        let run_a_task = tokio::spawn(async move {
+            let context = RequestContext::stdio();
+            router_for_a
+                .handle_tool_call(&context, ToolName::ScenarioStart.as_str(), blocked_run_payload)
+                .await
+        });
+        assert!(
+            blocked_store.wait_until_blocked(Duration::from_secs(1)),
+            "run-a should block in store save",
+        );
+
+        let independent_run_outcome = tokio::time::timeout(Duration::from_millis(300), async {
+            let context = RequestContext::stdio();
+            router
+                .handle_tool_call(
+                    &context,
+                    ToolName::ScenarioStart.as_str(),
+                    independent_run_payload,
+                )
+                .await
+        })
+        .await;
+
+        blocked_store.release_block();
+        let blocked_run_outcome = tokio::time::timeout(Duration::from_secs(2), run_a_task)
+            .await
+            .expect("run-a should complete after release")
+            .expect("run-a task join");
+
+        let independent_run_response =
+            independent_run_outcome.expect("run-b start timed out").expect("run-b start");
+        assert_eq!(independent_run_response["run_id"], json!("run-b"));
+        let blocked_run_response = blocked_run_outcome.expect("run-a start");
+        assert_eq!(blocked_run_response["run_id"], json!("run-a"));
+    });
+}
+
+#[test]
+fn schemas_register_not_blocked_by_inflight_run_mutation() {
+    let config = sample_config();
+    let blocked_store = BlockingRunStateStore::new("run-a");
+    let router = router_with_store_registry_overrides(
+        config,
+        None,
+        None,
+        None,
+        None,
+        Some(SharedRunStateStore::new(Arc::new(blocked_store.clone()))),
+        None,
+    );
+    let spec = sample_spec();
+    router
+        .define_scenario(
+            &RequestContext::stdio(),
+            ScenarioDefineRequest {
+                spec: spec.clone(),
+            },
+        )
+        .expect("define scenario");
+    let tenant_id = TenantId::from_raw(1).expect("nonzero tenantid");
+    let namespace_id = NamespaceId::from_raw(1).expect("nonzero namespaceid");
+    let blocked_run_payload = scenario_start_payload(&spec, tenant_id, namespace_id, "run-a");
+    let schema_payload = schemas_register_payload(tenant_id, namespace_id);
+
+    tokio::runtime::Runtime::new().expect("runtime").block_on(async move {
+        let router_for_run = router.clone();
+        let run_a_task = tokio::spawn(async move {
+            let context = RequestContext::stdio();
+            router_for_run
+                .handle_tool_call(&context, ToolName::ScenarioStart.as_str(), blocked_run_payload)
+                .await
+        });
+        assert!(
+            blocked_store.wait_until_blocked(Duration::from_secs(1)),
+            "run-a should block in store save",
+        );
+
+        let schema_result = tokio::time::timeout(Duration::from_millis(300), async {
+            let context = RequestContext::stdio();
+            router
+                .handle_tool_call(&context, ToolName::SchemasRegister.as_str(), schema_payload)
+                .await
+        })
+        .await;
+
+        blocked_store.release_block();
+        let run_a_result = tokio::time::timeout(Duration::from_secs(2), run_a_task)
+            .await
+            .expect("run-a should complete after release")
+            .expect("run-a task join");
+        run_a_result.expect("run-a start");
+
+        let schema_response = schema_result
+            .expect("schemas_register timed out while run mutation was blocked")
+            .expect("schemas_register response");
+        assert_eq!(schema_response["record"]["schema_id"], json!("schema-a"));
+    });
+}
+
+#[test]
+fn run_mutation_coordinator_same_key_waits_and_updates_stats() {
+    tokio::runtime::Runtime::new().expect("runtime").block_on(async move {
+        let coordinator = Arc::new(RunMutationCoordinator::default());
+        let key = RunMutationKey {
+            tenant: TenantId::from_raw(1).expect("nonzero tenantid"),
+            namespace: NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+            run: RunId::new("run-1"),
+        };
+
+        let permit = coordinator.acquire(&key).await;
+        let waiter = {
+            let coordinator = Arc::clone(&coordinator);
+            let key = key.clone();
+            tokio::spawn(async move {
+                let _permit = coordinator.acquire(&key).await;
+            })
+        };
+
+        let wait_started = Instant::now();
+        loop {
+            let snapshot = coordinator.snapshot();
+            if snapshot.pending_waiters > 0 {
+                assert_eq!(snapshot.active_holders, 1);
+                break;
+            }
+            assert!(
+                wait_started.elapsed() < Duration::from_millis(300),
+                "waiter never observed as pending",
+            );
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+
+        drop(permit);
+        waiter.await.expect("waiter join");
+
+        let final_stats = coordinator.snapshot();
+        assert_eq!(final_stats.lock_acquisitions, 2);
+        assert_eq!(final_stats.active_holders, 0);
+        assert_eq!(final_stats.pending_waiters, 0);
+        assert_eq!(final_stats.lock_wait_histogram.iter().sum::<u64>(), 2);
+        assert_eq!(final_stats.queue_depth_histogram.iter().sum::<u64>(), 2);
+    });
+}
+
+#[test]
+fn scenario_start_overloaded_store_returns_rate_limited() {
+    let config = sample_config();
+    let store = SharedRunStateStore::new(Arc::new(OverloadedRunStateStore {
+        message: "sqlite writer queue full".to_string(),
+        retry_after_ms: Some(27),
+    }));
+    let router =
+        router_with_store_registry_overrides(config, None, None, None, None, Some(store), None);
+    let spec = sample_spec();
+    router
+        .define_scenario(
+            &RequestContext::stdio(),
+            ScenarioDefineRequest {
+                spec: spec.clone(),
+            },
+        )
+        .expect("define scenario");
+    let payload = scenario_start_payload(
+        &spec,
+        TenantId::from_raw(1).expect("nonzero tenantid"),
+        NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+        "run-overloaded",
+    );
+
+    let err = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(async {
+            let context = RequestContext::stdio();
+            router.handle_tool_call(&context, ToolName::ScenarioStart.as_str(), payload).await
+        })
+        .expect_err("scenario_start should fail with rate-limited");
+    assert!(matches!(
+        err,
+        ToolError::RateLimited {
+            retry_after_ms: Some(27),
+            ..
+        }
+    ));
+}
+
+#[test]
+fn schemas_register_overloaded_registry_returns_rate_limited() {
+    let config = sample_config();
+    let registry = SharedDataShapeRegistry::new(Arc::new(OverloadedRegistry {
+        message: "registry writer queue full".to_string(),
+        retry_after_ms: Some(19),
+    }));
+    let router =
+        router_with_store_registry_overrides(config, None, None, None, None, None, Some(registry));
+    let payload = schemas_register_payload(
+        TenantId::from_raw(1).expect("nonzero tenantid"),
+        NamespaceId::from_raw(1).expect("nonzero namespaceid"),
+    );
+
+    let err = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(async {
+            let context = RequestContext::stdio();
+            router.handle_tool_call(&context, ToolName::SchemasRegister.as_str(), payload).await
+        })
+        .expect_err("schemas_register should fail with rate-limited");
+    assert!(matches!(
+        err,
+        ToolError::RateLimited {
+            retry_after_ms: Some(19),
+            ..
+        }
+    ));
 }

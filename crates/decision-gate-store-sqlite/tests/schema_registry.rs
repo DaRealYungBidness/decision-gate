@@ -81,6 +81,11 @@ fn sqlite_fixture() -> SqliteFixture {
         max_versions: None,
         schema_registry_max_schema_bytes: None,
         schema_registry_max_entries: None,
+        writer_queue_capacity: 1_024,
+        batch_max_ops: 64,
+        batch_max_bytes: 512 * 1024,
+        batch_max_wait_ms: 2,
+        read_pool_size: 4,
     };
     let store = SqliteRunStateStore::new(config).expect("store");
     SqliteFixture {
@@ -104,6 +109,11 @@ fn sqlite_fixture_with_limits(
         max_versions: None,
         schema_registry_max_schema_bytes: max_schema_bytes,
         schema_registry_max_entries: max_entries,
+        writer_queue_capacity: 1_024,
+        batch_max_ops: 64,
+        batch_max_bytes: 512 * 1024,
+        batch_max_wait_ms: 2,
+        read_pool_size: 4,
     };
     let store = SqliteRunStateStore::new(config).expect("store");
     SqliteFixture {
@@ -138,16 +148,18 @@ fn insert_oversized_record(fixture: &SqliteFixture, schema_id: &str) -> DataShap
         .execute(
             "INSERT INTO data_shapes (
                 tenant_id, namespace_id, schema_id, version,
-                schema_json, schema_hash, hash_algorithm, description,
+                schema_json, schema_size_bytes, schema_hash, hash_algorithm, description,
                 signing_key_id, signing_signature, signing_algorithm,
                 created_at_json
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             rusqlite::params![
                 record.tenant_id.to_string(),
                 record.namespace_id.to_string(),
                 record.schema_id.as_str(),
                 record.version.as_str(),
                 schema_bytes,
+                i64::try_from(MAX_SCHEMA_BYTES + 1)
+                    .expect("oversized schema length should fit i64"),
                 hash.value,
                 hash_algorithm,
                 record.description.as_deref(),
@@ -535,6 +547,11 @@ fn sqlite_registry_concurrent_writes_different_schemas_no_deadlock() {
                 max_versions: None,
                 schema_registry_max_schema_bytes: None,
                 schema_registry_max_entries: None,
+                writer_queue_capacity: 1_024,
+                batch_max_ops: 64,
+                batch_max_bytes: 512 * 1024,
+                batch_max_wait_ms: 2,
+                read_pool_size: 4,
             };
             let store = SqliteRunStateStore::new(config).expect("store");
             for j in 0 .. 3u64 {
@@ -608,6 +625,11 @@ fn sqlite_registry_concurrent_read_write_consistent() {
                 max_versions: None,
                 schema_registry_max_schema_bytes: None,
                 schema_registry_max_entries: None,
+                writer_queue_capacity: 1_024,
+                batch_max_ops: 64,
+                batch_max_bytes: 512 * 1024,
+                batch_max_wait_ms: 2,
+                read_pool_size: 4,
             };
             let store = SqliteRunStateStore::new(config).expect("store");
             for j in 0 .. 5u64 {
@@ -639,6 +661,11 @@ fn sqlite_registry_concurrent_read_write_consistent() {
                 max_versions: None,
                 schema_registry_max_schema_bytes: None,
                 schema_registry_max_entries: None,
+                writer_queue_capacity: 1_024,
+                batch_max_ops: 64,
+                batch_max_bytes: 512 * 1024,
+                batch_max_wait_ms: 2,
+                read_pool_size: 4,
             };
             let store = SqliteRunStateStore::new(config).expect("store");
             for _ in 0 .. 10 {

@@ -16,7 +16,8 @@
 //!
 //! Security posture: system-test inputs are untrusted; see `Docs/security/threat_model.md`.
 
-// Planned long-running soak/perf coverage is tracked in system-tests/test_gaps.toml (id: stress-soak-perf).
+// Planned long-running soak/perf coverage is tracked in system-tests/test_gaps.toml (id:
+// stress-soak-perf).
 
 use std::collections::HashSet;
 

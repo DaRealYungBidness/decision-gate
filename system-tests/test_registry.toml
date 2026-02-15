@@ -125,6 +125,16 @@ artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
 estimated_runtime_sec = 8
 
 [[tests]]
+name = "debug_mutation_stats_auth_and_schema"
+category = "security"
+priority = "P0"
+description = "Debug mutation stats endpoint fails closed without auth and returns stable schema when authorized."
+files = ["system-tests/tests/suites/mcp_auth.rs"]
+run_command = "cargo test -p system-tests --features system-tests --test security -- --exact mcp_auth::debug_mutation_stats_auth_and_schema"
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "mutation_stats_response.json"]
+estimated_runtime_sec = 8
+
+[[tests]]
 name = "http_rate_limit_enforced"
 category = "operations"
 priority = "P0"
@@ -1247,7 +1257,7 @@ description = "CLI MCP client enforces bearer token and mTLS subject auth."
 files = ["system-tests/tests/suites/cli_auth.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test security -- --exact cli_auth::cli_auth_matrix"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
-estimated_runtime_sec = 12
+estimated_runtime_sec = 30
 
 [[tests]]
 name = "cli_auth_profile_bearer_token"
@@ -1257,7 +1267,7 @@ description = "CLI auth profile supplies bearer token for MCP client calls."
 files = ["system-tests/tests/suites/cli_auth.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test security -- --exact cli_auth::cli_auth_profile_bearer_token"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
-estimated_runtime_sec = 10
+estimated_runtime_sec = 30
 
 [[tests]]
 name = "cli_auth_profile_cli_override"
@@ -1267,7 +1277,7 @@ description = "CLI bearer token flag overrides auth profile credentials."
 files = ["system-tests/tests/suites/cli_auth.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test security -- --exact cli_auth::cli_auth_profile_cli_override"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
-estimated_runtime_sec = 10
+estimated_runtime_sec = 30
 
 [[tests]]
 name = "cli_mcp_tool_wrappers_conformance"
@@ -1447,7 +1457,7 @@ description = "Tool visibility allowlist/denylist filters tools/list and hides t
 files = ["system-tests/tests/suites/tool_visibility.rs"]
 run_command = "cargo test -p system-tests --features system-tests --test security -- --exact tool_visibility::server_tools_visibility_filtering"
 artifacts = ["summary.json", "summary.md", "tool_transcript.json"]
-estimated_runtime_sec = 8
+estimated_runtime_sec = 20
 
 [[tests]]
 name = "server_tools_visibility_defaults_and_auth_separation"
@@ -1702,7 +1712,7 @@ priority = "P2"
 description = "Release-profile SQLite WAL+FULL throughput report for scenario_start/scenario_trigger workflow."
 files = ["system-tests/tests/suites/performance.rs"]
 run_command = "cargo test --release -p system-tests --features system-tests --test performance -- --ignored --exact performance::perf_sqlite_core_mcp_throughput_release"
-artifacts = ["summary.json", "summary.md", "tool_transcript.json", "perf_summary.json", "perf_tool_metrics.json", "perf_target.json", "sqlite_config.json", "sqlite_sweep.json"]
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "perf_summary.json", "perf_tool_metrics.json", "perf_target.json", "sqlite_config.json", "sqlite_sweep.json", "sqlite_sweep_detailed.json", "mutation_diagnostics.json"]
 estimated_runtime_sec = 240
 min_executed_tests = 1
 
@@ -1713,7 +1723,7 @@ priority = "P2"
 description = "Release-profile SQLite WAL+FULL throughput report for precheck workflow."
 files = ["system-tests/tests/suites/performance.rs"]
 run_command = "cargo test --release -p system-tests --features system-tests --test performance -- --ignored --exact performance::perf_sqlite_precheck_throughput_release"
-artifacts = ["summary.json", "summary.md", "tool_transcript.json", "perf_summary.json", "perf_tool_metrics.json", "perf_target.json", "sqlite_config.json", "sqlite_sweep.json"]
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "perf_summary.json", "perf_tool_metrics.json", "perf_target.json", "sqlite_config.json", "sqlite_sweep.json", "sqlite_sweep_detailed.json", "mutation_diagnostics.json"]
 estimated_runtime_sec = 240
 min_executed_tests = 1
 
@@ -1724,7 +1734,7 @@ priority = "P2"
 description = "Release-profile SQLite WAL+FULL throughput report for mixed registry write/read workflow."
 files = ["system-tests/tests/suites/performance.rs"]
 run_command = "cargo test --release -p system-tests --features system-tests --test performance -- --ignored --exact performance::perf_sqlite_registry_mixed_throughput_release"
-artifacts = ["summary.json", "summary.md", "tool_transcript.json", "perf_summary.json", "perf_tool_metrics.json", "perf_target.json", "sqlite_config.json", "sqlite_sweep.json"]
+artifacts = ["summary.json", "summary.md", "tool_transcript.json", "perf_summary.json", "perf_tool_metrics.json", "perf_target.json", "sqlite_config.json", "sqlite_sweep.json", "sqlite_sweep_detailed.json", "registry_health.json", "mutation_diagnostics.json"]
 estimated_runtime_sec = 240
 min_executed_tests = 1
 
@@ -1735,7 +1745,7 @@ priority = "P2"
 description = "Release-profile direct SQLite run-state store contention microbench with sweep diagnostics."
 files = ["system-tests/tests/suites/perf_sqlite_store.rs"]
 run_command = "cargo test --release -p system-tests --features system-tests --test performance -- --ignored --exact perf_sqlite_store::perf_sqlite_store_run_state_contention_release"
-artifacts = ["summary.json", "summary.md", "perf_summary.json", "perf_target.json", "sqlite_config.json", "sqlite_contention.json", "sqlite_sweep.json"]
+artifacts = ["summary.json", "summary.md", "perf_summary.json", "perf_target.json", "sqlite_config.json", "sqlite_contention.json", "writer_diagnostics.json", "sqlite_sweep.json", "sqlite_sweep_detailed.json"]
 estimated_runtime_sec = 180
 min_executed_tests = 1
 
@@ -1746,7 +1756,7 @@ priority = "P2"
 description = "Release-profile direct SQLite registry contention microbench with sweep diagnostics."
 files = ["system-tests/tests/suites/perf_sqlite_store.rs"]
 run_command = "cargo test --release -p system-tests --features system-tests --test performance -- --ignored --exact perf_sqlite_store::perf_sqlite_store_registry_contention_release"
-artifacts = ["summary.json", "summary.md", "perf_summary.json", "perf_target.json", "sqlite_config.json", "sqlite_contention.json", "sqlite_sweep.json"]
+artifacts = ["summary.json", "summary.md", "perf_summary.json", "perf_target.json", "sqlite_config.json", "sqlite_contention.json", "writer_diagnostics.json", "sqlite_sweep.json", "sqlite_sweep_detailed.json", "registry_health.json", "sqlite_read_pool_sweep.json"]
 estimated_runtime_sec = 180
 min_executed_tests = 1
 

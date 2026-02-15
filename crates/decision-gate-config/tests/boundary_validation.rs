@@ -164,6 +164,11 @@ fn max_versions_zero_rejected() -> TestResult {
         journal_mode: SqliteStoreMode::Wal,
         sync_mode: SqliteSyncMode::Full,
         max_versions: Some(0),
+        writer_queue_capacity: 1_024,
+        batch_max_ops: 64,
+        batch_max_bytes: 512 * 1024,
+        batch_max_wait_ms: 2,
+        read_pool_size: 4,
     };
     assert_invalid(config.validate(), "run_state_store max_versions must be greater than zero")?;
     Ok(())

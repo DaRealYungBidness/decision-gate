@@ -46,6 +46,7 @@ use decision_gate_core::ScenarioSpec;
 use decision_gate_core::SpecVersion;
 use decision_gate_core::StageId;
 use decision_gate_core::StageSpec;
+use decision_gate_core::StoreError;
 use decision_gate_core::TenantId;
 use decision_gate_core::TimeoutPolicy;
 use decision_gate_core::Timestamp;
@@ -117,6 +118,11 @@ const fn config_for_path(path: PathBuf, max_versions: Option<u64>) -> SqliteStor
         max_versions,
         schema_registry_max_schema_bytes: None,
         schema_registry_max_entries: None,
+        writer_queue_capacity: 1_024,
+        batch_max_ops: 64,
+        batch_max_bytes: 512 * 1024,
+        batch_max_wait_ms: 2,
+        read_pool_size: 4,
     }
 }
 
@@ -295,7 +301,7 @@ fn sqlite_store_upgrades_schema_from_v3() {
     let version: i64 = conn
         .query_row("SELECT version FROM store_meta LIMIT 1", params![], |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 4, "schema version should be upgraded to 4");
+    assert_eq!(version, 5, "schema version should be upgraded to 5");
 
     let mut stmt = conn.prepare("PRAGMA table_info(data_shapes)").unwrap();
     let columns: Vec<String> =
@@ -303,6 +309,17 @@ fn sqlite_store_upgrades_schema_from_v3() {
     assert!(columns.contains(&"signing_key_id".to_string()));
     assert!(columns.contains(&"signing_signature".to_string()));
     assert!(columns.contains(&"signing_algorithm".to_string()));
+    assert!(columns.contains(&"schema_size_bytes".to_string()));
+
+    let counters_table_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = \
+             'registry_namespace_counters'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(counters_table_count, 1, "registry counters table should exist");
 }
 
 // ============================================================================
@@ -669,6 +686,11 @@ fn sqlite_store_sets_delete_mode() {
         max_versions: None,
         schema_registry_max_schema_bytes: None,
         schema_registry_max_entries: None,
+        writer_queue_capacity: 1_024,
+        batch_max_ops: 64,
+        batch_max_bytes: 512 * 1024,
+        batch_max_wait_ms: 2,
+        read_pool_size: 4,
     };
     let _store = SqliteRunStateStore::new(config).unwrap();
 
@@ -723,4 +745,24 @@ fn sqlite_store_supports_concurrent_writes() {
 
     let runs = store.list_runs(None, None).unwrap();
     assert_eq!(runs.len(), 4);
+}
+
+// ============================================================================
+// SECTION: Overload Error Mapping
+// ============================================================================
+
+#[test]
+fn sqlite_store_error_overloaded_maps_to_store_error_overloaded() {
+    let mapped: StoreError = SqliteStoreError::Overloaded {
+        message: "sqlite writer queue full".to_string(),
+        retry_after_ms: Some(42),
+    }
+    .into();
+    assert!(matches!(
+        mapped,
+        StoreError::Overloaded {
+            message,
+            retry_after_ms: Some(42)
+        } if message == "sqlite writer queue full"
+    ));
 }

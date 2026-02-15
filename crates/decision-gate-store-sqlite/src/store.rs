@@ -21,6 +21,14 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
+use std::sync::mpsc;
+use std::sync::mpsc::RecvTimeoutError;
+use std::sync::mpsc::SyncSender;
+use std::sync::mpsc::TrySendError;
+use std::thread;
 use std::time::Instant;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
@@ -58,7 +66,7 @@ use thiserror::Error;
 // ============================================================================
 
 /// `SQLite` schema version for the store.
-const SCHEMA_VERSION: i64 = 4;
+const SCHEMA_VERSION: i64 = 5;
 /// Default busy timeout (ms).
 const DEFAULT_BUSY_TIMEOUT_MS: u64 = 5_000;
 /// Maximum length of a single path component.
@@ -72,6 +80,16 @@ pub const MAX_STATE_BYTES: usize = MAX_RUNPACK_ARTIFACT_BYTES;
 pub const MAX_SCHEMA_BYTES: usize = 1024 * 1024;
 /// Millisecond bucket boundaries used for lightweight store perf snapshots.
 const PERF_BUCKETS_MS: [u64; 10] = [1, 2, 5, 10, 20, 50, 100, 250, 500, 1_000];
+/// Bucket boundaries used for writer queue depth histograms.
+const WRITER_QUEUE_DEPTH_BUCKETS: [u64; 10] = [0, 1, 2, 4, 8, 16, 32, 64, 128, 256];
+/// Bucket boundaries used for writer batch size histograms.
+const WRITER_BATCH_SIZE_BUCKETS: [u64; 8] = [1, 2, 4, 8, 16, 32, 64, 128];
+/// Microsecond bucket boundaries used for writer wait/commit histograms.
+const WRITER_TIME_BUCKETS_US: [u64; 10] =
+    [100, 250, 500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000];
+/// Microsecond bucket boundaries used for read-pool lock wait histograms.
+const READ_WAIT_TIME_BUCKETS_US: [u64; 10] =
+    [100, 250, 500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000];
 
 /// Cursor payload for schema pagination.
 #[derive(Debug, Serialize, Deserialize)]
@@ -167,11 +185,51 @@ pub struct SqliteStoreConfig {
     /// Optional maximum number of schemas per tenant + namespace.
     #[serde(default)]
     pub schema_registry_max_entries: Option<usize>,
+    /// Writer queue capacity.
+    #[serde(default = "default_writer_queue_capacity")]
+    pub writer_queue_capacity: usize,
+    /// Maximum number of operations in a single writer batch.
+    #[serde(default = "default_batch_max_ops")]
+    pub batch_max_ops: usize,
+    /// Maximum aggregate command bytes in a single writer batch.
+    #[serde(default = "default_batch_max_bytes")]
+    pub batch_max_bytes: usize,
+    /// Maximum wait window for writer batching (milliseconds).
+    #[serde(default = "default_batch_max_wait_ms")]
+    pub batch_max_wait_ms: u64,
+    /// Number of read-only connections used for read path isolation.
+    #[serde(default = "default_read_pool_size")]
+    pub read_pool_size: usize,
 }
 
 /// Returns the default busy timeout for `SQLite` connections.
 const fn default_busy_timeout_ms() -> u64 {
     DEFAULT_BUSY_TIMEOUT_MS
+}
+
+/// Returns the default writer queue capacity.
+const fn default_writer_queue_capacity() -> usize {
+    1_024
+}
+
+/// Returns the default batch max operation count.
+const fn default_batch_max_ops() -> usize {
+    64
+}
+
+/// Returns the default batch max byte count.
+const fn default_batch_max_bytes() -> usize {
+    512 * 1024
+}
+
+/// Returns the default writer batch max wait window in milliseconds.
+const fn default_batch_max_wait_ms() -> u64 {
+    2
+}
+
+/// Returns the default read connection pool size.
+const fn default_read_pool_size() -> usize {
+    4
 }
 
 /// Validates schema registry limits in the store configuration.
@@ -193,6 +251,36 @@ fn validate_schema_registry_limits(config: &SqliteStoreConfig) -> Result<(), Sql
     Ok(())
 }
 
+/// Validates runtime limits in the store configuration.
+fn validate_runtime_limits(config: &SqliteStoreConfig) -> Result<(), SqliteStoreError> {
+    if config.writer_queue_capacity == 0 {
+        return Err(SqliteStoreError::Invalid(
+            "writer_queue_capacity must be greater than zero".to_string(),
+        ));
+    }
+    if config.batch_max_ops == 0 {
+        return Err(SqliteStoreError::Invalid(
+            "batch_max_ops must be greater than zero".to_string(),
+        ));
+    }
+    if config.batch_max_bytes == 0 {
+        return Err(SqliteStoreError::Invalid(
+            "batch_max_bytes must be greater than zero".to_string(),
+        ));
+    }
+    if config.batch_max_wait_ms == 0 {
+        return Err(SqliteStoreError::Invalid(
+            "batch_max_wait_ms must be greater than zero".to_string(),
+        ));
+    }
+    if config.read_pool_size == 0 {
+        return Err(SqliteStoreError::Invalid(
+            "read_pool_size must be greater than zero".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 // ============================================================================
 // SECTION: Errors
 // ============================================================================
@@ -201,7 +289,7 @@ fn validate_schema_registry_limits(config: &SqliteStoreConfig) -> Result<(), Sql
 ///
 /// # Invariants
 /// - Error messages avoid embedding raw run state or schema payloads.
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub enum SqliteStoreError {
     /// Store I/O error.
     #[error("sqlite store io error: {0}")]
@@ -226,6 +314,14 @@ pub enum SqliteStoreError {
         /// Actual payload size in bytes.
         actual_bytes: usize,
     },
+    /// Store is overloaded and the caller should retry.
+    #[error("sqlite store overloaded: {message}")]
+    Overloaded {
+        /// Retryable overload message.
+        message: String,
+        /// Optional retry delay in milliseconds.
+        retry_after_ms: Option<u64>,
+    },
 }
 
 impl From<SqliteStoreError> for StoreError {
@@ -236,9 +332,19 @@ impl From<SqliteStoreError> for StoreError {
             SqliteStoreError::Corrupt(message) => Self::Corrupt(message),
             SqliteStoreError::VersionMismatch(message) => Self::VersionMismatch(message),
             SqliteStoreError::Invalid(message) => Self::Invalid(message),
-            SqliteStoreError::TooLarge { max_bytes, actual_bytes } => Self::Invalid(format!(
+            SqliteStoreError::TooLarge {
+                max_bytes,
+                actual_bytes,
+            } => Self::Invalid(format!(
                 "state_json exceeds size limit: {actual_bytes} bytes (max {max_bytes})"
             )),
+            SqliteStoreError::Overloaded {
+                message,
+                retry_after_ms,
+            } => Self::Overloaded {
+                message,
+                retry_after_ms,
+            },
         }
     }
 }
@@ -256,8 +362,14 @@ impl From<SqliteStoreError> for StoreError {
 pub struct SqliteRunStateStore {
     /// Store configuration.
     config: SqliteStoreConfig,
-    /// Shared `SQLite` connection guarded by a mutex.
-    connection: Arc<Mutex<Connection>>,
+    /// Shared writer connection guarded by a mutex.
+    write_connection: Arc<Mutex<Connection>>,
+    /// Read-only connection pool used for read path isolation under WAL.
+    read_connections: Arc<Vec<Mutex<Connection>>>,
+    /// Round-robin cursor for read connection selection.
+    read_cursor: Arc<AtomicUsize>,
+    /// Deterministic writer gateway for queueing durable mutations.
+    writer_gateway: Arc<SqliteWriteGateway>,
     /// Lightweight operation stats used for local performance diagnostics.
     perf_stats: Arc<Mutex<SqlitePerfStats>>,
 }
@@ -316,7 +428,7 @@ pub struct SqliteDbErrorCounts {
     pub other: u64,
 }
 
-/// Snapshot of lightweight SQLite perf/contention stats.
+/// Snapshot of lightweight `SQLite` perf/contention stats.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SqlitePerfStatsSnapshot {
     /// Per-class operation counts.
@@ -339,30 +451,231 @@ pub struct SqlitePerfStatsSnapshot {
     pub register_total_duration_ms: u64,
     /// Cumulative list duration in milliseconds.
     pub list_total_duration_ms: u64,
+    /// Read-pool lock wait bucket boundaries in microseconds.
+    pub read_wait_buckets_us: Vec<u64>,
+    /// Read-pool lock wait histogram counts.
+    pub read_wait_histogram_us: Vec<u64>,
+    /// Read-pool lock wait p50 estimate in microseconds.
+    pub read_wait_p50_us: u64,
+    /// Read-pool lock wait p95 estimate in microseconds.
+    pub read_wait_p95_us: u64,
     /// Database error counters.
     pub db_errors: SqliteDbErrorCounts,
+    /// Writer queue and batch diagnostics.
+    pub writer: SqliteWriterDiagnosticsSnapshot,
 }
 
+/// Snapshot of writer queue/batch diagnostics.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SqliteWriterDiagnosticsSnapshot {
+    /// Number of commands accepted by the writer queue.
+    pub commands_enqueued: u64,
+    /// Number of commands rejected due to queue saturation.
+    pub commands_rejected: u64,
+    /// Number of commands fully processed by the writer.
+    pub commands_processed: u64,
+    /// Number of successfully committed batches.
+    pub commit_success_count: u64,
+    /// Number of failed batch commits.
+    pub commit_failure_count: u64,
+    /// Queue depth bucket boundaries.
+    pub queue_depth_buckets: Vec<u64>,
+    /// Queue depth histogram counts (length = `queue_depth_buckets.len() + 1`).
+    pub queue_depth_histogram: Vec<u64>,
+    /// Queue depth p50 estimate from histogram.
+    pub queue_depth_p50: u64,
+    /// Queue depth p95 estimate from histogram.
+    pub queue_depth_p95: u64,
+    /// Batch-size bucket boundaries.
+    pub batch_size_buckets: Vec<u64>,
+    /// Batch-size histogram counts (length = `batch_size_buckets.len() + 1`).
+    pub batch_size_histogram: Vec<u64>,
+    /// Batch-size p50 estimate from histogram.
+    pub batch_size_p50: u64,
+    /// Batch-size p95 estimate from histogram.
+    pub batch_size_p95: u64,
+    /// Writer timing bucket boundaries in microseconds.
+    pub timing_buckets_us: Vec<u64>,
+    /// Batch wait histogram counts (length = `timing_buckets_us.len() + 1`).
+    pub batch_wait_histogram_us: Vec<u64>,
+    /// Batch wait p50 estimate in microseconds.
+    pub batch_wait_p50_us: u64,
+    /// Batch wait p95 estimate in microseconds.
+    pub batch_wait_p95_us: u64,
+    /// Batch commit histogram counts (length = `timing_buckets_us.len() + 1`).
+    pub batch_commit_histogram_us: Vec<u64>,
+    /// Batch commit p50 estimate in microseconds.
+    pub batch_commit_p50_us: u64,
+    /// Batch commit p95 estimate in microseconds.
+    pub batch_commit_p95_us: u64,
+}
+
+/// Internal mutable perf counters before snapshot serialization.
 #[derive(Debug, Default)]
 struct SqlitePerfStats {
+    /// Per-operation counters.
     op_counts: SqliteStoreOpCounts,
+    /// Read-operation latency histogram.
     read_latency_histogram: [u64; PERF_BUCKETS_MS.len() + 1],
+    /// Write-operation latency histogram.
     write_latency_histogram: [u64; PERF_BUCKETS_MS.len() + 1],
+    /// Register-operation latency histogram.
     register_latency_histogram: [u64; PERF_BUCKETS_MS.len() + 1],
+    /// List-operation latency histogram.
     list_latency_histogram: [u64; PERF_BUCKETS_MS.len() + 1],
+    /// Cumulative read duration in milliseconds.
     read_total_duration_ms: u64,
+    /// Cumulative write duration in milliseconds.
     write_total_duration_ms: u64,
+    /// Cumulative register duration in milliseconds.
     register_total_duration_ms: u64,
+    /// Cumulative list duration in milliseconds.
     list_total_duration_ms: u64,
+    /// Read-pool lock wait histogram in microseconds.
+    read_wait_histogram_us: [u64; READ_WAIT_TIME_BUCKETS_US.len() + 1],
+    /// Classified database error counters.
     db_errors: SqliteDbErrorCounts,
+    /// Writer queue and batch diagnostics.
+    writer: SqliteWriterDiagnostics,
 }
 
+/// Performance operation class used for histogram/counter updates.
 #[derive(Debug, Clone, Copy)]
 enum SqlitePerfOp {
+    /// Run-state read (`load`).
     Read,
+    /// Run-state write (`save`).
     Write,
+    /// Schema registration write.
     Register,
+    /// Schema list read.
     List,
+}
+
+/// Internal mutable writer diagnostics before snapshot serialization.
+#[derive(Debug)]
+struct SqliteWriterDiagnostics {
+    /// Number of commands accepted by queue submission.
+    commands_enqueued: u64,
+    /// Number of commands rejected due to queue backpressure or disconnect.
+    commands_rejected: u64,
+    /// Number of commands processed by writer batches.
+    commands_processed: u64,
+    /// Number of successful batch commits.
+    commit_success_count: u64,
+    /// Number of failed batch commits.
+    commit_failure_count: u64,
+    /// Queue-depth histogram captured at submit-time.
+    queue_depth_histogram: [u64; WRITER_QUEUE_DEPTH_BUCKETS.len() + 1],
+    /// Batch-size histogram captured at commit-time.
+    batch_size_histogram: [u64; WRITER_BATCH_SIZE_BUCKETS.len() + 1],
+    /// Batch wait-time histogram in microseconds.
+    batch_wait_histogram_us: [u64; WRITER_TIME_BUCKETS_US.len() + 1],
+    /// Batch commit-time histogram in microseconds.
+    batch_commit_histogram_us: [u64; WRITER_TIME_BUCKETS_US.len() + 1],
+}
+
+impl Default for SqliteWriterDiagnostics {
+    fn default() -> Self {
+        Self {
+            commands_enqueued: 0,
+            commands_rejected: 0,
+            commands_processed: 0,
+            commit_success_count: 0,
+            commit_failure_count: 0,
+            queue_depth_histogram: [0; WRITER_QUEUE_DEPTH_BUCKETS.len() + 1],
+            batch_size_histogram: [0; WRITER_BATCH_SIZE_BUCKETS.len() + 1],
+            batch_wait_histogram_us: [0; WRITER_TIME_BUCKETS_US.len() + 1],
+            batch_commit_histogram_us: [0; WRITER_TIME_BUCKETS_US.len() + 1],
+        }
+    }
+}
+
+/// Gateway for bounded writer-queue submissions.
+struct SqliteWriteGateway {
+    /// Synchronous channel sender into the writer runtime.
+    sender: SyncSender<SqliteWriterCommand>,
+    /// Approximate number of commands currently pending.
+    pending_depth: Arc<AtomicUsize>,
+    /// Monotonic sequence assigned to queued commands.
+    sequence: AtomicU64,
+    /// Shared perf counters updated by submit-side logic.
+    perf_stats: Arc<Mutex<SqlitePerfStats>>,
+    /// Suggested retry delay returned on overload responses.
+    retry_after_ms: u64,
+}
+
+/// Command envelope queued to the writer runtime.
+struct SqliteWriterCommand {
+    /// Monotonic sequence for deterministic batch ordering.
+    sequence: u64,
+    /// Submit timestamp used to derive queue wait.
+    enqueued_at: Instant,
+    /// Approximate payload size used for batch byte limits.
+    estimated_bytes: usize,
+    /// Command payload and response channel.
+    payload: SqliteWriterPayload,
+}
+
+/// Queue payload variants handled by the writer runtime.
+enum SqliteWriterPayload {
+    /// Persist a prepared run-state snapshot.
+    Save {
+        /// Prepared save request payload.
+        request: PreparedSaveState,
+        /// Result channel for the save operation.
+        response: mpsc::Sender<Result<(), SqliteStoreError>>,
+    },
+    /// Persist a prepared schema registry record.
+    Register {
+        /// Prepared register request payload.
+        request: PreparedRegisterRecord,
+        /// Result channel for the register operation.
+        response: mpsc::Sender<Result<(), DataShapeRegistryError>>,
+    },
+    /// Execute lightweight readiness probe on writer connection.
+    Readiness {
+        /// Result channel for readiness outcome.
+        response: mpsc::Sender<Result<(), SqliteStoreError>>,
+    },
+}
+
+/// Fully-prepared run-state save payload for writer execution.
+#[derive(Debug, Clone)]
+struct PreparedSaveState {
+    /// Canonical run-state value to persist.
+    state: RunState,
+    /// Canonical JSON bytes for run-state.
+    state_json: Vec<u8>,
+    /// Canonical hash of `state_json`.
+    state_hash: String,
+    /// Hash algorithm used for `state_hash`.
+    hash_algorithm: HashAlgorithm,
+    /// Save timestamp in unix milliseconds.
+    saved_at: i64,
+}
+
+/// Fully-prepared schema register payload for writer execution.
+#[derive(Debug, Clone)]
+struct PreparedRegisterRecord {
+    /// Canonical schema record to persist.
+    record: DataShapeRecord,
+    /// Canonical JSON bytes for schema.
+    schema_json: Vec<u8>,
+    /// Canonical schema size in bytes.
+    schema_size_bytes: i64,
+    /// Canonical hash of `schema_json`.
+    schema_hash: String,
+    /// Hash algorithm used for `schema_hash`.
+    hash_algorithm: HashAlgorithm,
+    /// JSON-encoded creation timestamp.
+    created_at_json: String,
+    /// Optional signing key ID.
+    signing_key_id: Option<String>,
+    /// Optional signing signature bytes as text.
+    signing_signature: Option<String>,
+    /// Optional signing algorithm label.
+    signing_algorithm: Option<String>,
 }
 
 impl SqliteRunStateStore {
@@ -376,12 +689,40 @@ impl SqliteRunStateStore {
         validate_store_path(&config.path)?;
         ensure_parent_dir(&config.path)?;
         validate_schema_registry_limits(&config)?;
-        let mut connection = open_connection(&config)?;
-        initialize_schema(&mut connection)?;
+        validate_runtime_limits(&config)?;
+        let mut write_connection = open_connection(&config)?;
+        initialize_schema(&mut write_connection)?;
+        let mut read_connections = Vec::with_capacity(config.read_pool_size);
+        for _ in 0 .. config.read_pool_size {
+            let mut read_connection = open_connection(&config)?;
+            initialize_schema(&mut read_connection)?;
+            read_connections.push(Mutex::new(read_connection));
+        }
+        let perf_stats = Arc::new(Mutex::new(SqlitePerfStats::default()));
+        let pending_depth = Arc::new(AtomicUsize::new(0));
+        let (sender, receiver) = mpsc::sync_channel(config.writer_queue_capacity);
+        let retry_after_ms = config.batch_max_wait_ms;
+        let write_connection = Arc::new(Mutex::new(write_connection));
+        spawn_sqlite_writer_runtime(
+            config.clone(),
+            Arc::clone(&write_connection),
+            Arc::clone(&perf_stats),
+            Arc::clone(&pending_depth),
+            receiver,
+        )?;
         Ok(Self {
             config,
-            connection: Arc::new(Mutex::new(connection)),
-            perf_stats: Arc::new(Mutex::new(SqlitePerfStats::default())),
+            write_connection,
+            read_connections: Arc::new(read_connections),
+            read_cursor: Arc::new(AtomicUsize::new(0)),
+            writer_gateway: Arc::new(SqliteWriteGateway {
+                sender,
+                pending_depth,
+                sequence: AtomicU64::new(1),
+                perf_stats: Arc::clone(&perf_stats),
+                retry_after_ms,
+            }),
+            perf_stats,
         })
     }
 
@@ -391,14 +732,17 @@ impl SqliteRunStateStore {
     ///
     /// Returns [`SqliteStoreError`] if the mutex is poisoned or the query fails.
     fn check_connection(&self) -> Result<(), SqliteStoreError> {
+        let connection = self.read_connection();
         {
-            let guard = self
-                .connection
+            let wait_started = Instant::now();
+            let guard = connection
                 .lock()
-                .map_err(|_| SqliteStoreError::Io("sqlite mutex poisoned".to_string()))?;
+                .map_err(|_| SqliteStoreError::Io("sqlite read mutex poisoned".to_string()))?;
+            let wait_us = u64::try_from(wait_started.elapsed().as_micros()).unwrap_or(u64::MAX);
+            self.record_read_wait(wait_us);
             guard.execute("SELECT 1", []).map_err(|err| SqliteStoreError::Db(err.to_string()))?;
         }
-        Ok(())
+        self.writer_gateway.submit_readiness()
     }
 
     /// Returns the configured schema payload size limit for registry operations.
@@ -410,16 +754,11 @@ impl SqliteRunStateStore {
         }
     }
 
-    /// Returns the configured schema entry limit for registry operations.
-    #[must_use]
-    const fn registry_max_entries(&self) -> Option<usize> {
-        self.config.schema_registry_max_entries
-    }
-
     /// Returns a snapshot of lightweight operation and contention stats.
     #[must_use]
     pub fn perf_stats_snapshot(&self) -> SqlitePerfStatsSnapshot {
-        let guard = self.perf_stats.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let guard = self.perf_stats.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let writer = &guard.writer;
         SqlitePerfStatsSnapshot {
             op_counts: guard.op_counts.clone(),
             latency_buckets_ms: PERF_BUCKETS_MS.to_vec(),
@@ -431,7 +770,73 @@ impl SqliteRunStateStore {
             write_total_duration_ms: guard.write_total_duration_ms,
             register_total_duration_ms: guard.register_total_duration_ms,
             list_total_duration_ms: guard.list_total_duration_ms,
+            read_wait_buckets_us: READ_WAIT_TIME_BUCKETS_US.to_vec(),
+            read_wait_histogram_us: guard.read_wait_histogram_us.to_vec(),
+            read_wait_p50_us: histogram_percentile(
+                &READ_WAIT_TIME_BUCKETS_US,
+                &guard.read_wait_histogram_us,
+                50,
+            ),
+            read_wait_p95_us: histogram_percentile(
+                &READ_WAIT_TIME_BUCKETS_US,
+                &guard.read_wait_histogram_us,
+                95,
+            ),
             db_errors: guard.db_errors.clone(),
+            writer: SqliteWriterDiagnosticsSnapshot {
+                commands_enqueued: writer.commands_enqueued,
+                commands_rejected: writer.commands_rejected,
+                commands_processed: writer.commands_processed,
+                commit_success_count: writer.commit_success_count,
+                commit_failure_count: writer.commit_failure_count,
+                queue_depth_buckets: WRITER_QUEUE_DEPTH_BUCKETS.to_vec(),
+                queue_depth_histogram: writer.queue_depth_histogram.to_vec(),
+                queue_depth_p50: histogram_percentile(
+                    &WRITER_QUEUE_DEPTH_BUCKETS,
+                    &writer.queue_depth_histogram,
+                    50,
+                ),
+                queue_depth_p95: histogram_percentile(
+                    &WRITER_QUEUE_DEPTH_BUCKETS,
+                    &writer.queue_depth_histogram,
+                    95,
+                ),
+                batch_size_buckets: WRITER_BATCH_SIZE_BUCKETS.to_vec(),
+                batch_size_histogram: writer.batch_size_histogram.to_vec(),
+                batch_size_p50: histogram_percentile(
+                    &WRITER_BATCH_SIZE_BUCKETS,
+                    &writer.batch_size_histogram,
+                    50,
+                ),
+                batch_size_p95: histogram_percentile(
+                    &WRITER_BATCH_SIZE_BUCKETS,
+                    &writer.batch_size_histogram,
+                    95,
+                ),
+                timing_buckets_us: WRITER_TIME_BUCKETS_US.to_vec(),
+                batch_wait_histogram_us: writer.batch_wait_histogram_us.to_vec(),
+                batch_wait_p50_us: histogram_percentile(
+                    &WRITER_TIME_BUCKETS_US,
+                    &writer.batch_wait_histogram_us,
+                    50,
+                ),
+                batch_wait_p95_us: histogram_percentile(
+                    &WRITER_TIME_BUCKETS_US,
+                    &writer.batch_wait_histogram_us,
+                    95,
+                ),
+                batch_commit_histogram_us: writer.batch_commit_histogram_us.to_vec(),
+                batch_commit_p50_us: histogram_percentile(
+                    &WRITER_TIME_BUCKETS_US,
+                    &writer.batch_commit_histogram_us,
+                    50,
+                ),
+                batch_commit_p95_us: histogram_percentile(
+                    &WRITER_TIME_BUCKETS_US,
+                    &writer.batch_commit_histogram_us,
+                    95,
+                ),
+            },
         }
     }
 
@@ -442,6 +847,7 @@ impl SqliteRunStateStore {
         }
     }
 
+    /// Records operation timing plus optional DB error classification.
     fn record_store_op(
         &self,
         op: SqlitePerfOp,
@@ -501,6 +907,79 @@ impl SqliteRunStateStore {
             }
         }
     }
+
+    /// Records read-pool lock wait in microseconds.
+    fn record_read_wait(&self, wait_us: u64) {
+        let bucket = histogram_bucket_index_from_bounds(&READ_WAIT_TIME_BUCKETS_US, wait_us);
+        let Ok(mut stats) = self.perf_stats.lock() else {
+            return;
+        };
+        if let Some(slot) = stats.read_wait_histogram_us.get_mut(bucket) {
+            *slot = slot.saturating_add(1);
+        }
+    }
+
+    /// Returns the next read connection using round-robin selection.
+    fn read_connection(&self) -> &Mutex<Connection> {
+        let len = self.read_connections.len();
+        let index = self.read_cursor.fetch_add(1, Ordering::Relaxed) % len;
+        &self.read_connections[index]
+    }
+
+    /// Builds a validated and hashed run-state save payload.
+    fn prepare_save_state(state: &RunState) -> Result<PreparedSaveState, SqliteStoreError> {
+        let state_json = canonical_json_bytes(state)
+            .map_err(|err| SqliteStoreError::Invalid(err.to_string()))?;
+        if state_json.len() > MAX_STATE_BYTES {
+            return Err(SqliteStoreError::TooLarge {
+                max_bytes: MAX_STATE_BYTES,
+                actual_bytes: state_json.len(),
+            });
+        }
+        let digest = hash_bytes(DEFAULT_HASH_ALGORITHM, &state_json);
+        Ok(PreparedSaveState {
+            state: state.clone(),
+            state_json,
+            state_hash: digest.value,
+            hash_algorithm: digest.algorithm,
+            saved_at: unix_millis(),
+        })
+    }
+
+    /// Builds a validated and hashed schema registration payload.
+    fn prepare_register_record(
+        &self,
+        record: DataShapeRecord,
+    ) -> Result<PreparedRegisterRecord, DataShapeRegistryError> {
+        let schema_json = canonical_json_bytes(&record.schema)
+            .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
+        ensure_schema_bytes_within_limit(schema_json.len(), self.registry_max_schema_bytes())?;
+        let schema_size_bytes = i64::try_from(schema_json.len()).map_err(|_| {
+            DataShapeRegistryError::Invalid("schema size exceeds platform limits".to_string())
+        })?;
+        let schema_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, &schema_json);
+        let created_at_json = serde_json::to_string(&record.created_at)
+            .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
+        let (signing_key_id, signing_signature, signing_algorithm) =
+            record.signing.as_ref().map_or((None, None, None), |signing| {
+                (
+                    Some(signing.key_id.clone()),
+                    Some(signing.signature.clone()),
+                    signing.algorithm.clone(),
+                )
+            });
+        Ok(PreparedRegisterRecord {
+            record,
+            schema_json,
+            schema_size_bytes,
+            schema_hash: schema_hash.value,
+            hash_algorithm: schema_hash.algorithm,
+            created_at_json,
+            signing_key_id,
+            signing_signature,
+            signing_algorithm,
+        })
+    }
 }
 
 impl RunStateStore for SqliteRunStateStore {
@@ -522,7 +1001,8 @@ impl RunStateStore for SqliteRunStateStore {
 
     fn save(&self, state: &RunState) -> Result<(), StoreError> {
         let started = Instant::now();
-        let result = self.save_state(state);
+        let result = Self::prepare_save_state(state)
+            .and_then(|request| self.writer_gateway.submit_save(request));
         self.record_store_op(
             SqlitePerfOp::Write,
             started.elapsed(),
@@ -539,67 +1019,9 @@ impl RunStateStore for SqliteRunStateStore {
 impl DataShapeRegistry for SqliteRunStateStore {
     fn register(&self, record: DataShapeRecord) -> Result<(), DataShapeRegistryError> {
         let started = Instant::now();
-        let result = (|| -> Result<(), DataShapeRegistryError> {
-            let schema_bytes = canonical_json_bytes(&record.schema)
-                .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
-            ensure_schema_bytes_within_limit(schema_bytes.len(), self.registry_max_schema_bytes())?;
-            let schema_hash = hash_bytes(DEFAULT_HASH_ALGORITHM, &schema_bytes);
-            let created_at_json = serde_json::to_string(&record.created_at)
-                .map_err(|err| DataShapeRegistryError::Invalid(err.to_string()))?;
-            let (signing_key_id, signing_signature, signing_algorithm) =
-                record.signing.as_ref().map_or((None, None, None), |signing| {
-                    (
-                        Some(signing.key_id.clone()),
-                        Some(signing.signature.clone()),
-                        signing.algorithm.clone(),
-                    )
-                });
-            let mut guard = self.connection.lock().map_err(|_| {
-                DataShapeRegistryError::Io("schema registry mutex poisoned".to_string())
-            })?;
-            let tx =
-                guard.transaction().map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
-            if let Some(max_entries) = self.registry_max_entries() {
-                ensure_registry_entry_limit(
-                    &tx,
-                    record.tenant_id,
-                    record.namespace_id,
-                    max_entries,
-                )?;
-            }
-            let result = tx.execute(
-                "INSERT INTO data_shapes (
-                    tenant_id, namespace_id, schema_id, version,
-                    schema_json, schema_hash, hash_algorithm, description,
-                    signing_key_id, signing_signature, signing_algorithm,
-                    created_at_json
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
-                params![
-                    record.tenant_id.to_string(),
-                    record.namespace_id.to_string(),
-                    record.schema_id.as_str(),
-                    record.version.as_str(),
-                    schema_bytes,
-                    schema_hash.value,
-                    hash_algorithm_label(schema_hash.algorithm),
-                    record.description.as_deref(),
-                    signing_key_id.as_deref(),
-                    signing_signature.as_deref(),
-                    signing_algorithm.as_deref(),
-                    created_at_json,
-                ],
-            );
-            let result = match result {
-                Ok(_) => tx.commit().map_err(|err| DataShapeRegistryError::Io(err.to_string())),
-                Err(rusqlite::Error::SqliteFailure(err, _))
-                    if err.code == ErrorCode::ConstraintViolation =>
-                {
-                    Err(DataShapeRegistryError::Conflict("schema already registered".to_string()))
-                }
-                Err(err) => Err(DataShapeRegistryError::Io(err.to_string())),
-            };
-            result
-        })();
+        let result = self
+            .prepare_register_record(record)
+            .and_then(|request| self.writer_gateway.submit_register(request));
         self.record_store_op(
             SqlitePerfOp::Register,
             started.elapsed(),
@@ -617,9 +1039,13 @@ impl DataShapeRegistry for SqliteRunStateStore {
     ) -> Result<Option<DataShapeRecord>, DataShapeRegistryError> {
         let started = Instant::now();
         let result = (|| -> Result<Option<DataShapeRecord>, DataShapeRegistryError> {
-            let mut guard = self.connection.lock().map_err(|_| {
-                DataShapeRegistryError::Io("schema registry mutex poisoned".to_string())
+            let connection = self.read_connection();
+            let wait_started = Instant::now();
+            let mut guard = connection.lock().map_err(|_| {
+                DataShapeRegistryError::Io("schema registry read mutex poisoned".to_string())
             })?;
+            let wait_us = u64::try_from(wait_started.elapsed().as_micros()).unwrap_or(u64::MAX);
+            self.record_read_wait(wait_us);
             let row = {
                 let tx = guard
                     .transaction()
@@ -667,9 +1093,13 @@ impl DataShapeRegistry for SqliteRunStateStore {
             let limit = i64::try_from(limit)
                 .map_err(|_| DataShapeRegistryError::Invalid("limit too large".to_string()))?;
             let cursor = cursor.map(|value| parse_registry_cursor(&value)).transpose()?;
-            let mut guard = self.connection.lock().map_err(|_| {
-                DataShapeRegistryError::Io("schema registry mutex poisoned".to_string())
+            let connection = self.read_connection();
+            let wait_started = Instant::now();
+            let mut guard = connection.lock().map_err(|_| {
+                DataShapeRegistryError::Io("schema registry read mutex poisoned".to_string())
             })?;
+            let wait_us = u64::try_from(wait_started.elapsed().as_micros()).unwrap_or(u64::MAX);
+            self.record_read_wait(wait_us);
             let records = {
                 let tx = guard
                     .transaction()
@@ -705,7 +1135,10 @@ impl DataShapeRegistry for SqliteRunStateStore {
                 }
                 None => None,
             };
-            Ok(DataShapePage { items: records, next_token })
+            Ok(DataShapePage {
+                items: records,
+                next_token,
+            })
         })();
         self.record_store_op(
             SqlitePerfOp::List,
@@ -729,7 +1162,7 @@ impl SqliteRunStateStore {
         run_id: &RunId,
     ) -> Result<Option<RunState>, SqliteStoreError> {
         let payload =
-            fetch_run_state_payload(self.connection.as_ref(), tenant_id, namespace_id, run_id)?;
+            fetch_run_state_payload(self.read_connection(), tenant_id, namespace_id, run_id)?;
         let Some(payload) = payload else {
             return Ok(None);
         };
@@ -756,96 +1189,6 @@ impl SqliteRunStateStore {
         Ok(Some(state))
     }
 
-    /// Saves run state to the `SQLite` store.
-    fn save_state(&self, state: &RunState) -> Result<(), SqliteStoreError> {
-        let canonical_json = canonical_json_bytes(state)
-            .map_err(|err| SqliteStoreError::Invalid(err.to_string()))?;
-        if canonical_json.len() > MAX_STATE_BYTES {
-            return Err(SqliteStoreError::TooLarge {
-                max_bytes: MAX_STATE_BYTES,
-                actual_bytes: canonical_json.len(),
-            });
-        }
-        let digest = hash_bytes(DEFAULT_HASH_ALGORITHM, &canonical_json);
-        let saved_at = unix_millis();
-        {
-            let mut guard = self
-                .connection
-                .lock()
-                .map_err(|_| SqliteStoreError::Db("mutex poisoned".to_string()))?;
-            let tx = guard.transaction().map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-            let latest_version: Option<i64> = tx
-                .query_row(
-                    "SELECT latest_version FROM runs WHERE tenant_id = ?1 AND namespace_id = ?2 \
-                     AND run_id = ?3",
-                    params![
-                        state.tenant_id.to_string(),
-                        state.namespace_id.to_string(),
-                        state.run_id.as_str()
-                    ],
-                    |row| row.get(0),
-                )
-                .optional()
-                .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-            let next_version = match latest_version {
-                None => 1,
-                Some(value) => {
-                    if value < 1 {
-                        return Err(SqliteStoreError::Corrupt(format!(
-                            "invalid latest_version for run {}",
-                            state.run_id.as_str()
-                        )));
-                    }
-                    value.checked_add(1).ok_or_else(|| {
-                        SqliteStoreError::Corrupt(format!(
-                            "run state version overflow for run {}",
-                            state.run_id.as_str()
-                        ))
-                    })?
-                }
-            };
-            tx.execute(
-                "INSERT INTO runs (tenant_id, namespace_id, run_id, latest_version) VALUES (?1, \
-                 ?2, ?3, ?4) ON CONFLICT(tenant_id, namespace_id, run_id) DO UPDATE SET \
-                 latest_version = excluded.latest_version",
-                params![
-                    state.tenant_id.to_string(),
-                    state.namespace_id.to_string(),
-                    state.run_id.as_str(),
-                    next_version
-                ],
-            )
-            .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-            tx.execute(
-                "INSERT INTO run_state_versions (tenant_id, namespace_id, run_id, version, \
-                 state_json, state_hash, hash_algorithm, saved_at) VALUES (?1, ?2, ?3, ?4, ?5, \
-                 ?6, ?7, ?8)",
-                params![
-                    state.tenant_id.to_string(),
-                    state.namespace_id.to_string(),
-                    state.run_id.as_str(),
-                    next_version,
-                    canonical_json,
-                    digest.value,
-                    hash_algorithm_label(digest.algorithm),
-                    saved_at
-                ],
-            )
-            .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-            enforce_retention(
-                &tx,
-                state.tenant_id,
-                state.namespace_id,
-                state.run_id.as_str(),
-                next_version,
-                self.config.max_versions,
-            )?;
-            tx.commit().map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-            drop(guard);
-        }
-        Ok(())
-    }
-
     /// Lists runs stored in the `SQLite` database (optionally filtered).
     ///
     /// # Errors
@@ -858,9 +1201,9 @@ impl SqliteRunStateStore {
         namespace_id: Option<NamespaceId>,
     ) -> Result<Vec<RunSummary>, SqliteStoreError> {
         let guard = self
-            .connection
+            .read_connection()
             .lock()
-            .map_err(|_| SqliteStoreError::Db("mutex poisoned".to_string()))?;
+            .map_err(|_| SqliteStoreError::Db("read mutex poisoned".to_string()))?;
         let mut stmt = guard
             .prepare(
                 "SELECT runs.tenant_id, runs.namespace_id, runs.run_id, runs.latest_version, \
@@ -926,9 +1269,9 @@ impl SqliteRunStateStore {
         run_id: &RunId,
     ) -> Result<Vec<RunVersionSummary>, SqliteStoreError> {
         let guard = self
-            .connection
+            .read_connection()
             .lock()
-            .map_err(|_| SqliteStoreError::Db("mutex poisoned".to_string()))?;
+            .map_err(|_| SqliteStoreError::Db("read mutex poisoned".to_string()))?;
         let mut stmt = guard
             .prepare(
                 "SELECT version, saved_at, state_hash, hash_algorithm, length(state_json) FROM \
@@ -995,7 +1338,7 @@ impl SqliteRunStateStore {
             return Err(SqliteStoreError::Invalid("version must be >= 1".to_string()));
         }
         let payload = fetch_run_state_payload_version(
-            self.connection.as_ref(),
+            self.read_connection(),
             tenant_id,
             namespace_id,
             run_id,
@@ -1045,9 +1388,9 @@ impl SqliteRunStateStore {
         }
         let delete_count = {
             let mut guard = self
-                .connection
+                .write_connection
                 .lock()
-                .map_err(|_| SqliteStoreError::Db("mutex poisoned".to_string()))?;
+                .map_err(|_| SqliteStoreError::Db("write mutex poisoned".to_string()))?;
             let tx = guard.transaction().map_err(|err| SqliteStoreError::Db(err.to_string()))?;
             let versions = {
                 let mut stmt = tx
@@ -1098,13 +1441,18 @@ impl SqliteRunStateStore {
     }
 }
 
+/// Classification used when attributing `SQLite` DB error strings.
 #[derive(Debug, Clone, Copy)]
 enum SqliteDbErrorKind {
+    /// Error text indicates busy timeout contention.
     Busy,
+    /// Error text indicates lock contention.
     Locked,
+    /// Any error not matching busy/locked classifiers.
     Other,
 }
 
+/// Returns latency histogram bucket index for millisecond duration.
 const fn histogram_bucket_index(duration_ms: u64) -> usize {
     let mut index = 0usize;
     while index < PERF_BUCKETS_MS.len() {
@@ -1116,6 +1464,7 @@ const fn histogram_bucket_index(duration_ms: u64) -> usize {
     PERF_BUCKETS_MS.len()
 }
 
+/// Classifies database error text into coarse contention categories.
 fn classify_db_error_message(message: &str) -> SqliteDbErrorKind {
     let lower = message.to_ascii_lowercase();
     if lower.contains("busy") {
@@ -1127,18 +1476,647 @@ fn classify_db_error_message(message: &str) -> SqliteDbErrorKind {
     }
 }
 
-fn db_error_message_store(error: &SqliteStoreError) -> Option<&str> {
+/// Returns DB error message when a store error variant maps to DB.
+const fn db_error_message_store(error: &SqliteStoreError) -> Option<&str> {
     match error {
         SqliteStoreError::Db(message) => Some(message.as_str()),
         _ => None,
     }
 }
 
-fn db_error_message_registry(error: &DataShapeRegistryError) -> Option<&str> {
+/// Returns DB error message when a registry error variant maps to DB.
+const fn db_error_message_registry(error: &DataShapeRegistryError) -> Option<&str> {
     match error {
         DataShapeRegistryError::Io(message) => Some(message.as_str()),
         _ => None,
     }
+}
+
+/// Maps writer/store overload outcomes into registry overload semantics.
+fn sqlite_store_to_registry_error(error: SqliteStoreError) -> DataShapeRegistryError {
+    match error {
+        SqliteStoreError::Overloaded {
+            message,
+            retry_after_ms,
+        } => DataShapeRegistryError::Overloaded {
+            message,
+            retry_after_ms,
+        },
+        other => DataShapeRegistryError::Io(other.to_string()),
+    }
+}
+
+impl SqliteWriteGateway {
+    /// Submits a prepared run-state save command and waits for completion.
+    fn submit_save(&self, request: PreparedSaveState) -> Result<(), SqliteStoreError> {
+        let (response_tx, response_rx) = mpsc::channel();
+        let command = SqliteWriterCommand {
+            sequence: self.sequence.fetch_add(1, Ordering::Relaxed),
+            enqueued_at: Instant::now(),
+            estimated_bytes: request.state_json.len(),
+            payload: SqliteWriterPayload::Save {
+                request,
+                response: response_tx,
+            },
+        };
+        self.submit(command)?;
+        response_rx.recv().map_err(|_| {
+            SqliteStoreError::Io("sqlite writer response channel closed".to_string())
+        })?
+    }
+
+    /// Submits a prepared schema register command and waits for completion.
+    fn submit_register(
+        &self,
+        request: PreparedRegisterRecord,
+    ) -> Result<(), DataShapeRegistryError> {
+        let (response_tx, response_rx) = mpsc::channel();
+        let command = SqliteWriterCommand {
+            sequence: self.sequence.fetch_add(1, Ordering::Relaxed),
+            enqueued_at: Instant::now(),
+            estimated_bytes: request.schema_json.len(),
+            payload: SqliteWriterPayload::Register {
+                request,
+                response: response_tx,
+            },
+        };
+        self.submit(command).map_err(sqlite_store_to_registry_error)?;
+        response_rx.recv().map_err(|_| {
+            DataShapeRegistryError::Io("sqlite writer response channel closed".to_string())
+        })?
+    }
+
+    /// Submits a writer readiness probe and waits for completion.
+    fn submit_readiness(&self) -> Result<(), SqliteStoreError> {
+        let (response_tx, response_rx) = mpsc::channel();
+        let command = SqliteWriterCommand {
+            sequence: self.sequence.fetch_add(1, Ordering::Relaxed),
+            enqueued_at: Instant::now(),
+            estimated_bytes: 1,
+            payload: SqliteWriterPayload::Readiness {
+                response: response_tx,
+            },
+        };
+        self.submit(command)?;
+        response_rx.recv().map_err(|_| {
+            SqliteStoreError::Io("sqlite writer response channel closed".to_string())
+        })?
+    }
+
+    /// Attempts enqueue into the bounded writer queue.
+    fn submit(&self, command: SqliteWriterCommand) -> Result<(), SqliteStoreError> {
+        let depth = self.pending_depth.fetch_add(1, Ordering::AcqRel).saturating_add(1);
+        self.record_queue_depth(depth);
+        match self.sender.try_send(command) {
+            Ok(()) => {
+                self.record_command_enqueued();
+                Ok(())
+            }
+            Err(TrySendError::Full(_command)) => {
+                self.pending_depth.fetch_sub(1, Ordering::AcqRel);
+                self.record_command_rejected();
+                Err(SqliteStoreError::Overloaded {
+                    message: "sqlite writer queue full; retryable".to_string(),
+                    retry_after_ms: Some(self.retry_after_ms),
+                })
+            }
+            Err(TrySendError::Disconnected(_command)) => {
+                self.pending_depth.fetch_sub(1, Ordering::AcqRel);
+                self.record_command_rejected();
+                Err(SqliteStoreError::Overloaded {
+                    message: "sqlite writer runtime unavailable".to_string(),
+                    retry_after_ms: Some(self.retry_after_ms),
+                })
+            }
+        }
+    }
+
+    /// Records queue depth histogram at submission time.
+    fn record_queue_depth(&self, depth: usize) {
+        let depth_u64 = u64::try_from(depth).unwrap_or(u64::MAX);
+        let bucket = histogram_bucket_index_from_bounds(&WRITER_QUEUE_DEPTH_BUCKETS, depth_u64);
+        let Ok(mut stats) = self.perf_stats.lock() else {
+            return;
+        };
+        if let Some(slot) = stats.writer.queue_depth_histogram.get_mut(bucket) {
+            *slot = slot.saturating_add(1);
+        }
+    }
+
+    /// Increments command-enqueued counter.
+    fn record_command_enqueued(&self) {
+        let Ok(mut stats) = self.perf_stats.lock() else {
+            return;
+        };
+        stats.writer.commands_enqueued = stats.writer.commands_enqueued.saturating_add(1);
+    }
+
+    /// Increments command-rejected counter.
+    fn record_command_rejected(&self) {
+        let Ok(mut stats) = self.perf_stats.lock() else {
+            return;
+        };
+        stats.writer.commands_rejected = stats.writer.commands_rejected.saturating_add(1);
+    }
+}
+
+/// In-flight batch command with response channel and deferred result slot.
+enum BatchCommand {
+    /// Save batch command.
+    Save {
+        /// Prepared save payload.
+        request: PreparedSaveState,
+        /// Save response channel.
+        response: mpsc::Sender<Result<(), SqliteStoreError>>,
+        /// Deferred save result produced inside transaction.
+        result: Option<Result<(), SqliteStoreError>>,
+    },
+    /// Register batch command.
+    Register {
+        /// Prepared register payload.
+        request: PreparedRegisterRecord,
+        /// Register response channel.
+        response: mpsc::Sender<Result<(), DataShapeRegistryError>>,
+        /// Deferred register result produced inside transaction.
+        result: Option<Result<(), DataShapeRegistryError>>,
+    },
+    /// Readiness batch command.
+    Readiness {
+        /// Readiness response channel.
+        response: mpsc::Sender<Result<(), SqliteStoreError>>,
+        /// Deferred readiness result produced inside transaction.
+        result: Option<Result<(), SqliteStoreError>>,
+    },
+}
+
+/// Spawns the dedicated writer runtime thread.
+fn spawn_sqlite_writer_runtime(
+    config: SqliteStoreConfig,
+    write_connection: Arc<Mutex<Connection>>,
+    perf_stats: Arc<Mutex<SqlitePerfStats>>,
+    pending_depth: Arc<AtomicUsize>,
+    receiver: mpsc::Receiver<SqliteWriterCommand>,
+) -> Result<(), SqliteStoreError> {
+    thread::Builder::new()
+        .name("dg-sqlite-writer".to_string())
+        .spawn(move || {
+            sqlite_writer_loop(&config, &write_connection, &perf_stats, &pending_depth, &receiver);
+        })
+        .map_err(|err| {
+            SqliteStoreError::Io(format!("failed to spawn sqlite writer thread: {err}"))
+        })?;
+    Ok(())
+}
+
+/// Drains queued commands into deterministic micro-batches and commits them.
+fn sqlite_writer_loop(
+    config: &SqliteStoreConfig,
+    write_connection: &Arc<Mutex<Connection>>,
+    perf_stats: &Arc<Mutex<SqlitePerfStats>>,
+    pending_depth: &Arc<AtomicUsize>,
+    receiver: &mpsc::Receiver<SqliteWriterCommand>,
+) {
+    while let Ok(first) = receiver.recv() {
+        let mut queued = vec![first];
+        let mut queued_bytes = queued[0].estimated_bytes;
+        let first_enqueued = queued[0].enqueued_at;
+        let batch_deadline =
+            first_enqueued + std::time::Duration::from_millis(config.batch_max_wait_ms);
+
+        while queued.len() < config.batch_max_ops && queued_bytes < config.batch_max_bytes {
+            let now = Instant::now();
+            if now >= batch_deadline {
+                break;
+            }
+            let timeout = batch_deadline.saturating_duration_since(now);
+            match receiver.recv_timeout(timeout) {
+                Ok(command) => {
+                    queued_bytes = queued_bytes.saturating_add(command.estimated_bytes);
+                    queued.push(command);
+                    if queued_bytes >= config.batch_max_bytes {
+                        break;
+                    }
+                }
+                Err(RecvTimeoutError::Timeout | RecvTimeoutError::Disconnected) => break,
+            }
+        }
+
+        queued.sort_by_key(|command| command.sequence);
+        let processed = queued.len();
+        let batch_wait_us =
+            u64::try_from(Instant::now().duration_since(first_enqueued).as_micros())
+                .unwrap_or(u64::MAX);
+        let commit_started = Instant::now();
+        let commit_result = execute_writer_batch(config, write_connection, queued);
+        let commit_elapsed_us =
+            u64::try_from(commit_started.elapsed().as_micros()).unwrap_or(u64::MAX);
+        let processed_u64 = u64::try_from(processed).unwrap_or(u64::MAX);
+        let batch_size_u64 = u64::try_from(processed).unwrap_or(u64::MAX);
+        let committed = commit_result.is_ok();
+
+        if let Ok(mut stats) = perf_stats.lock() {
+            stats.writer.commands_processed =
+                stats.writer.commands_processed.saturating_add(processed_u64);
+            if committed {
+                stats.writer.commit_success_count =
+                    stats.writer.commit_success_count.saturating_add(1);
+            } else {
+                stats.writer.commit_failure_count =
+                    stats.writer.commit_failure_count.saturating_add(1);
+            }
+            let size_bucket =
+                histogram_bucket_index_from_bounds(&WRITER_BATCH_SIZE_BUCKETS, batch_size_u64);
+            if let Some(slot) = stats.writer.batch_size_histogram.get_mut(size_bucket) {
+                *slot = slot.saturating_add(1);
+            }
+            let wait_bucket =
+                histogram_bucket_index_from_bounds(&WRITER_TIME_BUCKETS_US, batch_wait_us);
+            if let Some(slot) = stats.writer.batch_wait_histogram_us.get_mut(wait_bucket) {
+                *slot = slot.saturating_add(1);
+            }
+            let commit_bucket =
+                histogram_bucket_index_from_bounds(&WRITER_TIME_BUCKETS_US, commit_elapsed_us);
+            if let Some(slot) = stats.writer.batch_commit_histogram_us.get_mut(commit_bucket) {
+                *slot = slot.saturating_add(1);
+            }
+        }
+
+        pending_depth.fetch_sub(processed, Ordering::AcqRel);
+    }
+}
+
+/// Executes one deterministic writer batch in a single transaction.
+fn execute_writer_batch(
+    config: &SqliteStoreConfig,
+    write_connection: &Arc<Mutex<Connection>>,
+    commands: Vec<SqliteWriterCommand>,
+) -> Result<(), SqliteStoreError> {
+    let mut batch = Vec::with_capacity(commands.len());
+    for command in commands {
+        match command.payload {
+            SqliteWriterPayload::Save {
+                request,
+                response,
+            } => batch.push(BatchCommand::Save {
+                request,
+                response,
+                result: None,
+            }),
+            SqliteWriterPayload::Register {
+                request,
+                response,
+            } => {
+                batch.push(BatchCommand::Register {
+                    request,
+                    response,
+                    result: None,
+                });
+            }
+            SqliteWriterPayload::Readiness {
+                response,
+            } => batch.push(BatchCommand::Readiness {
+                response,
+                result: None,
+            }),
+        }
+    }
+
+    let mut guard = write_connection
+        .lock()
+        .map_err(|_| SqliteStoreError::Db("sqlite write mutex poisoned".to_string()))?;
+    let tx = guard.transaction().map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+
+    let mut fatal_error: Option<SqliteStoreError> = None;
+    for command in &mut batch {
+        match command {
+            BatchCommand::Save {
+                request,
+                result,
+                ..
+            } => {
+                let command_result = apply_prepared_save_in_tx(&tx, request, config.max_versions);
+                if let Err(err) = &command_result
+                    && is_fatal_store_error(err)
+                {
+                    fatal_error = Some(err.clone());
+                    break;
+                }
+                *result = Some(command_result);
+            }
+            BatchCommand::Register {
+                request,
+                result,
+                ..
+            } => {
+                let command_result =
+                    apply_prepared_register_in_tx(&tx, request, config.schema_registry_max_entries);
+                if let Err(err) = &command_result
+                    && is_fatal_registry_error(err)
+                {
+                    fatal_error = Some(SqliteStoreError::Db(err.to_string()));
+                    break;
+                }
+                *result = Some(command_result);
+            }
+            BatchCommand::Readiness {
+                result, ..
+            } => {
+                let command_result = tx
+                    .execute("SELECT 1", [])
+                    .map(|_| ())
+                    .map_err(|err| SqliteStoreError::Db(err.to_string()));
+                if let Err(err) = &command_result
+                    && is_fatal_store_error(err)
+                {
+                    fatal_error = Some(err.clone());
+                    break;
+                }
+                *result = Some(command_result);
+            }
+        }
+    }
+
+    if let Some(error) = fatal_error {
+        let _ = tx.rollback();
+        send_batch_failure(batch, &error);
+        return Err(error);
+    }
+
+    if let Err(err) = tx.commit() {
+        let error = SqliteStoreError::Db(err.to_string());
+        send_batch_failure(batch, &error);
+        return Err(error);
+    }
+    drop(guard);
+    send_batch_results(batch);
+    Ok(())
+}
+
+/// Sends terminal failure to all batch command response channels.
+fn send_batch_failure(batch: Vec<BatchCommand>, error: &SqliteStoreError) {
+    let message = error.to_string();
+    for command in batch {
+        match command {
+            BatchCommand::Register {
+                response, ..
+            } => {
+                let _ = response.send(Err(DataShapeRegistryError::Io(message.clone())));
+            }
+            BatchCommand::Save {
+                response, ..
+            }
+            | BatchCommand::Readiness {
+                response, ..
+            } => {
+                let _ = response.send(Err(error.clone()));
+            }
+        }
+    }
+}
+
+/// Sends per-command batch outcomes to response channels.
+fn send_batch_results(batch: Vec<BatchCommand>) {
+    for command in batch {
+        match command {
+            BatchCommand::Save {
+                response,
+                result,
+                ..
+            } => {
+                let outcome = result.unwrap_or_else(|| {
+                    Err(SqliteStoreError::Db("sqlite writer missing save outcome".to_string()))
+                });
+                let _ = response.send(outcome);
+            }
+            BatchCommand::Register {
+                response,
+                result,
+                ..
+            } => {
+                let outcome = result.unwrap_or_else(|| {
+                    Err(DataShapeRegistryError::Io(
+                        "sqlite writer missing register outcome".to_string(),
+                    ))
+                });
+                let _ = response.send(outcome);
+            }
+            BatchCommand::Readiness {
+                response,
+                result,
+            } => {
+                let outcome = result.unwrap_or_else(|| {
+                    Err(SqliteStoreError::Db("sqlite writer missing readiness outcome".to_string()))
+                });
+                let _ = response.send(outcome);
+            }
+        }
+    }
+}
+
+/// Returns true when store error should abort the entire writer batch.
+const fn is_fatal_store_error(error: &SqliteStoreError) -> bool {
+    matches!(
+        error,
+        SqliteStoreError::Io(_)
+            | SqliteStoreError::Db(_)
+            | SqliteStoreError::Corrupt(_)
+            | SqliteStoreError::VersionMismatch(_)
+    )
+}
+
+/// Returns true when registry error should abort the entire writer batch.
+const fn is_fatal_registry_error(error: &DataShapeRegistryError) -> bool {
+    matches!(error, DataShapeRegistryError::Io(_))
+}
+
+/// Applies a prepared run-state save inside an existing transaction.
+fn apply_prepared_save_in_tx(
+    tx: &rusqlite::Transaction<'_>,
+    request: &PreparedSaveState,
+    max_versions: Option<u64>,
+) -> Result<(), SqliteStoreError> {
+    let latest_version: Option<i64> = {
+        let mut stmt = tx
+            .prepare_cached(
+                "SELECT latest_version FROM runs WHERE tenant_id = ?1 AND namespace_id = ?2 AND \
+                 run_id = ?3",
+            )
+            .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+        stmt.query_row(
+            params![
+                request.state.tenant_id.to_string(),
+                request.state.namespace_id.to_string(),
+                request.state.run_id.as_str()
+            ],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| SqliteStoreError::Db(err.to_string()))?
+    };
+    let next_version = match latest_version {
+        None => 1,
+        Some(value) => {
+            if value < 1 {
+                return Err(SqliteStoreError::Corrupt(format!(
+                    "invalid latest_version for run {}",
+                    request.state.run_id.as_str()
+                )));
+            }
+            value.checked_add(1).ok_or_else(|| {
+                SqliteStoreError::Corrupt(format!(
+                    "run state version overflow for run {}",
+                    request.state.run_id.as_str()
+                ))
+            })?
+        }
+    };
+    {
+        let mut stmt = tx
+            .prepare_cached(
+                "INSERT INTO runs (tenant_id, namespace_id, run_id, latest_version) VALUES (?1, \
+                 ?2, ?3, ?4) ON CONFLICT(tenant_id, namespace_id, run_id) DO UPDATE SET \
+                 latest_version = excluded.latest_version",
+            )
+            .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+        stmt.execute(params![
+            request.state.tenant_id.to_string(),
+            request.state.namespace_id.to_string(),
+            request.state.run_id.as_str(),
+            next_version
+        ])
+        .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+    }
+    {
+        let mut stmt = tx
+            .prepare_cached(
+                "INSERT INTO run_state_versions (tenant_id, namespace_id, run_id, version, \
+                 state_json, state_hash, hash_algorithm, saved_at) VALUES (?1, ?2, ?3, ?4, ?5, \
+                 ?6, ?7, ?8)",
+            )
+            .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+        stmt.execute(params![
+            request.state.tenant_id.to_string(),
+            request.state.namespace_id.to_string(),
+            request.state.run_id.as_str(),
+            next_version,
+            request.state_json.as_slice(),
+            request.state_hash.as_str(),
+            hash_algorithm_label(request.hash_algorithm),
+            request.saved_at
+        ])
+        .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+    }
+    enforce_retention(
+        tx,
+        request.state.tenant_id,
+        request.state.namespace_id,
+        request.state.run_id.as_str(),
+        next_version,
+        max_versions,
+    )
+}
+
+/// Applies a prepared schema register inside an existing transaction.
+fn apply_prepared_register_in_tx(
+    tx: &rusqlite::Transaction<'_>,
+    request: &PreparedRegisterRecord,
+    max_entries: Option<usize>,
+) -> Result<(), DataShapeRegistryError> {
+    if let Some(max_entries) = max_entries {
+        ensure_registry_entry_limit(
+            tx,
+            request.record.tenant_id,
+            request.record.namespace_id,
+            max_entries,
+        )?;
+    }
+    let result = {
+        let mut stmt = tx
+            .prepare_cached(
+                "INSERT INTO data_shapes (
+                    tenant_id, namespace_id, schema_id, version,
+                    schema_json, schema_size_bytes, schema_hash, hash_algorithm, description,
+                    signing_key_id, signing_signature, signing_algorithm,
+                    created_at_json
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+            )
+            .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+        stmt.execute(params![
+            request.record.tenant_id.to_string(),
+            request.record.namespace_id.to_string(),
+            request.record.schema_id.as_str(),
+            request.record.version.as_str(),
+            request.schema_json.as_slice(),
+            request.schema_size_bytes,
+            request.schema_hash.as_str(),
+            hash_algorithm_label(request.hash_algorithm),
+            request.record.description.as_deref(),
+            request.signing_key_id.as_deref(),
+            request.signing_signature.as_deref(),
+            request.signing_algorithm.as_deref(),
+            request.created_at_json.as_str(),
+        ])
+    };
+    match result {
+        Ok(_) => {
+            let mut stmt = tx
+                .prepare_cached(
+                    "INSERT INTO registry_namespace_counters (tenant_id, namespace_id, \
+                     entry_count)
+                     VALUES (?1, ?2, 1)
+                     ON CONFLICT(tenant_id, namespace_id)
+                     DO UPDATE SET entry_count = entry_count + 1",
+                )
+                .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+            stmt.execute(params![
+                request.record.tenant_id.to_string(),
+                request.record.namespace_id.to_string(),
+            ])
+            .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+            Ok(())
+        }
+        Err(rusqlite::Error::SqliteFailure(err, _))
+            if err.code == ErrorCode::ConstraintViolation =>
+        {
+            Err(DataShapeRegistryError::Conflict("schema already registered".to_string()))
+        }
+        Err(err) => Err(DataShapeRegistryError::Io(err.to_string())),
+    }
+}
+
+/// Returns bucket index for `value` against sorted histogram bounds.
+fn histogram_bucket_index_from_bounds(bounds: &[u64], value: u64) -> usize {
+    for (idx, upper_bound) in bounds.iter().enumerate() {
+        if value <= *upper_bound {
+            return idx;
+        }
+    }
+    bounds.len()
+}
+
+/// Computes approximate percentile value from bucketed histogram counts.
+fn histogram_percentile(bounds: &[u64], counts: &[u64], percentile: u32) -> u64 {
+    if percentile == 0 || percentile > 100 || counts.is_empty() || bounds.is_empty() {
+        return 0;
+    }
+    let total = counts.iter().fold(0_u64, |acc, value| acc.saturating_add(*value));
+    if total == 0 {
+        return 0;
+    }
+    let rank =
+        total.saturating_mul(u64::from(percentile)).saturating_add(99).saturating_div(100).max(1);
+    let mut running = 0_u64;
+    for (idx, count) in counts.iter().enumerate() {
+        running = running.saturating_add(*count);
+        if running >= rank {
+            return if idx < bounds.len() {
+                bounds[idx]
+            } else {
+                bounds.last().copied().unwrap_or(0)
+            };
+        }
+    }
+    bounds.last().copied().unwrap_or(0)
 }
 
 // ============================================================================
@@ -1251,6 +2229,7 @@ fn initialize_schema(connection: &mut Connection) -> Result<(), SqliteStoreError
                     schema_id TEXT NOT NULL,
                     version TEXT NOT NULL,
                     schema_json BLOB NOT NULL,
+                    schema_size_bytes INTEGER NOT NULL,
                     schema_hash TEXT NOT NULL,
                     hash_algorithm TEXT NOT NULL,
                     description TEXT,
@@ -1261,7 +2240,15 @@ fn initialize_schema(connection: &mut Connection) -> Result<(), SqliteStoreError
                     PRIMARY KEY (tenant_id, namespace_id, schema_id, version)
                 );
                 CREATE INDEX IF NOT EXISTS idx_data_shapes_namespace
-                    ON data_shapes (tenant_id, namespace_id, schema_id, version);",
+                    ON data_shapes (tenant_id, namespace_id, schema_id, version);
+                CREATE INDEX IF NOT EXISTS idx_data_shapes_size
+                    ON data_shapes (tenant_id, namespace_id, schema_size_bytes);
+                CREATE TABLE IF NOT EXISTS registry_namespace_counters (
+                    tenant_id TEXT NOT NULL,
+                    namespace_id TEXT NOT NULL,
+                    entry_count INTEGER NOT NULL,
+                    PRIMARY KEY (tenant_id, namespace_id)
+                );",
             )
             .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
         }
@@ -1269,7 +2256,44 @@ fn initialize_schema(connection: &mut Connection) -> Result<(), SqliteStoreError
             tx.execute_batch(
                 "ALTER TABLE data_shapes ADD COLUMN signing_key_id TEXT;
                  ALTER TABLE data_shapes ADD COLUMN signing_signature TEXT;
-                 ALTER TABLE data_shapes ADD COLUMN signing_algorithm TEXT;",
+                 ALTER TABLE data_shapes ADD COLUMN signing_algorithm TEXT;
+                 ALTER TABLE data_shapes ADD COLUMN schema_size_bytes INTEGER NOT NULL DEFAULT 0;
+                 UPDATE data_shapes SET schema_size_bytes = length(schema_json);
+                 CREATE INDEX IF NOT EXISTS idx_data_shapes_size
+                     ON data_shapes (tenant_id, namespace_id, schema_size_bytes);
+                 CREATE TABLE IF NOT EXISTS registry_namespace_counters (
+                     tenant_id TEXT NOT NULL,
+                     namespace_id TEXT NOT NULL,
+                     entry_count INTEGER NOT NULL,
+                     PRIMARY KEY (tenant_id, namespace_id)
+                 );
+                 INSERT OR REPLACE INTO registry_namespace_counters (tenant_id, namespace_id, \
+                 entry_count)
+                 SELECT tenant_id, namespace_id, COUNT(1)
+                 FROM data_shapes
+                 GROUP BY tenant_id, namespace_id;",
+            )
+            .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+            tx.execute("UPDATE store_meta SET version = ?1", params![SCHEMA_VERSION])
+                .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
+        }
+        Some(4) => {
+            tx.execute_batch(
+                "ALTER TABLE data_shapes ADD COLUMN schema_size_bytes INTEGER NOT NULL DEFAULT 0;
+                 UPDATE data_shapes SET schema_size_bytes = length(schema_json);
+                 CREATE INDEX IF NOT EXISTS idx_data_shapes_size
+                     ON data_shapes (tenant_id, namespace_id, schema_size_bytes);
+                 CREATE TABLE IF NOT EXISTS registry_namespace_counters (
+                     tenant_id TEXT NOT NULL,
+                     namespace_id TEXT NOT NULL,
+                     entry_count INTEGER NOT NULL,
+                     PRIMARY KEY (tenant_id, namespace_id)
+                 );
+                 INSERT OR REPLACE INTO registry_namespace_counters (tenant_id, namespace_id, \
+                 entry_count)
+                 SELECT tenant_id, namespace_id, COUNT(1)
+                 FROM data_shapes
+                 GROUP BY tenant_id, namespace_id;",
             )
             .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
             tx.execute("UPDATE store_meta SET version = ?1", params![SCHEMA_VERSION])
@@ -1433,7 +2457,11 @@ fn fetch_run_state_payload(
                     |row| row.get(0),
                 )
                 .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-            Some(RunStatePayload { bytes, hash_value: hash, hash_algorithm: algorithm })
+            Some(RunStatePayload {
+                bytes,
+                hash_value: hash,
+                hash_algorithm: algorithm,
+            })
         } else {
             None
         };
@@ -1493,7 +2521,11 @@ fn fetch_run_state_payload_version(
                 |row| row.get(0),
             )
             .map_err(|err| SqliteStoreError::Db(err.to_string()))?;
-        let payload = RunStatePayload { bytes, hash_value: hash, hash_algorithm: algorithm };
+        let payload = RunStatePayload {
+            bytes,
+            hash_value: hash,
+            hash_algorithm: algorithm,
+        };
         tx.commit().map_err(|err| SqliteStoreError::Db(err.to_string()))?;
         drop(guard);
         Ok(Some(payload))
@@ -1564,8 +2596,8 @@ fn ensure_registry_schema_sizes(
     })?;
     let oversized: Option<i64> = tx
         .query_row(
-            "SELECT length(schema_json) FROM data_shapes WHERE tenant_id = ?1 AND namespace_id = \
-             ?2 AND length(schema_json) > ?3 LIMIT 1",
+            "SELECT schema_size_bytes FROM data_shapes WHERE tenant_id = ?1 AND namespace_id = ?2 \
+             AND schema_size_bytes > ?3 LIMIT 1",
             params![tenant_id.to_string(), namespace_id.to_string(), max_schema_bytes_i64],
             |row| row.get(0),
         )
@@ -1588,13 +2620,16 @@ fn ensure_registry_entry_limit(
     let max_entries_i64 = i64::try_from(max_entries).map_err(|_| {
         DataShapeRegistryError::Invalid("schema entry limit exceeds platform limits".to_string())
     })?;
-    let count: i64 = tx
+    let count = tx
         .query_row(
-            "SELECT COUNT(1) FROM data_shapes WHERE tenant_id = ?1 AND namespace_id = ?2",
+            "SELECT entry_count FROM registry_namespace_counters WHERE tenant_id = ?1 AND \
+             namespace_id = ?2",
             params![tenant_id.to_string(), namespace_id.to_string()],
             |row| row.get(0),
         )
+        .optional()
         .map_err(|err| DataShapeRegistryError::Io(err.to_string()))?;
+    let count = count.unwrap_or(0);
     if count >= max_entries_i64 {
         return Err(DataShapeRegistryError::Invalid(format!(
             "schema registry entry limit exceeded: {count} entries (max {max_entries})"
@@ -1659,7 +2694,11 @@ fn build_signing(
         (Some(key_id), Some(signature))
             if !key_id.trim().is_empty() && !signature.trim().is_empty() =>
         {
-            Some(DataShapeSignature { key_id, signature, algorithm })
+            Some(DataShapeSignature {
+                key_id,
+                signature,
+                algorithm,
+            })
         }
         _ => None,
     }
@@ -1676,8 +2715,8 @@ fn query_schema_row_by_id(
 ) -> Result<Option<SchemaRow>, DataShapeRegistryError> {
     let length: Option<i64> = tx
         .query_row(
-            "SELECT length(schema_json) FROM data_shapes WHERE tenant_id = ?1 AND namespace_id = \
-             ?2 AND schema_id = ?3 AND version = ?4",
+            "SELECT schema_size_bytes FROM data_shapes WHERE tenant_id = ?1 AND namespace_id = ?2 \
+             AND schema_id = ?3 AND version = ?4",
             params![
                 tenant_id.to_string(),
                 namespace_id.to_string(),
@@ -1798,4 +2837,26 @@ fn build_schema_record(
         created_at,
         signing,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DataShapeRegistryError;
+    use super::SqliteStoreError;
+    use super::sqlite_store_to_registry_error;
+
+    #[test]
+    fn sqlite_registry_overloaded_path_preserves_retry_after() {
+        let mapped = sqlite_store_to_registry_error(SqliteStoreError::Overloaded {
+            message: "registry queue full".to_string(),
+            retry_after_ms: Some(31),
+        });
+        assert!(matches!(
+            mapped,
+            DataShapeRegistryError::Overloaded {
+                message,
+                retry_after_ms: Some(31)
+            } if message == "registry queue full"
+        ));
+    }
 }

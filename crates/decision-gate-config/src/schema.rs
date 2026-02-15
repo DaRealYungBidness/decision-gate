@@ -70,7 +70,12 @@ use crate::config::default_registry_acl_allow_local_only;
 use crate::config::default_require_provider_opt_in;
 use crate::config::default_scenario_next_trace_subjects;
 use crate::config::default_schema_max_bytes;
+use crate::config::default_store_batch_max_bytes;
+use crate::config::default_store_batch_max_ops;
+use crate::config::default_store_batch_max_wait_ms;
 use crate::config::default_store_busy_timeout_ms;
+use crate::config::default_store_read_pool_size;
+use crate::config::default_store_writer_queue_capacity;
 use crate::config::default_tls_require_client_cert;
 use crate::config::default_validation_strict;
 
@@ -990,6 +995,36 @@ fn run_state_store_schema() -> Value {
                 ],
                 "default": null,
                 "description": "Optional max versions retained per run."
+            },
+            "writer_queue_capacity": {
+                "type": "integer",
+                "minimum": 1,
+                "default": default_store_writer_queue_capacity(),
+                "description": "SQLite writer queue capacity."
+            },
+            "batch_max_ops": {
+                "type": "integer",
+                "minimum": 1,
+                "default": default_store_batch_max_ops(),
+                "description": "SQLite writer batch max operation count."
+            },
+            "batch_max_bytes": {
+                "type": "integer",
+                "minimum": 1,
+                "default": default_store_batch_max_bytes(),
+                "description": "SQLite writer batch max aggregate bytes."
+            },
+            "batch_max_wait_ms": {
+                "type": "integer",
+                "minimum": 1,
+                "default": default_store_batch_max_wait_ms(),
+                "description": "SQLite writer batch max wait window (ms)."
+            },
+            "read_pool_size": {
+                "type": "integer",
+                "minimum": 1,
+                "default": default_store_read_pool_size(),
+                "description": "SQLite read connection pool size."
             }
         },
         "additionalProperties": false
@@ -1047,6 +1082,36 @@ fn schema_registry_config_schema() -> Value {
                 ],
                 "default": null,
                 "description": "Optional max schemas per tenant + namespace."
+            },
+            "writer_queue_capacity": {
+                "type": "integer",
+                "minimum": 1,
+                "default": default_store_writer_queue_capacity(),
+                "description": "SQLite writer queue capacity."
+            },
+            "batch_max_ops": {
+                "type": "integer",
+                "minimum": 1,
+                "default": default_store_batch_max_ops(),
+                "description": "SQLite writer batch max operation count."
+            },
+            "batch_max_bytes": {
+                "type": "integer",
+                "minimum": 1,
+                "default": default_store_batch_max_bytes(),
+                "description": "SQLite writer batch max aggregate bytes."
+            },
+            "batch_max_wait_ms": {
+                "type": "integer",
+                "minimum": 1,
+                "default": default_store_batch_max_wait_ms(),
+                "description": "SQLite writer batch max wait window (ms)."
+            },
+            "read_pool_size": {
+                "type": "integer",
+                "minimum": 1,
+                "default": default_store_read_pool_size(),
+                "description": "SQLite read connection pool size."
             },
             "acl": schema_registry_acl_schema()
         },

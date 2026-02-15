@@ -56,6 +56,11 @@ journal_mode = "wal"
 sync_mode = "full"
 busy_timeout_ms = 5000
 max_versions = 1000
+writer_queue_capacity = 1024
+batch_max_ops = 64
+batch_max_bytes = 524288
+batch_max_wait_ms = 2
+read_pool_size = 4
 
 [[providers]]
 name = "time"

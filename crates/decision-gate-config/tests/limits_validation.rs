@@ -904,6 +904,7 @@ fn schema_max_bytes_at_max_10mb() -> TestResult {
             require_signing: false,
             rules: Vec::new(),
         },
+        ..SchemaRegistryConfig::default()
     };
     config.validate().map_err(|err| err.to_string())?;
     Ok(())
@@ -927,6 +928,7 @@ fn schema_max_bytes_exceeds_max_10mb_plus_1() -> TestResult {
             require_signing: false,
             rules: Vec::new(),
         },
+        ..SchemaRegistryConfig::default()
     };
     assert_invalid(config.validate(), "schema_registry max_schema_bytes out of range")?;
     Ok(())
@@ -950,6 +952,7 @@ fn schema_max_bytes_at_min_1() -> TestResult {
             require_signing: false,
             rules: Vec::new(),
         },
+        ..SchemaRegistryConfig::default()
     };
     config.validate().map_err(|err| err.to_string())?;
     Ok(())
@@ -973,6 +976,7 @@ fn schema_max_bytes_at_zero_rejected() -> TestResult {
             require_signing: false,
             rules: Vec::new(),
         },
+        ..SchemaRegistryConfig::default()
     };
     assert_invalid(config.validate(), "schema_registry max_schema_bytes out of range")?;
     Ok(())

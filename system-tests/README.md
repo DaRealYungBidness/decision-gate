@@ -113,12 +113,17 @@ thresholds.
 
 - `system-tests/perf_targets.toml` is the authoritative SLO source.
 - `system-tests/perf_targets_sqlite.toml` is the authoritative SQLite SLO +
-  workload source (phase-1 report-only mode).
+  workload source (phase-1 report-only mode), including SQLite writer runtime
+  controls (`writer_queue_capacity`, batch controls, `read_pool_size`).
 - `scripts/system_tests/perf_calibrate.py` recomputes thresholds from repeated runs.
 - `scripts/system_tests/perf_analyze.py` ranks bottlenecks from `perf_summary.json`
-  and aggregates `sqlite_contention.json`.
+  and aggregates `sqlite_contention.json`, writer diagnostics, and MCP mutation
+  coordinator diagnostics (`mutation_diagnostics.json`).
 - `scripts/system_tests/test_runner.py` enforces `min_executed_tests` (default `1`)
   to fail selector mismatches that accidentally execute zero tests.
+  Throughput is computed from measured-window elapsed fields
+  (`measurement_window_us` / `measurement_window_ms`) so warmup does not dilute
+  reported RPS.
 
 Performance tracks are intentionally split:
 

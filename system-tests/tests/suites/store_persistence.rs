@@ -48,6 +48,11 @@ async fn sqlite_run_state_persists_across_restart() -> Result<(), Box<dyn std::e
         journal_mode: decision_gate_store_sqlite::SqliteStoreMode::Wal,
         sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
         max_versions: None,
+        writer_queue_capacity: 1_024,
+        batch_max_ops: 64,
+        batch_max_bytes: 512 * 1024,
+        batch_max_wait_ms: 2,
+        read_pool_size: 4,
     };
 
     let server = spawn_mcp_server(config.clone()).await?;
@@ -150,6 +155,11 @@ async fn sqlite_requires_redefine_after_restart() -> Result<(), Box<dyn std::err
         journal_mode: decision_gate_store_sqlite::SqliteStoreMode::Wal,
         sync_mode: decision_gate_store_sqlite::SqliteSyncMode::Full,
         max_versions: None,
+        writer_queue_capacity: 1_024,
+        batch_max_ops: 64,
+        batch_max_bytes: 512 * 1024,
+        batch_max_wait_ms: 2,
+        read_pool_size: 4,
     };
 
     let server = spawn_mcp_server(config.clone()).await?;

@@ -252,6 +252,14 @@ pub enum StoreError {
     /// Store reported an error.
     #[error("run state store error: {0}")]
     Store(String),
+    /// Store is temporarily overloaded and the call should be retried.
+    #[error("run state store overloaded: {message}")]
+    Overloaded {
+        /// Retryable overload message.
+        message: String,
+        /// Optional retry delay in milliseconds.
+        retry_after_ms: Option<u64>,
+    },
 }
 
 /// Run state store for persistence.
@@ -307,6 +315,14 @@ pub enum DataShapeRegistryError {
     /// Registry access error.
     #[error("data shape registry access error: {0}")]
     Access(String),
+    /// Registry is temporarily overloaded and the call should be retried.
+    #[error("data shape registry overloaded: {message}")]
+    Overloaded {
+        /// Retryable overload message.
+        message: String,
+        /// Optional retry delay in milliseconds.
+        retry_after_ms: Option<u64>,
+    },
 }
 
 /// Registry interface for data shapes.

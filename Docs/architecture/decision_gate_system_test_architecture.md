@@ -71,6 +71,9 @@ System-tests must mirror production behavior and remain deterministic:
   collisions; stub servers bind directly to ephemeral port 0.
 - Always emit required artifacts (`summary.json`, `summary.md`,
   `tool_transcript.json`).
+- Security suites include explicit auth-boundary coverage for debug HTTP
+  surfaces (for example `/debug/mutation_stats`) and must assert fail-closed
+  unauthorized behavior.
 - Register every test in `test_registry.toml` and gaps in `test_gaps.toml`.
 - SDK client and example tests rely on Python 3 and Node (18+ with
   `--experimental-strip-types`); tests skip with explicit summaries if runtimes
@@ -149,12 +152,20 @@ paths are rejected by the provider to avoid runpack hash drift.
 
 Performance suites emit additional deterministic artifacts:
 
-- `perf_summary.json` for throughput/latency/error metrics and SLO evaluation.
+- `perf_summary.json` for throughput/latency/error metrics and SLO evaluation
+  (includes microsecond + millisecond latency fields, plus explicit
+  `measurement_window_us/ms` fields used for throughput math).
 - `perf_tool_metrics.json` for per-tool p95/total-time rankings.
 - `perf_target.json` for resolved workload + threshold contract.
 - `sqlite_config.json` for SQLite journal/sync/busy-timeout contract used by the run.
 - `sqlite_sweep.json` for deterministic concurrency sweep output (`[1,4,8,16]`).
 - `sqlite_contention.json` for direct store microbench contention counters.
+- `writer_diagnostics.json` for SQLite writer queue depth, batch-size
+  distribution, wait/commit timing, and commit success/failure counters.
+- `mutation_diagnostics.json` for MCP per-run mutation coordinator lock-wait and
+  queue-depth histograms.
+- `mutation_stats_response.json` for debug endpoint auth/schema contract tests
+  that validate `MutationExecutionStats` response shape.
 
 Absolute performance thresholds are tracked in `system-tests/perf_targets.toml`
 for in-memory gates and `system-tests/perf_targets_sqlite.toml` for the SQLite
@@ -211,6 +222,7 @@ tracks:
 
 SQLite track enforcement is report-only in phase 1; artifact analysis for both
 tracks uses `scripts/system_tests/perf_analyze.py`.
+[F:system-tests/tests/suites/performance.rs L388-L488](system-tests/tests/suites/performance.rs#L388-L488) [F:scripts/system_tests/perf_analyze.py L305-L523](scripts/system_tests/perf_analyze.py#L305-L523)
 
 ---
 

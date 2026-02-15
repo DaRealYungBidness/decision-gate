@@ -42,6 +42,7 @@ use helpers::readiness::wait_for_server_ready;
 use helpers::scenarios::ScenarioFixture;
 use helpers::timeouts;
 use serde::Deserialize;
+use serde::Serialize;
 use serde_json::Value;
 use serde_json::json;
 
@@ -283,6 +284,15 @@ struct JsonRpcError {
     message: String,
 }
 
+#[derive(Debug, Serialize)]
+struct DebugEndpointExchange {
+    sequence: u64,
+    method: String,
+    url: String,
+    status: u16,
+    response: Value,
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn sse_bearer_token_required() -> Result<(), Box<dyn std::error::Error>> {
     let mut reporter = TestReporter::new("sse_bearer_token_required")?;
@@ -346,6 +356,122 @@ async fn sse_bearer_token_required() -> Result<(), Box<dyn std::error::Error>> {
             "summary.json".to_string(),
             "summary.md".to_string(),
             "tool_transcript.json".to_string(),
+        ],
+    )?;
+    drop(reporter);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn debug_mutation_stats_auth_and_schema() -> Result<(), Box<dyn std::error::Error>> {
+    let mut reporter = TestReporter::new("debug_mutation_stats_auth_and_schema")?;
+    let bind = allocate_bind_addr()?.to_string();
+    let config = base_http_config_with_bearer(&bind, "debug-token");
+    let server = spawn_mcp_server(config).await?;
+    let authorized =
+        server.client(Duration::from_secs(5))?.with_bearer_token("debug-token".to_string());
+    wait_for_server_ready(&authorized, Duration::from_secs(5)).await?;
+
+    let debug_url =
+        format!("{}/debug/mutation_stats", authorized.base_url().trim_end_matches("/rpc"));
+    let client = reqwest::Client::builder()
+        .timeout(timeouts::resolve_timeout(Duration::from_secs(5)))
+        .build()
+        .map_err(|err| format!("failed to build debug endpoint http client: {err}"))?;
+
+    let unauthorized_response = client
+        .get(&debug_url)
+        .send()
+        .await
+        .map_err(|err| format!("unauthorized debug endpoint request failed: {err}"))?;
+    let unauthorized_status = unauthorized_response.status();
+    if unauthorized_status != reqwest::StatusCode::UNAUTHORIZED
+        && unauthorized_status != reqwest::StatusCode::FORBIDDEN
+    {
+        return Err(format!(
+            "expected 401 or 403 for unauthorized debug endpoint request, got \
+             {unauthorized_status}"
+        )
+        .into());
+    }
+    let unauthorized_json: Value = unauthorized_response
+        .json()
+        .await
+        .map_err(|err| format!("invalid unauthorized debug endpoint json: {err}"))?;
+
+    let authorized_response = client
+        .get(&debug_url)
+        .bearer_auth("debug-token")
+        .send()
+        .await
+        .map_err(|err| format!("authorized debug endpoint request failed: {err}"))?;
+    let authorized_status = authorized_response.status();
+    if authorized_status != reqwest::StatusCode::OK {
+        return Err(format!(
+            "expected 200 for authorized debug endpoint request, got {authorized_status}"
+        )
+        .into());
+    }
+    let mutation_stats_response: Value = authorized_response
+        .json()
+        .await
+        .map_err(|err| format!("invalid authorized debug endpoint json: {err}"))?;
+
+    let lock_wait_buckets = mutation_stats_response
+        .get("lock_wait_buckets_us")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "missing lock_wait_buckets_us array".to_string())?;
+    let lock_wait_histogram = mutation_stats_response
+        .get("lock_wait_histogram")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "missing lock_wait_histogram array".to_string())?;
+    if lock_wait_histogram.len() != lock_wait_buckets.len().saturating_add(1) {
+        return Err("lock wait histogram length must equal buckets + 1".into());
+    }
+
+    let queue_depth_buckets = mutation_stats_response
+        .get("queue_depth_buckets")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "missing queue_depth_buckets array".to_string())?;
+    let queue_depth_histogram = mutation_stats_response
+        .get("queue_depth_histogram")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "missing queue_depth_histogram array".to_string())?;
+    if queue_depth_histogram.len() != queue_depth_buckets.len().saturating_add(1) {
+        return Err("queue depth histogram length must equal buckets + 1".into());
+    }
+    for field in ["lock_acquisitions", "active_holders", "pending_waiters"] {
+        if mutation_stats_response.get(field).is_none() {
+            return Err(format!("missing mutation stats field: {field}").into());
+        }
+    }
+
+    let exchanges = vec![
+        DebugEndpointExchange {
+            sequence: 1,
+            method: "GET".to_string(),
+            url: debug_url.clone(),
+            status: unauthorized_status.as_u16(),
+            response: unauthorized_json,
+        },
+        DebugEndpointExchange {
+            sequence: 2,
+            method: "GET".to_string(),
+            url: debug_url,
+            status: authorized_status.as_u16(),
+            response: mutation_stats_response.clone(),
+        },
+    ];
+    reporter.artifacts().write_json("tool_transcript.json", &exchanges)?;
+    reporter.artifacts().write_json("mutation_stats_response.json", &mutation_stats_response)?;
+    reporter.finish(
+        "pass",
+        vec!["debug mutation stats endpoint is auth-protected and schema-stable".to_string()],
+        vec![
+            "summary.json".to_string(),
+            "summary.md".to_string(),
+            "tool_transcript.json".to_string(),
+            "mutation_stats_response.json".to_string(),
         ],
     )?;
     drop(reporter);

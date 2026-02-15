@@ -89,6 +89,24 @@ struct PerfTarget {
     sync_mode: String,
     #[serde(default = "default_sqlite_busy_timeout_ms")]
     busy_timeout_ms: u64,
+    #[serde(default = "default_sqlite_writer_queue_capacity")]
+    writer_queue_capacity: usize,
+    #[serde(default = "default_sqlite_batch_max_ops")]
+    batch_max_ops: usize,
+    #[serde(default = "default_sqlite_batch_max_bytes")]
+    batch_max_bytes: usize,
+    #[serde(default = "default_sqlite_batch_max_wait_ms")]
+    batch_max_wait_ms: u64,
+    #[serde(default = "default_sqlite_read_pool_size")]
+    read_pool_size: usize,
+    #[serde(default = "default_read_pool_sweep_sizes")]
+    read_pool_sweep_sizes: Vec<usize>,
+    #[serde(default = "default_registry_health_max_adjacent_p95_ratio")]
+    registry_health_max_adjacent_p95_ratio: f64,
+    #[serde(default = "default_registry_health_min_high_tier_batch_size_p95")]
+    registry_health_min_high_tier_batch_size_p95: u64,
+    #[serde(default = "default_registry_health_high_tier_workers")]
+    registry_health_high_tier_workers: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -96,9 +114,12 @@ struct AggregateMetrics {
     total_calls: usize,
     successful_calls: usize,
     failed_calls: usize,
+    total_duration_us: u64,
     total_duration_ms: u64,
     throughput_rps: f64,
     error_rate: f64,
+    p50_latency_us: u64,
+    p95_latency_us: u64,
     p50_latency_ms: u64,
     p95_latency_ms: u64,
 }
@@ -108,8 +129,11 @@ struct ToolMetrics {
     tool: String,
     calls: usize,
     failed_calls: usize,
+    total_duration_us: u64,
     total_duration_ms: u64,
     throughput_rps: f64,
+    p50_latency_us: u64,
+    p95_latency_us: u64,
     p50_latency_ms: u64,
     p95_latency_ms: u64,
 }
@@ -130,7 +154,7 @@ struct PerfSummary {
 #[derive(Debug, Clone)]
 struct CallSample {
     tool: String,
-    duration_ms: u64,
+    duration_us: u64,
     success: bool,
 }
 
@@ -146,11 +170,48 @@ struct SweepResult {
 }
 
 #[derive(Debug, Clone, Serialize)]
+struct SweepTierDetail {
+    workers: usize,
+    warmup_iterations: usize,
+    measure_iterations: usize,
+    metrics: AggregateMetrics,
+    tools: BTreeMap<String, ToolMetrics>,
+    contention: SqlitePerfStatsSnapshot,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct ReadPoolSweepResult {
+    read_pool_size: usize,
+    workers: usize,
+    warmup_iterations: usize,
+    measure_iterations: usize,
+    throughput_rps: f64,
+    p95_latency_ms: u64,
+    error_rate: f64,
+    contention: SqlitePerfStatsSnapshot,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct RegistryHealthReport {
+    monotonic_throughput: bool,
+    max_adjacent_p95_ratio: f64,
+    error_rate_zero: bool,
+    busy_locked_zero: bool,
+    high_tier_batching_ok: bool,
+    findings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 struct SqliteConfigReport {
     path: String,
     journal_mode: String,
     sync_mode: String,
     busy_timeout_ms: u64,
+    writer_queue_capacity: usize,
+    batch_max_ops: usize,
+    batch_max_bytes: usize,
+    batch_max_wait_ms: u64,
+    read_pool_size: usize,
 }
 
 struct BenchContext {
@@ -174,17 +235,28 @@ fn perf_sqlite_store_run_state_contention_release() -> Result<(), Box<dyn std::e
         context.target.workers,
         context.target.warmup_iterations,
         context.target.measure_iterations,
+        "gate",
     )?;
     let contention = context.store.perf_stats_snapshot();
 
-    let sweep = run_run_state_sweep(
+    let (sweep, sweep_detailed) = run_run_state_sweep(
         &context.store,
         context.target.warmup_iterations,
         context.target.measure_iterations,
         &context.target.sweep_workers,
     )?;
 
-    finalize_report(&mut context, RUN_STATE_TARGET_KEY, samples, elapsed, contention, sweep)
+    context.reporter.artifacts().write_json("sqlite_sweep_detailed.json", &sweep_detailed)?;
+    finalize_report(
+        &mut context,
+        RUN_STATE_TARGET_KEY,
+        samples,
+        elapsed,
+        contention,
+        sweep,
+        &["sqlite_sweep_detailed.json"],
+        Vec::new(),
+    )
 }
 
 #[test]
@@ -200,17 +272,44 @@ fn perf_sqlite_store_registry_contention_release() -> Result<(), Box<dyn std::er
         context.target.workers,
         context.target.warmup_iterations,
         context.target.measure_iterations,
+        "gate",
     )?;
     let contention = context.store.perf_stats_snapshot();
 
-    let sweep = run_registry_sweep(
+    let (sweep, sweep_detailed) = run_registry_sweep(
         &context.store,
         context.target.warmup_iterations,
         context.target.measure_iterations,
         &context.target.sweep_workers,
     )?;
+    let registry_health = evaluate_registry_health(&context.target, &sweep_detailed);
+    let read_pool_sweep = run_registry_read_pool_sweep(
+        &context.target,
+        context.reporter.artifacts().root(),
+        context.target.workers,
+        context.target.warmup_iterations,
+        context.target.measure_iterations,
+    )?;
+    context.reporter.artifacts().write_json("sqlite_sweep_detailed.json", &sweep_detailed)?;
+    context.reporter.artifacts().write_json("registry_health.json", &registry_health)?;
+    context.reporter.artifacts().write_json("sqlite_read_pool_sweep.json", &read_pool_sweep)?;
 
-    finalize_report(&mut context, REGISTRY_TARGET_KEY, samples, elapsed, contention, sweep)
+    let mut extra_notes = Vec::new();
+    if !registry_health.findings.is_empty() {
+        for finding in &registry_health.findings {
+            extra_notes.push(format!("registry_health: {finding}"));
+        }
+    }
+    finalize_report(
+        &mut context,
+        REGISTRY_TARGET_KEY,
+        samples,
+        elapsed,
+        contention,
+        sweep,
+        &["sqlite_sweep_detailed.json", "registry_health.json", "sqlite_read_pool_sweep.json"],
+        extra_notes,
+    )
 }
 
 fn init_context(
@@ -236,6 +335,11 @@ fn init_context(
         max_versions: None,
         schema_registry_max_schema_bytes: None,
         schema_registry_max_entries: None,
+        writer_queue_capacity: target.writer_queue_capacity,
+        batch_max_ops: target.batch_max_ops,
+        batch_max_bytes: target.batch_max_bytes,
+        batch_max_wait_ms: target.batch_max_wait_ms,
+        read_pool_size: target.read_pool_size,
     })?;
 
     Ok(BenchContext {
@@ -247,6 +351,11 @@ fn init_context(
             journal_mode: target.journal_mode,
             sync_mode: target.sync_mode,
             busy_timeout_ms: target.busy_timeout_ms,
+            writer_queue_capacity: target.writer_queue_capacity,
+            batch_max_ops: target.batch_max_ops,
+            batch_max_bytes: target.batch_max_bytes,
+            batch_max_wait_ms: target.batch_max_wait_ms,
+            read_pool_size: target.read_pool_size,
         },
         reporter,
     })
@@ -257,24 +366,29 @@ fn run_run_state_workload(
     workers: usize,
     warmup_iterations: usize,
     measure_iterations: usize,
+    workload_label: &str,
 ) -> Result<(Vec<CallSample>, Duration), Box<dyn std::error::Error>> {
     let tenant_id = TenantId::from_raw(1).ok_or("tenant id failed")?;
     let namespace_id = NamespaceId::from_raw(1).ok_or("namespace id failed")?;
     let warmup_distribution = distribute_iterations(warmup_iterations, workers)?;
     let measure_distribution = distribute_iterations(measure_iterations, workers)?;
+    let workload_label = workload_label.to_string();
     let started = Instant::now();
     let mut joins = Vec::new();
 
-    for worker_idx in 0..workers {
+    for worker_idx in 0 .. workers {
         let store = store.clone();
+        let workload_label = workload_label.clone();
         let warmup = warmup_distribution[worker_idx];
         let measured = measure_distribution[worker_idx];
         joins.push(std::thread::spawn(move || {
             let total = warmup.saturating_add(measured);
             let mut samples = Vec::new();
-            for local_idx in 0..total {
+            for local_idx in 0 .. total {
                 let measured_phase = local_idx >= warmup;
-                let run_id = RunId::new(format!("sqlite-run-state-{worker_idx:02}-{local_idx:05}"));
+                let run_id = RunId::new(format!(
+                    "sqlite-run-state-{workload_label}-{worker_idx:02}-{local_idx:05}"
+                ));
                 let state = sample_state(tenant_id, namespace_id, &run_id);
 
                 let save_started = Instant::now();
@@ -282,7 +396,7 @@ fn run_run_state_workload(
                 if measured_phase {
                     samples.push(CallSample {
                         tool: "run_state_save".to_string(),
-                        duration_ms: duration_to_ms_u64(save_started.elapsed()).unwrap_or(u64::MAX),
+                        duration_us: duration_to_us_u64(save_started.elapsed()).unwrap_or(u64::MAX),
                         success: save_result.is_ok(),
                     });
                 }
@@ -293,7 +407,7 @@ fn run_run_state_workload(
                 if measured_phase {
                     samples.push(CallSample {
                         tool: "run_state_load".to_string(),
-                        duration_ms: duration_to_ms_u64(load_started.elapsed()).unwrap_or(u64::MAX),
+                        duration_us: duration_to_us_u64(load_started.elapsed()).unwrap_or(u64::MAX),
                         success: load_success,
                     });
                 }
@@ -315,27 +429,30 @@ fn run_registry_workload(
     workers: usize,
     warmup_iterations: usize,
     measure_iterations: usize,
+    workload_label: &str,
 ) -> Result<(Vec<CallSample>, Duration), Box<dyn std::error::Error>> {
     let tenant_id = TenantId::from_raw(1).ok_or("tenant id failed")?;
     let namespace_id = NamespaceId::from_raw(1).ok_or("namespace id failed")?;
     let warmup_distribution = distribute_iterations(warmup_iterations, workers)?;
     let measure_distribution = distribute_iterations(measure_iterations, workers)?;
+    let workload_label = workload_label.to_string();
     let started = Instant::now();
     let mut joins = Vec::new();
 
-    for worker_idx in 0..workers {
+    for worker_idx in 0 .. workers {
         let store = store.clone();
+        let workload_label = workload_label.clone();
         let warmup = warmup_distribution[worker_idx];
         let measured = measure_distribution[worker_idx];
         joins.push(std::thread::spawn(move || {
             let total = warmup.saturating_add(measured);
             let mut samples = Vec::new();
-            for local_idx in 0..total {
+            for local_idx in 0 .. total {
                 let measured_phase = local_idx >= warmup;
                 let record = sample_schema_record(
                     tenant_id,
                     namespace_id,
-                    &format!("sqlite-schema-{worker_idx:02}-{local_idx:05}"),
+                    &format!("sqlite-schema-{workload_label}-{worker_idx:02}-{local_idx:05}"),
                 );
 
                 let register_started = Instant::now();
@@ -343,7 +460,7 @@ fn run_registry_workload(
                 if measured_phase {
                     samples.push(CallSample {
                         tool: "schemas_register".to_string(),
-                        duration_ms: duration_to_ms_u64(register_started.elapsed())
+                        duration_us: duration_to_us_u64(register_started.elapsed())
                             .unwrap_or(u64::MAX),
                         success: register_result.is_ok(),
                     });
@@ -355,7 +472,7 @@ fn run_registry_workload(
                 if measured_phase {
                     samples.push(CallSample {
                         tool: "schemas_list".to_string(),
-                        duration_ms: duration_to_ms_u64(list_started.elapsed()).unwrap_or(u64::MAX),
+                        duration_us: duration_to_us_u64(list_started.elapsed()).unwrap_or(u64::MAX),
                         success: list_success,
                     });
                 }
@@ -377,13 +494,21 @@ fn run_run_state_sweep(
     warmup_iterations: usize,
     measure_iterations: usize,
     workers: &[usize],
-) -> Result<Vec<SweepResult>, Box<dyn std::error::Error>> {
+) -> Result<(Vec<SweepResult>, Vec<SweepTierDetail>), Box<dyn std::error::Error>> {
     let mut output = Vec::new();
+    let mut detailed = Vec::new();
     for worker_count in workers {
         store.reset_perf_stats();
-        let (samples, elapsed) =
-            run_run_state_workload(store, *worker_count, warmup_iterations, measure_iterations)?;
+        let (samples, elapsed) = run_run_state_workload(
+            store,
+            *worker_count,
+            warmup_iterations,
+            measure_iterations,
+            &format!("sweep-{worker_count:02}"),
+        )?;
         let metrics = summarize_samples(&samples, elapsed)?;
+        let tools = build_tool_metrics(&samples, elapsed)?;
+        let contention = store.perf_stats_snapshot();
         output.push(SweepResult {
             workers: *worker_count,
             warmup_iterations,
@@ -393,8 +518,16 @@ fn run_run_state_sweep(
             p95_latency_ms: metrics.p95_latency_ms,
             error_rate: metrics.error_rate,
         });
+        detailed.push(SweepTierDetail {
+            workers: *worker_count,
+            warmup_iterations,
+            measure_iterations,
+            metrics,
+            tools,
+            contention,
+        });
     }
-    Ok(output)
+    Ok((output, detailed))
 }
 
 fn run_registry_sweep(
@@ -402,13 +535,21 @@ fn run_registry_sweep(
     warmup_iterations: usize,
     measure_iterations: usize,
     workers: &[usize],
-) -> Result<Vec<SweepResult>, Box<dyn std::error::Error>> {
+) -> Result<(Vec<SweepResult>, Vec<SweepTierDetail>), Box<dyn std::error::Error>> {
     let mut output = Vec::new();
+    let mut detailed = Vec::new();
     for worker_count in workers {
         store.reset_perf_stats();
-        let (samples, elapsed) =
-            run_registry_workload(store, *worker_count, warmup_iterations, measure_iterations)?;
+        let (samples, elapsed) = run_registry_workload(
+            store,
+            *worker_count,
+            warmup_iterations,
+            measure_iterations,
+            &format!("sweep-{worker_count:02}"),
+        )?;
         let metrics = summarize_samples(&samples, elapsed)?;
+        let tools = build_tool_metrics(&samples, elapsed)?;
+        let contention = store.perf_stats_snapshot();
         output.push(SweepResult {
             workers: *worker_count,
             warmup_iterations,
@@ -418,8 +559,140 @@ fn run_registry_sweep(
             p95_latency_ms: metrics.p95_latency_ms,
             error_rate: metrics.error_rate,
         });
+        detailed.push(SweepTierDetail {
+            workers: *worker_count,
+            warmup_iterations,
+            measure_iterations,
+            metrics,
+            tools,
+            contention,
+        });
+    }
+    Ok((output, detailed))
+}
+
+fn run_registry_read_pool_sweep(
+    target: &PerfTarget,
+    artifacts_root: &std::path::Path,
+    workers: usize,
+    warmup_iterations: usize,
+    measure_iterations: usize,
+) -> Result<Vec<ReadPoolSweepResult>, Box<dyn std::error::Error>> {
+    let mut output = Vec::new();
+    for read_pool_size in &target.read_pool_sweep_sizes {
+        let sqlite_path = artifacts_root.join(format!("sqlite-read-pool-{read_pool_size}.sqlite"));
+        let journal_mode = sqlite_store_mode_from_target(&target.journal_mode)?;
+        let sync_mode = sqlite_sync_mode_from_target(&target.sync_mode)?;
+        let store = SqliteRunStateStore::new(SqliteStoreConfig {
+            path: sqlite_path,
+            busy_timeout_ms: target.busy_timeout_ms,
+            journal_mode,
+            sync_mode,
+            max_versions: None,
+            schema_registry_max_schema_bytes: None,
+            schema_registry_max_entries: None,
+            writer_queue_capacity: target.writer_queue_capacity,
+            batch_max_ops: target.batch_max_ops,
+            batch_max_bytes: target.batch_max_bytes,
+            batch_max_wait_ms: target.batch_max_wait_ms,
+            read_pool_size: *read_pool_size,
+        })?;
+        store.reset_perf_stats();
+        let (samples, elapsed) =
+            run_registry_workload(&store, workers, warmup_iterations, measure_iterations, "pool")?;
+        let metrics = summarize_samples(&samples, elapsed)?;
+        let contention = store.perf_stats_snapshot();
+        output.push(ReadPoolSweepResult {
+            read_pool_size: *read_pool_size,
+            workers,
+            warmup_iterations,
+            measure_iterations,
+            throughput_rps: metrics.throughput_rps,
+            p95_latency_ms: metrics.p95_latency_ms,
+            error_rate: metrics.error_rate,
+            contention,
+        });
     }
     Ok(output)
+}
+
+fn evaluate_registry_health(
+    target: &PerfTarget,
+    sweep: &[SweepTierDetail],
+) -> RegistryHealthReport {
+    let mut findings = Vec::new();
+    let mut monotonic_throughput = true;
+    let mut max_adjacent_p95_ratio = 0.0_f64;
+    let mut error_rate_zero = true;
+    let mut busy_locked_zero = true;
+    let mut high_tier_batching_ok = true;
+
+    for window in sweep.windows(2) {
+        let previous = &window[0];
+        let current = &window[1];
+        if current.metrics.throughput_rps + f64::EPSILON < previous.metrics.throughput_rps {
+            monotonic_throughput = false;
+            findings.push(format!(
+                "throughput dropped at workers {} -> {} ({:.3} -> {:.3} rps)",
+                previous.workers,
+                current.workers,
+                previous.metrics.throughput_rps,
+                current.metrics.throughput_rps
+            ));
+        }
+        let baseline = (previous.metrics.p95_latency_ms as f64).max(1.0);
+        let ratio = current.metrics.p95_latency_ms as f64 / baseline;
+        if ratio > max_adjacent_p95_ratio {
+            max_adjacent_p95_ratio = ratio;
+        }
+        if ratio > target.registry_health_max_adjacent_p95_ratio {
+            findings.push(format!(
+                "adjacent p95 ratio {:.3} exceeds {:.3} at workers {} -> {}",
+                ratio,
+                target.registry_health_max_adjacent_p95_ratio,
+                previous.workers,
+                current.workers
+            ));
+        }
+    }
+
+    for tier in sweep {
+        if tier.metrics.error_rate > 0.0 {
+            error_rate_zero = false;
+            findings.push(format!(
+                "non-zero error rate at workers={}: {:.6}",
+                tier.workers, tier.metrics.error_rate
+            ));
+        }
+        if tier.contention.db_errors.busy > 0 || tier.contention.db_errors.locked > 0 {
+            busy_locked_zero = false;
+            findings.push(format!(
+                "busy/locked errors at workers={}: busy={} locked={}",
+                tier.workers, tier.contention.db_errors.busy, tier.contention.db_errors.locked
+            ));
+        }
+        if tier.workers >= target.registry_health_high_tier_workers
+            && tier.contention.writer.batch_size_p95
+                < target.registry_health_min_high_tier_batch_size_p95
+        {
+            high_tier_batching_ok = false;
+            findings.push(format!(
+                "batch_size_p95 {} below minimum {} at workers={}",
+                tier.contention.writer.batch_size_p95,
+                target.registry_health_min_high_tier_batch_size_p95,
+                tier.workers
+            ));
+        }
+    }
+
+    RegistryHealthReport {
+        monotonic_throughput,
+        max_adjacent_p95_ratio,
+        error_rate_zero,
+        busy_locked_zero,
+        high_tier_batching_ok,
+        findings,
+    }
 }
 
 fn finalize_report(
@@ -429,6 +702,8 @@ fn finalize_report(
     elapsed: Duration,
     contention: SqlitePerfStatsSnapshot,
     sweep: Vec<SweepResult>,
+    extra_artifacts: &[&str],
+    extra_notes: Vec<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let metrics = summarize_samples(&samples, elapsed)?;
     let tools = build_tool_metrics(&samples, elapsed)?;
@@ -450,12 +725,26 @@ fn finalize_report(
 
     context.reporter.artifacts().write_json("perf_summary.json", &summary)?;
     context.reporter.artifacts().write_json("sqlite_contention.json", &contention)?;
+    context.reporter.artifacts().write_json("writer_diagnostics.json", &contention.writer)?;
     context.reporter.artifacts().write_json("sqlite_sweep.json", &sweep)?;
 
     let mut notes = vec![format!(
         "measured {} calls at {} rps",
         summary.metrics.total_calls, summary.metrics.throughput_rps
     )];
+    notes.push(format!(
+        "sqlite profile journal_mode={} sync_mode={} busy_timeout_ms={} writer_queue_capacity={} \
+         batch_max_ops={} batch_max_bytes={} batch_max_wait_ms={} read_pool_size={}",
+        context.sqlite_config.journal_mode,
+        context.sqlite_config.sync_mode,
+        context.sqlite_config.busy_timeout_ms,
+        context.sqlite_config.writer_queue_capacity,
+        context.sqlite_config.batch_max_ops,
+        context.sqlite_config.batch_max_bytes,
+        context.sqlite_config.batch_max_wait_ms,
+        context.sqlite_config.read_pool_size
+    ));
+    notes.extend(extra_notes);
     if !slo_enforced {
         if target_meta_enforces_slo(&context.target_meta) {
             notes.push(format!("SLO assertions skipped via {}", PERF_SKIP_SLO_ASSERTS_ENV));
@@ -471,19 +760,20 @@ fn finalize_report(
     }
 
     let status = if violations.is_empty() { "pass" } else { "fail" };
-    context.reporter.finish(
-        status,
-        notes,
-        vec![
-            "summary.json".to_string(),
-            "summary.md".to_string(),
-            "perf_summary.json".to_string(),
-            "perf_target.json".to_string(),
-            "sqlite_config.json".to_string(),
-            "sqlite_contention.json".to_string(),
-            "sqlite_sweep.json".to_string(),
-        ],
-    )?;
+    let mut artifacts = vec![
+        "summary.json".to_string(),
+        "summary.md".to_string(),
+        "perf_summary.json".to_string(),
+        "perf_target.json".to_string(),
+        "sqlite_config.json".to_string(),
+        "sqlite_contention.json".to_string(),
+        "writer_diagnostics.json".to_string(),
+        "sqlite_sweep.json".to_string(),
+    ];
+    for artifact in extra_artifacts {
+        artifacts.push((*artifact).to_string());
+    }
+    context.reporter.finish(status, notes, artifacts)?;
 
     if !violations.is_empty() {
         return Err(format!("SLO violations: {}", violations.join("; ")).into());
@@ -584,8 +874,8 @@ fn sqlite_sync_mode_from_target(mode: &str) -> Result<SqliteSyncMode, String> {
     }
 }
 
-fn duration_to_ms_u64(duration: Duration) -> Result<u64, String> {
-    u64::try_from(duration.as_millis()).map_err(|_| "duration milliseconds overflow".to_string())
+fn duration_to_us_u64(duration: Duration) -> Result<u64, String> {
+    u64::try_from(duration.as_micros()).map_err(|_| "duration microseconds overflow".to_string())
 }
 
 fn distribute_iterations(total: usize, workers: usize) -> Result<Vec<usize>, String> {
@@ -595,7 +885,7 @@ fn distribute_iterations(total: usize, workers: usize) -> Result<Vec<usize>, Str
     let base = total / workers;
     let remainder = total % workers;
     let mut distribution = vec![base; workers];
-    for idx in 0..remainder {
+    for idx in 0 .. remainder {
         if let Some(item) = distribution.get_mut(idx) {
             *item = item.saturating_add(1);
         }
@@ -603,7 +893,7 @@ fn distribute_iterations(total: usize, workers: usize) -> Result<Vec<usize>, Str
     Ok(distribution)
 }
 
-fn percentile_ms(latencies: &[u64], percentile: u32) -> Result<u64, String> {
+fn percentile_u64(latencies: &[u64], percentile: u32) -> Result<u64, String> {
     if latencies.is_empty() {
         return Err("no latency samples available for percentile calculation".to_string());
     }
@@ -632,11 +922,14 @@ fn summarize_samples(
     }
     let failed_calls = samples.iter().filter(|sample| !sample.success).count();
     let successful_calls = total_calls.saturating_sub(failed_calls);
-    let total_duration_ms =
-        samples.iter().fold(0u64, |acc, sample| acc.saturating_add(sample.duration_ms));
-    let latencies: Vec<u64> = samples.iter().map(|sample| sample.duration_ms).collect();
-    let p50_latency_ms = percentile_ms(&latencies, 50)?;
-    let p95_latency_ms = percentile_ms(&latencies, 95)?;
+    let total_duration_us =
+        samples.iter().fold(0u64, |acc, sample| acc.saturating_add(sample.duration_us));
+    let total_duration_ms = total_duration_us / 1_000;
+    let latencies_us: Vec<u64> = samples.iter().map(|sample| sample.duration_us).collect();
+    let p50_latency_us = percentile_u64(&latencies_us, 50)?;
+    let p95_latency_us = percentile_u64(&latencies_us, 95)?;
+    let p50_latency_ms = p50_latency_us / 1_000;
+    let p95_latency_ms = p95_latency_us / 1_000;
     let total_calls_u64 =
         u64::try_from(total_calls).map_err(|_| "total calls overflow".to_string())?;
     let failed_calls_u64 =
@@ -651,9 +944,12 @@ fn summarize_samples(
         total_calls,
         successful_calls,
         failed_calls,
+        total_duration_us,
         total_duration_ms,
         throughput_rps,
         error_rate,
+        p50_latency_us,
+        p95_latency_us,
         p50_latency_ms,
         p95_latency_ms,
     })
@@ -671,23 +967,29 @@ fn build_tool_metrics(
     for (tool, entries) in by_tool {
         let calls = entries.len();
         let failed_calls = entries.iter().filter(|entry| !entry.success).count();
-        let latencies: Vec<u64> = entries.iter().map(|entry| entry.duration_ms).collect();
-        let total_duration_ms =
-            entries.iter().fold(0u64, |acc, entry| acc.saturating_add(entry.duration_ms));
+        let latencies_us: Vec<u64> = entries.iter().map(|entry| entry.duration_us).collect();
+        let total_duration_us =
+            entries.iter().fold(0u64, |acc, entry| acc.saturating_add(entry.duration_us));
+        let total_duration_ms = total_duration_us / 1_000;
         let calls_u64 = u64::try_from(calls).map_err(|_| "tool calls overflow".to_string())?;
         let calls_u32 = u32::try_from(calls_u64)
             .map_err(|_| "tool calls too large for f64 conversion".to_string())?;
         let throughput_rps = f64::from(calls_u32) / elapsed.as_secs_f64().max(0.000_001);
+        let p50_latency_us = percentile_u64(&latencies_us, 50)?;
+        let p95_latency_us = percentile_u64(&latencies_us, 95)?;
         output.insert(
             tool.clone(),
             ToolMetrics {
                 tool,
                 calls,
                 failed_calls,
+                total_duration_us,
                 total_duration_ms,
                 throughput_rps,
-                p50_latency_ms: percentile_ms(&latencies, 50)?,
-                p95_latency_ms: percentile_ms(&latencies, 95)?,
+                p50_latency_us,
+                p95_latency_us,
+                p50_latency_ms: p50_latency_us / 1_000,
+                p95_latency_ms: p95_latency_us / 1_000,
             },
         );
     }
@@ -750,4 +1052,40 @@ fn default_sqlite_sync_mode() -> String {
 
 const fn default_sqlite_busy_timeout_ms() -> u64 {
     5_000
+}
+
+const fn default_sqlite_writer_queue_capacity() -> usize {
+    1_024
+}
+
+const fn default_sqlite_batch_max_ops() -> usize {
+    64
+}
+
+const fn default_sqlite_batch_max_bytes() -> usize {
+    512 * 1024
+}
+
+const fn default_sqlite_batch_max_wait_ms() -> u64 {
+    2
+}
+
+const fn default_sqlite_read_pool_size() -> usize {
+    4
+}
+
+fn default_read_pool_sweep_sizes() -> Vec<usize> {
+    vec![4, 8, 16]
+}
+
+const fn default_registry_health_max_adjacent_p95_ratio() -> f64 {
+    2.5
+}
+
+const fn default_registry_health_min_high_tier_batch_size_p95() -> u64 {
+    2
+}
+
+const fn default_registry_health_high_tier_workers() -> usize {
+    8
 }

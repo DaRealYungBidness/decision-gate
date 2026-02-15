@@ -228,7 +228,9 @@ pub fn validate_inputs(
 pub async fn run_interop(config: InteropConfig) -> Result<InteropReport, String> {
     let mut client = InteropClient::new(&config)?;
 
-    let define_input = ScenarioDefineRequest { spec: config.spec.clone() };
+    let define_input = ScenarioDefineRequest {
+        spec: config.spec.clone(),
+    };
     let define_value =
         serde_json::to_value(&define_input).map_err(|err| format!("define payload: {err}"))?;
     let define_response: ScenarioDefineResponse =
@@ -384,7 +386,11 @@ struct McpGenericClient {
 impl McpGenericClient {
     /// Creates a new generic MCP client wrapper.
     const fn new(client: McpClient) -> Self {
-        Self { client, transcript: Vec::new(), next_id: 1 }
+        Self {
+            client,
+            transcript: Vec::new(),
+            next_id: 1,
+        }
     }
 
     /// Returns a cloned transcript of all requests/responses.
@@ -591,7 +597,10 @@ impl McpHttpClient {
         let parsed: ToolCallResult = serde_json::from_value(result)
             .map_err(|err| format!("invalid tools/call payload for {name}: {err}"))?;
         let mut iter = parsed.content.into_iter();
-        let Some(ToolContent::Json { json }) = iter.next() else {
+        let Some(ToolContent::Json {
+            json,
+        }) = iter.next()
+        else {
             return Err(format!("tool {name} returned no json content"));
         };
         Ok(json)
@@ -723,7 +732,7 @@ impl McpHttpClient {
             return String::new();
         }
         let preview_len = bytes.len().min(MAX_INTEROP_ERROR_BODY_BYTES);
-        let preview = String::from_utf8_lossy(&bytes[..preview_len]);
+        let preview = String::from_utf8_lossy(&bytes[.. preview_len]);
         if bytes.len() > preview_len {
             let remaining = bytes.len() - preview_len;
             format!("{preview}...[truncated {remaining} bytes]")

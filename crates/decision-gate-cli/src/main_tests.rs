@@ -113,7 +113,10 @@ fn read_bytes_with_limit_rejects_large_file() {
 
     let err = read_bytes_with_limit(&path, limit).expect_err("expected size limit failure");
     match err {
-        ReadLimitError::TooLarge { size, limit: reported } => {
+        ReadLimitError::TooLarge {
+            size,
+            limit: reported,
+        } => {
             let limit_u64 = u64::try_from(limit).expect("limit fits");
             assert!(size > limit_u64);
             assert_eq!(reported, limit);

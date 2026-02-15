@@ -35,14 +35,20 @@
 
 use std::io::BufReader;
 use std::io::Cursor;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
 use axum::body::Bytes;
+use axum::body::to_bytes;
+use axum::extract::ConnectInfo;
 use axum::extract::State;
+use axum::http::HeaderMap;
+use axum::http::HeaderValue;
 use axum::http::StatusCode;
+use axum::http::header::AUTHORIZATION;
 use axum::http::header::CONTENT_TYPE;
 use axum::http::header::WWW_AUTHENTICATE;
 use axum::response::IntoResponse;
@@ -72,6 +78,7 @@ use super::build_response_headers;
 use super::build_schema_registry_limits;
 use super::build_server_state;
 use super::handle_health;
+use super::handle_mutation_stats;
 use super::handle_ready;
 use super::parse_request;
 use super::read_framed;
@@ -467,6 +474,14 @@ fn parse_request_sync(
     tokio::runtime::Runtime::new().expect("runtime").block_on(parse_request(state, context, bytes))
 }
 
+fn parse_json_body_sync(response: axum::response::Response) -> serde_json::Value {
+    let bytes = tokio::runtime::Runtime::new()
+        .expect("runtime")
+        .block_on(to_bytes(response.into_body(), usize::MAX))
+        .expect("response body bytes");
+    serde_json::from_slice(&bytes).expect("response body json")
+}
+
 fn server_state_from_config(config: DecisionGateConfig) -> ServerState {
     let McpServer {
         config,
@@ -755,6 +770,86 @@ fn rate_limited_error_maps_to_json_rpc() {
     let data = error.data.expect("error data");
     assert!(data.retryable);
     assert_eq!(data.retry_after_ms, Some(1500));
+}
+
+#[test]
+fn mutation_stats_requires_auth_in_bearer_mode() {
+    let mut config = sample_config();
+    config.server.transport = ServerTransport::Http;
+    config.server.bind = Some("127.0.0.1:0".to_string());
+    config.server.auth = Some(ServerAuthConfig {
+        mode: ServerAuthMode::BearerToken,
+        bearer_tokens: vec!["token".to_string()],
+        mtls_subjects: Vec::new(),
+        allowed_tools: Vec::new(),
+        principals: Vec::new(),
+    });
+    let state = Arc::new(server_state_from_config(config));
+    let response =
+        tokio::runtime::Runtime::new().expect("runtime").block_on(handle_mutation_stats(
+            State(state),
+            ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 3456))),
+            HeaderMap::new(),
+        ));
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[test]
+fn mutation_stats_allows_authorized_bearer() {
+    let mut config = sample_config();
+    config.server.transport = ServerTransport::Http;
+    config.server.bind = Some("127.0.0.1:0".to_string());
+    config.server.auth = Some(ServerAuthConfig {
+        mode: ServerAuthMode::BearerToken,
+        bearer_tokens: vec!["token".to_string()],
+        mtls_subjects: Vec::new(),
+        allowed_tools: Vec::new(),
+        principals: Vec::new(),
+    });
+    let state = Arc::new(server_state_from_config(config));
+    let mut headers = HeaderMap::new();
+    headers.insert(AUTHORIZATION, HeaderValue::from_static("Bearer token"));
+    let response =
+        tokio::runtime::Runtime::new().expect("runtime").block_on(handle_mutation_stats(
+            State(state),
+            ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 4567))),
+            headers,
+        ));
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[test]
+fn mutation_stats_response_shape_stable() {
+    let state = Arc::new(sample_server_state());
+    let response =
+        tokio::runtime::Runtime::new().expect("runtime").block_on(handle_mutation_stats(
+            State(state),
+            ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 5678))),
+            HeaderMap::new(),
+        ));
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = parse_json_body_sync(response);
+    let lock_wait_buckets = body
+        .get("lock_wait_buckets_us")
+        .and_then(serde_json::Value::as_array)
+        .expect("lock wait buckets");
+    let lock_wait_histogram = body
+        .get("lock_wait_histogram")
+        .and_then(serde_json::Value::as_array)
+        .expect("lock wait histogram");
+    let queue_depth_buckets = body
+        .get("queue_depth_buckets")
+        .and_then(serde_json::Value::as_array)
+        .expect("queue depth buckets");
+    let queue_depth_histogram = body
+        .get("queue_depth_histogram")
+        .and_then(serde_json::Value::as_array)
+        .expect("queue depth histogram");
+    assert_eq!(lock_wait_histogram.len(), lock_wait_buckets.len().saturating_add(1));
+    assert_eq!(queue_depth_histogram.len(), queue_depth_buckets.len().saturating_add(1));
+    assert!(body.get("lock_acquisitions").is_some());
+    assert!(body.get("active_holders").is_some());
+    assert!(body.get("pending_waiters").is_some());
 }
 
 #[test]

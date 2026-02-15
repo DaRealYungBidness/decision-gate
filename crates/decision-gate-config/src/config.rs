@@ -1540,6 +1540,21 @@ pub struct RunStateStoreConfig {
     /// Optional max versions to retain per run.
     #[serde(default)]
     pub max_versions: Option<u64>,
+    /// `SQLite` writer queue capacity.
+    #[serde(default = "default_store_writer_queue_capacity")]
+    pub writer_queue_capacity: usize,
+    /// `SQLite` writer batch max operation count.
+    #[serde(default = "default_store_batch_max_ops")]
+    pub batch_max_ops: usize,
+    /// `SQLite` writer batch max aggregate bytes.
+    #[serde(default = "default_store_batch_max_bytes")]
+    pub batch_max_bytes: usize,
+    /// `SQLite` writer batch max wait window in milliseconds.
+    #[serde(default = "default_store_batch_max_wait_ms")]
+    pub batch_max_wait_ms: u64,
+    /// `SQLite` read connection pool size.
+    #[serde(default = "default_store_read_pool_size")]
+    pub read_pool_size: usize,
 }
 
 impl Default for RunStateStoreConfig {
@@ -1551,6 +1566,11 @@ impl Default for RunStateStoreConfig {
             journal_mode: SqliteStoreMode::default(),
             sync_mode: SqliteSyncMode::default(),
             max_versions: None,
+            writer_queue_capacity: default_store_writer_queue_capacity(),
+            batch_max_ops: default_store_batch_max_ops(),
+            batch_max_bytes: default_store_batch_max_bytes(),
+            batch_max_wait_ms: default_store_batch_max_wait_ms(),
+            read_pool_size: default_store_read_pool_size(),
         }
     }
 }
@@ -1558,6 +1578,31 @@ impl Default for RunStateStoreConfig {
 impl RunStateStoreConfig {
     /// Validates run state store configuration.
     fn validate(&self) -> Result<(), ConfigError> {
+        if self.writer_queue_capacity == 0 {
+            return Err(ConfigError::Invalid(
+                "run_state_store writer_queue_capacity must be greater than zero".to_string(),
+            ));
+        }
+        if self.batch_max_ops == 0 {
+            return Err(ConfigError::Invalid(
+                "run_state_store batch_max_ops must be greater than zero".to_string(),
+            ));
+        }
+        if self.batch_max_bytes == 0 {
+            return Err(ConfigError::Invalid(
+                "run_state_store batch_max_bytes must be greater than zero".to_string(),
+            ));
+        }
+        if self.batch_max_wait_ms == 0 {
+            return Err(ConfigError::Invalid(
+                "run_state_store batch_max_wait_ms must be greater than zero".to_string(),
+            ));
+        }
+        if self.read_pool_size == 0 {
+            return Err(ConfigError::Invalid(
+                "run_state_store read_pool_size must be greater than zero".to_string(),
+            ));
+        }
         match self.store_type {
             RunStateStoreType::Memory => {
                 if self.path.is_some() {
@@ -1621,6 +1666,21 @@ pub struct SchemaRegistryConfig {
     /// Registry ACL configuration.
     #[serde(default)]
     pub acl: RegistryAclConfig,
+    /// `SQLite` writer queue capacity.
+    #[serde(default = "default_store_writer_queue_capacity")]
+    pub writer_queue_capacity: usize,
+    /// `SQLite` writer batch max operation count.
+    #[serde(default = "default_store_batch_max_ops")]
+    pub batch_max_ops: usize,
+    /// `SQLite` writer batch max aggregate bytes.
+    #[serde(default = "default_store_batch_max_bytes")]
+    pub batch_max_bytes: usize,
+    /// `SQLite` writer batch max wait window in milliseconds.
+    #[serde(default = "default_store_batch_max_wait_ms")]
+    pub batch_max_wait_ms: u64,
+    /// `SQLite` read connection pool size.
+    #[serde(default = "default_store_read_pool_size")]
+    pub read_pool_size: usize,
 }
 
 impl Default for SchemaRegistryConfig {
@@ -1634,6 +1694,11 @@ impl Default for SchemaRegistryConfig {
             max_schema_bytes: default_schema_max_bytes(),
             max_entries: None,
             acl: RegistryAclConfig::default(),
+            writer_queue_capacity: default_store_writer_queue_capacity(),
+            batch_max_ops: default_store_batch_max_ops(),
+            batch_max_bytes: default_store_batch_max_bytes(),
+            batch_max_wait_ms: default_store_batch_max_wait_ms(),
+            read_pool_size: default_store_read_pool_size(),
         }
     }
 }
@@ -1641,6 +1706,31 @@ impl Default for SchemaRegistryConfig {
 impl SchemaRegistryConfig {
     /// Validates schema registry configuration.
     fn validate(&self) -> Result<(), ConfigError> {
+        if self.writer_queue_capacity == 0 {
+            return Err(ConfigError::Invalid(
+                "schema_registry writer_queue_capacity must be greater than zero".to_string(),
+            ));
+        }
+        if self.batch_max_ops == 0 {
+            return Err(ConfigError::Invalid(
+                "schema_registry batch_max_ops must be greater than zero".to_string(),
+            ));
+        }
+        if self.batch_max_bytes == 0 {
+            return Err(ConfigError::Invalid(
+                "schema_registry batch_max_bytes must be greater than zero".to_string(),
+            ));
+        }
+        if self.batch_max_wait_ms == 0 {
+            return Err(ConfigError::Invalid(
+                "schema_registry batch_max_wait_ms must be greater than zero".to_string(),
+            ));
+        }
+        if self.read_pool_size == 0 {
+            return Err(ConfigError::Invalid(
+                "schema_registry read_pool_size must be greater than zero".to_string(),
+            ));
+        }
         if self.max_schema_bytes == 0 || self.max_schema_bytes > MAX_SCHEMA_MAX_BYTES {
             return Err(ConfigError::Invalid(
                 "schema_registry max_schema_bytes out of range".to_string(),
@@ -2309,6 +2399,31 @@ pub(crate) const fn default_doc_max_sections() -> u32 {
 /// Default busy timeout for the `SQLite` store (ms).
 pub(crate) const fn default_store_busy_timeout_ms() -> u64 {
     5_000
+}
+
+/// Default `SQLite` writer queue capacity.
+pub(crate) const fn default_store_writer_queue_capacity() -> usize {
+    1_024
+}
+
+/// Default `SQLite` writer batch max operation count.
+pub(crate) const fn default_store_batch_max_ops() -> usize {
+    64
+}
+
+/// Default `SQLite` writer batch max aggregate bytes.
+pub(crate) const fn default_store_batch_max_bytes() -> usize {
+    512 * 1024
+}
+
+/// Default `SQLite` writer batch max wait window (ms).
+pub(crate) const fn default_store_batch_max_wait_ms() -> u64 {
+    2
+}
+
+/// Default `SQLite` read connection pool size.
+pub(crate) const fn default_store_read_pool_size() -> usize {
+    4
 }
 
 /// Default max schema size for registry payloads.

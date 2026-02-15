@@ -25,6 +25,12 @@ max_error_rate = 0.0
 journal_mode = "wal"
 sync_mode = "full"
 busy_timeout_ms = 5000
+writer_queue_capacity = 1024
+batch_max_ops = 64
+batch_max_bytes = 524288
+batch_max_wait_ms = 2
+read_pool_size = 4
+registry_health_max_adjacent_p95_ratio = 2.5
 
 [tests.perf_sqlite_precheck_throughput_release]
 description = "SQLite WAL+FULL precheck MCP throughput report."
@@ -39,6 +45,12 @@ max_error_rate = 0.0
 journal_mode = "wal"
 sync_mode = "full"
 busy_timeout_ms = 5000
+writer_queue_capacity = 1024
+batch_max_ops = 64
+batch_max_bytes = 524288
+batch_max_wait_ms = 2
+read_pool_size = 4
+registry_health_max_adjacent_p95_ratio = 2.5
 
 [tests.perf_sqlite_registry_mixed_throughput_release]
 description = "SQLite WAL+FULL schemas register/list mixed throughput report."
@@ -53,6 +65,12 @@ max_error_rate = 0.0
 journal_mode = "wal"
 sync_mode = "full"
 busy_timeout_ms = 5000
+writer_queue_capacity = 1024
+batch_max_ops = 64
+batch_max_bytes = 524288
+batch_max_wait_ms = 2
+read_pool_size = 4
+registry_health_max_adjacent_p95_ratio = 2.0
 
 [tests.perf_sqlite_store_run_state_contention_release]
 description = "Direct SQLite run-state save/load contention microbench."
@@ -67,6 +85,12 @@ max_error_rate = 0.0
 journal_mode = "wal"
 sync_mode = "full"
 busy_timeout_ms = 5000
+writer_queue_capacity = 1024
+batch_max_ops = 64
+batch_max_bytes = 524288
+batch_max_wait_ms = 2
+read_pool_size = 4
+registry_health_max_adjacent_p95_ratio = 2.5
 
 [tests.perf_sqlite_store_registry_contention_release]
 description = "Direct SQLite schema register/list contention microbench."
@@ -81,3 +105,12 @@ max_error_rate = 0.0
 journal_mode = "wal"
 sync_mode = "full"
 busy_timeout_ms = 5000
+writer_queue_capacity = 1024
+batch_max_ops = 64
+batch_max_bytes = 524288
+batch_max_wait_ms = 2
+read_pool_size = 4
+read_pool_sweep_sizes = [4, 8, 16]
+registry_health_max_adjacent_p95_ratio = 2.0
+registry_health_min_high_tier_batch_size_p95 = 2
+registry_health_high_tier_workers = 8

@@ -168,6 +168,9 @@ Decision Gate is composed of:
 - Inflight request caps and optional rate limiting for MCP tool calls.
 - MCP tool calls require explicit authn/authz (local-only by default; bearer or
   mTLS subject allowlists when configured) with audit logging.
+- Debug mutation diagnostics endpoint (`/debug/mutation_stats`) is protected by
+  the same auth model as MCP tool calls and fails closed (`401`/`403`) on
+  unauthenticated/unauthorized requests.
 - Tool visibility filters list/call surfaces; docs search/resources can be
   disabled.
 - Tenant authorization hook (if configured) gates tool calls and is audited.
@@ -184,7 +187,8 @@ Decision Gate is composed of:
 ### Authentication, Authorization, and Access Control
 
 - Unauthorized tool access: local-only defaults, bearer/mTLS modes, per-tool
-  allowlists, tool visibility filters, and audit logging.
+  allowlists, tool visibility filters, auth-gated debug diagnostics endpoints,
+  and audit logging.
 - Tenant/namespace abuse: namespace authority checks, default namespace
   deny-by-default, tenant authz hooks, and registry ACLs.
 - Registry poisoning/leakage: ACL rules and optional signing metadata
@@ -360,3 +364,10 @@ Decision Gate is composed of:
 - Added explicit authoring input size/depth limits in contract normalization.
 - Added HTTP source host allow/deny policy with private/link-local IP guards.
 - Enforced symlink-safe file source opens for rooted file disclosures.
+
+## Threat Model Delta (2026-02-14)
+
+- Tightened debug diagnostics boundary: `/debug/mutation_stats` now follows MCP
+  auth semantics and fails closed for unauthorized callers.
+- Added end-to-end auth/schema coverage for debug mutation diagnostics to keep
+  the contract auditable and deterministic under security regression.

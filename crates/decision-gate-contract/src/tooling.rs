@@ -199,8 +199,8 @@ fn runpack_export_contract() -> ToolContract {
             "Writes manifest and logs to output_dir; generated_at is recorded in the manifest."
                 .to_string(),
             "include_verification adds a verification report artifact.".to_string(),
-            "Export-time report.checked_files excludes verifier_report.json; offline runpack_verify \
-             checked_files includes it (+1 for the same runpack)."
+            "Export-time report.checked_files excludes verifier_report.json; offline \
+             runpack_verify checked_files includes it (+1 for the same runpack)."
                 .to_string(),
             "Use after runs complete or for audit snapshots.".to_string(),
         ],
